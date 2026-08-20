@@ -71,6 +71,17 @@ interface is the reference to beat.
 finds it without knowing a state path. It is not designed to be committed and nothing
 breaks if it is, because it holds no secrets.
 
+**TOML on disk, JSON at both edges.** A person edits the file, so it is TOML: comments
+are allowed, multi-line strings stay readable, and a hand-edit does not mean counting
+brackets. The agent that drafts comments and the `gh` CLI that posts them both speak
+JSON, so JSON is the input and the output and never the thing anyone edits.
+
+**Every field is posted or local, declared once.** The payload builder reads only the
+posted fields, which makes the split structural rather than a list someone maintains.
+Local fields carry what the review is actually built on: the command that proved a
+finding and what it printed, the doubt, the reason a finding was declined. A `skip` with
+its reason stays in the file, so a considered-and-declined finding reads as considered.
+
 **Seen-state delegates before it invents.** `git range-diff old..new` and `jj interdiff`
 already answer "what did the author actually change since I looked," and both are better
 tested than anything I would write. Cache the diff I reviewed, and on the next fetch ask
@@ -170,8 +181,12 @@ The review pipeline, which is the walking skeleton:
 - Comments carry evidence, not only a citation. A common flow is running the code under
   review, by hand or through Claude Code, then writing a comment from what happened. The
   schema needs a place for that output and the TUI needs a way to attach it
-- A `[TODO:` and `[AI:` convention that survives the round trip, matching what
-  `change-review` already produces
+- Local fields, shown while reviewing and never sent. The split is declared once in the
+  schema and enforced by the payload builder, which reads only the posted fields, so a
+  private note cannot leak by being forgotten
+- An unknown field is refused, in a batch or in the file. A misspelled key is a hand-edit
+  that will not do what its author meant, and a field the schema does not know is one the
+  split cannot classify
 - Draft text persists to the artifact and never posts. A draft present at submit time
   blocks the submit and is flagged for manual review
 
