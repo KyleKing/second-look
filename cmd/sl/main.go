@@ -1,15 +1,14 @@
+// Command sl prepares a code review locally and posts it in one call.
 package main
 
 import (
 	"fmt"
-	"time"
-
-	"github.com/kyleking/aragonite/cache"
+	"os"
 )
 
 func main() {
-	c := cache.NewTTLCache[string](time.Minute)
-	c.Set("kyleking/second-look#1", cache.NoStamp, "wired")
-	got, ok := c.Get("kyleking/second-look#1", cache.NoStamp)
-	fmt.Println(got, ok)
+	if err := run(os.Args[1:], os.Stdin, os.Stdout); err != nil {
+		fmt.Fprintln(os.Stderr, "sl:", err)
+		os.Exit(1)
+	}
 }
