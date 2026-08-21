@@ -61,16 +61,15 @@ directory, the goreleaser build, and the gitignored binary path off `project_nam
 a repo whose binary is named something else gets two entrypoints. `golangci-lint` had
 never run on this code and found 75 issues; all of them are fixed.
 
-Two things the template needs, both worked around here rather than in
-[my_go_template](https://github.com/KyleKing/my_go_template):
+Two things [my_go_template](https://github.com/KyleKing/my_go_template) needed:
 
 - `verify-released` and its hk pre-push step exist at the template's HEAD but not at the
   v0.11.4 tag, so they were copied in by hand. A `copier update` after the next release
   should be a no-op
 - tombi keeps a TOML array multi-line only when it has a trailing comma, and none of the
-  template's arrays do, so `hk check` fails on a fresh scaffold and the fix collapses
-  `.golangci.toml` into 300-character lines. Trailing commas were added here.
-  gh-repo-dashboard has the same failure
+  template's arrays had one, so `hk check` failed on a fresh scaffold and the fix
+  collapsed `.golangci.toml` into 300-character lines. Fixed in the template and in
+  gh-repo-dashboard, which had the same failure, and unreleased there too
 
 Two settings this repo owns rather than inherits. `fieldalignment` is off, because
 go-toml writes keys in declaration order and packing `Review` and `Comment` would
