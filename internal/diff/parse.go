@@ -1,0 +1,148 @@
+// Package diff parses a unified diff into the line numbers a review comment
+// anchors to.
+//
+// It reads only what an anchor needs: which file a hunk belongs to, and which
+// pre-image and post-image line each of its lines carries. Rename detection,
+// binary payloads, and mode changes are skipped rather than modeled.
+package diff
+
+import (
+	"strconv"
+	"strings"
+)
+
+// Kinds of diff line, spelled the way the patch spells them.
+const (
+	KindContext = ' '
+	KindAdd     = '+'
+	KindRemove  = '-'
+)
+
+// Line is one line of a hunk. Old is its number in the pre-image and New its
+// number in the post-image; the one a line does not exist in is zero.
+type Line struct {
+	Text string
+	Kind byte
+	Old  int
+	New  int
+}
+
+// File is one file's lines, in patch order.
+type File struct {
+	OldPath string
+	NewPath string
+	Lines   []Line
+}
+
+// Diff is a parsed unified diff.
+type Diff struct {
+	Files []File
+}
+
+// Parse reads a unified diff. A patch it cannot make sense of yields fewer
+// files rather than an error, because a diff is evidence and a parser that
+// refuses one leaves the caller with nothing to check against.
+func Parse(patch []byte) *Diff {
+	var (
+		out     Diff
+		current *File
+		old     int
+		newLine int
+	)
+
+	for _, raw := range strings.Split(string(patch), "\n") {
+		switch {
+		case strings.HasPrefix(raw, "diff --git "):
+			out.Files = append(out.Files, File{})
+			current = &out.Files[len(out.Files)-1]
+			old, newLine = 0, 0
+		case current == nil:
+			continue
+		case strings.HasPrefix(raw, "--- "):
+			current.OldPath = headerPath(raw[len("--- "):])
+		case strings.HasPrefix(raw, "+++ "):
+			current.NewPath = headerPath(raw[len("+++ "):])
+		case strings.HasPrefix(raw, "@@"):
+			start := hunkStart(raw)
+			old, newLine = start.old, start.new
+		case old == 0 && newLine == 0:
+			continue
+		default:
+			appendLine(current, raw, &old, &newLine)
+		}
+	}
+
+	return &out
+}
+
+func appendLine(f *File, raw string, old, newLine *int) {
+	if raw == "" {
+		return
+	}
+
+	kind, text := raw[0], raw[1:]
+
+	switch kind {
+	case KindContext:
+		f.Lines = append(f.Lines, Line{Kind: KindContext, Old: *old, New: *newLine, Text: text})
+		*old++
+		*newLine++
+	case KindAdd:
+		f.Lines = append(f.Lines, Line{Kind: KindAdd, New: *newLine, Text: text})
+		*newLine++
+	case KindRemove:
+		f.Lines = append(f.Lines, Line{Kind: KindRemove, Old: *old, Text: text})
+		*old++
+	}
+}
+
+// headerPath strips the a/ or b/ prefix git writes and the trailing tab some
+// diff generators append. A /dev/null side yields the empty string.
+func headerPath(s string) string {
+	if tab := strings.IndexByte(s, '\t'); tab >= 0 {
+		s = s[:tab]
+	}
+
+	if s == "/dev/null" {
+		return ""
+	}
+
+	if len(s) > 2 && (s[:2] == "a/" || s[:2] == "b/") {
+		return s[2:]
+	}
+
+	return s
+}
+
+// starts is a hunk's first line number on each side.
+type starts struct {
+	old int
+	new int
+}
+
+// hunkStart reads a hunk's first pre-image and post-image line number out of
+// its @@ header. A header it cannot read yields zeroes, which skips the
+// hunk's body rather than numbering it from the wrong place.
+func hunkStart(header string) starts {
+	fields := strings.Fields(header)
+
+	const wantFields = 3
+	if len(fields) < wantFields || !strings.HasPrefix(fields[1], "-") || !strings.HasPrefix(fields[2], "+") {
+		return starts{}
+	}
+
+	return starts{old: rangeStart(fields[1][1:]), new: rangeStart(fields[2][1:])}
+}
+
+func rangeStart(s string) int {
+	if comma := strings.IndexByte(s, ','); comma >= 0 {
+		s = s[:comma]
+	}
+
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+
+	return n
+}

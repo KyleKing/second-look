@@ -10,11 +10,15 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/kyleking/aragonite/forge/github"
+
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 )
 
 var (
+	errHeadMoved      = errors.New("the pull request has new commits")
 	errNoCommand      = errors.New("no command; try second-look -h")
 	errNotAPRNumber   = errors.New("not a pull request number")
 	errUnknownCommand = errors.New("unknown command; try second-look -h")
@@ -119,6 +123,16 @@ func commentCmd(args []string, stdin io.Reader, stdout io.Writer) error {
 	if err := staged.Validate(); err != nil {
 		return fmt.Errorf("the batch was rejected and nothing was written:\n%w", err)
 	}
+
+	cached, err := artifact.LoadDiff(".", staged.HeadSHA)
+	if err != nil {
+		return fmt.Errorf("the batch was rejected and nothing was written: %w", err)
+	}
+
+	if err := artifact.Resolve(staged.Comments, diff.Parse(cached)); err != nil {
+		return fmt.Errorf("the batch was rejected and nothing was written:\n%w", err)
+	}
+
 	if err := artifact.Save(path, &staged); err != nil {
 		return fmt.Errorf("saving the prepared review: %w", err)
 	}
@@ -170,6 +184,10 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return fmt.Errorf("loading the prepared review: %w", err)
 	}
 
+	if err := guardAnchors(ctx, r); err != nil {
+		return err
+	}
+
 	payload, replies, err := r.Payload()
 	if err != nil {
 		return fmt.Errorf("building the payload: %w", err)
@@ -194,6 +212,31 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	return postReplies(ctx, r, replies)
+}
+
+// guardAnchors compares every comment against the pull request's current diff
+// before anything is sent. A comment whose line moved would land on whatever
+// now sits there, which is worse than not posting it.
+func guardAnchors(ctx context.Context, r *artifact.Review) error {
+	pr, err := github.GetPR(ctx, ".", r.Number)
+	if err != nil {
+		return fmt.Errorf("checking the pull request head: %w", err)
+	}
+	if pr.HeadSHA != r.HeadSHA {
+		return fmt.Errorf("%w: prepared against %s, now at %s; run second-look get %d",
+			errHeadMoved, r.HeadSHA, pr.HeadSHA, r.Number)
+	}
+
+	patch, err := github.PRDiff(ctx, ".", r.Number)
+	if err != nil {
+		return fmt.Errorf("reading the current diff: %w", err)
+	}
+
+	if err := artifact.Verify(r.Comments, diff.Parse(patch)); err != nil {
+		return fmt.Errorf("nothing was posted:\n%w", err)
+	}
+
+	return nil
 }
 
 func dryRun(stdout io.Writer, r *artifact.Review, endpoint string, body []byte, replies []artifact.ReplyPayload) error {

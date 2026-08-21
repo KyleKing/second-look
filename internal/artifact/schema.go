@@ -60,6 +60,11 @@ type Comment struct {
 	// Body is the exact text to post, and the only prose here that anyone else reads.
 	Body string `json:"body" post:"body" toml:"body"`
 
+	// Anchor is the diff line Line points at, quoted when the comment was
+	// staged. Posting compares it against the live diff, so a comment whose
+	// line moved is refused rather than landing on whatever now sits there.
+	Anchor string `json:"anchor,omitempty" toml:"anchor,omitempty"`
+
 	// InReplyTo is the review comment this answers. A reply posts through the
 	// replies endpoint rather than inside the review payload.
 	InReplyTo int64 `json:"in_reply_to,omitempty" toml:"in_reply_to,omitempty"`
@@ -115,10 +120,7 @@ func (r *Review) Validate() error {
 	for i := range r.Comments {
 		c := &r.Comments[i]
 
-		where := c.ID
-		if where == "" {
-			where = fmt.Sprintf("comment %d", i)
-		}
+		where := name(c, i)
 
 		if c.ID != "" && seen[c.ID] {
 			errs = append(errs, fmt.Errorf("%s: %w", where, ErrDuplicateID))

@@ -83,7 +83,7 @@ WHAT POSTS
 WHAT STAYS LOCAL
 
   review:   note
-  comment:  id, note, severity, status, skip_reason
+  comment:  id, anchor, note, severity, status, skip_reason
 
   A skipped comment is never posted and stays in the file, so a finding that was
   considered and declined reads as considered rather than forgotten.
@@ -93,6 +93,13 @@ WHAT IS REFUSED
   An unknown field, in the batch or in the file. A misspelled key is a hand-edit
   that will not do what its author meant, and a field the schema does not know is
   one the split cannot classify.
+
+  A comment on a line the diff does not carry. A line number invented out of
+  nothing is the most common failure in this workflow, and GitHub refuses the
+  comment anyway, so it is caught while staging rather than on the wire.
+
+  A comment whose diff line has changed since it was staged, and a post against
+  a pull request that has new commits. Re-run second-look get and re-read them.
 
   A draft at post time. Mark it ready or skip it; second-look will not guess.
 
@@ -104,4 +111,8 @@ ANCHORS
   line is in the file's post-image when side is RIGHT and its pre-image when LEFT,
   which is GitHub's own convention. For a multi-line comment, start_line and
   start_side mark the first line and line marks the last.
+
+  Staging quotes the diff line an anchor points at into the comment's anchor
+  field, and posting compares that text against the live diff byte for byte.
+  The quote is second-look's, not yours: it is overwritten on every stage.
 `
