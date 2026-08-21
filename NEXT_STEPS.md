@@ -43,12 +43,11 @@ blocks pushing it until aragonite is released.
 
 ## Built
 
-`internal/artifact` holds the schema, the TOML store, and the payload builder, with the
-posted and local split enforced by the builder rather than by a list.
-`second-look comment add`, `second-look show`, `second-look show --payload`,
-`second-look post`, and `second-look post --dry-run` work. Seven tests cover the split,
-the draft refusal, replies, the round trip, unknown keys, and the all-problems-at-once
-validator.
+`internal/artifact` holds the schema, the TOML store, the payload builder, and the
+anchor guard, with the posted and local split enforced by the builder rather than by a
+list. `internal/diff` parses the unified diff both halves of the guard read.
+`second-look get`, `comment add`, `show`, `show --payload`, `post`, and `post --dry-run`
+all work, smoke-tested end to end against a real pull request.
 
 The `change-review` skill drafts through `second-look` and no longer writes a markdown
 staging file. The original is backed up at `~/.claude/change-review-pre-sl.bak/`.
@@ -76,41 +75,49 @@ go-toml writes keys in declaration order and packing `Review` and `Comment` woul
 scramble the file a person hand-edits. `_skip_if_exists` kept `DESIGN.md`, `README.md`,
 and `go.mod`.
 
-## 2. `second-look get`
+## 2. `second-look get` — done
 
-The one piece of the pipeline still done by hand. Fetch the pull request, resolve the
-head SHA, write the artifact, and cache the diff.
+It reads the pull request through `aragonite/forge/github`, moves the working copy onto
+its head, writes the artifact, and caches the diff under `.second-look/diff/` keyed by
+head commit. It never clones.
 
-- Read the PR through `gh`, which means the forge client (step 4)
-- Only work inside an existing checkout. `second-look get` never clones
-- Check the PR out. A checkout has to move the working tree, so it needs a clean one and
-  errors otherwise. Being already on the PR head with uncommitted changes is fine and
-  never blocks, because refusing to review a branch you already have because you have
-  unstaged edits would be wrong
-- When behind and dirty, try `git pull --ff-only` and stop with the reason if it refuses.
-  **Never `--autostash`.** Tested on git 2.x: `--ff-only --autostash` against a dirty file
-  the pull also touches **exits 0 while leaving `UU` conflict markers in the tree and the
-  stash still on the stack**. A tool that checks the exit code would walk straight into a
-  review of a conflicted working tree. Plain `--ff-only` fast-forwards fine when the
-  incoming change does not touch the dirty files, and refuses cleanly when it does,
-  changing nothing
-- jj needs none of this. Its working copy is a commit, so a fetch never has uncommitted
-  work to clobber
-- Show the mismatch and the resolution as a keybinding when HEAD is not the PR head, and
-  say how many in-progress comments survive the move
-- Cache the diff under `.second-look/`, keyed by head SHA, since the anchor guard and
-  every later feature reads it
+Moving the working tree needs a clean one, and being already on the pull request head
+never blocks however dirty the tree is. Already on the branch but behind, it tries
+`git pull --ff-only` and stops with git's own reason when that refuses. **Never
+`--autostash`**: on git 2.x `--ff-only --autostash` against a dirty file the pull also
+touches exits 0 while leaving `UU` conflict markers in the tree and the stash still on
+the stack, so a tool reading the exit code walks into a review of a conflicted tree.
 
-## 3. The anchor guard
+jj needs none of the guard, since its working copy is a commit and a fetch has nothing
+uncommitted to clobber. The jj paths are written and untested: I have no colocated jj
+checkout with an open pull request to run them against.
 
-Currently `second-look` validates shape and not truth, and the skill carries the gap as
-the agent's job (Step 0). That is the right stopgap and the wrong resting place, because
-a bot citing line 993 of a 137-line file is the single most common failure in this
-workflow.
+Re-running `get` after the head moves says how many staged comments came with it, and
+the anchor guard re-checks each one on post. The keybinding that resolves the mismatch
+waits for the TUI.
 
-prr is the reference: quote the diff line each comment anchors to, and compare it byte
-for byte against the live diff before posting. Refuse on a mismatch and say which comment
-moved. Once this lands, cut Step 0 from the skill.
+One thing the plan missed. `.second-look/` is untracked, so second-look's own state
+counted against the clean-tree guard and `get` refused to run a second time. The
+artifact tree now carries a `.gitignore` of its own, which is also what keeps the
+prepared review out of the user's commits.
+
+## 3. The anchor guard — done
+
+Two checks rather than one, because the failure has two shapes.
+
+Staging resolves each comment against the cached diff and quotes the line it anchors to
+into the comment's `anchor` field. A comment on a line the diff does not carry is
+refused with nothing written, which is where a bot citing line 993 of a 137-line file
+now gets caught. GitHub refuses that comment anyway, so this only moves the refusal
+somewhere a person can read it.
+
+Posting re-reads the live diff and compares those quotes byte for byte, and refuses
+outright if the pull request has new commits. `internal/diff` is the parser both sides
+share: it reads only what an anchor needs, so a rename or a binary payload is skipped
+rather than modeled.
+
+Step 0 is cut from the skill, replaced by `sl get <pr>` and a note that anchors are
+checked from there.
 
 ## 4. Extract `forge` and `vcs` into aragonite — done
 
@@ -164,7 +171,12 @@ Two things to copy from hunk's skill, which is 184 lines:
 
 `go mod tidy` fails in both consumers today because aragonite has no published version,
 and CI has no workspace to fall back on. So this blocks step 1's `mise run ci` in GitHub
-Actions even though it is listed last.
+Actions even though it is listed last. `mise run verify-released` now fails in
+second-look too, for the same reason and by the same design.
+
+aragonite still has no tooling of its own: no `.golangci.toml`, no mise config, no hk
+setup. It was linted here with a copy of gh-repo-dashboard's config, which is not a
+thing anything enforces. Scaffold it before the first release rather than after.
 
 The standing workflow after that:
 
@@ -188,6 +200,12 @@ library from its tag and no goreleaser is involved. Consumers then `go get` the 
 version and commit the `go.mod` change.
 
 ## Open questions
+
+**The 70% coverage floor is not enforced anywhere.** `mise run test:coverage-min`
+exists, CI does not run it, and it has never passed: 33.5% before this work and 39.9%
+after. `internal/get` is the largest gap, and it is untestable as written because
+aragonite's command stubs are exported only to aragonite's own tests. Either widen those
+or drop the task.
 
 **Whether the review-cost rating moves to aragonite.** It reads the diff, the symbol
 graph, and the changed symbols, so it may belong next to `codeintel` rather than here.
