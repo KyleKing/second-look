@@ -2,6 +2,7 @@ package main
 
 const shortHelp = `second-look — prepare a code review locally, then post it in one call.
 
+  second-look get <pr>             fetch the PR, check it out, prepare the review
   second-look comment add <pr>     stage comments from a JSON batch on stdin
   second-look show <pr>            print the prepared review
   second-look show <pr> --payload  print exactly what would be sent
@@ -24,6 +25,15 @@ never sent. The split is enforced by the payload builder, which reads only the
 posted fields, so a local field cannot leak by being forgotten.
 
 COMMANDS
+
+  second-look get <pr>
+      Read the pull request, move the working copy onto its head, write the
+      prepared review, and cache the diff under .second-look/diff/. Run this
+      first: every later command reads the head commit and the diff it leaves.
+
+      It never clones, and it never moves a dirty working tree. Already being on
+      the pull request head is fine however dirty the tree, since refusing to
+      review a branch you already have would be wrong.
 
   second-look comment add <pr>
       Read a JSON batch on stdin and stage it. A comment carrying an id that is

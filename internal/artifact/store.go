@@ -13,7 +13,53 @@ import (
 // Dir is the artifact directory, relative to the repository root.
 const Dir = ".second-look"
 
-const dirPerm = 0o750
+const (
+	dirPerm  = 0o750
+	filePerm = 0o600
+)
+
+// ensureDir creates dir and keeps the artifact tree out of the repository's
+// own status. Without the ignore file the working copy is never clean, so a
+// checkout guard reading the uncommitted count refuses to move for state
+// second-look wrote itself.
+func ensureDir(dir string) error {
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
+		return fmt.Errorf("creating %s: %w", dir, err)
+	}
+
+	tree, ok := treeRoot(dir)
+	if !ok {
+		return nil
+	}
+
+	ignore := filepath.Join(tree, ".gitignore")
+	if _, err := os.Stat(ignore); err == nil {
+		return nil
+	}
+
+	if err := os.WriteFile(ignore, []byte("*\n"), filePerm); err != nil {
+		return fmt.Errorf("writing %s: %w", ignore, err)
+	}
+
+	return nil
+}
+
+// treeRoot walks up from a directory inside the artifact tree to the tree
+// itself, so a nested directory ignores through the same file rather than its
+// own. It reports false for a directory outside any artifact tree, where
+// there is nothing of second-look's to hide.
+func treeRoot(dir string) (string, bool) {
+	for filepath.Base(dir) != Dir {
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+
+		dir = parent
+	}
+
+	return dir, true
+}
 
 // Path is where the review for a pull request is kept.
 func Path(root string, number int) string {
@@ -56,8 +102,8 @@ func Save(path string, r *Review) error {
 		return fmt.Errorf("refusing to write %s: %w", path, err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
-		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
+	if err := ensureDir(filepath.Dir(path)); err != nil {
+		return err
 	}
 
 	data, err := toml.Marshal(r)

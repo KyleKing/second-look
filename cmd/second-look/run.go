@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/get"
 )
 
 var (
@@ -18,6 +19,7 @@ var (
 	errNotAPRNumber   = errors.New("not a pull request number")
 	errUnknownCommand = errors.New("unknown command; try second-look -h")
 	errUsageComment   = errors.New("usage: second-look comment add <pr>")
+	errUsageGet       = errors.New("usage: second-look get <pr>")
 	errUsagePost      = errors.New("usage: second-look post <pr> [--dry-run]")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--payload]")
 )
@@ -32,6 +34,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return write(stdout, shortHelp)
 	case "--help", "help":
 		return write(stdout, longHelp)
+	case "get":
+		return getCmd(ctx, args[1:], stdout)
 	case "comment":
 		return commentCmd(args[1:], stdin, stdout)
 	case "show":
@@ -50,6 +54,23 @@ type batch struct {
 	Body     string             `json:"body,omitempty"`
 	Event    string             `json:"event,omitempty"`
 	Comments []artifact.Comment `json:"comments"`
+}
+
+func getCmd(ctx context.Context, args []string, stdout io.Writer) error {
+	if len(args) == 0 {
+		return errUsageGet
+	}
+
+	number, err := prNumber(args[0])
+	if err != nil {
+		return err
+	}
+
+	if err := get.Run(ctx, stdout, ".", number); err != nil {
+		return fmt.Errorf("get %d: %w", number, err)
+	}
+
+	return nil
 }
 
 func commentCmd(args []string, stdin io.Reader, stdout io.Writer) error {
@@ -98,7 +119,6 @@ func commentCmd(args []string, stdin io.Reader, stdout io.Writer) error {
 	if err := staged.Validate(); err != nil {
 		return fmt.Errorf("the batch was rejected and nothing was written:\n%w", err)
 	}
-
 	if err := artifact.Save(path, &staged); err != nil {
 		return fmt.Errorf("saving the prepared review: %w", err)
 	}
@@ -245,10 +265,19 @@ func writeJSON(w io.Writer, v any) error {
 }
 
 func artifactPath(pr string) (string, error) {
-	var number int
-	if _, err := fmt.Sscanf(strings.TrimPrefix(pr, "#"), "%d", &number); err != nil {
-		return "", fmt.Errorf("%q is %w", pr, errNotAPRNumber)
+	number, err := prNumber(pr)
+	if err != nil {
+		return "", err
 	}
 
 	return artifact.Path(".", number), nil
+}
+
+func prNumber(pr string) (int, error) {
+	var number int
+	if _, err := fmt.Sscanf(strings.TrimPrefix(pr, "#"), "%d", &number); err != nil {
+		return 0, fmt.Errorf("%q is %w", pr, errNotAPRNumber)
+	}
+
+	return number, nil
 }
