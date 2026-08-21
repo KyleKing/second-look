@@ -29,6 +29,18 @@ outlives the post, and the schema loses a field rather than gaining one.
 
 `models.PRInfo` is now `forge.PullRequest` in aragonite, moved outright with no alias.
 
+`forge` holds data and predicates only. Everything that emits a glyph, a placeholder, or
+a human-readable duration moved to gh-repo-dashboard's `internal/ui`, which becomes
+`aragonite/ui` once second-look has a TUI and gh-sweep is being cut over. gh-sweep is the
+third consumer: it carries its own `internal/tui/theme` with terminal detection, while
+gh-repo-dashboard has `styles`, `table`, and `markdown`.
+
+`my_go_template` now ships a `verify-released` task (`GOWORK=off`, build and test) and
+runs it as an hk **pre-push** step. Committing against a local sibling checkout is the
+normal state; pushing a module that only builds against an unpublished one is the
+mistake. gh-repo-dashboard has it, and it currently fails there by design, which is what
+blocks pushing it until aragonite is released.
+
 ## Built
 
 `internal/artifact` holds the schema, the TOML store, and the payload builder, with the
@@ -67,10 +79,20 @@ The one piece of the pipeline still done by hand. Fetch the pull request, resolv
 head SHA, write the artifact, and cache the diff.
 
 - Read the PR through `gh`, which means the forge client (step 4)
+- Only work inside an existing checkout. `sl get` never clones
 - Check the PR out. A checkout has to move the working tree, so it needs a clean one and
-  errors otherwise, in git and jj alike. Being already on the PR head with uncommitted
-  changes is fine and never blocks, because refusing to review a branch you already have
-  because you have unstaged edits would be wrong
+  errors otherwise. Being already on the PR head with uncommitted changes is fine and
+  never blocks, because refusing to review a branch you already have because you have
+  unstaged edits would be wrong
+- When behind and dirty, try `git pull --ff-only` and stop with the reason if it refuses.
+  **Never `--autostash`.** Tested on git 2.x: `--ff-only --autostash` against a dirty file
+  the pull also touches **exits 0 while leaving `UU` conflict markers in the tree and the
+  stash still on the stack**. A tool that checks the exit code would walk straight into a
+  review of a conflicted working tree. Plain `--ff-only` fast-forwards fine when the
+  incoming change does not touch the dirty files, and refuses cleanly when it does,
+  changing nothing
+- jj needs none of this. Its working copy is a commit, so a fetch never has uncommitted
+  work to clobber
 - Show the mismatch and the resolution as a keybinding when HEAD is not the PR head, and
   say how many in-progress comments survive the move
 - Cache the diff under `.second-look/`, keyed by head SHA, since the anchor guard and
@@ -151,14 +173,12 @@ version and commit the `go.mod` change.
 
 ## Open questions
 
-**How `sl get` handles a PR against a repo not cloned locally.** There is no branch to be
-wrong about and nothing to check out. Whether that is in scope or an error is undecided.
+**Whether the review-cost rating moves to aragonite.** It reads the diff, the symbol
+graph, and the changed symbols, so it may belong next to `codeintel` rather than here.
+Not a question worth answering before it is written: extract it if a second tool wants
+it, and leave it here otherwise.
 
-**Which of the moved display helpers belong in `forge`.** `ReviewGlyph` and
-`StatusDisplay` emit specific glyphs, which is a rendering choice sitting in a data
-package. They moved with their types because splitting them would have doubled the churn,
-and both tools do render pull requests. Revisit when `tui/` exists.
-
-**Whether the review-cost rating needs its own package.** It reads the diff, the symbol
-graph, and the changed symbols, so it may want to live in aragonite next to `codeintel`
-rather than in second-look. Undecided until it is written.
+**Where the tests for moved code should live.** Splitting the display code left some
+pull request tests in gh-repo-dashboard's `internal/app` exercising functions that now
+live in `internal/ui`. They still test the behavior, so this is tidiness rather than
+coverage.
