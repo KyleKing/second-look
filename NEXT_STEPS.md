@@ -112,13 +112,25 @@ prr is the reference: quote the diff line each comment anchors to, and compare i
 for byte against the live diff before posting. Refuse on a mismatch and say which comment
 moved. Once this lands, cut Step 0 from the skill.
 
-## 4. Extract `forge` and `vcs` into aragonite
+## 4. Extract `forge` and `vcs` into aragonite — done
 
-`second-look get` and `second-look post` both want the `gh` wrapper that
-gh-repo-dashboard already has, and the extraction pattern is fresh from the cache move.
-`docs/extraction.md` in aragonite records what that one taught.
+`aragonite/vcs` holds git and jj behind one interface, and `aragonite/forge/github`
+holds the `gh` wrapper. gh-repo-dashboard reads both and no longer carries
+`internal/vcs`, `internal/github`, or `internal/cache`, the last of which had nothing
+left of its own once the caches typed on forge and vcs values moved with them.
 
-The open question below about `models.PRInfo` decides how large this is.
+`RepoSummary` split rather than moved whole. `vcs.RepoSummary` is what a checkout says
+about itself, and gh-repo-dashboard's `models.RepoSummary` embeds it and keeps `PRInfo`,
+`WorkflowInfo`, `TemplateInfo`, `NotesFiles`, `Loading`, and `Error`. The glyph and
+duration methods became `ui` functions, which is the same rule the pull request move
+settled. `models.VCSType` is `vcs.Type`, since `vcs.VCSType` stutters.
+
+The gh implementation went to `forge/github` rather than into `forge`, so `forge` keeps
+the host-neutral model and GitLab is a sibling directory rather than a rename. The
+interface itself waits for a second implementation to shape it.
+
+gh-repo-dashboard's suite passes and it now lints clean, down from 121 issues, because
+the packages carrying most of them left.
 
 ## 5. `second-look skill`
 
@@ -182,7 +194,8 @@ graph, and the changed symbols, so it may belong next to `codeintel` rather than
 Not a question worth answering before it is written: extract it if a second tool wants
 it, and leave it here otherwise.
 
-**Where the tests for moved code should live.** Splitting the display code left some
-pull request tests in gh-repo-dashboard's `internal/app` exercising functions that now
-live in `internal/ui`. They still test the behavior, so this is tidiness rather than
-coverage.
+**Where the tests for moved code should live.** Settled by the vcs and forge moves:
+tests go with the code. The `RepoSummary` predicate tests are in `aragonite/vcs`, the
+disk and registry wiring tests are in `aragonite/forge/github`, and the display tests
+are in gh-repo-dashboard's `internal/ui`. The pull request tests still sitting in
+`internal/app` from the earlier display split are the remaining strays.
