@@ -13,18 +13,7 @@ import (
 // Dir is the artifact directory, relative to the repository root.
 const Dir = ".second-look"
 
-func joinErrs(errs []error) error {
-	if len(errs) == 0 {
-		return nil
-	}
-
-	msgs := make([]string, len(errs))
-	for i, err := range errs {
-		msgs[i] = err.Error()
-	}
-
-	return errors.New(strings.Join(msgs, "\n"))
-}
+const dirPerm = 0o750
 
 // Path is where the review for a pull request is kept.
 func Path(root string, number int) string {
@@ -37,7 +26,7 @@ func Path(root string, number int) string {
 func Load(path string) (*Review, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // the path is built from the repo root and a PR number
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 
 	var r Review
@@ -47,7 +36,7 @@ func Load(path string) (*Review, error) {
 	if err := dec.Decode(&r); err != nil {
 		var strict *toml.StrictMissingError
 		if errors.As(err, &strict) {
-			return nil, fmt.Errorf("%s: %s", path, strict.String())
+			return nil, fmt.Errorf("%s: %w\n%s", path, ErrUnknownKey, strict.String())
 		}
 
 		return nil, fmt.Errorf("%s: %w", path, err)
@@ -64,34 +53,38 @@ func Load(path string) (*Review, error) {
 // cannot leave a half-parsed review behind.
 func Save(path string, r *Review) error {
 	if err := r.Validate(); err != nil {
-		return err
+		return fmt.Errorf("refusing to write %s: %w", path, err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		return err
+	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
+		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
 	}
 
 	data, err := toml.Marshal(r)
 	if err != nil {
-		return err
+		return fmt.Errorf("encoding the review: %w", err)
 	}
 
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".pr-*.toml")
 	if err != nil {
-		return err
+		return fmt.Errorf("creating a temporary file beside %s: %w", path, err)
 	}
-	defer os.Remove(tmp.Name())
+	defer os.Remove(tmp.Name()) //nolint:errcheck // the rename below already moved it on the happy path
 
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
+		tmp.Close() //nolint:errcheck,gosec // the write already failed and the file is removed below
 
-		return err
+		return fmt.Errorf("writing %s: %w", tmp.Name(), err)
 	}
 	if err := tmp.Close(); err != nil {
-		return err
+		return fmt.Errorf("closing %s: %w", tmp.Name(), err)
 	}
 
-	return os.Rename(tmp.Name(), path)
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("replacing %s: %w", path, err)
+	}
+
+	return nil
 }
 
 // Upsert adds a comment, or replaces the one already carrying its id.
@@ -111,9 +104,10 @@ func (r *Review) Upsert(c Comment) {
 // remain, so an unfinished thought is never published and never quietly dropped.
 func (r *Review) Drafts() []Comment {
 	var out []Comment
-	for _, c := range r.Comments {
-		if c.Status == StatusDraft {
-			out = append(out, c)
+
+	for i := range r.Comments {
+		if r.Comments[i].Status == StatusDraft {
+			out = append(out, r.Comments[i])
 		}
 	}
 

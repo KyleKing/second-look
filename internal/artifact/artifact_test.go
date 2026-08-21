@@ -59,16 +59,18 @@ func TestLocalFieldsNeverReachThePayload(t *testing.T) {
 func TestSkippedCommentsAreNotPosted(t *testing.T) {
 	t.Parallel()
 
-	skipped := artifact.Comment{ID: "c2", Path: "a.go", Line: 1, Side: artifact.SideRight,
-		Body: "considered", Status: artifact.StatusSkip, SkipReason: "style only"}
+	skipped := artifact.Comment{
+		ID: "c2", Path: "a.go", Line: 1, Side: artifact.SideRight,
+		Body: "considered", Status: artifact.StatusSkip, SkipReason: "style only",
+	}
 
 	payload, _, err := review(ready("c1"), skipped).Payload()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	encoded, _ := json.Marshal(payload)
-	if strings.Contains(string(encoded), "considered") {
+	encoded := mustJSON(t, payload)
+	if strings.Contains(encoded, "considered") {
 		t.Errorf("a skipped comment was posted: %s", encoded)
 	}
 }
@@ -81,9 +83,9 @@ func TestADraftBlocksPosting(t *testing.T) {
 
 	_, _, err := review(ready("c1"), draft).Payload()
 
-	var drafts *artifact.ErrDraft
+	var drafts *artifact.DraftError
 	if !errors.As(err, &drafts) {
-		t.Fatalf("err = %v, want ErrDraft", err)
+		t.Fatalf("err = %v, want DraftError", err)
 	}
 	if len(drafts.Comments) != 1 || drafts.Comments[0].ID != "c2" {
 		t.Errorf("drafts = %+v, want just c2", drafts.Comments)
@@ -93,8 +95,10 @@ func TestADraftBlocksPosting(t *testing.T) {
 func TestRepliesGoToTheirOwnEndpoint(t *testing.T) {
 	t.Parallel()
 
-	reply := artifact.Comment{ID: "c2", Body: "fixed in the next commit",
-		Status: artifact.StatusReady, InReplyTo: 998877}
+	reply := artifact.Comment{
+		ID: "c2", Body: "fixed in the next commit",
+		Status: artifact.StatusReady, InReplyTo: 998877,
+	}
 
 	payload, replies, err := review(ready("c1"), reply).Payload()
 	if err != nil {
@@ -104,8 +108,8 @@ func TestRepliesGoToTheirOwnEndpoint(t *testing.T) {
 		t.Fatalf("replies = %+v, want one for 998877", replies)
 	}
 
-	encoded, _ := json.Marshal(payload)
-	if strings.Contains(string(encoded), "fixed in the next commit") {
+	encoded := mustJSON(t, payload)
+	if strings.Contains(encoded, "fixed in the next commit") {
 		t.Errorf("a reply was folded into the review payload: %s", encoded)
 	}
 }

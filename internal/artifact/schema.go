@@ -9,7 +9,10 @@
 // private note cannot reach GitHub by being forgotten.
 package artifact
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // SchemaVersion is the artifact format. Bump it when a field's meaning changes,
 // never when one is added.
@@ -26,13 +29,13 @@ type Review struct {
 
 	// HeadSHA is the commit the comments were written against. Posting against a
 	// different head is refused, because an anchor that moved is an anchor that lies.
-	HeadSHA string `toml:"head_sha" post:"commit_id"`
+	HeadSHA string `post:"commit_id" toml:"head_sha"`
 
 	// Event is COMMENT, APPROVE, or REQUEST_CHANGES.
-	Event string `toml:"event" post:"event"`
+	Event string `post:"event" toml:"event"`
 
 	// Body is the review-level comment.
-	Body string `toml:"body" post:"body"`
+	Body string `post:"body" toml:"body"`
 
 	// Note is the top-level scratchpad: what was run, what could not be, what is
 	// still unresolved. Shown in the TUI, never posted.
@@ -46,34 +49,34 @@ type Review struct {
 type Comment struct {
 	// ID is stable across edits so a hand-edit and an agent update refer to the
 	// same comment. Local: GitHub assigns its own.
-	ID string `toml:"id" json:"id"`
+	ID string `json:"id" toml:"id"`
 
-	Path      string `toml:"path" json:"path" post:"path"`
-	Line      int    `toml:"line" json:"line" post:"line"`
-	Side      string `toml:"side" json:"side" post:"side"`
-	StartLine int    `toml:"start_line,omitempty" json:"start_line,omitempty" post:"start_line"`
-	StartSide string `toml:"start_side,omitempty" json:"start_side,omitempty" post:"start_side"`
+	Path      string `json:"path"                 post:"path"       toml:"path"`
+	Line      int    `json:"line"                 post:"line"       toml:"line"`
+	Side      string `json:"side"                 post:"side"       toml:"side"`
+	StartLine int    `json:"start_line,omitempty" post:"start_line" toml:"start_line,omitempty"`
+	StartSide string `json:"start_side,omitempty" post:"start_side" toml:"start_side,omitempty"`
 
 	// Body is the exact text to post, and the only prose here that anyone else reads.
-	Body string `toml:"body" json:"body" post:"body"`
+	Body string `json:"body" post:"body" toml:"body"`
 
 	// InReplyTo is the review comment this answers. A reply posts through the
 	// replies endpoint rather than inside the review payload.
-	InReplyTo int64 `toml:"in_reply_to,omitempty" json:"in_reply_to,omitempty"`
+	InReplyTo int64 `json:"in_reply_to,omitempty" toml:"in_reply_to,omitempty"`
 
 	// Note is why this comment exists: the evidence, the command that proved it,
 	// the doubt. Shown beside the comment in the TUI, never posted.
-	Note string `toml:"note" json:"note"`
+	Note string `json:"note" toml:"note"`
 
 	// Severity ranks the comment in the TUI and orders what to read first.
-	Severity string `toml:"severity" json:"severity"`
+	Severity string `json:"severity" toml:"severity"`
 
 	// Status gates posting. A draft blocks the submit rather than posting or
 	// vanishing, and a skip records a decision not to comment.
-	Status string `toml:"status" json:"status"`
+	Status string `json:"status" toml:"status"`
 
 	// SkipReason explains a skip, so a declined finding reads as considered.
-	SkipReason string `toml:"skip_reason,omitempty" json:"skip_reason,omitempty"`
+	SkipReason string `json:"skip_reason,omitempty" toml:"skip_reason,omitempty"`
 }
 
 // Comment statuses.
@@ -106,57 +109,79 @@ var (
 // Validate reports every problem at once, so a rejected batch tells the agent
 // everything to fix rather than the first thing.
 func (r *Review) Validate() error {
-	var errs []error
-
-	if r.Version != SchemaVersion {
-		errs = append(errs, fmt.Errorf("version is %d, want %d", r.Version, SchemaVersion))
-	}
-	if r.Owner == "" || r.Repo == "" || r.Number == 0 {
-		errs = append(errs, fmt.Errorf("owner, repo, and number are all required"))
-	}
-	if r.Event != "" && !validEvent[r.Event] {
-		errs = append(errs, fmt.Errorf("event %q is not one of COMMENT, APPROVE, REQUEST_CHANGES", r.Event))
-	}
+	errs := r.validateHeader()
 
 	seen := make(map[string]bool, len(r.Comments))
 	for i := range r.Comments {
 		c := &r.Comments[i]
+
 		where := c.ID
 		if where == "" {
 			where = fmt.Sprintf("comment %d", i)
 		}
+
 		if c.ID != "" && seen[c.ID] {
-			errs = append(errs, fmt.Errorf("%s: duplicate id", where))
+			errs = append(errs, fmt.Errorf("%s: %w", where, ErrDuplicateID))
 		}
 		seen[c.ID] = true
 
-		if c.Body == "" && c.Status != StatusSkip {
-			errs = append(errs, fmt.Errorf("%s: body is required unless status is skip", where))
-		}
-		if c.Status == "" || !validStatus[c.Status] {
-			errs = append(errs, fmt.Errorf("%s: status %q is not one of ready, draft, skip", where, c.Status))
-		}
-		if c.Status == StatusSkip && c.SkipReason == "" {
-			errs = append(errs, fmt.Errorf("%s: a skip records why", where))
-		}
-		if c.Severity != "" && !validSev[c.Severity] {
-			errs = append(errs, fmt.Errorf("%s: severity %q is not one of blocker, major, minor, nit, question", where, c.Severity))
-		}
-		if c.InReplyTo == 0 {
-			if c.Path == "" {
-				errs = append(errs, fmt.Errorf("%s: path is required", where))
-			}
-			if c.Line <= 0 {
-				errs = append(errs, fmt.Errorf("%s: line must be positive", where))
-			}
-			if !validSide[c.Side] {
-				errs = append(errs, fmt.Errorf("%s: side %q is not RIGHT or LEFT", where, c.Side))
-			}
-			if c.StartLine != 0 && c.StartLine > c.Line {
-				errs = append(errs, fmt.Errorf("%s: start_line %d is after line %d", where, c.StartLine, c.Line))
-			}
-		}
+		errs = append(errs, c.validate(where)...)
 	}
 
-	return joinErrs(errs)
+	return errors.Join(errs...)
+}
+
+func (r *Review) validateHeader() []error {
+	var errs []error
+
+	if r.Version != SchemaVersion {
+		errs = append(errs, fmt.Errorf("%w: got %d, want %d", ErrVersion, r.Version, SchemaVersion))
+	}
+	if r.Owner == "" || r.Repo == "" || r.Number == 0 {
+		errs = append(errs, ErrIdentity)
+	}
+	if r.Event != "" && !validEvent[r.Event] {
+		errs = append(errs, fmt.Errorf("%w: %q", ErrEvent, r.Event))
+	}
+
+	return errs
+}
+
+// validate checks one comment. The where argument names it in the message,
+// because a comment with no id still has to be findable in the file.
+func (c *Comment) validate(where string) []error {
+	var errs []error
+
+	if c.Body == "" && c.Status != StatusSkip {
+		errs = append(errs, fmt.Errorf("%s: %w", where, ErrNoBody))
+	}
+	if !validStatus[c.Status] {
+		errs = append(errs, fmt.Errorf("%s: %w: %q", where, ErrStatus, c.Status))
+	}
+	if c.Status == StatusSkip && c.SkipReason == "" {
+		errs = append(errs, fmt.Errorf("%s: %w", where, ErrNoSkipReason))
+	}
+	if c.Severity != "" && !validSev[c.Severity] {
+		errs = append(errs, fmt.Errorf("%s: %w: %q", where, ErrSeverity, c.Severity))
+	}
+
+	// A reply carries no anchor of its own: it lands under the comment it answers.
+	if c.InReplyTo != 0 {
+		return errs
+	}
+
+	if c.Path == "" {
+		errs = append(errs, fmt.Errorf("%s: %w", where, ErrNoPath))
+	}
+	if c.Line <= 0 {
+		errs = append(errs, fmt.Errorf("%s: %w", where, ErrLine))
+	}
+	if !validSide[c.Side] {
+		errs = append(errs, fmt.Errorf("%s: %w: %q", where, ErrSide, c.Side))
+	}
+	if c.StartLine != 0 && c.StartLine > c.Line {
+		errs = append(errs, fmt.Errorf("%s: %w: %d is after %d", where, ErrStartLine, c.StartLine, c.Line))
+	}
+
+	return errs
 }

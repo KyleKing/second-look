@@ -14,24 +14,24 @@ type reviewPayload struct {
 
 type commentPayload struct {
 	Path      string `json:"path"`
-	Line      int    `json:"line"`
 	Side      string `json:"side"`
-	StartLine int    `json:"start_line,omitempty"`
 	StartSide string `json:"start_side,omitempty"`
 	Body      string `json:"body"`
+	Line      int    `json:"line"`
+	StartLine int    `json:"start_line,omitempty"`
 }
 
 // ReplyPayload is the body of POST /repos/{o}/{r}/pulls/comments/{id}/replies.
 type ReplyPayload struct {
-	InReplyTo int64  `json:"-"`
 	Body      string `json:"body"`
+	InReplyTo int64  `json:"-"`
 }
 
-// ErrDraft reports comments that are not ready. Posting stops rather than
+// DraftError reports comments that are not ready. Posting stops rather than
 // guessing whether an unfinished comment was meant to go out.
-type ErrDraft struct{ Comments []Comment }
+type DraftError struct{ Comments []Comment }
 
-func (e *ErrDraft) Error() string {
+func (e *DraftError) Error() string {
 	return fmt.Sprintf("%d comment(s) are still drafts; mark them ready or skip them", len(e.Comments))
 }
 
@@ -40,7 +40,7 @@ func (e *ErrDraft) Error() string {
 // by construction, since nothing here reads them.
 func (r *Review) Payload() (any, []ReplyPayload, error) {
 	if drafts := r.Drafts(); len(drafts) > 0 {
-		return nil, nil, &ErrDraft{Comments: drafts}
+		return nil, nil, &DraftError{Comments: drafts}
 	}
 
 	event := r.Event
@@ -51,7 +51,9 @@ func (r *Review) Payload() (any, []ReplyPayload, error) {
 	out := reviewPayload{CommitID: r.HeadSHA, Body: r.Body, Event: event}
 
 	var replies []ReplyPayload
-	for _, c := range r.Comments {
+
+	for i := range r.Comments {
+		c := &r.Comments[i]
 		if c.Status == StatusSkip {
 			continue
 		}
