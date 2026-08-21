@@ -5,18 +5,29 @@ What alpha needs, in the order it wants doing. Scope and priorities live in
 
 ## What alpha means
 
-I can review one of my own pull requests end to end without hand-writing TOML, and post
-it. That is the bar. No TUI, no seen-state, no inbox, no rating.
+I can review one of my own pull requests end to end and post it, reading the diff in the
+TUI rather than in `$EDITOR`. No seen-state, no inbox, no rating.
+
+The TUI is in scope because reviewing a diff through a text editor on a TOML file is the
+experience this tool exists to replace. A CLI-only alpha would prove the plumbing and
+none of the premise.
 
 Concretely, this works and nothing in it is faked:
 
 ```sh
-sl get 42                 # fetch the PR, build the artifact
+sl get 42                 # fetch the PR, check it out, build the artifact
 # claude drafts comments through the change-review skill
-sl show 42 --payload      # confirm what leaves the laptop
-$EDITOR .second-look/pr-42.toml
-sl post 42
+sl 42                     # read the diff, edit comments, submit with a key
 ```
+
+## Decided since
+
+The artifact is deleted on a successful post, and GitHub becomes the source of truth from
+that moment. The inbox reads submitted reviews back from the API for its reviewed-and-open
+and reviewed-and-merged buckets, so no comment ids are written back, nothing local
+outlives the post, and the schema loses a field rather than gaining one.
+
+`models.PRInfo` is now `forge.PullRequest` in aragonite, moved outright with no alias.
 
 ## Built
 
@@ -55,10 +66,13 @@ Then fix what the linter finds. `golangci-lint` has never run on this code.
 The one piece of the pipeline still done by hand. Fetch the pull request, resolve the
 head SHA, write the artifact, and cache the diff.
 
-- Read the PR through `gh`, which means `aragonite/forge` (extraction 2, below) or a
-  temporary local copy
-- Refuse when HEAD does not match the PR head, showing the mismatch and the resolution
-  as described in requirements. A dirty tree never blocks
+- Read the PR through `gh`, which means the forge client (step 4)
+- Check the PR out. A checkout has to move the working tree, so it needs a clean one and
+  errors otherwise, in git and jj alike. Being already on the PR head with uncommitted
+  changes is fine and never blocks, because refusing to review a branch you already have
+  because you have unstaged edits would be wrong
+- Show the mismatch and the resolution as a keybinding when HEAD is not the PR head, and
+  say how many in-progress comments survive the move
 - Cache the diff under `.second-look/`, keyed by head SHA, since the anchor guard and
   every later feature reads it
 
@@ -81,48 +95,59 @@ records what that one taught.
 
 The open question below about `models.PRInfo` decides how large this is.
 
-## 5. Ship the skill with the tool
+## 5. `sl skill`
 
-`sl --help` already documents the full contract, so the skill mostly points at it. The
-global `change-review` skill and the tool can now drift, and the tool is the thing that
-knows its own schema.
+`go:embed` the skill file and print it to stdout. The same build produces the binary and
+its documentation, so the two cannot disagree about the schema.
 
-hunkdiff's pattern is to ship the skill inside the installed package and have a thin
-global skill point at it. Worth copying, and it needs a decision about where a Homebrew
-or `go install` build puts the file.
+```sh
+sl skill                                  # read it
+sl skill > ~/.claude/skills/change-review/SKILL.md
+```
 
-## 6. Publish aragonite
+hunk does this as `hunk skill path`, which returns a path into its installed npm package
+and lets a thin global skill point at the file. A Go binary has no package directory, so
+printing the content is the equivalent and it is simpler. It is also better here: the
+global skill can say "run `sl skill` for the current contract" and be read fresh every
+time rather than copied once and left to rot.
 
-`go mod tidy` fails in both consumers today because aragonite has no published version.
-`go build` and `go test` work through the gitignored `go.work`, so this is friction
-rather than breakage, and it blocks CI, which has no workspace.
+## 6. Publish aragonite, and keep it published
 
-This has to happen before step 1's `mise run ci` can pass in GitHub Actions.
+`go mod tidy` fails in both consumers today because aragonite has no published version,
+and CI has no workspace to fall back on. So this blocks step 1's `mise run ci` in GitHub
+Actions even though it is listed last.
+
+The standing workflow after that:
+
+- `go.mod` always pins a released aragonite version. The gitignored `go.work` overrides
+  it while working across the two repos
+- `GOWORK=off` is what proves the consumer builds against the published version rather
+  than the checkout on disk. Without it, local green says nothing about CI
+- hk runs the workspace-free check on **pre-push**, not pre-commit. Committing mid-change
+  against a local aragonite is the normal state; pushing a consumer that needs an
+  unpublished library is the mistake worth catching
+
+```sh
+# .config/mise/conf.d/*.toml
+[tasks.verify-released]
+run = "go test ./..."
+env = { GOWORK = "off" }
+```
+
+Releasing aragonite is `cz bump` plus a pushed tag, since the Go module proxy resolves a
+library from its tag and no goreleaser is involved. Consumers then `go get` the new
+version and commit the `go.mod` change.
 
 ## Open questions
 
-**Does `models.PRInfo` move into `forge`.** Both the filter atoms and the cache payloads
-are typed on it, so sharing either means moving the type and having gh-repo-dashboard
-alias it back. Same seam the cache extraction used, much larger blast radius, since
-`models` is imported almost everywhere. This gates step 4.
+**How `sl get` handles a PR against a repo not cloned locally.** There is no branch to be
+wrong about and nothing to check out. Whether that is in scope or an error is undecided.
 
-**Where a shipped skill lives on disk.** A Homebrew cask and `go install` put the binary
-in different places and neither has an obvious home for a skill file. Options are
-embedding it in the binary behind `sl skill --print`, installing it to
-`~/.claude/skills/` on first run, or keeping the global skill hand-maintained and
-accepting the drift.
+**Which of the moved display helpers belong in `forge`.** `ReviewGlyph` and
+`StatusDisplay` emit specific glyphs, which is a rendering choice sitting in a data
+package. They moved with their types because splitting them would have doubled the churn,
+and both tools do render pull requests. Revisit when `tui/` exists.
 
-**Whether alpha needs the TUI at all.** The pipeline works without it and the CLI is what
-the agent drives. The counterargument is that reviewing through `$EDITOR` on a TOML file
-is exactly the experience this tool exists to replace, so a CLI-only alpha proves the
-plumbing and none of the premise.
-
-**How `sl get` handles a PR with no local checkout.** Fetching to `FETCH_HEAD` works for
-reading, and the requirements say a wrong branch is refused. A PR against a repo not
-cloned locally has no branch to be wrong about, and it is unclear whether that is in
-scope or an error.
-
-**Whether the artifact should record what was posted.** After `sl post`, GitHub assigns
-ids the artifact does not know. Without them a later `sl` cannot tell an already-posted
-comment from a new one, which matters the moment a review gets a second round. Probably a
-`posted_id` local field written back on success.
+**Whether the review-cost rating needs its own package.** It reads the diff, the symbol
+graph, and the changed symbols, so it may want to live in aragonite next to `codeintel`
+rather than in second-look. Undecided until it is written.
