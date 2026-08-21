@@ -53,26 +53,29 @@ validator.
 The `change-review` skill drafts through `second-look` and no longer writes a markdown
 staging file. The original is backed up at `~/.claude/change-review-pre-sl.bak/`.
 
-## 1. Scaffold from my_go_template
+## 1. Scaffold from my_go_template — done
 
-Nothing else is safe to build on until the repo has the tooling every other Go project
-here has. `second-look` is currently a bare `go.mod` with no linter, no hooks, no CI, and
-no release path.
+Scaffolded from template v0.11.4 with `project_name=second-look`. The binary is
+`second-look`, aliased to `sl` in the README, because copier keys the entrypoint
+directory, the goreleaser build, and the gitignored binary path off `project_name`, and
+a repo whose binary is named something else gets two entrypoints. `golangci-lint` had
+never run on this code and found 75 issues; all of them are fixed.
 
-```sh
-copier copy gh:KyleKing/my_go_template . \
-  --data project_name=second-look --data project_type=cli --data use_goreleaser=true
-mise install && hk install --mise && mise run ci
-```
+Two things the template needs, both worked around here rather than in
+[my_go_template](https://github.com/KyleKing/my_go_template):
 
-`_skip_if_exists` covers `DESIGN.md`, `README.md`, and `go.mod`, so the docs and the
-module path survive. It runs `git init` as a task, which is a no-op here.
+- `verify-released` and its hk pre-push step exist at the template's HEAD but not at the
+  v0.11.4 tag, so they were copied in by hand. A `copier update` after the next release
+  should be a no-op
+- tombi keeps a TOML array multi-line only when it has a trailing comma, and none of the
+  template's arrays do, so `hk check` fails on a fresh scaffold and the fix collapses
+  `.golangci.toml` into 300-character lines. Trailing commas were added here.
+  gh-repo-dashboard has the same failure
 
-What arrives: `hk.pkl`, `.golangci.toml`, `.config/mise.toml`, `.goreleaser.yml`,
-`.cz.toml`, `.typos.toml`, `.ls-lint.yml`, `.editorconfig`, `AGENTS.md`,
-`CONTRIBUTING.md`, `CHANGELOG.md`, `LICENSE`, and `.github/`.
-
-Then fix what the linter finds. `golangci-lint` has never run on this code.
+Two settings this repo owns rather than inherits. `fieldalignment` is off, because
+go-toml writes keys in declaration order and packing `Review` and `Comment` would
+scramble the file a person hand-edits. `_skip_if_exists` kept `DESIGN.md`, `README.md`,
+and `go.mod`.
 
 ## 2. `second-look get`
 
