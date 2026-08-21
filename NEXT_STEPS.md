@@ -15,9 +15,9 @@ none of the premise.
 Concretely, this works and nothing in it is faked:
 
 ```sh
-sl get 42                 # fetch the PR, check it out, build the artifact
+second-look get 42        # fetch the PR, check it out, build the artifact
 # claude drafts comments through the change-review skill
-sl 42                     # read the diff, edit comments, submit with a key
+second-look 42            # read the diff, edit comments, submit with a key
 ```
 
 ## Decided since
@@ -44,13 +44,14 @@ blocks pushing it until aragonite is released.
 ## Built
 
 `internal/artifact` holds the schema, the TOML store, and the payload builder, with the
-posted and local split enforced by the builder rather than by a list. `sl comment add`,
-`sl show`, `sl show --payload`, `sl post`, and `sl post --dry-run` work. Seven tests
-cover the split, the draft refusal, replies, the round trip, unknown keys, and the
-all-problems-at-once validator.
+posted and local split enforced by the builder rather than by a list.
+`second-look comment add`, `second-look show`, `second-look show --payload`,
+`second-look post`, and `second-look post --dry-run` work. Seven tests cover the split,
+the draft refusal, replies, the round trip, unknown keys, and the all-problems-at-once
+validator.
 
-The `change-review` skill drafts through `sl` and no longer writes a markdown staging
-file. The original is backed up at `~/.claude/change-review-pre-sl.bak/`.
+The `change-review` skill drafts through `second-look` and no longer writes a markdown
+staging file. The original is backed up at `~/.claude/change-review-pre-sl.bak/`.
 
 ## 1. Scaffold from my_go_template
 
@@ -73,13 +74,13 @@ What arrives: `hk.pkl`, `.golangci.toml`, `.config/mise.toml`, `.goreleaser.yml`
 
 Then fix what the linter finds. `golangci-lint` has never run on this code.
 
-## 2. `sl get`
+## 2. `second-look get`
 
 The one piece of the pipeline still done by hand. Fetch the pull request, resolve the
 head SHA, write the artifact, and cache the diff.
 
 - Read the PR through `gh`, which means the forge client (step 4)
-- Only work inside an existing checkout. `sl get` never clones
+- Only work inside an existing checkout. `second-look get` never clones
 - Check the PR out. A checkout has to move the working tree, so it needs a clean one and
   errors otherwise. Being already on the PR head with uncommitted changes is fine and
   never blocks, because refusing to review a branch you already have because you have
@@ -100,9 +101,9 @@ head SHA, write the artifact, and cache the diff.
 
 ## 3. The anchor guard
 
-Currently `sl` validates shape and not truth, and the skill carries the gap as the
-agent's job (Step 0). That is the right stopgap and the wrong resting place, because a
-bot citing line 993 of a 137-line file is the single most common failure in this
+Currently `second-look` validates shape and not truth, and the skill carries the gap as
+the agent's job (Step 0). That is the right stopgap and the wrong resting place, because
+a bot citing line 993 of a 137-line file is the single most common failure in this
 workflow.
 
 prr is the reference: quote the diff line each comment anchors to, and compare it byte
@@ -111,20 +112,20 @@ moved. Once this lands, cut Step 0 from the skill.
 
 ## 4. Extract `forge` and `vcs` into aragonite
 
-`sl get` and `sl post` both want the `gh` wrapper that gh-repo-dashboard already has, and
-the extraction pattern is fresh from the cache move. `docs/extraction.md` in aragonite
-records what that one taught.
+`second-look get` and `second-look post` both want the `gh` wrapper that
+gh-repo-dashboard already has, and the extraction pattern is fresh from the cache move.
+`docs/extraction.md` in aragonite records what that one taught.
 
 The open question below about `models.PRInfo` decides how large this is.
 
-## 5. `sl skill`
+## 5. `second-look skill`
 
 `go:embed` the skill file and print it to stdout. The same build produces the binary and
 its documentation, so the two cannot disagree about the schema.
 
 ```sh
-sl skill                                  # read it
-sl skill > ~/.claude/skills/change-review/SKILL.md
+second-look skill        # read it
+second-look skill > ~/.claude/skills/change-review/SKILL.md
 ```
 
 hunk does this as `hunk skill path`, which prints a path to a skill file bundled in its
@@ -133,16 +134,17 @@ install tree and tells you to load or symlink it. That path is version-pinned
 the command exists at all: a symlink to it breaks on the next upgrade, so the agent has
 to ask each time.
 
-Printing the content sidesteps that. The global skill says "run `sl skill` for the
-current contract" and reads it fresh, so there is no path to go stale and no copy to rot.
+Printing the content sidesteps that. The global skill says "run `second-look skill` for
+the current contract" and reads it fresh, so there is no path to go stale and no copy to
+rot.
 
 Two things to copy from hunk's skill, which is 184 lines:
 
-- YAML frontmatter with `name` and `description`, so what `sl skill` prints is a complete
-  skill file that needs no assembly
+- YAML frontmatter with `name` and `description`, so what `second-look skill` prints is
+  a complete skill file that needs no assembly
 - An opening line telling the agent **not** to launch the TUI. hunk's says the TUI is for
-  the user and the agent drives `hunk session *` instead. Once `sl <pr>` opens a review,
-  an agent that runs it will hang on a terminal nothing is attached to
+  the user and the agent drives `hunk session *` instead. Once `second-look <pr>` opens
+  a review, an agent that runs it will hang on a terminal nothing is attached to
 
 ## 6. Publish aragonite, and keep it published
 

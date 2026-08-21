@@ -9,3 +9,33 @@ The review artifact and the posting pipeline work. Nothing else is built yet.
 - [Requirements](requirements.md) — scope, decisions made, and what is still open
 - [Prior art, August 2026](research/prior-art-2026-08.md) — what already exists in this
   space and the three capabilities nothing implements
+
+## Installation
+
+Homebrew, once a release exists:
+
+```bash
+brew install --cask kyleking/tap/second-look
+```
+
+Or from source:
+
+```bash
+go install github.com/kyleking/second-look/cmd/second-look@latest
+```
+
+The binary is `second-look`. Every command below is short enough to type through an
+alias, which is what I use:
+
+```bash
+alias sl=second-look
+```
+
+## Development
+
+```bash
+mise install && hk install --mise
+mise run ci
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.

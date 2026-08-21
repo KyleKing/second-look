@@ -20,7 +20,8 @@ the line it cited, and posting is a series of `gh` calls I supervise.
 The tool fixes the second problem first, because that is the part with no existing
 implementation and the part I use every day.
 
-A second look is what the review is supposed to be and usually is not. Binary `sl`.
+A second look is what the review is supposed to be and usually is not. Binary
+`second-look`, aliased to `sl`.
 
 ## Scope
 

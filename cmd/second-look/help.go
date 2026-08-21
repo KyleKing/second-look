@@ -1,12 +1,12 @@
 package main
 
-const shortHelp = `sl — prepare a code review locally, then post it in one call.
+const shortHelp = `second-look — prepare a code review locally, then post it in one call.
 
-  sl comment add <pr>     stage comments from a JSON batch on stdin
-  sl show <pr>            print the prepared review
-  sl show <pr> --payload  print exactly what would be sent
-  sl post <pr>            post the review
-  sl post <pr> --dry-run  print the request without sending it
+  second-look comment add <pr>     stage comments from a JSON batch on stdin
+  second-look show <pr>            print the prepared review
+  second-look show <pr> --payload  print exactly what would be sent
+  second-look post <pr>            post the review
+  second-look post <pr> --dry-run  print the request without sending it
 
   --help  the full contract, including every JSON field
 `
@@ -14,7 +14,7 @@ const shortHelp = `sl — prepare a code review locally, then post it in one cal
 // longHelp is written for an agent with no other documentation. It states the
 // fields, which of them post, and what is refused, because a tool an agent drives
 // blind has to answer those three questions itself.
-const longHelp = `sl — prepare a code review locally, then post it in one call.
+const longHelp = `second-look — prepare a code review locally, then post it in one call.
 
 The prepared review lives at .second-look/pr-<number>.toml. TOML because a person
 edits it; JSON at both edges because an agent writes it and gh posts it.
@@ -25,22 +25,22 @@ posted fields, so a local field cannot leak by being forgotten.
 
 COMMANDS
 
-  sl comment add <pr>
+  second-look comment add <pr>
       Read a JSON batch on stdin and stage it. A comment carrying an id that is
       already present replaces it; anything else is appended. The whole review is
       validated before anything is written, so a rejected batch changes nothing.
 
-  sl show <pr>
+  second-look show <pr>
       Print the prepared review as JSON, local fields included.
 
-  sl show <pr> --payload
+  second-look show <pr> --payload
       Print exactly what would be sent. Use this to confirm what stays local.
 
-  sl post <pr> [--dry-run]
+  second-look post <pr> [--dry-run]
       Post the review in one request, then post any replies. Refuses while any
       comment is still a draft.
 
-BATCH SHAPE (stdin to sl comment add)
+BATCH SHAPE (stdin to second-look comment add)
 
   {
     "note":  "review-level private note, replaces the existing one",
@@ -84,7 +84,7 @@ WHAT IS REFUSED
   that will not do what its author meant, and a field the schema does not know is
   one the split cannot classify.
 
-  A draft at post time. Mark it ready or skip it; sl will not guess.
+  A draft at post time. Mark it ready or skip it; second-look will not guess.
 
   A comment with no path, no positive line, or a side that is not RIGHT or LEFT,
   unless it is a reply. Every problem is reported at once, not just the first.
