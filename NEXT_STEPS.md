@@ -105,11 +105,22 @@ sl skill                                  # read it
 sl skill > ~/.claude/skills/change-review/SKILL.md
 ```
 
-hunk does this as `hunk skill path`, which returns a path into its installed npm package
-and lets a thin global skill point at the file. A Go binary has no package directory, so
-printing the content is the equivalent and it is simpler. It is also better here: the
-global skill can say "run `sl skill` for the current contract" and be read fresh every
-time rather than copied once and left to rot.
+hunk does this as `hunk skill path`, which prints a path to a skill file bundled in its
+install tree and tells you to load or symlink it. That path is version-pinned
+(`/opt/homebrew/Cellar/hunk/0.18.1/libexec/skills/hunk-review/SKILL.md`), which is why
+the command exists at all: a symlink to it breaks on the next upgrade, so the agent has
+to ask each time.
+
+Printing the content sidesteps that. The global skill says "run `sl skill` for the
+current contract" and reads it fresh, so there is no path to go stale and no copy to rot.
+
+Two things to copy from hunk's skill, which is 184 lines:
+
+- YAML frontmatter with `name` and `description`, so what `sl skill` prints is a complete
+  skill file that needs no assembly
+- An opening line telling the agent **not** to launch the TUI. hunk's says the TUI is for
+  the user and the agent drives `hunk session *` instead. Once `sl <pr>` opens a review,
+  an agent that runs it will hang on a terminal nothing is attached to
 
 ## 6. Publish aragonite, and keep it published
 
