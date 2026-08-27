@@ -21,7 +21,7 @@ disable = [
   "forbidigo",  # requires custom regex configuration
   "gochecknoglobals",  # BubbleTea/lipgloss styles use package-level vars
   "goheader",  # copyright headers add noise for personal projects
-  "wsl"  # whitespace linting too nitpicky,
+  "wsl",  # whitespace linting too nitpicky
 ]
 enable = [
   "asciicheck",
@@ -156,6 +156,7 @@ enabled-tags = [
 ]
 disabled-checks = [
   "hugeParam",  # BubbleTea root Models are large by design; value receivers keep Update/View copy semantics
+  "unnamedResult",  # contradicts nonamedreturns, which is enabled and wins
   "whyNoLint",
 ]
 
