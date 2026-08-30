@@ -3,6 +3,7 @@ package artifact
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/kyleking/second-look/internal/diff"
 )
@@ -14,6 +15,10 @@ import (
 //
 // A reply carries no anchor of its own: it lands under the comment it answers.
 func Resolve(comments []Comment, d *diff.Diff) error {
+	if err := usable(d); err != nil {
+		return err
+	}
+
 	var errs []error
 
 	for i := range comments {
@@ -39,6 +44,10 @@ func Resolve(comments []Comment, d *diff.Diff) error {
 // Verify compares each comment's recorded anchor against the live diff byte
 // for byte. Skipped comments and replies never post, so neither is checked.
 func Verify(comments []Comment, d *diff.Diff) error {
+	if err := usable(d); err != nil {
+		return err
+	}
+
 	var errs []error
 
 	for i := range comments {
@@ -78,4 +87,16 @@ func name(c *Comment, i int) string {
 	}
 
 	return fmt.Sprintf("comment %d", i)
+}
+
+// usable refuses a diff that carries a file twice. Every line number in such a
+// patch belongs to some intermediate commit, so quoting one anchor from it is
+// no safer than quoting all of them.
+func usable(d *diff.Diff) error {
+	repeated := d.Repeated()
+	if len(repeated) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("%w: %s", ErrNotACumulativeDiff, strings.Join(repeated, ", "))
 }

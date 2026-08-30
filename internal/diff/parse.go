@@ -39,6 +39,35 @@ type Diff struct {
 	Files []File
 }
 
+// Repeated reports the post-image paths the diff carries more than once, in
+// patch order.
+//
+// A cumulative pull request diff carries each file once. A second entry for
+// the same path means the input is a per-commit patch series, where the line
+// numbers belong to an intermediate commit rather than the head, so every
+// anchor into it is quoted from the wrong place.
+func (d *Diff) Repeated() []string {
+	seen := make(map[string]int, len(d.Files))
+
+	var out []string
+
+	for i := range d.Files {
+		path := d.Files[i].NewPath
+		if path == "" {
+			path = d.Files[i].OldPath
+		}
+
+		const firstRepeat = 2
+
+		seen[path]++
+		if seen[path] == firstRepeat {
+			out = append(out, path)
+		}
+	}
+
+	return out
+}
+
 // Parse reads a unified diff. A patch it cannot make sense of yields fewer
 // files rather than an error, because a diff is evidence and a parser that
 // refuses one leaves the caller with nothing to check against.
@@ -58,9 +87,11 @@ func Parse(patch []byte) *Diff {
 			old, newLine = 0, 0
 		case current == nil:
 			continue
-		case strings.HasPrefix(raw, "--- "):
+		// A file header only precedes the first hunk. Inside one, "--- " is a
+		// removed line whose text starts with "-- ", which is every SQL comment.
+		case old == 0 && newLine == 0 && strings.HasPrefix(raw, "--- "):
 			current.OldPath = headerPath(raw[len("--- "):])
-		case strings.HasPrefix(raw, "+++ "):
+		case old == 0 && newLine == 0 && strings.HasPrefix(raw, "+++ "):
 			current.NewPath = headerPath(raw[len("+++ "):])
 		case strings.HasPrefix(raw, "@@"):
 			start := hunkStart(raw)

@@ -146,3 +146,34 @@ func TestDiffCache_RoundTripAndSHAGuard(t *testing.T) {
 		t.Errorf("err = %v, want ErrNoHeadSHA", err)
 	}
 }
+
+// seriesPatch carries internal/one.go twice, which is what a per-commit patch
+// series looks like and what the line numbers cannot be trusted from.
+const seriesPatch = patch + `diff --git a/internal/one.go b/internal/one.go
+index 2222222..3333333 100644
+--- a/internal/one.go
++++ b/internal/one.go
+@@ -8,2 +8,3 @@ func one() {
+ 	zeroth := 0
++	inserted := 1
+`
+
+func TestAnchorGuard_RefusesAPatchSeries(t *testing.T) {
+	t.Parallel()
+
+	comments := []artifact.Comment{
+		{
+			ID: "a", Path: "internal/one.go", Side: artifact.SideRight, Line: 11,
+			Anchor: "\tadded := 2", Status: artifact.StatusReady,
+		},
+	}
+
+	d := diff.Parse([]byte(seriesPatch))
+
+	if err := artifact.Resolve(comments, d); !errors.Is(err, artifact.ErrNotACumulativeDiff) {
+		t.Errorf("Resolve() = %v, want ErrNotACumulativeDiff", err)
+	}
+	if err := artifact.Verify(comments, d); !errors.Is(err, artifact.ErrNotACumulativeDiff) {
+		t.Errorf("Verify() = %v, want ErrNotACumulativeDiff", err)
+	}
+}
