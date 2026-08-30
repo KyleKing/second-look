@@ -21,6 +21,7 @@ var (
 	ErrNotASHA    = errors.New("not a commit sha")
 	ErrSeverity   = errors.New("severity is not one of blocker, major, minor, nit, question")
 	ErrSide       = errors.New("side is not RIGHT or LEFT")
+	ErrSpansHunks = errors.New("a comment cannot span two hunks; GitHub refuses it")
 	ErrStartLine  = errors.New("start_line is after line")
 	ErrStatus     = errors.New("status is not one of ready, draft, skip")
 	ErrUnknownKey = errors.New("the file carries a key the schema does not know")

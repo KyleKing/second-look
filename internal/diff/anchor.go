@@ -14,39 +14,46 @@ const (
 // worth catching: GitHub refuses a comment outside the diff, and a line
 // number invented out of nothing lands there.
 func (d *Diff) Anchor(path, side string, line int) (string, bool) {
+	l, ok := d.lookup(path, side, line)
+
+	return l.Text, ok
+}
+
+// HunkOf returns the number of the @@ block the line falls in, so a caller can
+// tell whether two lines of a multi-line comment share one.
+func (d *Diff) HunkOf(path, side string, line int) (int, bool) {
+	l, ok := d.lookup(path, side, line)
+
+	return l.Hunk, ok
+}
+
+func (d *Diff) lookup(path, side string, line int) (Line, bool) {
 	for i := range d.Files {
 		f := &d.Files[i]
 
+		number := func(l Line) int { return l.New }
 		if side == SideLeft {
-			if f.OldPath != path {
-				continue
-			}
+			number = func(l Line) int { return l.Old }
+		}
 
-			if text, ok := lineAt(f.Lines, line, func(l Line) int { return l.Old }); ok {
-				return text, true
-			}
-
+		if (side == SideLeft && f.OldPath != path) || (side != SideLeft && f.NewPath != path) {
 			continue
 		}
 
-		if f.NewPath != path {
-			continue
-		}
-
-		if text, ok := lineAt(f.Lines, line, func(l Line) int { return l.New }); ok {
-			return text, true
+		if l, ok := lineAt(f.Lines, line, number); ok {
+			return l, true
 		}
 	}
 
-	return "", false
+	return Line{}, false
 }
 
-func lineAt(lines []Line, want int, number func(Line) int) (string, bool) {
+func lineAt(lines []Line, want int, number func(Line) int) (Line, bool) {
 	for _, l := range lines {
 		if number(l) == want {
-			return l.Text, true
+			return l, true
 		}
 	}
 
-	return "", false
+	return Line{}, false
 }

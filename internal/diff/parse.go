@@ -25,6 +25,9 @@ type Line struct {
 	Kind byte
 	Old  int
 	New  int
+	// Hunk numbers the @@ block this line came from, counted across the whole
+	// diff. GitHub refuses a multi-line comment whose ends are in two blocks.
+	Hunk int
 }
 
 // File is one file's lines, in patch order.
@@ -77,6 +80,7 @@ func Parse(patch []byte) *Diff {
 		current *File
 		old     int
 		newLine int
+		hunk    int
 	)
 
 	for _, raw := range strings.Split(string(patch), "\n") {
@@ -96,17 +100,18 @@ func Parse(patch []byte) *Diff {
 		case strings.HasPrefix(raw, "@@"):
 			start := hunkStart(raw)
 			old, newLine = start.old, start.new
+			hunk++
 		case old == 0 && newLine == 0:
 			continue
 		default:
-			appendLine(current, raw, &old, &newLine)
+			appendLine(current, raw, hunk, &old, &newLine)
 		}
 	}
 
 	return &out
 }
 
-func appendLine(f *File, raw string, old, newLine *int) {
+func appendLine(f *File, raw string, hunk int, old, newLine *int) {
 	if raw == "" {
 		return
 	}
@@ -115,14 +120,14 @@ func appendLine(f *File, raw string, old, newLine *int) {
 
 	switch kind {
 	case KindContext:
-		f.Lines = append(f.Lines, Line{Kind: KindContext, Old: *old, New: *newLine, Text: text})
+		f.Lines = append(f.Lines, Line{Kind: KindContext, Old: *old, New: *newLine, Hunk: hunk, Text: text})
 		*old++
 		*newLine++
 	case KindAdd:
-		f.Lines = append(f.Lines, Line{Kind: KindAdd, New: *newLine, Text: text})
+		f.Lines = append(f.Lines, Line{Kind: KindAdd, New: *newLine, Hunk: hunk, Text: text})
 		*newLine++
 	case KindRemove:
-		f.Lines = append(f.Lines, Line{Kind: KindRemove, Old: *old, Text: text})
+		f.Lines = append(f.Lines, Line{Kind: KindRemove, Old: *old, Hunk: hunk, Text: text})
 		*old++
 	}
 }

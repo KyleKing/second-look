@@ -177,3 +177,52 @@ func TestAnchorGuard_RefusesAPatchSeries(t *testing.T) {
 		t.Errorf("Verify() = %v, want ErrNotACumulativeDiff", err)
 	}
 }
+
+// spanPatch has two hunks in one file, so a comment can be asked to span them.
+const spanPatch = `diff --git a/internal/one.go b/internal/one.go
+index 1111111..2222222 100644
+--- a/internal/one.go
++++ b/internal/one.go
+@@ -10,2 +10,3 @@ func one() {
+ 	first := 1
++	added := 2
+ 	last := 4
+@@ -40,2 +41,3 @@ func two() {
+ 	far := 1
++	alsoAdded := 2
+ 	away := 4
+`
+
+func TestResolve_MultiLineSpans(t *testing.T) {
+	t.Parallel()
+
+	span := func(start, end int) artifact.Comment {
+		return artifact.Comment{
+			ID: "c", Path: "internal/one.go", Side: artifact.SideRight,
+			StartLine: start, Line: end, Body: "x", Status: artifact.StatusReady,
+		}
+	}
+
+	tests := []struct {
+		name    string
+		comment artifact.Comment
+		want    error
+	}{
+		{"inside one hunk", span(10, 12), nil},
+		{"a start line the diff does not carry", span(30, 12), artifact.ErrAnchorMissing},
+		{"ends in two different hunks", span(11, 42), artifact.ErrSpansHunks},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			comments := []artifact.Comment{tc.comment}
+
+			err := artifact.Resolve(comments, diff.Parse([]byte(spanPatch)))
+			if !errors.Is(err, tc.want) {
+				t.Errorf("Resolve() = %v, want %v", err, tc.want)
+			}
+		})
+	}
+}

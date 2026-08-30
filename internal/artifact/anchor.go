@@ -35,6 +35,12 @@ func Resolve(comments []Comment, d *diff.Diff) error {
 			continue
 		}
 
+		if err := checkSpan(c, d); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", name(c, i), err))
+
+			continue
+		}
+
 		c.Anchor = text
 	}
 
@@ -73,6 +79,12 @@ func Verify(comments []Comment, d *diff.Diff) error {
 		if text != c.Anchor {
 			errs = append(errs, fmt.Errorf("%s: %w\n  staged against: %s\n  now reads:      %s",
 				name(c, i), ErrAnchorMoved, c.Anchor, text))
+
+			continue
+		}
+
+		if err := checkSpan(c, d); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", name(c, i), err))
 		}
 	}
 
@@ -99,4 +111,30 @@ func usable(d *diff.Diff) error {
 	}
 
 	return fmt.Errorf("%w: %s", ErrNotACumulativeDiff, strings.Join(repeated, ", "))
+}
+
+// checkSpan holds a multi-line comment to what GitHub accepts: both ends in the
+// diff, and both in the same hunk. Only the end line carries an anchor, so
+// without this the start line is never looked at until the post is refused.
+func checkSpan(c *Comment, d *diff.Diff) error {
+	if c.StartLine == 0 {
+		return nil
+	}
+
+	side := c.StartSide
+	if side == "" {
+		side = c.Side
+	}
+
+	start, ok := d.HunkOf(c.Path, side, c.StartLine)
+	if !ok {
+		return fmt.Errorf("%w: %s %s start_line %d", ErrAnchorMissing, c.Path, side, c.StartLine)
+	}
+
+	end, ok := d.HunkOf(c.Path, c.Side, c.Line)
+	if !ok || start != end {
+		return fmt.Errorf("%w: %s %d to %d", ErrSpansHunks, c.Path, c.StartLine, c.Line)
+	}
+
+	return nil
 }
