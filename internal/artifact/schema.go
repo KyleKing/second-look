@@ -21,27 +21,27 @@ const SchemaVersion = 1
 // Review is one prepared review. Fields tagged `post:"..."` reach GitHub; every
 // other field stays on this laptop.
 type Review struct {
-	Version int    `toml:"version"`
-	Host    string `toml:"host"`
-	Owner   string `toml:"owner"`
-	Repo    string `toml:"repo"`
-	Number  int    `toml:"number"`
+	Version int    `json:"version" toml:"version"`
+	Host    string `json:"host"    toml:"host"`
+	Owner   string `json:"owner"   toml:"owner"`
+	Repo    string `json:"repo"    toml:"repo"`
+	Number  int    `json:"number"  toml:"number"`
 
 	// HeadSHA is the commit the comments were written against. Posting against a
 	// different head is refused, because an anchor that moved is an anchor that lies.
-	HeadSHA string `post:"commit_id" toml:"head_sha"`
+	HeadSHA string `json:"head_sha" post:"commit_id" toml:"head_sha"`
 
 	// Event is COMMENT, APPROVE, or REQUEST_CHANGES.
-	Event string `post:"event" toml:"event"`
+	Event string `json:"event" post:"event" toml:"event"`
 
 	// Body is the review-level comment.
-	Body string `post:"body" toml:"body"`
+	Body string `json:"body" post:"body" toml:"body"`
 
 	// Note is the top-level scratchpad: what was run, what could not be, what is
 	// still unresolved. Shown in the TUI, never posted.
-	Note string `toml:"note"`
+	Note string `json:"note" toml:"note"`
 
-	Comments []Comment `toml:"comment"`
+	Comments []Comment `json:"comments" toml:"comment"`
 }
 
 // Comment is one inline comment. Anchors follow GitHub's review-comment shape:

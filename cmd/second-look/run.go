@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/kyleking/aragonite/forge/github"
@@ -61,7 +62,7 @@ type batch struct {
 }
 
 func getCmd(ctx context.Context, args []string, stdout io.Writer) error {
-	if len(args) == 0 {
+	if len(args) != 1 {
 		return errUsageGet
 	}
 
@@ -78,7 +79,7 @@ func getCmd(ctx context.Context, args []string, stdout io.Writer) error {
 }
 
 func commentCmd(args []string, stdin io.Reader, stdout io.Writer) error {
-	if len(args) < 2 || args[0] != "add" {
+	if len(args) != 2 || args[0] != "add" {
 		return errUsageComment
 	}
 
@@ -145,6 +146,11 @@ func showCmd(args []string, stdout io.Writer) error {
 		return errUsageShow
 	}
 
+	payloadOnly, err := onlyFlag(args[1:], "--payload", errUsageShow)
+	if err != nil {
+		return err
+	}
+
 	path, err := artifactPath(args[0])
 	if err != nil {
 		return err
@@ -157,7 +163,7 @@ func showCmd(args []string, stdout io.Writer) error {
 
 	// --payload prints exactly what would be sent, so what stays local is
 	// inspectable rather than promised.
-	if len(args) > 1 && args[1] == "--payload" {
+	if payloadOnly {
 		payload, replies, err := r.Payload()
 		if err != nil {
 			return fmt.Errorf("building the payload: %w", err)
@@ -172,6 +178,11 @@ func showCmd(args []string, stdout io.Writer) error {
 func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	if len(args) == 0 {
 		return errUsagePost
+	}
+
+	dry, err := onlyFlag(args[1:], "--dry-run", errUsagePost)
+	if err != nil {
+		return err
 	}
 
 	path, err := artifactPath(args[0])
@@ -199,7 +210,7 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	endpoint := fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", r.Owner, r.Repo, r.Number)
-	if len(args) > 1 && args[1] == "--dry-run" {
+	if dry {
 		return dryRun(stdout, r, endpoint, body, replies)
 	}
 
@@ -299,6 +310,9 @@ func write(w io.Writer, s string) error {
 func writeJSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
+	// Code quoted into an anchor or a body is full of < and >, and escaping them
+	// makes the output unreadable for the person and the agent both.
+	enc.SetEscapeHTML(false)
 
 	if err := enc.Encode(v); err != nil {
 		return fmt.Errorf("writing JSON: %w", err)
@@ -317,10 +331,25 @@ func artifactPath(pr string) (string, error) {
 }
 
 func prNumber(pr string) (int, error) {
-	var number int
-	if _, err := fmt.Sscanf(strings.TrimPrefix(pr, "#"), "%d", &number); err != nil {
+	number, err := strconv.Atoi(strings.TrimPrefix(pr, "#"))
+	if err != nil || number <= 0 {
 		return 0, fmt.Errorf("%q is %w", pr, errNotAPRNumber)
 	}
 
 	return number, nil
+}
+
+// onlyFlag reads the one optional flag a command takes. Anything else is
+// refused rather than ignored: a mistyped --dry-run that fell through would
+// post the review.
+func onlyFlag(args []string, want string, usage error) (bool, error) {
+	if len(args) == 1 && args[0] == want {
+		return true, nil
+	}
+
+	if len(args) == 0 {
+		return false, nil
+	}
+
+	return false, usage
 }
