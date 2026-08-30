@@ -153,9 +153,9 @@ func requireCleanTree(ctx context.Context, ops vcs.StatusReader, root string) er
 func writeReview(out io.Writer, root string, id repo, pr *forge.PullRequest) error {
 	path := artifact.Path(root, pr.Number)
 
-	review, err := artifact.Load(path)
+	review, err := artifact.LoadOrNew(path)
 	if err != nil {
-		review = &artifact.Review{Version: artifact.SchemaVersion}
+		return fmt.Errorf("reading the prepared review: %w", err)
 	}
 
 	moved := review.HeadSHA != "" && review.HeadSHA != pr.HeadSHA

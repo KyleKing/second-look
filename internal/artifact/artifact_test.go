@@ -159,6 +159,31 @@ func TestUnknownKeysAreRejected(t *testing.T) {
 	}
 }
 
+func TestLoadOrNew_KeepsAnUnparseableReview(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	fresh, err := artifact.LoadOrNew(filepath.Join(dir, "pr-42.toml"))
+	if err != nil {
+		t.Fatalf("a missing review should start empty: %v", err)
+	}
+	if fresh.Version != artifact.SchemaVersion {
+		t.Errorf("Version = %d, want %d", fresh.Version, artifact.SchemaVersion)
+	}
+
+	path := filepath.Join(dir, "pr-43.toml")
+	if err := artifact.Save(path, review(ready("c1"))); err != nil {
+		t.Fatal(err)
+	}
+
+	appendLine(t, path, "\nseverty = \"nit\"\n")
+
+	if _, err := artifact.LoadOrNew(path); err == nil {
+		t.Error("a typo in the file yielded a fresh review, dropping every staged comment")
+	}
+}
+
 func TestValidateReportsEveryProblemAtOnce(t *testing.T) {
 	t.Parallel()
 

@@ -3,6 +3,7 @@ package artifact
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,6 +94,22 @@ func Load(path string) (*Review, error) {
 	}
 
 	return &r, nil
+}
+
+// LoadOrNew reads a review, or returns an empty one when the file is not there
+// yet. Any other failure is returned: a review that exists but will not parse
+// is a hand-edit to repair, and replacing it drops every staged comment.
+func LoadOrNew(path string) (*Review, error) {
+	r, err := Load(path)
+
+	switch {
+	case err == nil:
+		return r, nil
+	case errors.Is(err, fs.ErrNotExist):
+		return &Review{Version: SchemaVersion}, nil
+	default:
+		return nil, err
+	}
 }
 
 // Save writes the review, replacing the file atomically so an interrupted write
