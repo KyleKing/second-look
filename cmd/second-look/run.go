@@ -80,28 +80,32 @@ func openReview(ctx context.Context, number int, stdout io.Writer) error {
 		return fmt.Errorf("opening #%d: %w", number, err)
 	}
 
-	if err := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(opened.Path, stdout)); err != nil {
+	// The alternate screen owns the terminal until the screen exits, so what the
+	// post wrote is held back and reaches the scrollback afterwards. Writing it
+	// as it happens draws over the frame.
+	var log strings.Builder
+
+	if err := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(opened.Path, &log)); err != nil {
 		return fmt.Errorf("reviewing #%d: %w", number, err)
 	}
 
-	return nil
+	return write(stdout, log.String())
 }
 
-// submitter posts from inside the review screen. Its summary reaches the footer
-// rather than the terminal, which the alternate screen owns until the program
-// exits, so the same lines are written to stdout for the scrollback.
-func submitter(path string, stdout io.Writer) tui.Submitter {
+// submitter posts from inside the review screen. What it returns is the one
+// line the footer shows, so it stays short enough to survive a narrow frame,
+// and the endpoints it touched go to the log instead.
+func submitter(path string, log io.Writer) tui.Submitter {
 	return func(ctx context.Context, r *artifact.Review) (string, error) {
 		if err := post.Guard(ctx, ".", r); err != nil {
 			return "", fmt.Errorf("submitting: %w", err)
 		}
 
-		var out strings.Builder
-		if err := post.Run(ctx, post.GH(), path, r, io.MultiWriter(&out, stdout)); err != nil {
+		if err := post.Run(ctx, post.GH(), path, r, log); err != nil {
 			return "", fmt.Errorf("submitting: %w", err)
 		}
 
-		return strings.Join(strings.Fields(out.String()), " "), nil
+		return fmt.Sprintf("posted to %s/%s #%d", r.Owner, r.Repo, r.Number), nil
 	}
 }
 
