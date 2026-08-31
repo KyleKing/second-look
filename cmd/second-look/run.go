@@ -6,20 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"os/exec"
 	"strconv"
 	"strings"
-
-	"github.com/kyleking/aragonite/forge/github"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
+	"github.com/kyleking/second-look/internal/post"
 )
 
 var (
-	errHeadMoved      = errors.New("the pull request has new commits")
 	errNoCommand      = errors.New("no command; try second-look -h")
 	errNotAPRNumber   = errors.New("not a pull request number")
 	errUnknownCommand = errors.New("unknown command; try second-look -h")
@@ -195,120 +191,18 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return fmt.Errorf("loading the prepared review: %w", err)
 	}
 
-	if err := guardAnchors(ctx, r); err != nil {
+	//nolint:wrapcheck // guardAnchors' own error already names what failed
+	if err := post.Guard(ctx, ".", r); err != nil {
 		return err
 	}
 
-	payload, replies, err := r.Payload()
-	if err != nil {
-		return fmt.Errorf("building the payload: %w", err)
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("encoding the review: %w", err)
-	}
-
-	endpoint := fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", r.Owner, r.Repo, r.Number)
 	if dry {
-		return dryRun(stdout, r, endpoint, body, replies)
+		//nolint:wrapcheck // DryRun's own error already names what failed
+		return post.DryRun(stdout, r)
 	}
 
-	if err := ghPost(ctx, endpoint, body); err != nil {
-		return err
-	}
-
-	if err := write(stdout, "posted "+endpoint+"\n"); err != nil {
-		return err
-	}
-
-	if err := postReplies(ctx, r, replies); err != nil {
-		return err
-	}
-
-	// GitHub is the source of truth from here, and a prepared review left on
-	// disk would post a second copy of itself if anyone ran post again.
-	//nolint:gosec // the path is the repo root plus a pull request number
-	if err := os.Remove(path); err != nil {
-		return fmt.Errorf("the review posted; removing %s: %w", path, err)
-	}
-
-	return write(stdout, "removed "+path+"\n")
-}
-
-// guardAnchors compares every comment against the pull request's current diff
-// before anything is sent. A comment whose line moved would land on whatever
-// now sits there, which is worse than not posting it.
-func guardAnchors(ctx context.Context, r *artifact.Review) error {
-	pr, err := github.GetPR(ctx, ".", r.Number)
-	if err != nil {
-		return fmt.Errorf("checking the pull request head: %w", err)
-	}
-	if pr.HeadSHA != r.HeadSHA {
-		return fmt.Errorf("%w: prepared against %s, now at %s; run second-look get %d",
-			errHeadMoved, r.HeadSHA, pr.HeadSHA, r.Number)
-	}
-
-	patch, err := github.PRDiff(ctx, ".", r.Number)
-	if err != nil {
-		return fmt.Errorf("reading the current diff: %w", err)
-	}
-
-	if err := artifact.Verify(r.Comments, diff.Parse(patch)); err != nil {
-		return fmt.Errorf("nothing was posted:\n%w", err)
-	}
-
-	return nil
-}
-
-func dryRun(stdout io.Writer, r *artifact.Review, endpoint string, body []byte, replies []artifact.ReplyPayload) error {
-	if err := write(stdout, fmt.Sprintf("POST %s\n%s\n", endpoint, body)); err != nil {
-		return err
-	}
-
-	for _, reply := range replies {
-		line := fmt.Sprintf("POST %s\n", replyEndpoint(r, reply.InReplyTo))
-		if err := write(stdout, line); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// postReplies runs after the review is already posted, which is why a failure
-// here is reported with that fact rather than retried.
-func postReplies(ctx context.Context, r *artifact.Review, replies []artifact.ReplyPayload) error {
-	for _, reply := range replies {
-		rb, err := json.Marshal(reply)
-		if err != nil {
-			return fmt.Errorf("encoding a reply: %w", err)
-		}
-
-		if err := ghPost(ctx, replyEndpoint(r, reply.InReplyTo), rb); err != nil {
-			return fmt.Errorf("the review posted but a reply did not, and the prepared review is"+
-				" still on disk; posting it again would post the review twice: %w", err)
-		}
-	}
-
-	return nil
-}
-
-func replyEndpoint(r *artifact.Review, commentID int64) string {
-	return fmt.Sprintf("/repos/%s/%s/pulls/comments/%d/replies", r.Owner, r.Repo, commentID)
-}
-
-func ghPost(ctx context.Context, endpoint string, body []byte) error {
-	//nolint:gosec // the endpoint is built from the artifact's own owner, repo, and number
-	cmd := exec.CommandContext(ctx, "gh", "api", "--method", "POST", endpoint, "--input", "-")
-	cmd.Stdin = strings.NewReader(string(body))
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("gh api POST %s: %w", endpoint, err)
-	}
-
-	return nil
+	//nolint:wrapcheck // Run's own error already names what failed
+	return post.Run(ctx, post.GH(), path, r, stdout)
 }
 
 func write(w io.Writer, s string) error {

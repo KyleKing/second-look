@@ -1,0 +1,171 @@
+// Package post sends a prepared review to GitHub: the anchor guard, the review
+// itself, its replies, and the artifact cleanup that follows a successful post.
+package post
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"strings"
+
+	"github.com/kyleking/aragonite/forge/github"
+
+	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/diff"
+)
+
+// ErrHeadMoved reports a pull request whose head advanced since the review
+// was prepared.
+var ErrHeadMoved = errors.New("the pull request has new commits")
+
+// Poster sends one request. The gh CLI is the only implementation that ships;
+// a test supplies its own.
+type Poster interface {
+	Post(ctx context.Context, endpoint string, body []byte) error
+}
+
+type ghPoster struct{}
+
+// GH posts by shelling out to `gh api`.
+//
+//nolint:ireturn // Poster is the seam a test replaces; concrete would remove it
+func GH() Poster { return ghPoster{} }
+
+func (ghPoster) Post(ctx context.Context, endpoint string, body []byte) error {
+	//nolint:gosec // the endpoint is built from the artifact's own owner, repo, and number
+	cmd := exec.CommandContext(ctx, "gh", "api", "--method", "POST", endpoint, "--input", "-")
+	cmd.Stdin = strings.NewReader(string(body))
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("gh api POST %s: %w", endpoint, err)
+	}
+
+	return nil
+}
+
+// Guard compares every comment against the pull request's current diff before
+// anything is sent. A comment whose line moved would land on whatever now
+// sits there, which is worse than not posting it.
+func Guard(ctx context.Context, root string, r *artifact.Review) error {
+	pr, err := github.GetPR(ctx, root, r.Number)
+	if err != nil {
+		return fmt.Errorf("checking the pull request head: %w", err)
+	}
+	if pr.HeadSHA != r.HeadSHA {
+		return fmt.Errorf("%w: prepared against %s, now at %s; run second-look get %d",
+			ErrHeadMoved, r.HeadSHA, pr.HeadSHA, r.Number)
+	}
+
+	patch, err := github.PRDiff(ctx, root, r.Number)
+	if err != nil {
+		return fmt.Errorf("reading the current diff: %w", err)
+	}
+
+	if err := artifact.Verify(r.Comments, diff.Parse(patch)); err != nil {
+		return fmt.Errorf("nothing was posted:\n%w", err)
+	}
+
+	return nil
+}
+
+// Run posts an already-guarded review, then its replies, and removes the
+// artifact file at path once every request succeeds.
+func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.Writer) error {
+	payload, replies, err := r.Payload()
+	if err != nil {
+		return fmt.Errorf("building the payload: %w", err)
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("encoding the review: %w", err)
+	}
+
+	endpoint := reviewEndpoint(r)
+
+	//nolint:wrapcheck // the caller reports the raw gh failure verbatim
+	if err := p.Post(ctx, endpoint, body); err != nil {
+		return err
+	}
+
+	if err := write(out, "posted "+endpoint+"\n"); err != nil {
+		return err
+	}
+
+	if err := postReplies(ctx, p, r, replies); err != nil {
+		return err
+	}
+
+	// GitHub is the source of truth from here, and a prepared review left on
+	// disk would post a second copy of itself if anyone ran post again.
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("the review posted; removing %s: %w", path, err)
+	}
+
+	return write(out, "removed "+path+"\n")
+}
+
+// DryRun prints what Run would send without sending it.
+func DryRun(out io.Writer, r *artifact.Review) error {
+	payload, replies, err := r.Payload()
+	if err != nil {
+		return fmt.Errorf("building the payload: %w", err)
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("encoding the review: %w", err)
+	}
+
+	if err := write(out, fmt.Sprintf("POST %s\n%s\n", reviewEndpoint(r), body)); err != nil {
+		return err
+	}
+
+	for _, reply := range replies {
+		line := fmt.Sprintf("POST %s\n", replyEndpoint(r, reply.InReplyTo))
+		if err := write(out, line); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// postReplies runs after the review is already posted, which is why a failure
+// here is reported with that fact rather than retried.
+func postReplies(ctx context.Context, p Poster, r *artifact.Review, replies []artifact.ReplyPayload) error {
+	for _, reply := range replies {
+		rb, err := json.Marshal(reply)
+		if err != nil {
+			return fmt.Errorf("encoding a reply: %w", err)
+		}
+
+		if err := p.Post(ctx, replyEndpoint(r, reply.InReplyTo), rb); err != nil {
+			return fmt.Errorf("the review posted but a reply did not, and the prepared review is"+
+				" still on disk; posting it again would post the review twice: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func reviewEndpoint(r *artifact.Review) string {
+	return fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", r.Owner, r.Repo, r.Number)
+}
+
+func replyEndpoint(r *artifact.Review, commentID int64) string {
+	return fmt.Sprintf("/repos/%s/%s/pulls/comments/%d/replies", r.Owner, r.Repo, commentID)
+}
+
+func write(w io.Writer, s string) error {
+	if _, err := io.WriteString(w, s); err != nil {
+		return fmt.Errorf("writing output: %w", err)
+	}
+
+	return nil
+}
