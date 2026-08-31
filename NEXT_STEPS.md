@@ -234,11 +234,20 @@ Releasing aragonite is `cz bump` plus a pushed tag, since the Go module proxy re
 library from its tag and no goreleaser is involved. Consumers then `go get` the new
 version and commit the `go.mod` change.
 
+## Deferred
+
+**Backport the typos short-hash rule to [my_go_template](https://github.com/KyleKing/my_go_template).**
+`.typos.toml` here teaches typos to read an abbreviated commit hash as a hash rather
+than a misspelling, which every repo rendered from the template will need the first time
+a hash reaches a commit message or a fixture. The local rule stands on its own, so this
+is the second `.rej` case from AGENTS.md: keep it locally and open the same change
+upstream.
+
 ## Open questions
 
 **The 70% coverage floor is not enforced anywhere.** `mise run test:coverage-min`
-exists, CI does not run it, and it has never passed: 33.5% before this work and 39.9%
-after. `internal/get` is the largest gap, and it is untestable as written because
+exists, CI does not run it, and it has never passed: 45.1% before the review screen
+and 49.8% after. `internal/get` is the largest gap, and it is untestable as written because
 aragonite's command stubs are exported only to aragonite's own tests. Either widen those
 or drop the task.
 
