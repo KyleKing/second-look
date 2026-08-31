@@ -134,8 +134,8 @@ func indexComments(r *artifact.Review) map[anchor][]int {
 
 	for i := range r.Comments {
 		c := &r.Comments[i]
-		out[anchor{path: c.Path, side: c.Side, line: c.Line}] = append(
-			out[anchor{path: c.Path, side: c.Side, line: c.Line}], i)
+		a := anchor{path: c.Path, side: c.Side, line: c.Line}
+		out[a] = append(out[a], i)
 	}
 
 	return out
