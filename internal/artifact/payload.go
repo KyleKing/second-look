@@ -21,7 +21,7 @@ type commentPayload struct {
 	StartLine int    `json:"start_line,omitempty"`
 }
 
-// ReplyPayload is the body of POST /repos/{o}/{r}/pulls/comments/{id}/replies.
+// ReplyPayload is the body of POST /repos/{o}/{r}/pulls/{n}/comments/{id}/replies.
 type ReplyPayload struct {
 	Body      string `json:"body"`
 	InReplyTo int64  `json:"-"`

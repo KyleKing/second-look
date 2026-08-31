@@ -78,7 +78,7 @@ func TestRun(t *testing.T) {
 			review: review(inlineComment("1", artifact.StatusReady), reply),
 			wantEndpoints: []string{
 				"/repos/kyleking/second-look/pulls/42/reviews",
-				"/repos/kyleking/second-look/pulls/comments/99/replies",
+				"/repos/kyleking/second-look/pulls/42/comments/99/replies",
 			},
 			wantFileGone: true,
 		},
@@ -89,7 +89,7 @@ func TestRun(t *testing.T) {
 			wantErr: "the review posted but a reply did not",
 			wantEndpoints: []string{
 				"/repos/kyleking/second-look/pulls/42/reviews",
-				"/repos/kyleking/second-look/pulls/comments/99/replies",
+				"/repos/kyleking/second-look/pulls/42/comments/99/replies",
 			},
 		},
 		{

@@ -159,7 +159,7 @@ func reviewEndpoint(r *artifact.Review) string {
 }
 
 func replyEndpoint(r *artifact.Review, commentID int64) string {
-	return fmt.Sprintf("/repos/%s/%s/pulls/comments/%d/replies", r.Owner, r.Repo, commentID)
+	return fmt.Sprintf("/repos/%s/%s/pulls/%d/comments/%d/replies", r.Owner, r.Repo, r.Number, commentID)
 }
 
 func write(w io.Writer, s string) error {
