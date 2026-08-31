@@ -15,10 +15,15 @@ none of the premise.
 Concretely, this works and nothing in it is faked:
 
 ```sh
-second-look get 42        # fetch the PR, check it out, build the artifact
+gh pr checkout 42         # or second-look get 42, which also caches the diff
 # claude drafts comments through the change-review skill
-second-look 42            # read the diff, edit comments, submit with a key
+second-look 42            # read the diff, triage comments, submit with a key
+second-look               # the same, for whatever this branch belongs to
 ```
+
+Reached, with the submit itself the one step nobody has run against GitHub from inside
+the screen. What alpha still leaves out: seen-state, the inbox, the rating, existing
+review threads fetched back from GitHub, and writing a new comment without an agent.
 
 ## Decided since
 
@@ -48,9 +53,28 @@ anchor guard, with the posted and local split enforced by the builder rather tha
 list. `internal/diff` parses the unified diff both halves of the guard read.
 `second-look get`, `comment add`, `show`, `show --payload`, `post`, and `post --dry-run`
 all work, smoke-tested end to end against a real pull request. `post` removes the
-prepared review once GitHub has it, so re-running it cannot publish a second copy. Its
-success path is the one thing here nobody has run: `cmd/` has no seam to fake `gh`
-behind, so everything up to the request is tested and the request is not.
+prepared review once GitHub has it, so re-running it cannot publish a second copy.
+Posting lives in `internal/post` behind a `Poster` interface, so the success path,
+the reply-failed-after-the-review-posted path, and the draft refusal are all tested
+against a fake rather than against GitHub.
+
+`internal/tui` is the review screen: the diff with each comment rendered under the line
+it anchors to, navigation by line, hunk, file, and comment, `r`/`d`/`x` to mark a
+comment ready, draft, or skipped, `e` to edit one in `$EDITOR`, and `S` to submit.
+Every keystroke that changes a comment writes the artifact, so quitting loses nothing.
+A comment whose path is no longer in the diff is listed at the end under "not in this
+diff" rather than dropped, since a comment nobody can see is a comment nobody can
+retract. Bubble Tea v2 through `charm.land/bubbletea/v2`, colored from
+`aragonite/tui/theme`, with every state carrying a glyph as well as a color.
+
+`second-look <pr>` opens that screen, and `second-look` with no argument opens it for
+the pull request the current branch belongs to. Neither moves the working copy:
+checking a pull request out is `gh pr checkout`, and a screen that moved the tree as a
+side effect of being opened would move a tree nobody asked it to. Standing somewhere
+else is refused by name — no pull request for this branch, or the checkout is not on
+the head and here is the command that fixes it. The artifact and the cached diff are
+written only when they are missing, and an existing review keeps the head it was staged
+against rather than being restamped on every open.
 
 The `change-review` skill drafts through `second-look` and no longer writes a markdown
 staging file. The original is backed up at `~/.claude/change-review-pre-sl.bak/`.
@@ -176,17 +200,14 @@ Two things to copy from hunk's skill, which is 184 lines:
   the user and the agent drives `hunk session *` instead. Once `second-look <pr>` opens
   a review, an agent that runs it will hang on a terminal nothing is attached to
 
-## 6. Publish aragonite, and keep it published
+## 6. Publish aragonite, and keep it published — done
 
-aragonite v0.1.0 reads the diff with `gh pr diff --patch`, which returns a patch series
-rather than the pull request's diff, so every anchor second-look quotes from a released
-build is quoted from the wrong line. The fix is on aragonite's main and the release is
-what carries it here.
-
-`go mod tidy` fails in both consumers today because aragonite has no published version,
-and CI has no workspace to fall back on. So this blocks step 1's `mise run ci` in GitHub
-Actions even though it is listed last. `mise run verify-released` now fails in
-second-look too, for the same reason and by the same design.
+aragonite v0.1.0 read the diff with `gh pr diff --patch`, which returns a patch series
+rather than the pull request's diff, so every anchor a released build quoted was quoted
+from the wrong line. v0.2.1 carries the fix, second-look depends on it, and
+`mise run verify-released` passes with no workspace. The `go.work` that made the
+unreleased sibling usable is gone; recreating it is three lines when aragonite next
+needs work ahead of a release.
 
 aragonite still has no tooling of its own: no `.golangci.toml`, no mise config, no hk
 setup. It was linted here with a copy of gh-repo-dashboard's config, which is not a
