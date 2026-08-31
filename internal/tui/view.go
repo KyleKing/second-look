@@ -42,16 +42,32 @@ func (m *Model) render() string {
 func (m *Model) title() string {
 	c := m.counts()
 	left := fmt.Sprintf("%s/%s #%d", m.review.Owner, m.review.Repo, m.review.Number)
-	right := fmt.Sprintf("%d ready · %d draft · %d skipped", c.ready, c.draft, c.skip)
+	right := cut(fmt.Sprintf("%s · %d ready · %d draft · %d skipped",
+		m.progress(), c.ready, c.draft, c.skip), m.width)
 
 	if path := m.rowPath(); path != "" {
 		left += "  " + path
 	}
 
-	gap := max(1, m.width-len(left)-len(right))
+	// The counts and the position are fixed width, so the path yields to them
+	// rather than pushing the line past the frame.
+	left = cut(left, max(1, m.width-runeLen(right)-1))
+	gap := max(1, m.width-runeLen(left)-runeLen(right))
 
-	return m.styles.title.Render(cut(left, m.width)) +
+	return m.styles.title.Render(left) +
 		strings.Repeat(" ", gap) + m.styles.subtitle.Render(right)
+}
+
+// progress is how far through the review the cursor is, which a frame with no
+// scrollbar otherwise cannot say. It is fixed width so the title does not
+// shift under the eye on every keystroke.
+func (m *Model) progress() string {
+	last := len(m.screen.rows) - 1
+	if last < 1 {
+		return "100%"
+	}
+
+	return fmt.Sprintf("%3d%%", m.cursor*100/last)
 }
 
 // tally is how many comments will post, how many block the post, and how many
@@ -243,9 +259,11 @@ func cut(s string, width int) string {
 }
 
 func pad(s string, width int) string {
-	if n := width - len([]rune(s)); n > 0 {
+	if n := width - runeLen(s); n > 0 {
 		return s + strings.Repeat(" ", n)
 	}
 
 	return s
 }
+
+func runeLen(s string) int { return len([]rune(s)) }

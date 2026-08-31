@@ -75,7 +75,7 @@ func build(r *artifact.Review, d *diff.Diff, width int) screen {
 
 			for _, c := range byLine[anchorOf(path, l)] {
 				placed[c] = true
-				s.rows = append(s.rows, comment(&r.Comments[c], c, width, s.numWidth)...)
+				s.rows = append(s.rows, comment(&r.Comments[c], c, path, width, s.numWidth)...)
 			}
 		}
 	}
@@ -106,7 +106,7 @@ func (s screen) appendUnanchored(r *artifact.Review, placed []bool, width int) s
 		s.rows = append(s.rows, row{
 			kind: rowHunk, text: fmt.Sprintf("%s %s %d", c.Path, c.Side, c.Line), comment: -1,
 		})
-		s.rows = append(s.rows, comment(c, i, width, s.numWidth)...)
+		s.rows = append(s.rows, comment(c, i, c.Path, width, s.numWidth)...)
 	}
 
 	return s
@@ -161,7 +161,7 @@ func header(r *artifact.Review, width int) []row {
 	return rows
 }
 
-func comment(c *artifact.Comment, index, width, numWidth int) []row {
+func comment(c *artifact.Comment, index int, path string, width, numWidth int) []row {
 	avail := width - numWidth - rail
 	head := fmt.Sprintf("%s %s", statusGlyph(c.Status), c.Severity)
 
@@ -175,14 +175,14 @@ func comment(c *artifact.Comment, index, width, numWidth int) []row {
 
 	body, note := wrap(c.Body, avail), wrap(c.Note, avail)
 	rows := make([]row, 0, 1+len(body)+len(note))
-	rows = append(rows, row{kind: rowComment, text: head, comment: index, head: true})
+	rows = append(rows, row{kind: rowComment, text: head, path: path, comment: index, head: true})
 
 	for _, l := range body {
-		rows = append(rows, row{kind: rowComment, text: l, comment: index})
+		rows = append(rows, row{kind: rowComment, text: l, path: path, comment: index})
 	}
 
 	for _, l := range note {
-		rows = append(rows, row{kind: rowComment, text: "· " + l, comment: index})
+		rows = append(rows, row{kind: rowComment, text: "· " + l, path: path, comment: index})
 	}
 
 	return rows
