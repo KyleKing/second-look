@@ -26,6 +26,21 @@ posted fields, so a local field cannot leak by being forgotten.
 
 COMMANDS
 
+  second-look <pr>
+      Open the review screen: the diff with the prepared review's comments
+      inline, where they anchor. Navigate by hunk, mark a comment ready, draft,
+      or skipped, edit one in $EDITOR, and submit the review with S.
+
+      It creates the prepared review and caches the diff if they are missing,
+      and never moves the working copy: the checkout has to already be on the
+      pull request head, which "gh pr checkout <pr>" or "second-look get <pr>"
+      does. A review staged against an older head is refused rather than shown
+      beside a diff it was not written against.
+
+  second-look
+      The same, for the pull request the current branch belongs to. A branch
+      with no pull request is an error, not a guess.
+
   second-look get <pr>
       Read the pull request, move the working copy onto its head, write the
       prepared review, and cache the diff under .second-look/diff/. Run this

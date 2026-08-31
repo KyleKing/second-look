@@ -13,21 +13,22 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/post"
+	"github.com/kyleking/second-look/internal/tui"
 )
 
 var (
-	errNoCommand      = errors.New("no command; try second-look -h")
 	errNotAPRNumber   = errors.New("not a pull request number")
 	errUnknownCommand = errors.New("unknown command; try second-look -h")
 	errUsageComment   = errors.New("usage: second-look comment add <pr>")
 	errUsageGet       = errors.New("usage: second-look get <pr>")
 	errUsagePost      = errors.New("usage: second-look post <pr> [--dry-run]")
+	errUsageReview    = errors.New("usage: second-look <pr>")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--payload]")
 )
 
 func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) == 0 {
-		return errNoCommand
+		return reviewCurrent(ctx, stdout)
 	}
 
 	switch args[0] {
@@ -44,7 +45,63 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	case "post":
 		return postCmd(ctx, args[1:], stdout)
 	default:
+		return reviewCmd(ctx, args, stdout)
+	}
+}
+
+// reviewCurrent opens the review for whatever the checkout is standing on.
+// There is no default: on a branch with no pull request the answer is an error,
+// not a guess at which one was meant.
+func reviewCurrent(ctx context.Context, stdout io.Writer) error {
+	number, err := get.Current(ctx, ".")
+	if err != nil {
+		return fmt.Errorf("opening this branch's review: %w", err)
+	}
+
+	return openReview(ctx, number, stdout)
+}
+
+func reviewCmd(ctx context.Context, args []string, stdout io.Writer) error {
+	number, err := prNumber(args[0])
+	if err != nil {
 		return fmt.Errorf("%w: %q", errUnknownCommand, args[0])
+	}
+
+	if len(args) > 1 {
+		return errUsageReview
+	}
+
+	return openReview(ctx, number, stdout)
+}
+
+func openReview(ctx context.Context, number int, stdout io.Writer) error {
+	opened, err := get.Open(ctx, ".", number)
+	if err != nil {
+		return fmt.Errorf("opening #%d: %w", number, err)
+	}
+
+	if err := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(opened.Path, stdout)); err != nil {
+		return fmt.Errorf("reviewing #%d: %w", number, err)
+	}
+
+	return nil
+}
+
+// submitter posts from inside the review screen. Its summary reaches the footer
+// rather than the terminal, which the alternate screen owns until the program
+// exits, so the same lines are written to stdout for the scrollback.
+func submitter(path string, stdout io.Writer) tui.Submitter {
+	return func(ctx context.Context, r *artifact.Review) (string, error) {
+		if err := post.Guard(ctx, ".", r); err != nil {
+			return "", fmt.Errorf("submitting: %w", err)
+		}
+
+		var out strings.Builder
+		if err := post.Run(ctx, post.GH(), path, r, io.MultiWriter(&out, stdout)); err != nil {
+			return "", fmt.Errorf("submitting: %w", err)
+		}
+
+		return strings.Join(strings.Fields(out.String()), " "), nil
 	}
 }
 

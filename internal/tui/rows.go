@@ -55,7 +55,7 @@ func build(r *artifact.Review, d *diff.Diff, width int) screen {
 	byLine := indexComments(r)
 	placed := make([]bool, len(r.Comments))
 
-	s.rows = append(s.rows, header(r, width)...)
+	s.rows = append(s.rows, header(r, width-s.numWidth-rail)...)
 
 	for i := range d.Files {
 		f := &d.Files[i]
@@ -141,8 +141,11 @@ func indexComments(r *artifact.Review) map[anchor][]int {
 	return out
 }
 
+// header is the review's own prose, which has nowhere else to live: the title
+// bar already names the pull request, so this carries only what a person wrote
+// about the whole change.
 func header(r *artifact.Review, width int) []row {
-	rows := []row{{kind: rowFile, text: fmt.Sprintf("%s/%s #%d", r.Owner, r.Repo, r.Number), comment: -1}}
+	var rows []row
 
 	for _, block := range [][2]string{{"body", r.Body}, {"note", r.Note}} {
 		if block[1] == "" {
@@ -150,7 +153,7 @@ func header(r *artifact.Review, width int) []row {
 		}
 
 		rows = append(rows, row{kind: rowHunk, text: "review " + block[0], comment: -1})
-		for _, l := range wrap(block[1], width-indent) {
+		for _, l := range wrap(block[1], width) {
 			rows = append(rows, row{kind: rowComment, text: l, comment: -1})
 		}
 	}

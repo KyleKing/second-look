@@ -212,7 +212,10 @@ func (m *Model) setStatus(status string) {
 
 	// Validation requires a reason for a skip, and refusing the keystroke over
 	// a sentence nobody has written yet would be worse than a plain default.
-	if status == artifact.StatusSkip && c.SkipReason == "" {
+	switch {
+	case status != artifact.StatusSkip:
+		c.SkipReason = ""
+	case c.SkipReason == "":
 		c.SkipReason = "declined during review"
 	}
 
@@ -357,13 +360,30 @@ func (m *Model) jump(step int, want func(row) bool) {
 }
 
 // follow keeps the cursor on screen, scrolling by the smallest amount that
-// brings it back into the frame.
+// brings it back into the frame. Landing on a comment reveals the rest of it
+// where the frame has room, since a comment's first line is its severity and
+// the sentence under it is the part worth reading.
 func (m *Model) follow() {
 	h := m.viewHeight()
 
 	m.offset = min(m.offset, m.cursor)
-	m.offset = max(m.offset, m.cursor-h+1)
+	m.offset = max(m.offset, min(m.blockEnd(), m.cursor+h-1)-h+1)
 	m.offset = clamp(m.offset, 0, max(0, len(m.screen.rows)-h))
+}
+
+// blockEnd is the last row of the comment the cursor is in, or the cursor.
+func (m *Model) blockEnd() int {
+	c := m.current()
+	if c < 0 {
+		return m.cursor
+	}
+
+	end := m.cursor
+	for end+1 < len(m.screen.rows) && m.screen.rows[end+1].comment == c {
+		end++
+	}
+
+	return end
 }
 
 // viewHeight is the frame minus the title and footer lines.
