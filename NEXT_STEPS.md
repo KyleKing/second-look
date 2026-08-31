@@ -47,7 +47,10 @@ blocks pushing it until aragonite is released.
 anchor guard, with the posted and local split enforced by the builder rather than by a
 list. `internal/diff` parses the unified diff both halves of the guard read.
 `second-look get`, `comment add`, `show`, `show --payload`, `post`, and `post --dry-run`
-all work, smoke-tested end to end against a real pull request.
+all work, smoke-tested end to end against a real pull request. `post` removes the
+prepared review once GitHub has it, so re-running it cannot publish a second copy. Its
+success path is the one thing here nobody has run: `cmd/` has no seam to fake `gh`
+behind, so everything up to the request is tested and the request is not.
 
 The `change-review` skill drafts through `second-look` and no longer writes a markdown
 staging file. The original is backed up at `~/.claude/change-review-pre-sl.bak/`.
@@ -112,7 +115,13 @@ now gets caught. GitHub refuses that comment anyway, so this only moves the refu
 somewhere a person can read it.
 
 Posting re-reads the live diff and compares those quotes byte for byte, and refuses
-outright if the pull request has new commits. `internal/diff` is the parser both sides
+outright if the pull request has new commits.
+
+Both halves read the pull request's cumulative diff against its merge base, which is what
+GitHub numbers a review comment against. A diff carrying a file twice is a per-commit
+patch series, whose line numbers belong to an intermediate commit, and the guard refuses
+it rather than quoting an anchor from it. A multi-line comment has to keep both ends
+inside one hunk, since only its end line carries a quote and GitHub refuses the rest. `internal/diff` is the parser both sides
 share: it reads only what an anchor needs, so a rename or a binary payload is skipped
 rather than modeled.
 
@@ -168,6 +177,11 @@ Two things to copy from hunk's skill, which is 184 lines:
   a review, an agent that runs it will hang on a terminal nothing is attached to
 
 ## 6. Publish aragonite, and keep it published
+
+aragonite v0.1.0 reads the diff with `gh pr diff --patch`, which returns a patch series
+rather than the pull request's diff, so every anchor second-look quotes from a released
+build is quoted from the wrong line. The fix is on aragonite's main and the release is
+what carries it here.
 
 `go mod tidy` fails in both consumers today because aragonite has no published version,
 and CI has no workspace to fall back on. So this blocks step 1's `mise run ci` in GitHub
