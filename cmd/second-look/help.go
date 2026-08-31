@@ -48,7 +48,9 @@ COMMANDS
 
   second-look post <pr> [--dry-run]
       Post the review in one request, then post any replies. Refuses while any
-      comment is still a draft.
+      comment is still a draft. On success the prepared review is removed:
+      GitHub is the source of truth from that point and re-running post would
+      publish a second copy.
 
 BATCH SHAPE (stdin to second-look comment add)
 
@@ -94,9 +96,15 @@ WHAT IS REFUSED
   that will not do what its author meant, and a field the schema does not know is
   one the split cannot classify.
 
-  A comment on a line the diff does not carry. A line number invented out of
-  nothing is the most common failure in this workflow, and GitHub refuses the
-  comment anyway, so it is caught while staging rather than on the wire.
+  A comment on a line the diff does not carry, start_line included. A line
+  number invented out of nothing is the most common failure in this workflow,
+  and GitHub refuses the comment anyway, so it is caught while staging rather
+  than on the wire. A multi-line comment whose two ends fall in different
+  hunks is refused for the same reason.
+
+  A diff that carries a file more than once, which is a per-commit patch
+  series rather than the pull request's diff. Its line numbers belong to an
+  intermediate commit, so no anchor into it can be trusted.
 
   A comment whose diff line has changed since it was staged, and a post against
   a pull request that has new commits. Re-run second-look get and re-read them.

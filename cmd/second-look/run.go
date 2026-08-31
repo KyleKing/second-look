@@ -222,7 +222,18 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 
-	return postReplies(ctx, r, replies)
+	if err := postReplies(ctx, r, replies); err != nil {
+		return err
+	}
+
+	// GitHub is the source of truth from here, and a prepared review left on
+	// disk would post a second copy of itself if anyone ran post again.
+	//nolint:gosec // the path is the repo root plus a pull request number
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("the review posted; removing %s: %w", path, err)
+	}
+
+	return write(stdout, "removed "+path+"\n")
 }
 
 // guardAnchors compares every comment against the pull request's current diff
@@ -275,7 +286,8 @@ func postReplies(ctx context.Context, r *artifact.Review, replies []artifact.Rep
 		}
 
 		if err := ghPost(ctx, replyEndpoint(r, reply.InReplyTo), rb); err != nil {
-			return fmt.Errorf("the review posted but a reply did not: %w", err)
+			return fmt.Errorf("the review posted but a reply did not, and the prepared review is"+
+				" still on disk; posting it again would post the review twice: %w", err)
 		}
 	}
 
