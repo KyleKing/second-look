@@ -40,6 +40,9 @@ type File struct {
 // Diff is a parsed unified diff.
 type Diff struct {
 	Files []File
+	// Headers holds each hunk's @@ line, indexed by Line.Hunk minus one, for a
+	// caller rendering the diff rather than anchoring into it.
+	Headers []string
 }
 
 // Repeated reports the post-image paths the diff carries more than once, in
@@ -101,6 +104,7 @@ func Parse(patch []byte) *Diff {
 			start := hunkStart(raw)
 			old, newLine = start.old, start.new
 			hunk++
+			out.Headers = append(out.Headers, raw)
 		case old == 0 && newLine == 0:
 			continue
 		default:
