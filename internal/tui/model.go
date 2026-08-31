@@ -23,6 +23,15 @@ const (
 	startHeight = 24
 )
 
+// Scroll placement. A line-at-a-time move keeps scrollOff rows of context
+// between the cursor and the frame's edge. A jump instead leaves only
+// jumpMargin rows of what came before, because a heading is worth reading with
+// the content under it.
+const (
+	scrollOff  = 3
+	jumpMargin = 1
+)
+
 // Submitter posts the prepared review and reports what happened. It is a
 // parameter so the screen does not depend on how a review reaches GitHub, and
 // so a test can drive the submit path without a network.
@@ -45,10 +54,11 @@ type Model struct {
 	keys   keyMap
 	styles styles
 
-	status string
-	failed bool
-	posted bool
-	help   bool
+	status     string
+	failed     bool
+	posted     bool
+	confirming bool
+	help       bool
 }
 
 // New builds the review screen for a prepared review and the diff it was
@@ -96,7 +106,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case submittedMsg:
 		m.applySubmit(msg)
 
-		return m, nil
+		// The frame after a post differs from the one before it on the footer
+		// alone, and bubbletea v2.0.8 blanks the run of cells a redrawn line
+		// shares with the line it replaces ("posting…" then "posted to …"
+		// renders as "    ed to …"). Drop the repaint once that is fixed
+		// upstream; until then this is the one line that must be readable.
+		return m, tea.ClearScreen
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}
@@ -105,6 +120,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.confirming {
+		return m.answer(msg)
+	}
+
 	if key.Matches(msg, m.keys.Quit) {
 		if m.help {
 			m.help = false
@@ -149,17 +168,17 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 	case key.Matches(msg, m.keys.Bottom):
 		m.cursor = len(m.screen.rows) - 1
 	case key.Matches(msg, m.keys.NextHunk):
-		m.jump(1, func(r row) bool { return r.kind == rowHunk })
+		return m.jump(1, isKind(rowHunk))
 	case key.Matches(msg, m.keys.PrevHunk):
-		m.jump(-1, func(r row) bool { return r.kind == rowHunk })
+		return m.jump(-1, isKind(rowHunk))
 	case key.Matches(msg, m.keys.NextFile):
-		m.jump(1, func(r row) bool { return r.kind == rowFile })
+		return m.jump(1, isKind(rowFile))
 	case key.Matches(msg, m.keys.PrevFile):
-		m.jump(-1, func(r row) bool { return r.kind == rowFile })
+		return m.jump(-1, isKind(rowFile))
 	case key.Matches(msg, m.keys.NextNote):
-		m.jump(1, func(r row) bool { return r.head })
+		return m.jump(1, isHead)
 	case key.Matches(msg, m.keys.PrevNote):
-		m.jump(-1, func(r row) bool { return r.head })
+		return m.jump(-1, isHead)
 	default:
 		return false
 	}
@@ -168,6 +187,12 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 
 	return true
 }
+
+func isKind(k rowKind) func(row) bool {
+	return func(r row) bool { return r.kind == k }
+}
+
+func isHead(r row) bool { return r.head }
 
 func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
@@ -182,9 +207,7 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 	case key.Matches(msg, m.keys.Submit):
-		cmd := m.submitCmd()
-
-		return m, cmd
+		m.askSubmit()
 	}
 
 	return m, nil
@@ -311,20 +334,79 @@ func (m *Model) applyEdit(msg editedMsg) {
 	m.save("edited " + m.review.Comments[msg.index].ID)
 }
 
-func (m *Model) submitCmd() tea.Cmd {
+// askSubmit asks before it posts. Posting is the only thing the screen does
+// that cannot be taken back, and S sits one shift away from the keys that mark
+// a comment ready.
+func (m *Model) askSubmit() {
 	if m.posted {
 		m.say("already posted", false)
 
-		return nil
+		return
+	}
+
+	c := m.counts()
+	if c.draft > 0 {
+		m.focus(m.firstDraft())
+		m.say(fmt.Sprintf("%d comment(s) still draft, r to post it or x to drop it", c.draft), true)
+
+		return
+	}
+
+	m.confirming = true
+	// The pull request is already named in the title bar, so the prompt spends
+	// its width on what the keys do and stays readable in an 80-column frame.
+	m.say(fmt.Sprintf("S again to post, any key cancels: %d comment(s) as %s", c.ready, m.event()), false)
+}
+
+// answer reads the reply to the submit prompt. Anything but a second S cancels
+// and is swallowed, so no keystroke meant for the review posts it instead.
+func (m *Model) answer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	m.confirming = false
+
+	if !key.Matches(msg, m.keys.Submit) {
+		m.say("canceled, nothing was posted", false)
+
+		return m, nil
 	}
 
 	m.say("posting…", false)
 	ctx, review := m.ctx, m.review
 
-	return func() tea.Msg {
+	return m, func() tea.Msg {
 		summary, err := m.submit(ctx, review)
 
 		return submittedMsg{summary: summary, err: err}
+	}
+}
+
+func (m *Model) event() string {
+	if m.review.Event == "" {
+		return artifact.EventComment
+	}
+
+	return m.review.Event
+}
+
+func (m *Model) firstDraft() int {
+	for i := range m.review.Comments {
+		if m.review.Comments[i].Status == artifact.StatusDraft {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// focus puts the cursor on a comment by index, so a refusal points at what has
+// to change rather than only counting it.
+func (m *Model) focus(index int) {
+	for i, r := range m.screen.rows {
+		if r.head && r.comment == index {
+			m.cursor = i
+			m.reveal()
+
+			return
+		}
 	}
 }
 
@@ -336,39 +418,57 @@ func (m *Model) applySubmit(msg submittedMsg) {
 	}
 
 	m.posted = true
-	m.say(msg.summary+" — press q", false)
+	m.say(msg.summary+", press q to leave", false)
 }
 
 func (m *Model) rebuild() {
 	m.screen = build(m.review, m.diff, m.width)
-	m.cursor = clamp(m.cursor, 0, len(m.screen.rows)-1)
+	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()
 }
 
 func (m *Model) moveBy(n int) {
-	m.cursor = clamp(m.cursor+n, 0, len(m.screen.rows)-1)
+	m.cursor = clamp(m.cursor+n, len(m.screen.rows)-1)
 }
 
-func (m *Model) jump(step int, want func(row) bool) {
+// jump moves to the next row matching want and anchors it near the top of the
+// frame. Scrolling by the least that reaches a heading leaves it on the last
+// line, which is the one place the content under it cannot be read.
+func (m *Model) jump(step int, want func(row) bool) bool {
 	for i := m.cursor + step; i >= 0 && i < len(m.screen.rows); i += step {
 		if want(m.screen.rows[i]) {
 			m.cursor = i
+			m.reveal()
 
-			return
+			break
 		}
 	}
+
+	return true
 }
 
-// follow keeps the cursor on screen, scrolling by the smallest amount that
-// brings it back into the frame. Landing on a comment reveals the rest of it
-// where the frame has room, since a comment's first line is its severity and
-// the sentence under it is the part worth reading.
-func (m *Model) follow() {
+// reveal anchors the cursor near the top of the frame, stopping at the last
+// full frame of rows so the end of the review is not scrolled into blankness.
+func (m *Model) reveal() {
 	h := m.viewHeight()
+	m.offset = clamp(m.cursor-jumpMargin, len(m.screen.rows)-h)
+}
 
-	m.offset = min(m.offset, m.cursor)
-	m.offset = max(m.offset, min(m.blockEnd(), m.cursor+h-1)-h+1)
-	m.offset = clamp(m.offset, 0, max(0, len(m.screen.rows)-h))
+// follow keeps the cursor on screen with a few rows of context either side,
+// scrolling by the smallest amount that gets there. Landing on a comment
+// reveals the rest of it where the frame has room, since a comment's first
+// line is its severity and the sentence under it is the part worth reading.
+func (m *Model) follow() {
+	// Half a frame is the most a margin can be before the two bounds below
+	// fight each other and the view flips on every keystroke.
+	const sides = 2
+
+	h := m.viewHeight()
+	pad := min(scrollOff, (h-1)/sides)
+
+	m.offset = min(m.offset, m.cursor-pad)
+	m.offset = max(m.offset, min(m.blockEnd()+pad, m.cursor+h-1)-h+1)
+	m.offset = clamp(m.offset, len(m.screen.rows)-h)
 }
 
 // blockEnd is the last row of the comment the cursor is in, or the cursor.
@@ -393,6 +493,7 @@ func (m *Model) viewHeight() int {
 	return max(1, m.height-chrome)
 }
 
-func clamp(v, lo, hi int) int {
-	return max(lo, min(v, max(lo, hi)))
+// clamp holds v inside [0, hi], which is every bound a row index has.
+func clamp(v, hi int) int {
+	return max(0, min(v, max(0, hi)))
 }

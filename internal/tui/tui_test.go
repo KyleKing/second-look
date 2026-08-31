@@ -49,6 +49,16 @@ func comment(id, path, side string, line int, body string) artifact.Comment {
 func fixture(t *testing.T, cs ...artifact.Comment) (*tui.Model, string) {
 	t.Helper()
 
+	m, path, _ := fixtureWith(t, patch, cs...)
+
+	return m, path
+}
+
+func fixtureWith(t *testing.T, patch string, cs ...artifact.Comment) (*tui.Model, string, *counter) {
+	t.Helper()
+
+	sub := &counter{}
+
 	r := &artifact.Review{
 		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
 		HeadSHA: "a1b2c3d", Event: artifact.EventComment, Comments: cs,
@@ -59,13 +69,30 @@ func fixture(t *testing.T, cs ...artifact.Comment) (*tui.Model, string) {
 		t.Fatal(err)
 	}
 
-	posted := func(context.Context, *artifact.Review) (string, error) { return "posted", nil }
-
-	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, posted)
+	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, sub.post)
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	return m, path
+	return m, path, sub
+}
+
+// press sends a keystroke and runs whatever it returned, which is what the
+// program loop would do and the only way a submit reaches the submitter.
+func press(m *tui.Model, k tea.KeyPressMsg) {
+	_, cmd := m.Update(k)
+	if cmd != nil {
+		m.Update(cmd())
+	}
+}
+
+// counter is a submitter that records how many times it ran, since what the
+// confirmation buys is that a keystroke on its own does not post.
+type counter struct{ n int }
+
+func (c *counter) post(context.Context, *artifact.Review) (string, error) {
+	c.n++
+
+	return "posted 3 comments", nil
 }
 
 // A comment renders under the line it anchors to, or the reader cannot tell
@@ -192,4 +219,121 @@ func TestTooSmallAFrameSaysSo(t *testing.T) {
 	if got := plain(m.Frame()); !strings.Contains(got, "80x10") {
 		t.Errorf("render = %q, want the minimum size", got)
 	}
+}
+
+// A jump to a file lands with the file's content under it. Scrolling by the
+// least that reaches the heading would put it on the frame's last line, which
+// is the one place the reader cannot see what the file changed.
+func TestJumpingToAFileShowsItsContent(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := fixtureWith(t, longPatch(t))
+	m.Update(tea.KeyPressMsg{Code: '}', Text: "}"})
+	m.Update(tea.KeyPressMsg{Code: '}', Text: "}"})
+
+	lines := strings.Split(plain(m.Frame()), "\n")
+
+	at := -1
+
+	for i, l := range lines {
+		if strings.Contains(l, "second/file.go") {
+			at = i
+		}
+	}
+
+	if at < 0 {
+		t.Fatalf("the file never rendered:\n%s", strings.Join(lines, "\n"))
+	}
+
+	if at > 3 {
+		t.Errorf("the file landed on line %d of %d, want it near the top", at, len(lines))
+	}
+
+	if !strings.Contains(strings.Join(lines[at:], "\n"), "second line 20") {
+		t.Errorf("the file's own lines are off screen:\n%s", strings.Join(lines[at:], "\n"))
+	}
+}
+
+// Posting is the one thing the screen cannot take back, and S sits a shift away
+// from the keys that mark a comment ready.
+func TestSubmitAsksFirst(t *testing.T) {
+	t.Parallel()
+
+	ready := comment("c1", parsed, artifact.SideRight, 15, "on the add")
+
+	tests := []struct {
+		name  string
+		after []tea.KeyPressMsg
+		posts int
+		frame string
+	}{
+		{"asks", nil, 0, "S again to post"},
+		{"confirmed", []tea.KeyPressMsg{{Code: 'S', Text: "S"}}, 1, "posted 3 comments"},
+		{"canceled", []tea.KeyPressMsg{{Code: 'j', Text: "j"}}, 0, "nothing was posted"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			m, _, sub := fixtureWith(t, patch, ready)
+			press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+
+			for _, k := range tc.after {
+				press(m, k)
+			}
+
+			if sub.n != tc.posts {
+				t.Errorf("the review posted %d time(s), want %d", sub.n, tc.posts)
+			}
+
+			if got := plain(m.Frame()); !strings.Contains(got, tc.frame) {
+				t.Errorf("the footer never said %q:\n%s", tc.frame, got)
+			}
+		})
+	}
+}
+
+// A draft blocks the post, so the refusal moves the cursor onto the comment
+// that has to be decided rather than only counting it.
+func TestADraftStopsTheSubmitAndIsShown(t *testing.T) {
+	t.Parallel()
+
+	draft := comment("c2", "internal/vcs/git.go", artifact.SideRight, 201, "still thinking")
+	draft.Status = artifact.StatusDraft
+
+	m, _, sub := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 15, "on the add"), draft)
+	m.Update(tea.KeyPressMsg{Code: 'S', Text: "S"})
+
+	if sub.n != 0 {
+		t.Fatalf("a draft review posted %d time(s)", sub.n)
+	}
+
+	got := plain(m.Frame())
+	if !strings.Contains(got, "1 comment(s) still draft") {
+		t.Errorf("the refusal never said what blocked it:\n%s", got)
+	}
+
+	if !strings.Contains(got, draft.Body) {
+		t.Errorf("the cursor never reached the draft:\n%s", got)
+	}
+}
+
+// longPatch is two files long enough that the second cannot be reached without
+// scrolling.
+func longPatch(t *testing.T) string {
+	t.Helper()
+
+	var b strings.Builder
+
+	for _, name := range []string{"first/file.go", "second/file.go"} {
+		fmt.Fprintf(&b, "diff --git a/%s b/%s\nindex 1111111..2222222 100644\n--- a/%s\n+++ b/%s\n@@ -1,40 +1,40 @@\n",
+			name, name, name, name)
+
+		for i := 1; i <= 40; i++ {
+			fmt.Fprintf(&b, "+%s line %d\n", strings.TrimSuffix(name, "/file.go"), i)
+		}
+	}
+
+	return b.String()
 }
