@@ -174,7 +174,8 @@ func writeReview(out io.Writer, root string, id repo, pr *forge.PullRequest) err
 	if moved {
 		return say(out, fmt.Sprintf(
 			"%s moved to %s; %d staged comment(s) came with it and are re-checked on post\n",
-			path, short(pr.HeadSHA), len(review.Comments)))
+			path, short(pr.HeadSHA), len(review.Comments),
+		))
 	}
 
 	return say(out, fmt.Sprintf("%s ready at %s\n", path, short(pr.HeadSHA)))
