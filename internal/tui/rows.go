@@ -1,0 +1,253 @@
+package tui
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/diff"
+)
+
+// Gutter widths: indent is the two columns a header block is inset by, and
+// rail is what the numbers plus the comment rail take from a comment's width.
+const (
+	indent = 2
+	rail   = 4
+)
+
+type rowKind int
+
+const (
+	rowFile rowKind = iota
+	rowHunk
+	rowCode
+	rowComment
+	rowBlank
+)
+
+// row is one rendered line of the review screen. Comments occupy rows of their
+// own so the cursor lands on prose the same way it lands on code.
+type row struct {
+	kind rowKind
+	text string
+	line diff.Line
+	path string
+	// comment indexes Review.Comments for every row of a comment block, so an
+	// action taken anywhere inside the block finds it.
+	comment int
+	// head marks the first row of a comment block, which is where a jump lands.
+	head bool
+}
+
+// screen is the flattened review: the diff with each comment inserted under the
+// line it anchors to.
+type screen struct {
+	rows     []row
+	numWidth int
+}
+
+// build flattens the diff and the prepared review into rows at the given width.
+// A comment whose path is absent from the diff is listed at the end rather than
+// dropped, because a comment nobody can see is a comment nobody can retract.
+func build(r *artifact.Review, d *diff.Diff, width int) screen {
+	s := screen{numWidth: numberWidth(d)}
+	byLine := indexComments(r)
+	placed := make([]bool, len(r.Comments))
+
+	s.rows = append(s.rows, header(r, width)...)
+
+	for i := range d.Files {
+		f := &d.Files[i]
+		path := filePath(f)
+		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
+			row{kind: rowFile, text: path, path: path, comment: -1})
+
+		hunk := 0
+
+		for _, l := range f.Lines {
+			if l.Hunk != hunk {
+				hunk = l.Hunk
+				s.rows = append(s.rows, row{kind: rowHunk, text: hunkHeader(d, hunk), path: path, comment: -1})
+			}
+
+			s.rows = append(s.rows, row{kind: rowCode, line: l, path: path, comment: -1})
+
+			for _, c := range byLine[anchorOf(path, l)] {
+				placed[c] = true
+				s.rows = append(s.rows, comment(&r.Comments[c], c, width, s.numWidth)...)
+			}
+		}
+	}
+
+	return s.appendUnanchored(r, placed, width)
+}
+
+// appendUnanchored lists comments no diff line claimed. Staging refuses those,
+// so reaching one means the diff moved under a review that was already staged.
+func (s screen) appendUnanchored(r *artifact.Review, placed []bool, width int) screen {
+	var loose []int
+
+	for i := range r.Comments {
+		if !placed[i] {
+			loose = append(loose, i)
+		}
+	}
+
+	if len(loose) == 0 {
+		return s
+	}
+
+	s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
+		row{kind: rowFile, text: fmt.Sprintf("not in this diff (%d)", len(loose)), comment: -1})
+
+	for _, i := range loose {
+		c := &r.Comments[i]
+		s.rows = append(s.rows, row{
+			kind: rowHunk, text: fmt.Sprintf("%s %s %d", c.Path, c.Side, c.Line), comment: -1,
+		})
+		s.rows = append(s.rows, comment(c, i, width, s.numWidth)...)
+	}
+
+	return s
+}
+
+// anchor identifies the diff line a comment points at. A context line carries
+// both a pre-image and a post-image number, so it answers to a comment on
+// either side.
+type anchor struct {
+	path string
+	side string
+	line int
+}
+
+func anchorOf(path string, l diff.Line) anchor {
+	if l.Kind == diff.KindRemove {
+		return anchor{path: path, side: artifact.SideLeft, line: l.Old}
+	}
+
+	return anchor{path: path, side: artifact.SideRight, line: l.New}
+}
+
+func indexComments(r *artifact.Review) map[anchor][]int {
+	out := make(map[anchor][]int, len(r.Comments))
+
+	for i := range r.Comments {
+		c := &r.Comments[i]
+		out[anchor{path: c.Path, side: c.Side, line: c.Line}] = append(
+			out[anchor{path: c.Path, side: c.Side, line: c.Line}], i)
+	}
+
+	return out
+}
+
+func header(r *artifact.Review, width int) []row {
+	rows := []row{{kind: rowFile, text: fmt.Sprintf("%s/%s #%d", r.Owner, r.Repo, r.Number), comment: -1}}
+
+	for _, block := range [][2]string{{"body", r.Body}, {"note", r.Note}} {
+		if block[1] == "" {
+			continue
+		}
+
+		rows = append(rows, row{kind: rowHunk, text: "review " + block[0], comment: -1})
+		for _, l := range wrap(block[1], width-indent) {
+			rows = append(rows, row{kind: rowComment, text: l, comment: -1})
+		}
+	}
+
+	return rows
+}
+
+func comment(c *artifact.Comment, index, width, numWidth int) []row {
+	avail := width - numWidth - rail
+	head := fmt.Sprintf("%s %s", statusGlyph(c.Status), c.Severity)
+
+	if c.InReplyTo != 0 {
+		head += fmt.Sprintf(" reply to %d", c.InReplyTo)
+	}
+
+	if c.Status == artifact.StatusSkip && c.SkipReason != "" {
+		head += " — " + c.SkipReason
+	}
+
+	body, note := wrap(c.Body, avail), wrap(c.Note, avail)
+	rows := make([]row, 0, 1+len(body)+len(note))
+	rows = append(rows, row{kind: rowComment, text: head, comment: index, head: true})
+
+	for _, l := range body {
+		rows = append(rows, row{kind: rowComment, text: l, comment: index})
+	}
+
+	for _, l := range note {
+		rows = append(rows, row{kind: rowComment, text: "· " + l, comment: index})
+	}
+
+	return rows
+}
+
+func filePath(f *diff.File) string {
+	if f.NewPath != "" {
+		return f.NewPath
+	}
+
+	return f.OldPath
+}
+
+func hunkHeader(d *diff.Diff, hunk int) string {
+	if hunk >= 1 && hunk <= len(d.Headers) {
+		return d.Headers[hunk-1]
+	}
+
+	return "@@"
+}
+
+// numberWidth sizes the line-number gutter to the widest number in the diff, so
+// the code column does not shift between files.
+func numberWidth(d *diff.Diff) int {
+	const narrowest = 3
+
+	widest := 0
+
+	for i := range d.Files {
+		for _, l := range d.Files[i].Lines {
+			widest = max(widest, l.Old, l.New)
+		}
+	}
+
+	return max(narrowest, len(strconv.Itoa(widest)))
+}
+
+// wrap breaks text at word boundaries, keeping any line breaks the author
+// wrote. A word longer than the width is left long rather than split, since
+// splitting an identifier or a URL makes it unsearchable.
+func wrap(text string, width int) []string {
+	if text == "" {
+		return nil
+	}
+
+	if width < 1 {
+		width = 1
+	}
+
+	var out []string
+
+	for _, para := range strings.Split(text, "\n") {
+		line := ""
+
+		for _, word := range strings.Fields(para) {
+			switch {
+			case line == "":
+				line = word
+			case len(line)+1+len(word) <= width:
+				line += " " + word
+			default:
+				out = append(out, line)
+				line = word
+			}
+		}
+
+		out = append(out, line)
+	}
+
+	return out
+}
