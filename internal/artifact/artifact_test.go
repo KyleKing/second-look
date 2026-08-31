@@ -159,7 +159,7 @@ func TestUnknownKeysAreRejected(t *testing.T) {
 	}
 }
 
-func TestLoadOrNew_KeepsAnUnparseableReview(t *testing.T) {
+func TestLoadOrNew_KeepsAnUnparsableReview(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
