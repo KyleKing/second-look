@@ -1080,17 +1080,29 @@ func TestSubmitAsksFirst(t *testing.T) {
 		after []tea.KeyPressMsg
 		posts int
 		frame string
+		event string
 	}{
-		{"asks", nil, 0, "S again to post"},
-		{"confirmed", []tea.KeyPressMsg{{Code: 'S', Text: "S"}}, 1, "posted 3 comments"},
-		{"canceled", []tea.KeyPressMsg{{Code: 'j', Text: "j"}}, 0, "nothing was posted"},
+		{"asks", nil, 0, "[S]end as COMMENT", ""},
+		{
+			name: "as staged", after: []tea.KeyPressMsg{{Code: 'S', Text: "S"}},
+			posts: 1, frame: "posted 3 comments", event: artifact.EventComment,
+		},
+		{
+			name: "approving", after: []tea.KeyPressMsg{{Code: 'a', Text: "a"}},
+			posts: 1, frame: "posted 3 comments", event: artifact.EventApprove,
+		},
+		{
+			name: "requesting changes", after: []tea.KeyPressMsg{{Code: 'r', Text: "r"}},
+			posts: 1, frame: "posted 3 comments", event: artifact.EventRequestChanges,
+		},
+		{"canceled", []tea.KeyPressMsg{{Code: 'j', Text: "j"}}, 0, "nothing was posted", ""},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			m, _, sub := fixtureWith(t, patch, ready)
+			m, path, sub := fixtureWith(t, patch, ready)
 			press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
 
 			for _, k := range tc.after {
@@ -1103,6 +1115,14 @@ func TestSubmitAsksFirst(t *testing.T) {
 
 			if got := plain(m.Frame()); !strings.Contains(got, tc.frame) {
 				t.Errorf("the footer never said %q:\n%s", tc.frame, got)
+			}
+
+			// What was sent is written back, so a review posted as an approval
+			// does not read afterwards as one posted as a comment.
+			if tc.event != "" {
+				if got := reviewAt(t, path).Event; got != tc.event {
+					t.Errorf("the review was saved as %q, want %q", got, tc.event)
+				}
 			}
 		})
 	}
@@ -1431,5 +1451,34 @@ func TestPeekScrollsWithoutMovingTheCursor(t *testing.T) {
 
 	if got := plain(m.Frame()); !strings.Contains(got, "\n▌") {
 		t.Errorf("the frame did not come back to the cursor:\n%s", got)
+	}
+}
+
+// The legend runs longer than a short frame and the keys that leave it are at
+// the bottom, so it scrolls rather than dropping its tail off the screen.
+func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 14})
+	press(m, tea.KeyPressMsg{Code: '?', Text: "?"})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "move a line") {
+		t.Fatalf("the legend does not start at the top:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+	got := plain(m.Frame())
+	if !strings.Contains(got, "quit") {
+		t.Errorf("the last line of the legend cannot be reached:\n%s", got)
+	}
+
+	// A key pressed while reading it acts on the legend, not on the review it
+	// is drawn over.
+	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if got := plain(m.Frame()); strings.Contains(got, "move a line") {
+		t.Errorf("escape did not close the legend:\n%s", got)
 	}
 }

@@ -185,7 +185,7 @@ func (l *List) footer() string {
 	if hints == nil {
 		hints = [][2]string{
 			{"enter", "read"},
-			{"space", "mark read"},
+			{spaceKey, "mark read"},
 			{"r", "reply"},
 			{"R", "resolve"},
 			{"o", "GitHub"},
@@ -199,28 +199,34 @@ func (l *List) footer() string {
 	return cut(" "+hintLine(l.styles, hints), l.width)
 }
 
+// helpView is the legend, drawn the same way the review screen's is: the keys
+// right-aligned in one column, so a reader scans one edge rather than two.
 func (l *List) helpView() string {
-	if l.helpLines != nil {
-		return strings.Join(append([]string{l.title, ""}, l.helpLines...), "\n")
+	hints := l.helpLines
+	if hints == nil {
+		hints = defaultListHelp()
 	}
 
-	lines := []string{
-		l.title,
-		"",
-		"  j/k, ctrl+u/d, g/G   move, half page, top and bottom",
-		"  ctrl+e/ctrl+y        scroll without moving the cursor",
-		"  /                    narrow to the rows carrying a word; esc puts them back",
-		"  tab                  the next group",
-		"  enter                read the whole conversation, and mark it read",
-		"  space                mark read without opening it",
-		"  r                    reply, staged into the prepared review",
-		"  R                    resolve the thread, or thumbs-up what cannot be resolved",
-		"  o                    open it on GitHub",
-		"  ctrl+r               read the queue again",
-		"  q, esc               leave",
-		"",
-		"  ● marks a conversation that moved since you last read it.",
-	}
+	return strings.Join(append(
+		[]string{l.styles.title.Render(" " + l.title), ""},
+		helpBlock(l.styles, hints, l.width)...,
+	), "\n")
+}
 
-	return strings.Join(lines, "\n")
+func defaultListHelp() [][2]string {
+	return [][2]string{
+		{"j/k, ctrl+u/d, g/G", "move, half page, top and bottom"},
+		{"ctrl+e/ctrl+y", "scroll without moving the cursor"},
+		{"tab", "the next group"},
+		{"/", "narrow to the rows carrying a word; esc puts them back"},
+		{"enter", "read the whole conversation, and mark it read"},
+		{spaceKey, "mark read without opening it"},
+		{"r", "reply, staged into the prepared review"},
+		{"R", "resolve the thread, or thumbs-up what cannot be resolved"},
+		{"o", "open it on GitHub"},
+		{"ctrl+r", "read the queue again"},
+		{"q, esc", "leave"},
+		{},
+		{"", "● marks a conversation that moved since you last read it."},
+	}
 }

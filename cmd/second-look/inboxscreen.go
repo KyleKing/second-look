@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
@@ -26,10 +28,13 @@ import (
 type inboxScreen struct {
 	ctx     context.Context //nolint:containedctx // it bounds the searches a refresh makes
 	buckets []inbox.Bucket
-	// reload runs the same searches again, closed over the config read before
+	// waiting counts the searches still out, so the header can say the queue is
+	// short because it is not finished rather than because it is quiet.
+	waiting int
+	// plan is the searches the queue makes, closed over the config read before
 	// the screen opened: a config error has nowhere to be printed while the
 	// alternate screen is up.
-	reload func() []inbox.Bucket
+	plan func() []inbox.Bucket
 	// next is what the screen was left to do. Reviewing, checking out, and
 	// writing a comment all need the terminal this screen owns, so each is
 	// carried out and performed once it has closed.
@@ -57,23 +62,21 @@ var inboxHints = [][2]string{
 	{"?", helpArg},
 }
 
-var inboxHelp = []string{
-	helpMove,
-	helpGroup,
-	"  enter                open the review screen for it",
-	"  C                    move a checkout onto it, asking before it stashes",
-	"  m                    comment on the pull request itself, in $EDITOR",
-	"  A                    approve it, A again to confirm",
-	"  o                    open it on GitHub",
-	"  ctrl+r               run the searches again",
-	helpLeave,
-	"",
-	"  The buckets are the sections your config names, or the three built-in ones:",
-	"  waiting on you, then what you answered and is still open, then what merged.",
-	"  Opening one needs no checkout, and C is what gets one when this laptop has a",
-	"  clone. Merging is not here: it is M in the review screen, after reading it.",
-	"  A bucket whose search failed says so and leaves the others alone.",
-}
+var inboxHelp = helpFor(helpMove(), helpGroup(), [][2]string{
+	{enterKey, "open the review screen for it"},
+	{"C", "move a checkout onto it, asking before it stashes"},
+	{"m", "comment on the pull request itself, in $EDITOR"},
+	{"A", "approve it, A again to confirm"},
+	{"o", "open it on GitHub"},
+	{refreshKey, "run the searches again"},
+}, helpLeave(), prose(
+	"The buckets are the sections your config names, or the three built-in ones:",
+	"waiting on you, then what you answered and is still open, then what merged.",
+	"Opening one needs no checkout, and C is what gets one when this laptop has a",
+	"clone. Merging is not here: it is M in the review screen, after reading it.",
+	"They run at once and each is drawn as it lands, and a search that failed says",
+	"so and leaves the others alone.",
+))
 
 // openInbox shows the queue and performs whatever the screen was left for,
 // coming back to it afterwards.
@@ -91,11 +94,11 @@ func openInbox(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 		s := &inboxScreen{
 			ctx:        ctx,
 			configured: len(cfg.Sections) > 0,
-			reload:     func() []inbox.Bucket { return runQueue(ctx, cfg) },
+			plan:       func() []inbox.Bucket { return planQueue(cfg) },
 		}
-		s.buckets = s.reload()
 
 		list := tui.NewList("second-look inbox", s.sections, s.act).
+			WithLoader(s).
 			WithSubtitle(s.counts).
 			WithHints(inboxHints).
 			WithHelp(inboxHelp)
@@ -179,6 +182,49 @@ func commentOn(ctx context.Context, at ref, stdout io.Writer) error {
 	return write(stdout, "commented on "+at.String()+"\n")
 }
 
+// bucketMsg is one search that has answered, and where it belongs.
+type bucketMsg struct {
+	at     int
+	bucket inbox.Bucket
+}
+
+// Start puts the headings up and sends every search off at once. Four sections
+// run one after another cost the sum of four searches where the slowest alone
+// is under two seconds, and an empty terminal until then reads as a hang.
+func (s *inboxScreen) Start() tea.Cmd {
+	s.buckets = s.plan()
+	s.waiting = len(s.buckets)
+	s.armed = ""
+
+	cmds := make([]tea.Cmd, 0, len(s.buckets))
+
+	for i := range s.buckets {
+		at, want := i, s.buckets[i]
+
+		cmds = append(cmds, func() tea.Msg {
+			return bucketMsg{at: at, bucket: inbox.Run(s.ctx, ".", want)}
+		})
+	}
+
+	return tea.Batch(cmds...)
+}
+
+// Absorb takes a search that has answered. It runs on the program's own loop,
+// so this is the one place the buckets are written.
+func (s *inboxScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
+	answered, ok := msg.(bucketMsg)
+	if !ok {
+		return nil, false
+	}
+
+	if answered.at < len(s.buckets) {
+		s.buckets[answered.at] = answered.bucket
+		s.waiting--
+	}
+
+	return nil, true
+}
+
 // counts leads with the number worth acting on, which is what is waiting on you
 // for the built-in buckets and the whole queue for sections somebody wrote: a
 // configured first section is whatever its query asked for and calling it work
@@ -186,6 +232,10 @@ func commentOn(ctx context.Context, at ref, stdout io.Writer) error {
 //
 // A failed search is named rather than left to make a short queue look quiet.
 func (s *inboxScreen) counts() string {
+	if s.waiting > 0 {
+		return humanize.Plural(s.waiting, "search", "searches") + " still out"
+	}
+
 	rows, failed := 0, 0
 
 	for i := range s.buckets {
@@ -221,6 +271,12 @@ func (s *inboxScreen) sections() []tui.Section {
 
 	for i := range s.buckets {
 		b := &s.buckets[i]
+
+		if b.Pending() {
+			out = append(out, tui.Section{Name: b.Name, Note: "searching…"})
+
+			continue
+		}
 
 		if b.Err != "" {
 			out = append(out, tui.Section{Name: b.Name, Rows: []tui.Row{{
@@ -296,10 +352,7 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 
 		return "opened " + row.Key, false, nil
 	case tui.ActRefresh:
-		s.buckets = s.reload()
-		s.armed = ""
-
-		return s.counts(), false, nil
+		return "", false, nil
 	case tui.ActMark, tui.ActReply, tui.ActResolve:
 		return "", false, errNotInInbox
 	}

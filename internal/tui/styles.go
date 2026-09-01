@@ -1,15 +1,25 @@
 package tui
 
 import (
+	"image/color"
+
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/skin"
 	"github.com/kyleking/aragonite/tui/theme"
 
 	"github.com/kyleking/second-look/internal/artifact"
 )
 
-// styles is the palette the review screen draws with. Every state that carries
-// a color also carries a glyph, so a 16-color or NO_COLOR terminal loses
-// emphasis rather than meaning.
+// accent is the one color that says which of these tools you are looking at.
+// Lavender is second-look's: it draws the cursor and the rail a comment hangs
+// off, which are the two things this screen is steered by.
+func accent(p theme.Palette) color.Color { return p.Lavender }
+
+// styles is what the screens draw with: aragonite's shared faces, so a title
+// looks like a title in every one of these tools, plus the few this one needs
+// that nothing else has a use for. Every state that carries a color also
+// carries a glyph, so a 16-color or NO_COLOR terminal loses emphasis rather
+// than meaning.
 type styles struct {
 	title    lipgloss.Style
 	subtitle lipgloss.Style
@@ -33,29 +43,29 @@ type styles struct {
 
 func newStyles() styles {
 	p := theme.Detect()
+	sk := skin.New(p, accent(p))
 	base := lipgloss.NewStyle()
 
 	return styles{
-		title:    base.Foreground(p.Text).Bold(true),
-		subtitle: base.Foreground(p.Subtext0),
-		file:     base.Foreground(p.Blue).Bold(true),
-		hunk:     base.Foreground(p.Overlay1),
-		add:      base.Foreground(p.Green),
-		remove:   base.Foreground(p.Red),
-		context:  base.Foreground(p.Subtext1),
-		number:   base.Foreground(p.Overlay0),
-		// A bar in the margin rather than a reversed row: the glyph carries
-		// where the cursor is, so it survives NO_COLOR and a 16-color terminal
-		// without a block of inverted text to read the content through.
-		cursor: base.Foreground(p.Lavender).Bold(true),
-		rail:   base.Foreground(p.Lavender),
-		body:   base.Foreground(p.Text),
-		note:   base.Foreground(p.Overlay1).Italic(true),
-		footer: base.Foreground(p.Subtext0),
-		key:    base.Foreground(p.Mauve),
-		warn:   base.Foreground(p.Yellow),
-		fail:   base.Foreground(p.Red).Bold(true),
-		ok:     base.Foreground(p.Green),
+		title:    sk.Title,
+		subtitle: sk.Subtitle,
+		file:     sk.Heading,
+		hunk:     sk.Muted,
+		// The three diff faces are this screen's own: nothing else here draws a
+		// change, and green-is-added is the one convention a reader brings.
+		add:     base.Foreground(p.Green),
+		remove:  base.Foreground(p.Red),
+		context: base.Foreground(p.Subtext1),
+		number:  base.Foreground(p.Overlay0),
+		cursor:  sk.Cursor,
+		rail:    sk.Accent,
+		body:    sk.Body,
+		note:    sk.Muted.Italic(true),
+		footer:  sk.Subtitle,
+		key:     sk.Key,
+		warn:    sk.Warning,
+		fail:    sk.Error,
+		ok:      sk.Success,
 		severity: map[string]lipgloss.Style{
 			"blocker":  base.Foreground(p.Red).Bold(true),
 			"major":    base.Foreground(p.Peach).Bold(true),

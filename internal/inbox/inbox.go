@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kyleking/aragonite/forge/github"
@@ -34,8 +35,14 @@ type Bucket struct {
 	// on the merged list is no reason to stop showing what is waiting.
 	Err string `json:"error,omitempty"`
 
+	// done marks a bucket whose search has answered, which is what tells a
+	// screen filling in as it goes apart from one that came back empty.
+	done  bool
 	query []string
 }
+
+// Pending reports a bucket whose search is still out.
+func (b Bucket) Pending() bool { return !b.done }
 
 // PullRequest is what triage needs without opening the pull request.
 type PullRequest struct {
@@ -56,11 +63,36 @@ const fields = "repository,number,title,author,isDraft,commentsCount,labels,upda
 // Buckets is the queue, in order: what is waiting on you first, because that is
 // the only bucket with anything to do in it.
 func Buckets(ctx context.Context, root string, limit int) []Bucket {
-	return run(ctx, root, []Bucket{
+	return runAll(ctx, root, Plan(limit))
+}
+
+// Plan is the searches a queue will make, in the order they are shown. Building
+// it reaches nothing, so a screen draws its headings and says what it is waiting
+// for before any of them answer.
+func Plan(limit int) []Bucket {
+	return []Bucket{
 		{Name: "pending your review", query: built(limit, "--review-requested=@me", "--state=open")},
 		{Name: "reviewed, still open", query: built(limit, "--reviewed-by=@me", "--state=open")},
 		{Name: "reviewed, merged", query: built(limit, "--reviewed-by=@me", "--merged")},
-	})
+	}
+}
+
+// Run answers one bucket. Each is a search of its own, so a caller runs them at
+// once and draws each as it lands; one that fails takes its own bucket down and
+// leaves the rest of the queue standing.
+func Run(ctx context.Context, root string, b Bucket) Bucket {
+	b.done = true
+
+	items, err := search(ctx, root, b.query...)
+	if err != nil {
+		b.Err = err.Error()
+
+		return b
+	}
+
+	b.Items = items
+
+	return b
 }
 
 // Configured is the queue a config asked for: one bucket per section, in the
@@ -71,6 +103,11 @@ func Buckets(ctx context.Context, root string, limit int) []Bucket {
 // query written for gh-dash or pasted out of GitHub's search box answers the
 // same way here.
 func Configured(ctx context.Context, root string, sections []Section, limit int) []Bucket {
+	return runAll(ctx, root, PlanFor(sections, limit))
+}
+
+// PlanFor is Plan for the sections a config names.
+func PlanFor(sections []Section, limit int) []Bucket {
 	out := make([]Bucket, 0, len(sections))
 
 	for i := range sections {
@@ -80,7 +117,7 @@ func Configured(ctx context.Context, root string, sections []Section, limit int)
 		})
 	}
 
-	return run(ctx, root, out)
+	return out
 }
 
 // built is a built-in bucket's whole argument list. Recency is its order,
@@ -95,17 +132,23 @@ func page(limit int) []string {
 	return []string{"--limit", strconv.Itoa(limit), "--json", fields}
 }
 
-func run(ctx context.Context, root string, out []Bucket) []Bucket {
+// runAll answers every bucket at once. Four sections run one after another cost
+// the sum of four searches where the slowest alone is under two seconds, and
+// nothing in one search depends on another.
+func runAll(ctx context.Context, root string, out []Bucket) []Bucket {
+	var wait sync.WaitGroup
+
 	for i := range out {
-		items, err := search(ctx, root, out[i].query...)
-		if err != nil {
-			out[i].Err = err.Error()
+		wait.Add(1)
 
-			continue
-		}
+		go func() {
+			defer wait.Done()
 
-		out[i].Items = items
+			out[i] = Run(ctx, root, out[i])
+		}()
 	}
+
+	wait.Wait()
 
 	return out
 }

@@ -94,23 +94,20 @@ var threadsHints = [][2]string{
 	{"?", helpArg},
 }
 
-var threadsHelp = []string{
-	helpMove,
-	helpGroup,
-	"  enter                read the whole conversation, and mark it read",
-	"  space                mark read without opening it",
-	"  r                    leave and open the review screen to stage a reply",
-	"  R                    thumbs-up it, and resolve the thread when there is one",
-	"  o                    open it on GitHub",
-	"  ctrl+r               read the queue again",
-	helpLeave,
-	"",
-	"  ● marks a conversation that moved since you last read it.",
-	"  A reply is staged into that pull request's prepared review and posts with it,",
-	"  so r leaves the queue and opens the review screen for it. Any repository will",
-	"  do, cloned here or not: gh-repo-dashboard says which clones are on this laptop,",
-	"  and a repository with none is reviewed from the API.",
-}
+var threadsHelp = helpFor(helpMove(), helpGroup(), [][2]string{
+	{enterKey, "read the whole conversation, and mark it read"},
+	{"space", "mark read without opening it"},
+	{"r", "leave and open the review screen to stage a reply"},
+	{"R", "thumbs-up it, and resolve the thread when there is one"},
+	{"o", "open it on GitHub"},
+	{refreshKey, "read the queue again"},
+}, helpLeave(), prose(
+	"● marks a conversation that moved since you last read it.",
+	"A reply is staged into that pull request's prepared review and posts with it,",
+	"so r leaves the queue and opens the review screen for it. Any repository will",
+	"do, cloned here or not: gh-repo-dashboard says which clones are on this laptop,",
+	"and a repository with none is reviewed from the API.",
+))
 
 // counts is the header's right-hand corner: how much is in the queue, and how
 // much of it is still unread. The unread figure is live rather than from the

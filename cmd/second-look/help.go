@@ -67,6 +67,11 @@ NAMING A PULL REQUEST
       last change. So triaging a review reads "]c" then "n . n . n .", and
       reading one through reads "]u" then "n" until nothing answers.
 
+      S then S, a, r, or c submits the review: as it already stands, approving,
+      requesting changes, or commenting. The second key both confirms the post
+      and says what kind of review it is, and what it says is written back, so a
+      review posted as an approval does not read afterwards as a comment.
+
       M squash-merges the pull request and deletes its head branch, M again to
       confirm. It refuses while anything is still staged, since a review left
       behind by a merge is work nobody will post.
@@ -202,6 +207,11 @@ NAMING A PULL REQUEST
       then reviewed and merged. Each line carries the repository, the author,
       how stale it is, and the title, which is enough to triage without opening
       anything. A terminal gets the screen and a pipe or --json gets the text.
+
+      The sections are independent searches, so they run at once and the screen
+      draws each as it lands, with the headings saying which are still out. / on
+      any of these screens narrows the rows to those carrying a word, matching
+      the repository, the author, the title, and the line last said.
 
       enter reviews the pull request under the cursor, C moves a checkout onto
       it, m comments on the pull request itself in $EDITOR, A approves it (A

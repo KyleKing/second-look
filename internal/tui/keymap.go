@@ -15,7 +15,11 @@ import "charm.land/bubbles/v2/key"
 // pair of keys rather than under one letter next to the motion keys.
 // Leaving is called the same thing on every screen, so the three footers that
 // offer it cannot drift.
-const quitWord = "quit"
+const (
+	quitWord    = "quit"
+	commentWord = "comment"
+	spaceKey    = "space"
+)
 
 type keyMap struct {
 	Up        key.Binding
@@ -80,7 +84,7 @@ func defaultKeyMap() keyMap {
 		Ready:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
 		Draft:     key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
 		Skip:      key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
-		Seen:      key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "read")),
+		Seen:      key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
 		Search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 		List:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
 		Fold:      key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
@@ -102,7 +106,7 @@ func objects() [][2]string {
 		{"h", "hunk"},
 		{"d", "directory"},
 		{"f", "file"},
-		{"c", "comment"},
+		{"c", commentWord},
 		{"t", "thread"},
 		{"u", "unread hunk"},
 	}
@@ -116,6 +120,18 @@ func states() [][2]string {
 
 func foldObjects() [][2]string {
 	return [][2]string{{"a", "fold this"}, {"R", "open all"}, {"M", "fold all"}}
+}
+
+// events are what the second key of the submit chord can say the review is.
+// Pressing S again sends it as whatever it already says it is, which is the
+// path that has to stay two keystrokes.
+func events(staged string) [][2]string {
+	return [][2]string{
+		{"S", "send as " + staged},
+		{"a", "approve"},
+		{"r", "request changes"},
+		{"c", commentWord},
+	}
 }
 
 // helpLines is the full help overlay, one row per line, so the footer can stay
@@ -134,7 +150,7 @@ func helpLines() [][2]string {
 		{"c", "the next view: both, the code as it now reads, the comments alone"},
 		{"w", "hide hunks that change nothing but whitespace, and show them again"},
 		{"t", "hide hunks that change no code at all, comments and re-wraps included"},
-		{"space", "mark the hunk read, or the whole file from a file line"},
+		{spaceKey, "mark the hunk read, or the whole file from a file line"},
 		{"m then r / d / x", "mark the comment ready, draft, or skipped"},
 		{"z then a / R / M", "fold the file, hunk, or note here; open all; fold to the file names"},
 		{"e", "write here: a comment, an answer to a thread, the review's body or note"},
@@ -142,7 +158,7 @@ func helpLines() [][2]string {
 		{"!", "run a shell here and attach what it printed to the note"},
 		{"C", "move the checkout onto this pull request"},
 		{"P", "post the comment under the cursor on its own, now"},
-		{"S", "submit the review to GitHub, S again to confirm"},
+		{"S then S / a / r / c", "submit: as staged, approving, requesting changes, commenting"},
 		{"M", "squash-merge the pull request, M again to confirm"},
 		{"? / esc", "this help, back"},
 		{"q", quitWord},

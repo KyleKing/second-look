@@ -96,6 +96,9 @@ type Model struct {
 	// folded is what z has put away by hand.
 	folded folded
 	help   bool
+	// helpAt is how far the legend is scrolled, which a short frame needs
+	// because the keys that leave it are at the bottom of it.
+	helpAt int
 	// checkout is C, answered by the caller once the screen has closed.
 	checkout bool
 	// failure is the last submit that did not post, cleared by one that does.
@@ -271,6 +274,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.complete(msg)
 	}
 
+	// The legend runs longer than a short frame, and the keys that leave it are
+	// at the bottom, so it scrolls rather than dropping its tail.
+	if m.help {
+		return m.readHelp(msg)
+	}
+
 	if handled, model, cmd := m.mode(msg); handled {
 		return model, cmd
 	}
@@ -303,6 +312,33 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.act(msg)
+}
+
+// readHelp scrolls the legend and closes it, and swallows everything else, so a
+// key pressed while reading it does not act on the review behind it.
+func (m *Model) readHelp(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	const halfPage = 2
+
+	switch {
+	case key.Matches(msg, m.keys.Quit), key.Matches(msg, m.keys.Help):
+		m.help, m.helpAt = false, 0
+	case key.Matches(msg, m.keys.Down):
+		m.helpAt++
+	case key.Matches(msg, m.keys.Up):
+		m.helpAt--
+	case key.Matches(msg, m.keys.HalfDown):
+		m.helpAt += m.viewHeight() / halfPage
+	case key.Matches(msg, m.keys.HalfUp):
+		m.helpAt -= m.viewHeight() / halfPage
+	case key.Matches(msg, m.keys.Top):
+		m.helpAt = 0
+	case key.Matches(msg, m.keys.Bottom):
+		m.helpAt = len(helpLines())
+	}
+
+	m.helpAt = clamp(m.helpAt, max(0, len(helpLines())-m.viewHeight()))
+
+	return m, nil
 }
 
 // mode handles the keys that change what the screen is showing rather than what
@@ -377,6 +413,8 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.foldNote(msg)
 
 		return m, nil
+	case 'S':
+		return m.submitAs(msg)
 	case 'm':
 		if !m.stateKey(msg) {
 			m.say("no state for "+msg.String()+"; r ready, d draft, x skip", false)
@@ -539,7 +577,7 @@ func (m *Model) object(prefix rune, msg tea.KeyPressMsg) {
 	case "d":
 		m.repeatable(motion{step, "directory", isKind(rowGroup)})
 	case "c":
-		m.repeatable(motion{step, "comment", isComment})
+		m.repeatable(motion{step, commentWord, isComment})
 	case "t":
 		m.repeatable(motion{step, "thread", isThread})
 	case "u":
@@ -1278,9 +1316,10 @@ func (m *Model) applySent(msg sentMsg) {
 	m.say(msg.summary, false)
 }
 
-// askSubmit asks before it posts. Posting is the only thing the screen does
-// that cannot be taken back, and S sits one shift away from the keys that mark
-// a comment ready.
+// askSubmit opens the submit chord. Posting is the only thing the screen does
+// that cannot be taken back, so the second key both confirms it and says what
+// kind of review it is: SS sends what the review already says it is, and Sa,
+// Sr, and Sc name one, which is the only way to change it short of the file.
 func (m *Model) askSubmit() {
 	// posting is set from the moment the request is dispatched, not when it
 	// answers, because the keys pressed while it is in flight arrive first and
@@ -1311,10 +1350,53 @@ func (m *Model) askSubmit() {
 		return
 	}
 
-	m.asking = askSubmit
+	m.pending = 'S'
 	// The pull request is already named in the title bar, so the prompt spends
 	// its width on what the keys do and stays readable in an 80-column frame.
-	m.say("S again to post, any key cancels: "+plural(c.ready, "comment")+" as "+m.event(), false)
+	m.say("S  "+plural(c.ready, "comment")+"  "+hintLine(styles{}, events(m.event())), false)
+}
+
+// submitAs answers the second key of the submit chord.
+func (m *Model) submitAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	var event string
+
+	switch {
+	case key.Matches(msg, m.keys.Submit):
+		event = m.event()
+	case msg.String() == "a":
+		event = artifact.EventApprove
+	case msg.String() == "r":
+		event = artifact.EventRequestChanges
+	case msg.String() == "c":
+		event = artifact.EventComment
+	default:
+		m.say("canceled, nothing was posted", false)
+
+		return m, nil
+	}
+
+	// The artifact records what was sent, so a review posted as an approval
+	// does not read afterwards as one posted as a comment.
+	if m.review.Event != event {
+		m.review.Event = event
+		if err := artifact.Save(m.path, m.review); err != nil {
+			m.say(err.Error(), true)
+
+			return m, nil
+		}
+	}
+
+	m.posting = true
+
+	m.say("posting as "+event+"…", false)
+
+	ctx, review := m.ctx, m.review
+
+	return m, func() tea.Msg {
+		summary, err := m.submit(ctx, review)
+
+		return submittedMsg{summary: summary, err: err}
+	}
 }
 
 // confirmKind is which confirmation owns the keyboard. Two of the screen's keys
@@ -1324,7 +1406,6 @@ type confirmKind int
 
 const (
 	askNothing confirmKind = iota
-	askSubmit
 	askMerge
 )
 
@@ -1349,48 +1430,27 @@ func (m *Model) askMergeNow() {
 	}
 }
 
-// answer reads the reply to a prompt. Anything but the same key again cancels
-// and is swallowed, so no keystroke meant for the review sends anything.
+// answer reads the reply to the merge confirmation. Anything but the same key
+// again cancels and is swallowed, so no keystroke meant for the review merges.
 func (m *Model) answer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	kind := m.asking
 	m.asking = askNothing
 
-	if kind == askMerge {
-		if !key.Matches(msg, m.keys.Merge) {
-			m.say("canceled, nothing was merged", false)
-
-			return m, nil
-		}
-
-		m.merging = true
-
-		m.say("merging…", false)
-
-		ctx, review := m.ctx, m.review
-
-		return m, func() tea.Msg {
-			summary, err := m.merge(ctx, review)
-
-			return mergedMsg{summary: summary, err: err}
-		}
-	}
-
-	if !key.Matches(msg, m.keys.Submit) {
-		m.say("canceled, nothing was posted", false)
+	if !key.Matches(msg, m.keys.Merge) {
+		m.say("canceled, nothing was merged", false)
 
 		return m, nil
 	}
 
-	m.posting = true
+	m.merging = true
 
-	m.say("posting…", false)
+	m.say("merging…", false)
 
 	ctx, review := m.ctx, m.review
 
 	return m, func() tea.Msg {
-		summary, err := m.submit(ctx, review)
+		summary, err := m.merge(ctx, review)
 
-		return submittedMsg{summary: summary, err: err}
+		return mergedMsg{summary: summary, err: err}
 	}
 }
 

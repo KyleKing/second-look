@@ -22,7 +22,8 @@ answering a conversation, and posting all come off the API, so a review is prepa
 finished from an empty directory, with its state under your config directory rather than
 in a working copy. `second-look reviews` lists those beside the checkout's own.
 
-`/` narrows any of the queues to the rows carrying a word, matching the repository, the
+The inbox runs its sections at once and draws each as it lands, with the headings saying
+which searches are still out. `/` narrows any of the queues to the rows carrying a word, matching the repository, the
 author, the title, and the line last said, with the header saying how many are held back.
 `esc` puts them back before it leaves the screen.
 
@@ -142,6 +143,10 @@ its comment across the change.
 answered stays on screen. `ctrl+s` saves, `esc` abandons, and `ctrl+e` hands what is typed
 to `$EDITOR` for the edits a text box is the wrong shape for. It writes a comment, an
 answer to an open thread, and the review's own body and note.
+
+`S` then `S`, `a`, `r`, or `c` submits: as the review already stands, approving, requesting
+changes, or commenting. The second key both confirms the post and says what kind of review
+it is, which is the only way to change that short of editing the file.
 
 `m` then `r`, `d`, or `x` marks a comment ready, draft, or skipped. It is a chord because
 each of those restamps whatever the cursor is on, irreversibly, and three unmodified

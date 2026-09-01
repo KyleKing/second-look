@@ -17,9 +17,6 @@ import (
 // tabs reach the terminal, which advances the cursor without writing cells.
 const tabStop = 4
 
-// helpKeyWidth is the column the help overlay's descriptions start in.
-const helpKeyWidth = 18
-
 // View renders one frame into the alternate screen.
 func (m *Model) View() tea.View {
 	v := tea.NewView(m.render())
@@ -231,11 +228,9 @@ func (m *Model) hints() [][2]string {
 }
 
 func (m *Model) helpLines() []string {
-	out := make([]string, 0, m.viewHeight())
-
-	for _, h := range helpLines() {
-		out = append(out, "  "+m.styles.key.Render(pad(h[0], helpKeyWidth))+
-			m.styles.footer.Render(cut(h[1], m.width-helpKeyWidth-indent)))
+	out := helpBlock(m.styles, helpLines(), m.width)
+	if m.helpAt < len(out) {
+		out = out[m.helpAt:]
 	}
 
 	for len(out) < m.viewHeight() {

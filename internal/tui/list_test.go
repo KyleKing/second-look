@@ -291,3 +291,76 @@ func shows(t *testing.T, l *tui.List, want, gone []string) {
 		}
 	}
 }
+
+// landed is one section arriving, which is how a queue that runs its searches
+// at once reaches the screen.
+type landed struct {
+	at      int
+	section tui.Section
+}
+
+// dribble hands a list its sections one at a time, the way four independent
+// searches answer: in whatever order they finish.
+type dribble struct {
+	shown []tui.Section
+	order []landed
+}
+
+func (d *dribble) Start() tea.Cmd {
+	cmds := make([]tea.Cmd, 0, len(d.order))
+
+	for i := range d.order {
+		next := d.order[i]
+		cmds = append(cmds, func() tea.Msg { return next })
+	}
+
+	return tea.Batch(cmds...)
+}
+
+func (d *dribble) Absorb(msg tea.Msg) (tea.Cmd, bool) {
+	got, ok := msg.(landed)
+	if !ok {
+		return nil, false
+	}
+
+	d.shown[got.at] = got.section
+
+	return nil, true
+}
+
+// A queue that runs four independent searches has no reason to show nothing
+// until the slowest answers. Each section is drawn as it lands, the headings
+// say which are still out, and the cursor stays at the top until it is moved,
+// since a row arriving above it should not leave it in the middle of the list.
+func TestAQueueDrawsEachSectionAsItLands(t *testing.T) {
+	t.Parallel()
+
+	feed := &dribble{
+		shown: []tui.Section{
+			{Name: "pending your review", Note: "searching…"},
+			{Name: "reviewed, still open", Note: "searching…"},
+		},
+		order: []landed{
+			{1, tui.Section{Name: "reviewed, still open", Rows: []tui.Row{{Key: "B", Left: "repo#2"}}}},
+			{0, tui.Section{Name: "pending your review", Rows: []tui.Row{{Key: "A", Left: "repo#1"}}}},
+		},
+	}
+
+	l := tui.NewList("second-look inbox", func() []tui.Section { return feed.shown },
+		func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil }).
+		WithLoader(feed)
+	l.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+
+	shows(t, l, []string{"pending your review (searching…)"}, []string{"repo#1", "repo#2"})
+
+	// The later section answers first, which is what the cursor has to survive.
+	l.Update(feed.order[0])
+	shows(t, l, []string{"repo#2", "pending your review (searching…)"}, []string{"repo#1"})
+
+	l.Update(feed.order[1])
+	shows(t, l, []string{"repo#1", "repo#2"}, []string{"searching…"})
+
+	if got := l.CursorKey(); got != "A" {
+		t.Errorf("the cursor sits on %q, want the first row of the queue", got)
+	}
+}

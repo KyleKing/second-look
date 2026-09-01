@@ -32,17 +32,16 @@ type reviewsScreen struct {
 	open *ref
 }
 
-var reviewsHelp = []string{
-	helpMove,
-	"  enter                open the review screen for it",
-	"  ctrl+r               read the directory again",
-	helpLeave,
-	"",
-	"  blocked means a comment is still a draft, which stops the submit.",
-	"  Every review here is unfinished: the file is deleted when it posts.",
-	"  A review with no checkout of its repository is listed in its own group and",
-	"  opens the same way, from the API.",
-}
+var reviewsHelp = helpFor(helpMove(), [][2]string{
+	{enterKey, "open the review screen for it"},
+	{"/", "narrow to the rows carrying a word; esc puts them back"},
+	{refreshKey, "read the directory again"},
+}, helpLeave(), prose(
+	"blocked means a comment is still a draft, which stops the submit.",
+	"Every review here is unfinished: the file is deleted when it posts.",
+	"A review with no checkout of its repository is listed in its own group and",
+	"opens the same way, from the API.",
+))
 
 // openReviews shows the staged reviews and opens whichever one was chosen, once
 // this screen has given the terminal back.

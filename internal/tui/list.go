@@ -34,6 +34,10 @@ type Row struct {
 // heading, because "nothing is waiting on you" is the answer most worth seeing.
 type Section struct {
 	Name string
+	// Note stands in for the row count in the heading, for a section that
+	// cannot count its rows yet. A queue still searching says so rather than
+	// reading as a queue with nothing in it.
+	Note string
 	Rows []Row
 }
 
@@ -88,7 +92,7 @@ type listKeys struct {
 
 func defaultListKeys() listKeys {
 	return listKeys{
-		Mark:    key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "read")),
+		Mark:    key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
 		Browse:  key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "on GitHub")),
 		Reply:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reply")),
 		Resolve: key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "resolve")),
@@ -100,6 +104,19 @@ func defaultListKeys() listKeys {
 		Comment:  key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "comment")),
 		Approve:  key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "approve")),
 	}
+}
+
+// Loader feeds a list its rows as they arrive rather than before it opens. A
+// queue that runs four independent searches has no reason to show nothing until
+// the slowest answers, and an empty terminal for six seconds reads as a hang.
+//
+// Start is run when the screen opens and again on a refresh; whatever it
+// returns is a bubbletea command like any other. Absorb takes the messages
+// those commands produce, writes them wherever the caller keeps its rows, and
+// reports whether the message was one of its own.
+type Loader interface {
+	Start() tea.Cmd
+	Absorb(msg tea.Msg) (tea.Cmd, bool)
 }
 
 // List is a queue screen: sections of rows, one cursor, and a set of actions
@@ -130,13 +147,18 @@ type List struct {
 
 	expanded map[string]bool
 	filter   filter
+	loader   Loader
+	// touched marks a cursor the reader has moved. Until then a queue filling
+	// in as its searches answer keeps the cursor at the top, since a row that
+	// arrives above the cursor should not leave it in the middle of the list.
+	touched bool
 
 	keys   keyMap
 	list   listKeys
 	styles styles
 
 	hints     [][2]string
-	helpLines []string
+	helpLines [][2]string
 
 	status  string
 	failed  bool
@@ -170,9 +192,9 @@ func NewList(title string, sections func() []Section, act Act) *List {
 }
 
 // WithHelp replaces the help overlay's body, so each list documents the keys it
-// actually offers.
-func (l *List) WithHelp(lines []string) *List {
-	l.helpLines = lines
+// actually offers. A pair with no key is a line of prose.
+func (l *List) WithHelp(hints [][2]string) *List {
+	l.helpLines = hints
 
 	return l
 }
@@ -181,6 +203,14 @@ func (l *List) WithHelp(lines []string) *List {
 // reply does not promise one.
 func (l *List) WithHints(hints [][2]string) *List {
 	l.hints = hints
+
+	return l
+}
+
+// WithLoader lets the screen open before its rows exist, filling in as they
+// arrive. Without one a list is built from whatever its provider already has.
+func (l *List) WithLoader(ld Loader) *List {
+	l.loader = ld
 
 	return l
 }
@@ -222,7 +252,11 @@ func RunList(l *List) (*List, error) {
 func (l *List) Init() tea.Cmd {
 	l.rebuild()
 
-	return nil
+	if l.loader == nil {
+		return nil
+	}
+
+	return l.loader.Start()
 }
 
 // Update handles a keypress or a resize. Everything else is the caller's, which
@@ -236,6 +270,14 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return l, nil
 	case tea.KeyPressMsg:
 		return l.handleKey(msg)
+	}
+
+	if l.loader != nil {
+		if cmd, mine := l.loader.Absorb(msg); mine {
+			l.rebuild()
+
+			return l, cmd
+		}
 	}
 
 	return l, nil
@@ -269,6 +311,15 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	if l.moved(msg) {
 		return l, nil
+	}
+
+	// A screen that fills in as its searches answer re-runs them itself, since
+	// the row under the cursor has nothing to do with reading the queue again.
+	if l.loader != nil && key.Matches(msg, l.list.Refresh) {
+		cmd := l.loader.Start()
+		l.status, l.failed = "", false
+
+		return l, cmd
 	}
 
 	return l.perform(msg)
@@ -539,7 +590,7 @@ func (l *List) rebuild() {
 		}
 	}
 
-	if was == nil {
+	if was == nil || !l.touched {
 		l.to(0)
 
 		return
@@ -560,6 +611,8 @@ func (l *List) rebuild() {
 // moved handles every key that only changes where the frame is looking, so the
 // keys that do something to a row stay a short list.
 func (l *List) moved(msg tea.KeyPressMsg) bool {
+	l.touched = true
+
 	switch {
 	case key.Matches(msg, l.keys.PeekDown):
 		l.peek(1)
@@ -580,6 +633,8 @@ func (l *List) moved(msg tea.KeyPressMsg) bool {
 	case key.Matches(msg, l.list.Section):
 		l.nextSection()
 	default:
+		l.touched = false
+
 		return false
 	}
 
@@ -599,5 +654,9 @@ func (l *List) leave() tea.Cmd {
 }
 
 func heading(s *Section) string {
+	if s.Note != "" {
+		return s.Name + " (" + s.Note + ")"
+	}
+
 	return s.Name + " (" + strconv.Itoa(len(s.Rows)) + ")"
 }

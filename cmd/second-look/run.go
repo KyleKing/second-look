@@ -55,16 +55,55 @@ const (
 	jsonArg = "--json"
 )
 
-// The lines all three list screens share. They are one tui.List, so a reader
-// should not have to learn three vocabularies for the same keys.
+// The keys named in more than one screen's legend, so the three cannot drift.
 const (
-	enterKey = "enter"
-	helpMove = "  j/k, ctrl+u/d, g/G   move, half page, top and bottom\n" +
-		"  ctrl+e/ctrl+y        scroll without moving the cursor"
-	helpGroup = "  tab                  the next group\n" +
-		"  /                    narrow to the rows carrying a word; esc puts them back"
-	helpLeave = "  q, esc               leave"
+	enterKey   = "enter"
+	refreshKey = "ctrl+r"
 )
+
+// The keys all three list screens share. They are one tui.List, so a reader
+// should not have to learn three vocabularies for the same keys.
+func helpMove() [][2]string {
+	return [][2]string{
+		{"j/k, ctrl+u/d, g/G", "move, half page, top and bottom"},
+		{"ctrl+e/ctrl+y", "scroll without moving the cursor"},
+	}
+}
+
+func helpGroup() [][2]string {
+	return [][2]string{
+		{"tab", "the next group"},
+		{"/", "narrow to the rows carrying a word; esc puts them back"},
+	}
+}
+
+func helpLeave() [][2]string {
+	return [][2]string{{"q, esc", "leave"}}
+}
+
+// prose is the sentence or two a legend needs past its keys, as rows carrying
+// no key of their own.
+func prose(lines ...string) [][2]string {
+	out := make([][2]string, 0, len(lines)+1)
+	out = append(out, [2]string{})
+
+	for _, l := range lines {
+		out = append(out, [2]string{"", l})
+	}
+
+	return out
+}
+
+// helpFor assembles a legend from the shared keys, a screen's own, and its
+// closing prose.
+func helpFor(parts ...[][2]string) [][2]string {
+	var out [][2]string
+	for _, p := range parts {
+		out = append(out, p...)
+	}
+
+	return out
+}
 
 func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) == 0 {
@@ -536,21 +575,38 @@ func configured(out io.Writer) (*config.Config, error) {
 }
 
 func runQueue(ctx context.Context, cfg *config.Config) []inbox.Bucket {
-	limit := cfg.Limit
-	if limit <= 0 {
-		limit = inboxLimit
-	}
-
 	if len(cfg.Sections) == 0 {
-		return inbox.Buckets(ctx, ".", limit)
+		return inbox.Buckets(ctx, ".", queueLimit(cfg))
 	}
 
-	sections := make([]inbox.Section, 0, len(cfg.Sections))
+	return inbox.Configured(ctx, ".", configSections(cfg), queueLimit(cfg))
+}
+
+// planQueue is the same queue as a plan the screen runs itself, one search at a
+// time, so it can draw each as it lands.
+func planQueue(cfg *config.Config) []inbox.Bucket {
+	if len(cfg.Sections) == 0 {
+		return inbox.Plan(queueLimit(cfg))
+	}
+
+	return inbox.PlanFor(configSections(cfg), queueLimit(cfg))
+}
+
+func queueLimit(cfg *config.Config) int {
+	if cfg.Limit <= 0 {
+		return inboxLimit
+	}
+
+	return cfg.Limit
+}
+
+func configSections(cfg *config.Config) []inbox.Section {
+	out := make([]inbox.Section, 0, len(cfg.Sections))
 	for i := range cfg.Sections {
-		sections = append(sections, inbox.Section{Name: cfg.Sections[i].Name, Query: cfg.Sections[i].Query})
+		out = append(out, inbox.Section{Name: cfg.Sections[i].Name, Query: cfg.Sections[i].Query})
 	}
 
-	return inbox.Configured(ctx, ".", sections, limit)
+	return out
 }
 
 func loadConfig() (*config.Config, error) {
