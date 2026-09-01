@@ -267,6 +267,60 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 	}
 }
 
+// Attaching evidence is the flow the schema's local note exists for: run the
+// code under review, come back, and what it printed is on the comment. The
+// terminal has to be handed over for real, which is why this is a pty test.
+func TestReviewScreenAttachesAShellTranscript(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+	seedReview(t, dir, sha)
+
+	shell := filepath.Join(t.TempDir(), "shell")
+	script := "#!/bin/sh\necho 'total is wrong for negative entries'\n"
+
+	if err := os.WriteFile(shell, []byte(script), 0o700); err != nil { //nolint:gosec // it has to run
+		t.Fatalf("writing the shell: %v", err)
+	}
+
+	sc := openReview(t, s, dir, "SHELL="+shell, "2")
+	sc.await("testdata/fixture/sample.go")
+
+	sc.press("\t")
+	sc.await("r/d/x state")
+	sc.press("!")
+	sc.await("stays local")
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("the screen exited %d:\n%s", code, sc.text())
+	}
+
+	review, err := artifact.Load(filepath.Join(dir, ".second-look", "pr-2.toml"))
+	if err != nil {
+		t.Fatalf("the prepared review: %v", err)
+	}
+
+	var attached *artifact.Comment
+
+	for i := range review.Comments {
+		if strings.Contains(review.Comments[i].Note, "total is wrong for negative entries") {
+			attached = &review.Comments[i]
+		}
+	}
+
+	if attached == nil {
+		t.Fatalf("no comment carries the transcript:\n%s", sc.text())
+	}
+
+	// The note is local by construction, and a transcript is the thing that
+	// would hurt most to leak: it is whatever the reviewer's terminal printed.
+	if strings.Contains(attached.Body, "total is wrong") {
+		t.Error("the transcript reached the body, which posts")
+	}
+}
+
 // The skill tells an agent not to open the review screen, and an agent that
 // does has no terminal. What it gets back has to name the command to run
 // instead, since Bubble Tea's own refusal reports a missing device.

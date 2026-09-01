@@ -47,6 +47,11 @@ the finding and what it printed, the file that contradicts the claim, the reason
 doubt. `body` carries only what the author reads, so reasoning that would clutter a
 review comment goes in the note rather than being cut.
 
+The user attaches evidence the same way from the review screen: `!` hands the terminal
+to their shell and appends the transcript to the note under the cursor. So a note you
+write is the start of that record, not the whole of it, and it should say what you ran
+rather than reading as a finished argument.
+
 The review's own `note` is the run log: what was run and what it returned, suites that
 could not run and why, whether a bot already reviewed the pull request. It shows how much
 of the review is proven rather than read.

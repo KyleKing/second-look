@@ -118,6 +118,27 @@ thing a reader needs most, where they are, was the one thing that vanished; it c
 `Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
 keys while the cursor is inside a comment, since both sets do not fit 80 columns.
 
+## Evidence on a comment — done
+
+The schema always had `note`, local and never posted. The screen could not reach it, so
+the evidence a comment rests on could only be written by an agent through `comment add`.
+`N` edits the note in `$EDITOR` now, and `!` hands the terminal to `$SHELL` in the
+repository and appends what the session printed to the note under the cursor. Run the
+code under review, come back, and the comment carries the output rather than a claim
+about it.
+
+`internal/shellrun` is the capture. It runs the shell under `script(1)`, which is what
+allocates the pty an interactive shell needs while its output is being recorded, and
+there is no fallback: a shell writing to a pipe would not be interactive, and one on the
+real terminal would leave nothing to attach. util-linux and BSD `script` take their
+arguments in opposite orders and only the first has `--version`, which is how they are
+told apart. A transcript is stripped of escape sequences and capped at its tail, since a
+long build ends in the part worth quoting.
+
+The transcript is left as the shell wrote it otherwise, trailing `exit` included.
+Trimming that would mean guessing at a prompt, and a heuristic that eats real output is
+worse than two lines of ceremony.
+
 ## Existing review threads — done
 
 `second-look get` reads the pull request's unresolved review threads through the GraphQL

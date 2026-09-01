@@ -12,6 +12,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/shellrun"
 	"github.com/kyleking/second-look/internal/threads"
 )
 
@@ -106,11 +107,21 @@ func (m *Model) Init() tea.Cmd {
 	return nil
 }
 
+// field names which half of a comment an edit came back for. The note is local
+// and never posted, so the two cannot share a write.
+type field int
+
+const (
+	fieldBody field = iota
+	fieldNote
+)
+
 type editedMsg struct {
 	// index is the comment the edit replaces, or -1 for a reply, which stages a
 	// comment that did not exist when the editor opened.
 	index   int
 	replyTo int
+	field   field
 	body    string
 	err     error
 }
@@ -242,6 +253,14 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.setStatus(artifact.StatusDraft)
 	case key.Matches(msg, m.keys.Skip):
 		m.setStatus(artifact.StatusSkip)
+	case key.Matches(msg, m.keys.Shell):
+		cmd := m.shell()
+
+		return m, cmd
+	case key.Matches(msg, m.keys.Note):
+		cmd := m.editNote()
+
+		return m, cmd
 	case key.Matches(msg, m.keys.Edit):
 		cmd := m.edit()
 
@@ -324,7 +343,88 @@ func (m *Model) edit() tea.Cmd {
 		return nil
 	}
 
-	return m.open(m.review.Comments[i].Body, editedMsg{index: i, replyTo: -1})
+	return m.open(m.review.Comments[i].Body, editedMsg{index: i, replyTo: -1, field: fieldBody})
+}
+
+// editNote opens the local note, which is where the evidence for a comment
+// lives: what was run, what it printed, why the doubt stands. It never posts,
+// so it is edited apart from the body rather than alongside it.
+func (m *Model) editNote() tea.Cmd {
+	i := m.current()
+	if i < 0 {
+		m.say("no comment here", false)
+
+		return nil
+	}
+
+	return m.open(m.review.Comments[i].Note, editedMsg{index: i, replyTo: -1, field: fieldNote})
+}
+
+// shell hands the terminal to $SHELL in the repository and appends what the
+// session printed to the note under the cursor. Running the code under review
+// and then writing the comment is the flow this exists for, and a transcript is
+// what makes the comment evidence rather than a claim.
+func (m *Model) shell() tea.Cmd {
+	i := m.current()
+	if i < 0 {
+		m.say("no comment here; the transcript attaches to one", false)
+
+		return nil
+	}
+
+	file, err := os.CreateTemp("", "second-look-*.transcript")
+	if err != nil {
+		m.say(err.Error(), true)
+
+		return nil
+	}
+
+	name := file.Name()
+	if err := file.Close(); err != nil {
+		m.say(err.Error(), true)
+
+		return nil
+	}
+
+	cmd, err := shellrun.Capture(m.ctx, name, shellrun.Shell())
+	if err != nil {
+		m.say(err.Error(), true)
+
+		return nil
+	}
+
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		//nolint:errcheck // a temp file that outlives the session is not worth an error path
+		defer os.Remove(name)
+
+		if err != nil {
+			return editedMsg{index: i, replyTo: -1, field: fieldNote, err: err}
+		}
+
+		raw, err := os.ReadFile(name) //nolint:gosec // our own temp file
+		if err != nil {
+			return editedMsg{index: i, replyTo: -1, field: fieldNote, err: err}
+		}
+
+		return editedMsg{
+			index: i, replyTo: -1, field: fieldNote,
+			body: appendTranscript(m.review.Comments[i].Note, shellrun.Clean(raw)),
+		}
+	})
+}
+
+// appendTranscript keeps what the note already said. A second session is more
+// evidence, not a correction of the first.
+func appendTranscript(note, transcript string) string {
+	if transcript == "" {
+		return note
+	}
+
+	if note == "" {
+		return transcript
+	}
+
+	return note + "\n\n" + transcript
 }
 
 // open puts start in a temporary file, hands the terminal to $EDITOR, and
@@ -390,7 +490,7 @@ func (m *Model) applyEdit(msg editedMsg) {
 		return
 	}
 
-	if msg.body == "" {
+	if msg.body == "" && msg.field == fieldBody {
 		m.say("empty body, nothing changed", false)
 
 		return
@@ -403,6 +503,20 @@ func (m *Model) applyEdit(msg editedMsg) {
 	}
 
 	c := &m.review.Comments[msg.index]
+
+	if msg.field == fieldNote {
+		if c.Note == msg.body {
+			m.say("unchanged", false)
+
+			return
+		}
+
+		c.Note = msg.body
+		m.save("note on " + c.ID + " updated; it stays local")
+
+		return
+	}
+
 	if c.Body == msg.body {
 		m.say("unchanged", false)
 

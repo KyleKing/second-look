@@ -16,6 +16,8 @@ type keyMap struct {
 	NextNote key.Binding
 	PrevNote key.Binding
 	Edit     key.Binding
+	Note     key.Binding
+	Shell    key.Binding
 	Ready    key.Binding
 	Draft    key.Binding
 	Skip     key.Binding
@@ -39,6 +41,8 @@ func defaultKeyMap() keyMap {
 		NextNote: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "comment")),
 		PrevNote: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "comment")),
 		Edit:     key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
+		Note:     key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "note")),
+		Shell:    key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
 		Ready:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
 		Draft:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
 		Skip:     key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
@@ -59,6 +63,8 @@ func helpLines() [][2]string {
 		{"} / {", "next, previous file"},
 		{"tab / shift+tab", "next, previous comment"},
 		{"e", "edit a comment, or answer an open thread, in $EDITOR"},
+		{"N", "edit the comment's local note in $EDITOR"},
+		{"!", "run a shell here and attach what it printed to the note"},
 		{"r / d / x", "mark it ready, draft, or skipped"},
 		{"S", "submit the review to GitHub, S again to confirm"},
 		{"? / esc", "this help, back"},

@@ -33,6 +33,11 @@ COMMANDS
       inline, where they anchor. Navigate by hunk, mark a comment ready, draft,
       or skipped, edit one in $EDITOR, and submit the review with S.
 
+      N edits a comment's local note, and ! hands the terminal to $SHELL in the
+      repository and appends what the session printed to that note. Running the
+      code under review and then writing the comment is the flow that exists
+      for; the note never posts, so a transcript stays on this machine.
+
       Conversations already open on the pull request are shown where they
       anchor, and e on one writes the answer in $EDITOR, staged as a reply.
 
