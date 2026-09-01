@@ -118,6 +118,31 @@ thing a reader needs most, where they are, was the one thing that vanished; it c
 `Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
 keys while the cursor is inside a comment, since both sets do not fit 80 columns.
 
+## The inbox — done, as a CLI
+
+`second-look inbox` prints the review queue in three buckets, in the order they want
+doing: pending your review, reviewed and still open, then reviewed and merged. Each line
+is where it is, who wrote it, how stale it is, and the title, which is enough to triage
+without opening anything. `--json` carries the same with the fields a script sorts on.
+
+It is three `gh search prs` calls and reads nothing local, so it works from anywhere gh is
+logged in rather than only inside a checkout. Each bucket's search fails on its own: the
+first real run hit GitHub's secondary rate limit and printed three reasons instead of one
+stack trace, which is the behaviour that was designed for and got tested by accident.
+GitHub answers a rate limit with four hundred characters of terms of service, so the
+human view prints the first sentence and points at `--json` for the rest.
+
+Two things are not built. Searching and sorting are left to the caller, since the JSON
+output is a better sort key than anything a flag would give. And there is no TUI inbox
+yet, which is what "available from the CLI as well as the TUI" asks for; the buckets and
+the per-line metadata are the part both need and they live in `internal/inbox` rather than
+in `cmd`.
+
+**Its cassette is written rather than recorded**, alone among the four. A real recording
+carries the private repository names, usernames, and pull request titles of whatever is in
+the queue, and this repository is public. [AGENTS.local.md](AGENTS.local.md) says so where
+the recording procedure lives.
+
 ## Posting one comment on its own — done
 
 `second-look post <pr> --only <id>` and `P` in the review screen post a single staged

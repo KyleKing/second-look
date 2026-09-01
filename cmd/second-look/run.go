@@ -10,12 +10,14 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/x/term"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
+	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/skill"
 	"github.com/kyleking/second-look/internal/threads"
@@ -34,6 +36,7 @@ var (
 	errUsageGet       = errors.New("usage: second-look get <pr>")
 	errUsagePost      = errors.New("usage: second-look post <pr> [--dry-run|--only <id>]")
 	errUsageReview    = errors.New("usage: second-look <pr>")
+	errUsageInbox     = errors.New("usage: second-look inbox [--json]")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--payload|--threads]")
 	errUsageSkill     = errors.New("usage: second-look skill")
 )
@@ -56,6 +59,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return showCmd(args[1:], stdout)
 	case "post":
 		return postCmd(ctx, args[1:], stdout)
+	case "inbox":
+		return inboxCmd(ctx, args[1:], stdout)
 	case "skill":
 		return skillCmd(args[1:], stdout)
 	default:
@@ -345,6 +350,29 @@ func postFlags(args []string) (bool, string, error) {
 	}
 
 	return false, "", errUsagePost
+}
+
+// inboxLimit is how many pull requests each bucket asks for. A queue longer
+// than this is not a queue, and the search costs the same either way.
+const inboxLimit = 30
+
+// inboxCmd prints the review queue in three buckets. It reads GitHub and
+// nothing local, so it works from anywhere with a gh login rather than only
+// inside a checkout.
+func inboxCmd(ctx context.Context, args []string, stdout io.Writer) error {
+	asJSON, err := oneOf(args, errUsageInbox, "--json")
+	if err != nil {
+		return err
+	}
+
+	buckets := inbox.Buckets(ctx, ".", inboxLimit)
+
+	if asJSON == "--json" {
+		return writeJSON(stdout, buckets)
+	}
+
+	//nolint:wrapcheck // Write's own error already names what failed
+	return inbox.Write(stdout, buckets, time.Now())
 }
 
 // skillCmd prints the agent instructions the binary carries. Printing the

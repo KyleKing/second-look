@@ -47,6 +47,13 @@ differ, so `get` tries to pull from an unreachable origin. Re-record it with
 `SECOND_LOOK_RECORD=1 go test ./internal/threads/`, which reads and posts nothing.
 `cmd/second-look` splices that interaction onto the `post-review` reads in `getCassette`.
 
+`cmd/second-look/testdata/cassettes/inbox.golden` is the exception to all of this: it is
+written, not recorded. A real recording of `second-look inbox` carries the private
+repository names, usernames, and pull request titles of whatever is in the reviewer's
+queue, and this repository is public. The arguments in it are the ones a real run made and
+the answers are gh's own shape with invented content. `SECOND_LOOK_RECORD=1` would
+overwrite it with real data, so the test uses `Replay` rather than `Start`.
+
 ### The suite reaches nothing
 
 Only `gh` is replayed. `git` runs for real, so a code path that shells out to the network

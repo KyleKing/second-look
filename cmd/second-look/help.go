@@ -10,6 +10,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look post <pr>            post the review
   second-look post <pr> --dry-run  print the request without sending it
   second-look post <pr> --only <id>  post one comment on its own, now
+  second-look inbox                the review queue, in three buckets
   second-look skill                print the agent instructions this binary carries
 
   --help  the full contract, including every JSON field
@@ -128,6 +129,17 @@ COMMANDS
       saying now rather than at the end. The anchor guard runs first, the rest
       of the review stays staged, and the comment is taken out of the file
       because GitHub owns it from that moment.
+
+  second-look inbox [--json]
+      Print the review queue in three buckets, in the order they want doing:
+      pending your review, reviewed and still open, then reviewed and merged.
+      Each line carries the repository, the author, how stale it is, and the
+      title, which is enough to triage without opening anything.
+
+      It reads GitHub and nothing local, so it works from anywhere gh is logged
+      in rather than only inside a checkout. One bucket failing prints its
+      reason and leaves the others: a rate limit on the merged list is no reason
+      to stop showing what is waiting.
 
   second-look skill
       Print the instructions for an agent driving this binary, as a skill file

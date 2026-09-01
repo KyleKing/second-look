@@ -23,6 +23,9 @@ before anything is sent.
 Conversations already open on the pull request are shown where they anchor, so a second
 pass answers what was said last time. `e` on one writes the reply in `$EDITOR`.
 
+`second-look inbox` prints your review queue in three buckets: pending your review,
+reviewed and still open, then reviewed and merged.
+
 `P` posts one comment on its own for the thing that should not wait, and
 `second-look post 42 --only <id>` does the same from the shell.
 
