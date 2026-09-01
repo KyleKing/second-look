@@ -254,6 +254,10 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		l.help = true
 
 		return l, nil
+	case key.Matches(msg, l.keys.PeekDown):
+		l.peek(1)
+	case key.Matches(msg, l.keys.PeekUp):
+		l.peek(-1)
 	case key.Matches(msg, l.keys.Down):
 		l.move(1)
 	case key.Matches(msg, l.keys.Up):
@@ -457,6 +461,13 @@ func (l *List) scroll() {
 	}
 
 	l.offset = min(l.offset, max(0, len(l.lines)-body))
+}
+
+// peek scrolls the frame and leaves the cursor, so a glance further down the
+// queue costs nothing to come back from: the next motion pulls the frame to the
+// cursor, the way it does in the review screen.
+func (l *List) peek(step int) {
+	l.offset = clamp(l.offset+step, max(0, len(l.lines)-l.visible()))
 }
 
 // half is a half-page, which is what ctrl+u and ctrl+d move.

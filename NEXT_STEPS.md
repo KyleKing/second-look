@@ -73,14 +73,35 @@ two. Run them concurrently and draw each bucket as it lands. That is the same
 progressive draw the rating needs before it can order the queue, so the two are
 built together.
 
-**A third view: the code alone.** `c` cycles the diff and the comments; the missing
-stop is the post-change file with an nvim-style sign column, comments folded to a
-marker carrying a severity glyph and a count. Three modes, one key: both, the code,
-the comments. Whether the comment then opens in a bottom split, a right split at
-wide widths, or a modal over the frame is deliberately unsettled: it wants trying
-on a real review first.
+**What a removal reads as in the code view.** It stands as one line saying how much
+came out, which is enough to know something was there and not enough to know what.
+A preview of the two sides is the answer, and its shape (a bottom split, a right
+split at wide widths, or a modal over the frame) is deliberately unsettled: it wants
+driving on a real review before it is built.
 
 ### Done
+
+**A third view: the code alone.** `c` walks both, the code, the comments. The code
+view is the file as it reads after the change, where a removal stands as one line
+and each conversation stands as one row that `za` opens. A +/- pair leaves working
+out what the code now says to the reader, and four comments on one hunk bury the
+lines they are about.
+
+**The cursor is a bar in the margin.** A reversed row meant reading the content
+through a band of inverted text, and on a wide terminal it was the loudest thing on
+the screen. The glyph carries the position, so it still survives NO_COLOR.
+
+**`ctrl+e` and `ctrl+y` peek.** They scroll and leave the cursor, so a glance at what
+is above or below costs nothing: the next motion pulls the frame back. Both screens.
+
+**Everything an agent stages is a draft.** `comment add` writes a comment as a draft
+whatever status it arrived with, and says how many it held; a skip is left alone. The
+skill said to use status honestly and an agent could always disagree, so the rule is
+in the binary and the contract in `--help` says so.
+
+**The README has a recording.** `mise run demo` drives a prepared review in a
+throwaway checkout behind a stand-in `gh`, so it reaches no network and touches no
+real review.
 
 **A comment has a shape of its own.** The body used to render in the note style, so
 the prose was dimmer than the code it was about, and a wrapped note repeated its

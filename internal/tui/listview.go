@@ -197,6 +197,7 @@ func (l *List) helpView() string {
 		l.title,
 		"",
 		"  j/k, ctrl+u/d, g/G   move, half page, top and bottom",
+		"  ctrl+e/ctrl+y        scroll without moving the cursor",
 		"  tab                  the next group",
 		"  enter                read the whole conversation, and mark it read",
 		"  space                mark read without opening it",

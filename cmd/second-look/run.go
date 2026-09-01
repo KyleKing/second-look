@@ -58,8 +58,9 @@ const (
 // The lines all three list screens share. They are one tui.List, so a reader
 // should not have to learn three vocabularies for the same keys.
 const (
-	enterKey  = "enter"
-	helpMove  = "  j/k, ctrl+u/d, g/G   move, half page, top and bottom"
+	enterKey = "enter"
+	helpMove = "  j/k, ctrl+u/d, g/G   move, half page, top and bottom\n" +
+		"  ctrl+e/ctrl+y        scroll without moving the cursor"
 	helpGroup = "  tab                  the next group"
 	helpLeave = "  q, esc               leave"
 )
