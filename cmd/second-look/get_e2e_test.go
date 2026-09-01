@@ -67,7 +67,7 @@ func TestGetCarriesReadHunksOntoANewHead(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, getCassette(t, sha))
+	s := ghcassette.Replay(t, openCassette(t, sha))
 	seedReview(t, dir, fixtureHeadSHA)
 
 	// Read everything against the head the fixture was staged at.
@@ -128,7 +128,7 @@ func TestGetPreparesTheReview(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, getCassette(t, sha))
+	s := ghcassette.Replay(t, openCassette(t, sha))
 
 	res := runCLI(t, s, dir, "get", "2")
 	if res.code != 0 {
@@ -165,7 +165,7 @@ func TestGetCarriesStagedCommentsOntoANewHead(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, getCassette(t, sha))
+	s := ghcassette.Replay(t, openCassette(t, sha))
 
 	// The fixture is staged against the recorded head; the pull request now
 	// reports the scratch repository's.

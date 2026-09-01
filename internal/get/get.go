@@ -72,8 +72,8 @@ func Run(ctx context.Context, out io.Writer, t Target) error {
 }
 
 // cacheThreads reads the conversations already open on the pull request, so a
-// second pass can answer them. A repository whose threads cannot be read is
-// still worth reviewing, so the failure is reported and the run continues.
+// second pass can answer them. Every run refreshes them, which is what makes
+// get the way to pick up what was said since.
 func cacheThreads(ctx context.Context, out io.Writer, t Target, sha string) error {
 	open, err := threads.Fetch(ctx, t.Dir(), t.Owner, t.Repo, t.Number)
 	if err != nil {

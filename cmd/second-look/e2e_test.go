@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -336,22 +337,53 @@ func reviewCassette(t *testing.T, sha string) string {
 	return deriveFrom(t, "post-review", "review-screen", func(c *ghcassette.Cassette) {
 		inCheckout(c)
 		restamp(c, sha)
-		c.Interactions = append(c.Interactions[:reads:reads], c.Interactions...)
+
+		all := c.Interactions
+		c.Interactions = append(append(all[:reads:reads], threadInteraction(t)...), all...)
 	})
 }
 
-// getCassette is what `second-look get` costs: the two reads plus the GraphQL
-// query for the open threads, whose recording lives with the code that makes
-// it, in internal/threads. Splicing it in beats a second copy of the same
-// answer under this package's testdata.
-func getCassette(t *testing.T, sha string) string {
+// openCassette is what a first read of a pull request costs: the two reads plus
+// the GraphQL query for the open threads, whose recording lives with the code
+// that makes it, in internal/threads. Splicing it in beats a second copy of the
+// same answer under this package's testdata.
+//
+// `get` and a review screen reached without one make the same three calls,
+// because the screen caches the threads itself rather than showing none.
+func openCassette(t *testing.T, sha string) string {
 	t.Helper()
 
-	return deriveFrom(t, "post-review", "get", func(c *ghcassette.Cassette) {
+	return deriveFrom(t, "post-review", "open", func(c *ghcassette.Cassette) {
 		inCheckout(c)
 		restamp(c, sha)
 		c.Interactions = append(c.Interactions[:reads:reads], threadInteraction(t)...)
 	})
+}
+
+// addressed re-points a recorded interaction at another pull request, so one
+// recording answers for whatever repository a test's queue happens to name.
+func addressed(in ghcassette.Interaction, repo string, number int) ghcassette.Interaction {
+	owner, name, _ := strings.Cut(repo, "/")
+	at := strconv.Itoa(number)
+
+	args := append([]string{}, in.Args...)
+	for i, arg := range args {
+		switch arg {
+		case "2", "number=2":
+			args[i] = strings.Replace(arg, "2", at, 1)
+		case fixtureRepo:
+			args[i] = repo
+		case "owner=KyleKing":
+			args[i] = "owner=" + owner
+		case "repo=second-look":
+			args[i] = "repo=" + name
+		}
+	}
+
+	in.Args = args
+	in.Stdout = strings.ReplaceAll(in.Stdout, `"number":2`, `"number":`+at)
+
+	return in
 }
 
 func threadInteraction(t *testing.T) []ghcassette.Interaction {

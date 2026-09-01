@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 
 	"github.com/kyleking/aragonite/forge/github"
 	"github.com/kyleking/aragonite/vcs"
@@ -26,9 +27,9 @@ var (
 type Review struct {
 	Review *artifact.Review
 	Diff   *diff.Diff
-	// Threads is what is already open on the pull request, as `get` last read
-	// it. It is empty for a review prepared before threads were cached, which
-	// changes what the screen shows and nothing about what it posts.
+	// Threads is what is already open on the pull request, cached against the
+	// head they anchor to. What is shown, never what is posted: an answer to
+	// one is a comment staged like any other.
 	Threads []threads.Thread
 	// Read is which hunks have been read, and SeenPath is where that is written
 	// back. It is keyed by hunk content rather than by head commit, so it
@@ -79,9 +80,9 @@ func Open(ctx context.Context, t Target) (*Review, error) {
 		return nil, err
 	}
 
-	var open []threads.Thread
-	if err := artifact.LoadThreads(t.Store, review.HeadSHA, &open); err != nil {
-		return nil, fmt.Errorf("reading the cached review threads: %w", err)
+	open, err := threadsFor(ctx, t, review.HeadSHA)
+	if err != nil {
+		return nil, err
 	}
 
 	seenPath := seen.Path(t.Store, t.Number)
@@ -96,6 +97,32 @@ func Open(ctx context.Context, t Target) (*Review, error) {
 		Read: read, SeenPath: seenPath, Path: path, HeadSHA: pr.HeadSHA,
 		Work: t.Work, OnHead: standing,
 	}, nil
+}
+
+// threadsFor reads the conversations open on the pull request, fetching them
+// only when the cache has none. A review reached without a get would otherwise
+// show an empty diff where a second pass has answers waiting.
+func threadsFor(ctx context.Context, t Target, want string) ([]threads.Thread, error) {
+	if _, err := os.Stat(artifact.ThreadsPath(t.Store, want)); err == nil {
+		var open []threads.Thread
+		if err := artifact.LoadThreads(t.Store, want, &open); err != nil {
+			return nil, fmt.Errorf("reading the cached review threads: %w", err)
+		}
+
+		return open, nil
+	}
+
+	open, err := threads.Fetch(ctx, t.Dir(), t.Owner, t.Repo, t.Number)
+	if err != nil {
+		//nolint:wrapcheck // Fetch's own error already names the pull request
+		return nil, err
+	}
+
+	if err := artifact.SaveThreads(t.Store, want, open); err != nil {
+		return nil, fmt.Errorf("caching the review threads: %w", err)
+	}
+
+	return open, nil
 }
 
 // Current reports the pull request for the branch the checkout is on. Being on

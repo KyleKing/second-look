@@ -85,29 +85,20 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	sc.wait()
 }
 
-// inboxThenReview is the three searches, then the two reads that opening the
-// first row costs, addressed to the pull request that row names.
+// inboxThenReview is the three searches, then what opening the first row costs,
+// addressed to the pull request that row names.
 func inboxThenReview(t *testing.T) string {
 	t.Helper()
 
 	c := load(t, "inbox")
 	recorded := load(t, "post-review")
 
-	for i := range recorded.Interactions[:reads] {
-		in := recorded.Interactions[i]
+	opening := make([]ghcassette.Interaction, 0, reads+1)
+	opening = append(opening, recorded.Interactions[:reads]...)
+	opening = append(opening, threadInteraction(t)...)
 
-		for j, arg := range in.Args {
-			if arg == "2" {
-				in.Args[j] = "100"
-			}
-
-			if arg == fixtureRepo {
-				in.Args[j] = "kyleking/aragonite"
-			}
-		}
-
-		in.Stdout = strings.ReplaceAll(in.Stdout, `"number":2`, `"number":100`)
-		c.Interactions = append(c.Interactions, in)
+	for i := range opening {
+		c.Interactions = append(c.Interactions, addressed(opening[i], "kyleking/aragonite", 100))
 	}
 
 	path := filepath.Join(t.TempDir(), "inbox-review.golden")

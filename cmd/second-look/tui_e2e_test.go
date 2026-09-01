@@ -254,6 +254,31 @@ func TestReviewScreenSubmits(t *testing.T) {
 	s.RequireAllPlayed(t)
 }
 
+// A review reached without a get caches the threads itself, because nothing
+// else will: a queue row opens straight into the screen, and a diff shown
+// without the answers already on it is the second pass silently missing.
+func TestReviewScreenFetchesThreadsWithoutAGet(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, openCassette(t, sha))
+	seedReview(t, dir, sha)
+
+	sc := openReview(t, s, dir, "2")
+	sc.await("open thread")
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("the screen exited %d:\n%s", code, sc.text())
+	}
+
+	s.RequireAllPlayed(t)
+
+	if _, err := os.Stat(artifact.ThreadsPath(dir, sha)); err != nil {
+		t.Fatalf("the threads were not cached: %v", err)
+	}
+}
+
 // Answering a conversation already on the pull request is the second pass this
 // tool exists for. The thread comes from the recording, the reply is written in
 // $EDITOR, and what lands is a comment addressed to a real GitHub comment id.
@@ -318,7 +343,7 @@ func TestReviewScreenMarksHunksRead(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+	s := ghcassette.Replay(t, openCassette(t, sha))
 	seedReview(t, dir, sha)
 
 	sc := openReview(t, s, dir, "2")
@@ -360,7 +385,7 @@ func TestReviewScreenAttachesAShellTranscript(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+	s := ghcassette.Replay(t, openCassette(t, sha))
 	seedReview(t, dir, sha)
 
 	shell := filepath.Join(t.TempDir(), "shell")
@@ -373,7 +398,9 @@ func TestReviewScreenAttachesAShellTranscript(t *testing.T) {
 	sc := openReview(t, s, dir, "SHELL="+shell, "2")
 	sc.await("testdata/fixture/sample.go")
 
-	sc.press("\t")
+	// ]c rather than tab: tab lands on whatever wants a decision next, which is
+	// an open thread once the screen caches them, and the note goes on a comment.
+	sc.press("]c")
 	sc.await("r/d/x state")
 	sc.press("!")
 	sc.await("stays local")
@@ -414,7 +441,7 @@ func TestReviewScreenRefusesWithoutATerminal(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+	s := ghcassette.Replay(t, openCassette(t, sha))
 	seedReview(t, dir, sha)
 
 	res := runCLI(t, s, dir, "2")
@@ -444,7 +471,7 @@ func TestReviewScreenQuitsWithoutPosting(t *testing.T) {
 			t.Parallel()
 
 			dir, sha := scratchRepo(t, headBranch)
-			s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+			s := ghcassette.Replay(t, openCassette(t, sha))
 			seedReview(t, dir, sha)
 
 			sc := openReview(t, s, dir, "2")
