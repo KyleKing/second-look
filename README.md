@@ -109,7 +109,17 @@ piped run never has its working tree moved.
 `P` posts one comment on its own for the thing that should not wait, and
 `second-look post 42 --only <id>` does the same from the shell.
 
-`w` hides hunks that change nothing but whitespace, and says how many it hid.
+`w` hides hunks that change nothing but whitespace, and says how many it hid. `t`
+hides every hunk a parser says changed no code, so a re-wrap across lines and a
+reworded comment go too. That needs [ast-grep](https://ast-grep.github.io) on the
+path, because every tree-sitter binding for Go needs cgo and the release builds
+ten platforms without it; `t` says so when it is missing and `w` never needs it.
+
+The same pass rates the change, which is the `cost` in the title bar. A signature
+change outweighs anything a body does, because every caller of the symbol is in
+scope whether or not the diff shows one; a capability the change reaches and the
+base did not counts next; and size is only the tiebreaker. The number is
+advisory, deterministic, and decides nothing.
 
 Files are grouped by directory with file and hunk counts on each heading, and `]d` walks
 the groups.

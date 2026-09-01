@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/rate"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/structure"
 )
@@ -64,7 +65,7 @@ func (m *Model) skipper() hider {
 // answer is kept, so t after the first press is a redraw.
 type structureMsg struct {
 	cosmetic map[hunkAt]bool
-	parsed   int
+	score    rate.Score
 	err      error
 }
 
@@ -87,17 +88,11 @@ func readStructure(d *diff.Diff) tea.Cmd {
 		}
 
 		out := make(map[hunkAt]bool, len(readings))
-		parsed := 0
-
 		for i := range readings {
 			out[hunkAt{refs[i].Path, refs[i].Hunk}] = readings[i].Change.Cosmetic()
-
-			if readings[i].Parsed {
-				parsed++
-			}
 		}
 
-		return structureMsg{cosmetic: out, parsed: parsed}
+		return structureMsg{cosmetic: out, score: rate.Of(readings)}
 	}
 }
 

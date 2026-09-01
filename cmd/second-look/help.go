@@ -80,6 +80,13 @@ NAMING A PULL REQUEST
       re-indent, a tabs-to-spaces pass, and a trailing-whitespace strip all
       count as whitespace; a line that gained a character does not.
 
+      t hides more: every hunk a parser says changed no code, which adds a
+      re-wrap across line boundaries and a comment nobody has to re-read. The
+      grammars come from ast-grep, so t says so where that is not installed and
+      w keeps working either way. The same pass rates the change, which is the
+      cost in the title bar: a signature change outweighs anything a body does,
+      a new capability the change reaches counts, and size is the tiebreaker.
+
       Files are grouped by the directory they sit in, which in a Go tree is one
       package, with the file and hunk counts on each heading so a directory can
       be taken or left as a unit. ]d walks the groups.

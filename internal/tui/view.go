@@ -44,8 +44,8 @@ func (m *Model) render() string {
 func (m *Model) title() string {
 	c := m.counts()
 	left := fmt.Sprintf("%s/%s #%d", m.review.Owner, m.review.Repo, m.review.Number)
-	right := cut(fmt.Sprintf("%s · %s%d ready · %d draft · %d skipped",
-		m.progress(), m.readCount(), c.ready, c.draft, c.skip), m.width)
+	right := cut(fmt.Sprintf("%s · %s%s%d ready · %d draft · %d skipped",
+		m.progress(), m.costCount(), m.readCount(), c.ready, c.draft, c.skip), m.width)
 
 	if m.listing {
 		left += "  comments"
@@ -60,6 +60,17 @@ func (m *Model) title() string {
 
 	return m.styles.title.Render(left) +
 		strings.Repeat(" ", gap) + m.styles.subtitle.Render(right)
+}
+
+// costCount is what the change is rated, absent until the structural pass
+// answers and where nothing could parse, because a number standing for a hunk
+// count alone would be read as one that means more than that.
+func (m *Model) costCount() string {
+	if !m.cost.Rated() {
+		return ""
+	}
+
+	return fmt.Sprintf("cost %d · ", m.cost.Total)
 }
 
 // readCount is how much of the diff has been read, which is the number that

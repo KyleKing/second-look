@@ -12,6 +12,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/rate"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/shellrun"
 	"github.com/kyleking/second-look/internal/structure"
@@ -83,10 +84,13 @@ type Model struct {
 	searching bool
 	listing   bool
 	fold      foldLevel
-	// cosmetic is the structural pass over every hunk, nil until t asks for it.
+	// cosmetic is the structural pass over every hunk, nil until it answers.
 	cosmetic map[hunkAt]bool
-	reading  bool
-	help     bool
+	// cost is what the same pass rates the change, shown in the title once it
+	// has an answer to show.
+	cost    rate.Score
+	reading bool
+	help    bool
 	// checkout is C, answered by the caller once the screen has closed.
 	checkout bool
 	// failure is the last submit that did not post, cleared by one that does.
@@ -137,7 +141,14 @@ func New(
 func (m *Model) Init() tea.Cmd {
 	m.rebuild()
 
-	return nil
+	// The pass costs a subprocess per hunk side, so it runs behind the first
+	// frame rather than in front of it: the rating appears when it is ready and
+	// t is a redraw by the time anyone presses it.
+	if !structure.Available() {
+		return nil
+	}
+
+	return readStructure(m.diff)
 }
 
 // field names which half of a comment an edit came back for. The note is local
@@ -194,16 +205,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, tea.ClearScreen
 	case structureMsg:
+		asked := m.reading
 		m.reading = false
 
 		if msg.err != nil {
-			m.say("reading the structure: "+msg.err.Error(), true)
+			// A pass nobody asked for fails quietly: the rating is missing from
+			// the title, which is the whole of what it was for.
+			if asked {
+				m.say("reading the structure: "+msg.err.Error(), true)
+			}
 
 			return m, nil
 		}
 
-		m.cosmetic = msg.cosmetic
-		m.setFold(foldCosmetic)
+		m.cosmetic, m.cost = msg.cosmetic, msg.score
+
+		if asked {
+			m.setFold(foldCosmetic)
+		}
 
 		return m, nil
 	case mergedMsg:
@@ -534,6 +553,12 @@ func (m *Model) setFold(want foldLevel) {
 func (m *Model) askStructure() tea.Cmd {
 	if m.fold == foldCosmetic || m.cosmetic != nil {
 		m.setFold(foldCosmetic)
+
+		return nil
+	}
+
+	if m.reading {
+		m.say("still reading the structure", false)
 
 		return nil
 	}
