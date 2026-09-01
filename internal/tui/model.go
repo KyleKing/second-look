@@ -9,6 +9,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/keyhint"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -558,7 +559,7 @@ func (m *Model) repeatable(mo motion) {
 // brackets are unstyled because the footer renders the status as one span, and
 // a color opened inside it would close the span around it.
 func (*Model) chord(prefix string, hints [][2]string) string {
-	return prefix + hintGap + hintLine(styles{}, hints)
+	return prefix + keyhint.Gap + hintLine(styles{}, hints)
 }
 
 // moved handles every key that only changes where the cursor is, so the action

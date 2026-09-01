@@ -141,8 +141,7 @@ press a key and read the refusal.
 (`[c]omments`, `[S]ubmit`) and bracketed in front where the word does not carry it
 (`[tab] switch`), which is enough of a legend that a footer needs none. The same
 shape captions the second key of a chord while it waits. It is
-`aragonite/tui/keyhint`, copied into `internal/tui/hint.go` until aragonite
-releases the version carrying it; **that release is what deletes the copy.**
+`aragonite/tui/keyhint`, shared with every other tool here.
 
 **A row keeps its identifying end.** Truncating from the right dropped a pull
 request number and a thread's `:LINE`, so two threads on one file rendered as the
@@ -800,14 +799,10 @@ rather than a verdict. `internal/rate` has such a function, which is how it surf
 local task is anchored to `grep '^total:'` now, and the template renders the loose version
 into every project it has made.
 
-Two things are owed to [aragonite](https://github.com/KyleKing/aragonite), both
-written there and both waiting on a release:
-
-- `tui/keyhint` is committed and is what `internal/tui/hint.go` is a copy of. The
-  release deletes the copy and takes the import
-- `tui/editor` is recorded in its README and not written: modal editing over a text
-  box, or a pane handing the buffer to the user's own nvim, shared by every tool
-  here that writes prose in a terminal
+One thing is owed to [aragonite](https://github.com/KyleKing/aragonite): `tui/editor`,
+recorded in its README and not written. Modal editing over a text box, or a pane
+handing the buffer to the user's own nvim, shared by every tool here that writes
+prose in a terminal. `tui/keyhint` shipped in v0.7.0 and this repository imports it.
 
 ## Open questions
 
