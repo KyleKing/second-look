@@ -6,6 +6,7 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
   n / N             repeat that motion forward, backward
   tab / shift+tab   next, previous thing wanting a decision
   .                 repeat the last change
+  space             mark the hunk read, or the whole file from a file line
   r / d / x         mark it ready, draft, or skipped
   e                 edit a comment, or answer an open thread, in $EDITOR
   E                 edit the comment's local note in $EDITOR
@@ -13,7 +14,6 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
   S                 submit the review to GitHub, S again to confirm
   ? / esc           this help, back
   q                 quit
-
 
 
 

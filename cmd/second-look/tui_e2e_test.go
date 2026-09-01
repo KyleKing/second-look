@@ -14,7 +14,9 @@ import (
 	"github.com/creack/pty"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/ghcassette"
+	"github.com/kyleking/second-look/internal/seen"
 )
 
 // The review screen renders only on a terminal, and a pipe is not one, so these
@@ -264,6 +266,48 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 
 	if reply.Status != artifact.StatusReady {
 		t.Errorf("the reply is %q; a reply the person just typed is ruled on", reply.Status)
+	}
+}
+
+// Reading a diff is the other half of reviewing one, and what makes it work is
+// that the marks outlive the session. ]u walks what is left, n repeats it, and
+// space marks it, so a review is finished when nothing answers ]u.
+func TestReviewScreenMarksHunksRead(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+	seedReview(t, dir, sha)
+
+	sc := openReview(t, s, dir, "2")
+	sc.await("testdata/fixture/sample.go")
+
+	sc.press("]u")
+	sc.press(" ")
+	sc.await("hunk read")
+
+	sc.press("]u")
+	sc.await("no unread hunk")
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("the screen exited %d:\n%s", code, sc.text())
+	}
+
+	// The screen is gone, so what says the hunk was read is the file it left.
+	set, err := seen.Load(seen.Path(dir, 2))
+	if err != nil {
+		t.Fatalf("the read hunks: %v", err)
+	}
+
+	patch, err := artifact.LoadDiff(dir, sha)
+	if err != nil {
+		t.Fatalf("the cached diff: %v", err)
+	}
+
+	refs := seen.Hunks(diff.Parse(patch))
+	if got := set.Count(refs); got != len(refs) {
+		t.Errorf("%d of %d hunks came back read", got, len(refs))
 	}
 }
 

@@ -44,6 +44,9 @@ type row struct {
 	// thread indexes the open threads for every row of a thread block. It is
 	// only read where kind is rowThread, so its zero elsewhere means nothing.
 	thread int
+	// hunk numbers the @@ block a row belongs to, across the whole diff, and is
+	// zero for a row that belongs to none.
+	hunk int
 	// head marks the first row of a comment block, which is where a jump lands.
 	head bool
 }
@@ -81,10 +84,12 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, width int) scr
 		for _, l := range f.Lines {
 			if l.Hunk != hunk {
 				hunk = l.Hunk
-				s.rows = append(s.rows, row{kind: rowHunk, text: hunkHeader(d, hunk), path: path, comment: -1})
+				s.rows = append(s.rows, row{
+					kind: rowHunk, text: hunkHeader(d, hunk), path: path, comment: -1, hunk: hunk,
+				})
 			}
 
-			s.rows = append(s.rows, row{kind: rowCode, line: l, path: path, comment: -1})
+			s.rows = append(s.rows, row{kind: rowCode, line: l, path: path, comment: -1, hunk: hunk})
 
 			// What is already on GitHub comes before what this pass is adding,
 			// so a comment reads as an answer to the conversation above it.

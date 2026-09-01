@@ -10,6 +10,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/seen"
 )
 
 // tabStop is how wide a tab renders. A diff of Go or Python is unreadable if
@@ -43,8 +44,8 @@ func (m *Model) render() string {
 func (m *Model) title() string {
 	c := m.counts()
 	left := fmt.Sprintf("%s/%s #%d", m.review.Owner, m.review.Repo, m.review.Number)
-	right := cut(fmt.Sprintf("%s · %d ready · %d draft · %d skipped",
-		m.progress(), c.ready, c.draft, c.skip), m.width)
+	right := cut(fmt.Sprintf("%s · %s%d ready · %d draft · %d skipped",
+		m.progress(), m.readCount(), c.ready, c.draft, c.skip), m.width)
 
 	if path := m.rowPath(); path != "" {
 		left += "  " + path
@@ -57,6 +58,21 @@ func (m *Model) title() string {
 
 	return m.styles.title.Render(left) +
 		strings.Repeat(" ", gap) + m.styles.subtitle.Render(right)
+}
+
+// readCount is how much of the diff has been read, which is the number that
+// says whether the review is finished. It is absent when nothing records it.
+func (m *Model) readCount() string {
+	if m.read == nil {
+		return ""
+	}
+
+	refs := seen.Hunks(m.diff)
+	if len(refs) == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%d/%d read · ", m.read.Count(refs), len(refs))
 }
 
 // progress is how far through the review the cursor is, which a frame with no
@@ -213,7 +229,7 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 	case rowFile:
 		return r.text, m.styles.file
 	case rowHunk:
-		return "  " + r.text, m.styles.hunk
+		return "  " + m.readGlyph(r) + r.text, m.styles.hunk
 	case rowComment:
 		return m.commentRow(r)
 	case rowThread:
@@ -236,6 +252,21 @@ func (m *Model) commentRow(r row) (string, lipgloss.Style) {
 	}
 
 	return text, m.styles.forSeverity(m.review.Comments[r.comment].Severity)
+}
+
+// readGlyph marks a hunk already read. It is a glyph rather than a color so
+// the one thing that says how much is left survives a monochrome terminal, and
+// the unread case still spends the same two columns so nothing shifts.
+func (m *Model) readGlyph(r row) string {
+	if r.hunk == 0 || m.read == nil {
+		return ""
+	}
+
+	if m.read.Has(seen.Hunk(m.diff, r.path, r.hunk)) {
+		return "✓ "
+	}
+
+	return "  "
 }
 
 // threadRow renders a conversation already on GitHub. It shares the comment

@@ -104,7 +104,7 @@ func openReview(ctx context.Context, number int, stdout io.Writer) error {
 	var log strings.Builder
 
 	runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(opened.Path, &log),
-		tui.WithThreads(opened.Threads))
+		tui.WithThreads(opened.Threads), tui.WithSeen(opened.Read, opened.SeenPath))
 
 	// The log is written either way: a post that failed partway through still
 	// names the endpoints it reached, which is what says whether anything

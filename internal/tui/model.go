@@ -12,6 +12,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/shellrun"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -45,6 +46,8 @@ type Model struct {
 	review  *artifact.Review
 	diff    *diff.Diff
 	threads []threads.Thread
+	read    *seen.Set
+	seenAt  string
 	path    string
 	submit  Submitter
 
@@ -79,6 +82,13 @@ type Model struct {
 
 // Option configures the review screen.
 type Option func(*Model)
+
+// WithSeen carries which hunks have already been read, and where to write that
+// back. Without it the screen still runs and space says there is nowhere to
+// record an answer, rather than pretending to remember one.
+func WithSeen(read *seen.Set, path string) Option {
+	return func(m *Model) { m.read, m.seenAt = read, path }
+}
 
 // WithThreads shows the conversations already open on the pull request, which
 // `second-look get` cached. Without it the screen shows the diff and the
@@ -240,7 +250,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m *Model) records(msg tea.KeyPressMsg) bool {
 	return key.Matches(msg, m.keys.Ready) ||
 		key.Matches(msg, m.keys.Draft) ||
-		key.Matches(msg, m.keys.Skip)
+		key.Matches(msg, m.keys.Skip) ||
+		key.Matches(msg, m.keys.Seen)
 }
 
 // object completes a pending ] or [. An unknown letter cancels rather than
@@ -262,13 +273,15 @@ func (m *Model) object(msg tea.KeyPressMsg) {
 
 	switch msg.String() {
 	case "h":
-		m.repeatable(motion{step, "hunk", isKind(rowHunk)})
+		m.repeatable(motion{step, "hunk", isHunk})
 	case "f":
 		m.repeatable(motion{step, "file", isKind(rowFile)})
 	case "c":
 		m.repeatable(motion{step, "comment", isComment})
 	case "t":
 		m.repeatable(motion{step, "thread", isThread})
+	case "u":
+		m.repeatable(motion{step, "unread hunk", m.isUnread})
 	default:
 		m.say("no motion for "+msg.String(), false)
 	}
@@ -341,6 +354,107 @@ func (m *Model) again(direction int) bool {
 	return true
 }
 
+// markRead flips the hunk under the cursor, or every hunk of the file when the
+// cursor is on a file line, which is the one place "the whole thing" is
+// unambiguous.
+func (m *Model) markRead() {
+	if m.read == nil {
+		m.say("nowhere to record what has been read", true)
+
+		return
+	}
+
+	r := m.screen.rows[m.cursor]
+
+	if r.kind == rowFile {
+		refs := m.hunksOf(r.path)
+		if len(refs) == 0 {
+			m.say("nothing to read in "+r.path, false)
+
+			return
+		}
+
+		read := !m.allRead(refs)
+		ids := make([]seen.ID, 0, len(refs))
+
+		for _, ref := range refs {
+			ids = append(ids, ref.ID)
+		}
+
+		m.read.Mark(read, ids...)
+		m.saveRead(fmt.Sprintf("%s: %d hunk(s) %s", r.path, len(refs), readWord(read)))
+
+		return
+	}
+
+	if r.hunk == 0 {
+		m.say("no hunk here", false)
+
+		return
+	}
+
+	read := m.read.Toggle(seen.Hunk(m.diff, r.path, r.hunk))
+	m.saveRead("hunk " + readWord(read))
+}
+
+func readWord(read bool) string {
+	if read {
+		return "read"
+	}
+
+	return "unread"
+}
+
+func (m *Model) hunksOf(path string) []seen.Ref {
+	var out []seen.Ref
+
+	for _, ref := range seen.Hunks(m.diff) {
+		if ref.Path == path {
+			out = append(out, ref)
+		}
+	}
+
+	return out
+}
+
+func (m *Model) allRead(refs []seen.Ref) bool {
+	for _, ref := range refs {
+		if !m.read.Has(ref.ID) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// saveRead writes the set through immediately, the way every other change is
+// written, so quitting loses nothing.
+func (m *Model) saveRead(ok string) {
+	if err := seen.Save(m.seenAt, m.read, seen.Hunks(m.diff)); err != nil {
+		m.say(err.Error(), true)
+
+		return
+	}
+
+	m.rebuild()
+	m.say(ok, false)
+}
+
+// isUnread accepts a hunk heading nobody has marked read, which is what makes
+// ]u the motion that walks what is left to do.
+func (m *Model) isUnread(r row) bool {
+	if r.kind != rowHunk || r.hunk == 0 || m.read == nil {
+		return false
+	}
+
+	return !m.read.Has(seen.Hunk(m.diff, r.path, r.hunk))
+}
+
+// isHunk accepts a real @@ heading. The review's own body and note, and the
+// line naming a rename or a binary payload, share the heading style without
+// being hunks, so a motion over hunks has to look past the style.
+func isHunk(r row) bool { return r.kind == rowHunk && r.hunk > 0 }
+
 func isComment(r row) bool { return r.head && r.kind == rowComment && r.comment >= 0 }
 
 func isThread(r row) bool { return r.head && r.kind == rowThread }
@@ -368,6 +482,8 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.setStatus(artifact.StatusDraft)
 	case key.Matches(msg, m.keys.Skip):
 		m.setStatus(artifact.StatusSkip)
+	case key.Matches(msg, m.keys.Seen):
+		m.markRead()
 	case key.Matches(msg, m.keys.Shell):
 		cmd := m.shell()
 

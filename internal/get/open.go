@@ -11,6 +11,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
 
@@ -30,8 +31,13 @@ type Review struct {
 	// it. It is empty for a review prepared before threads were cached, which
 	// changes what the screen shows and nothing about what it posts.
 	Threads []threads.Thread
-	Path    string
-	HeadSHA string
+	// Read is which hunks have been read, and SeenPath is where that is written
+	// back. It is keyed by hunk content rather than by head commit, so it
+	// outlives a force-push on its own.
+	Read     *seen.Set
+	SeenPath string
+	Path     string
+	HeadSHA  string
 }
 
 // Open reads a pull request into a review, creating the artifact and caching
@@ -79,8 +85,16 @@ func Open(ctx context.Context, root string, number int) (*Review, error) {
 		return nil, fmt.Errorf("reading the cached review threads: %w", err)
 	}
 
+	seenPath := seen.Path(root, number)
+
+	read, err := seen.Load(seenPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading what has already been read: %w", err)
+	}
+
 	return &Review{
-		Review: review, Diff: diff.Parse(patch), Threads: open, Path: path, HeadSHA: pr.HeadSHA,
+		Review: review, Diff: diff.Parse(patch), Threads: open,
+		Read: read, SeenPath: seenPath, Path: path, HeadSHA: pr.HeadSHA,
 	}, nil
 }
 
