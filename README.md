@@ -23,6 +23,8 @@ before anything is sent.
 Conversations already open on the pull request are shown where they anchor, so a second
 pass answers what was said last time. `e` on one writes the reply in `$EDITOR`.
 
+`w` hides hunks that change nothing but whitespace, and says how many it hid.
+
 Files are grouped by directory with file and hunk counts on each heading, and `]d` walks
 the groups.
 

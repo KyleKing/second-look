@@ -69,7 +69,9 @@ func (m *Model) readCount() string {
 		return ""
 	}
 
-	refs := seen.Hunks(m.diff)
+	// Folding hides hunks nobody is being asked to read, so they leave the
+	// count as well as the frame; otherwise it could never reach the total.
+	refs := m.shownHunks()
 	if len(refs) == 0 {
 		return ""
 	}

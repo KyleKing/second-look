@@ -39,6 +39,12 @@ COMMANDS
       last change. So triaging a review reads "]c" then "n . n . n .", and
       reading one through reads "]u" then "n" until nothing answers.
 
+      w hides hunks that change nothing but whitespace and says how many it
+      hid, and takes them out of the read count too, since a hunk nobody is
+      being asked to read should not hold the count short of its total. A
+      re-indent, a tabs-to-spaces pass, and a trailing-whitespace strip all
+      count as whitespace; a line that gained a character does not.
+
       Files are grouped by the directory they sit in, which in a Go tree is one
       package, with the file and hunk counts on each heading so a directory can
       be taken or left as a unit. ]d walks the groups.

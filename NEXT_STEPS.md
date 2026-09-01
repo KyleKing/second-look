@@ -118,6 +118,21 @@ thing a reader needs most, where they are, was the one thing that vanished; it c
 `Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
 keys while the cursor is inside a comment, since both sets do not fit 80 columns.
 
+## Hiding whitespace — done
+
+`w` hides every hunk that changes nothing but whitespace, says how many it hid on the
+file it hid them from, and takes them out of the read count as well as the frame, since a
+hunk nobody is being asked to read should not hold the count short of its total.
+
+The test is what a reader would do: strip every space and tab from each added and removed
+line and see whether the two sides say the same things. A re-indent, a tabs-to-spaces
+pass, a reordering that changes no text, and a trailing-whitespace strip all answer true;
+a line that gained a character does not. It lives in `internal/diff` because it is a fact
+about a diff rather than about a screen.
+
+The syntax-aware half of that requirement is not built. It needs tree-sitter, which is the
+same dependency the review-cost rating waits on, and neither should arrive on its own.
+
 ## Files grouped by directory — done
 
 Files render under the directory they sit in, which in a Go tree is one package, with the

@@ -62,7 +62,7 @@ type screen struct {
 // build flattens the diff and the prepared review into rows at the given width.
 // A comment whose path is absent from the diff is listed at the end rather than
 // dropped, because a comment nobody can see is a comment nobody can retract.
-func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, width int) screen {
+func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, width int, fold bool) screen {
 	s := screen{numWidth: numberWidth(d)}
 	byLine := indexComments(r)
 	byThread := indexThreads(ts)
@@ -75,7 +75,7 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, width int) scr
 			row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
 
 		for _, i := range g.files {
-			s.rows = append(s.rows, s.fileRows(&d.Files[i], d, r, ts, byLine, byThread, placed, width)...)
+			s.rows = append(s.rows, s.fileRows(&d.Files[i], d, r, ts, byLine, byThread, placed, width, fold)...)
 		}
 	}
 
@@ -86,7 +86,7 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, width int) scr
 // with the threads and comments that hang off each line.
 func (s screen) fileRows(
 	f *diff.File, d *diff.Diff, r *artifact.Review, ts []threads.Thread,
-	byLine, byThread map[anchor][]int, placed []bool, width int,
+	byLine, byThread map[anchor][]int, placed []bool, width int, fold bool,
 ) []row {
 	p := filePath(f)
 	rows := []row{{kind: rowFile, text: p, path: p, comment: -1}}
@@ -95,14 +95,26 @@ func (s screen) fileRows(
 		rows = append(rows, row{kind: rowHunk, text: f.Note, path: p, comment: -1})
 	}
 
-	hunk := 0
+	hunk, folded, hide := 0, 0, false
 
 	for _, l := range f.Lines {
 		if l.Hunk != hunk {
+			// WhitespaceOnly walks the file, so it is asked once per hunk
+			// rather than once per line.
 			hunk = l.Hunk
-			rows = append(rows, row{
-				kind: rowHunk, text: hunkHeader(d, hunk), path: p, comment: -1, hunk: hunk,
-			})
+			hide = fold && d.WhitespaceOnly(p, hunk)
+
+			if hide {
+				folded++
+			} else {
+				rows = append(rows, row{
+					kind: rowHunk, text: hunkHeader(d, hunk), path: p, comment: -1, hunk: hunk,
+				})
+			}
+		}
+
+		if hide {
+			continue
 		}
 
 		rows = append(rows, row{kind: rowCode, line: l, path: p, comment: -1, hunk: hunk})
@@ -117,6 +129,13 @@ func (s screen) fileRows(
 			placed[c] = true
 			rows = append(rows, comment(&r.Comments[c], c, p, width, s.numWidth)...)
 		}
+	}
+
+	if folded > 0 {
+		rows = append(rows, row{
+			kind: rowHunk, path: p, comment: -1,
+			text: plural(folded, "hunk") + " hidden: whitespace only",
+		})
 	}
 
 	return rows

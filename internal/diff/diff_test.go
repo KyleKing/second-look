@@ -151,6 +151,39 @@ new mode 100755
 	}
 }
 
+// A reformat is a hunk a reviewer can skip and a rename of one variable is not,
+// and telling them apart is what makes hiding whitespace safe to offer.
+func TestWhitespaceOnly(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"re-indent", "-  a := 1\n+\ta := 1\n", true},
+		{"tabs to spaces on two lines", "-\tx()\n-\ty()\n+    x()\n+    y()\n", true},
+		{"reordered but identical text", "-a()\n-b()\n+b()\n+a()\n", true},
+		{"a blank line added", "+\n", true},
+		{"trailing whitespace stripped", "-a := 1   \n+a := 1\n", true},
+		{"one character gained", "-a := 1\n+a := 2\n", false},
+		{"a real addition", "+// new\n", false},
+		{"a line removed", "-// gone\n", false},
+		{"context only", " unchanged\n", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			patch := "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -1,2 +1,2 @@\n" + tc.body
+			if got := diff.Parse([]byte(patch)).WhitespaceOnly("x.go", 1); got != tc.want {
+				t.Errorf("WhitespaceOnly = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestParse_HunkContentIsNotAFileHeader(t *testing.T) {
 	t.Parallel()
 

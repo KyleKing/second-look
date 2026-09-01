@@ -76,6 +76,7 @@ type Model struct {
 	confirming bool
 	searching  bool
 	listing    bool
+	folding    bool
 	help       bool
 	// failure is the last submit that did not post, cleared by one that does.
 	// The screen leaves through it, so a run that failed to post says so on
@@ -244,6 +245,10 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		m.help = !m.help
 	case key.Matches(msg, m.keys.List):
 		m.toggleList()
+	case key.Matches(msg, m.keys.Fold):
+		m.folding = !m.folding
+		m.rebuild()
+		m.say(foldWord(m.folding), false)
 	case key.Matches(msg, m.keys.Search):
 		cmd := m.begin()
 
@@ -447,6 +452,25 @@ func readWord(read bool) string {
 	return "unread"
 }
 
+// shownHunks is every hunk the frame is currently showing, which is every hunk
+// unless whitespace-only ones are folded away.
+func (m *Model) shownHunks() []seen.Ref {
+	if !m.folding {
+		return seen.Hunks(m.diff)
+	}
+
+	all := seen.Hunks(m.diff)
+	out := make([]seen.Ref, 0, len(all))
+
+	for _, r := range all {
+		if !m.diff.WhitespaceOnly(r.Path, r.Hunk) {
+			out = append(out, r)
+		}
+	}
+
+	return out
+}
+
 func (m *Model) hunksOf(path string) []seen.Ref {
 	var out []seen.Ref
 
@@ -496,6 +520,16 @@ func (m *Model) isUnread(r row) bool {
 // line naming a rename or a binary payload, share the heading style without
 // being hunks, so a motion over hunks has to look past the style.
 func isHunk(r row) bool { return r.kind == rowHunk && r.hunk > 0 }
+
+// foldWord says which way the fold went, since a hunk that vanished with no
+// word for it reads as a bug rather than a filter.
+func foldWord(folding bool) string {
+	if folding {
+		return "whitespace-only hunks hidden"
+	}
+
+	return "showing every hunk"
+}
 
 func isComment(r row) bool { return r.head && r.kind == rowComment && r.comment >= 0 }
 
@@ -960,7 +994,7 @@ func (m *Model) rebuild() {
 		return
 	}
 
-	m.screen = build(m.review, m.diff, m.threads, m.width)
+	m.screen = build(m.review, m.diff, m.threads, m.width, m.folding)
 	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()
 }

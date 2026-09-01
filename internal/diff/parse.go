@@ -9,6 +9,7 @@
 package diff
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -48,6 +49,71 @@ type Diff struct {
 	// Headers holds each hunk's @@ line, indexed by Line.Hunk minus one, for a
 	// caller rendering the diff rather than anchoring into it.
 	Headers []string
+}
+
+// WhitespaceOnly reports whether a hunk changes nothing but whitespace.
+//
+// The test is what a reader would do: strip every space and tab from each added
+// and removed line and see whether the two sides say the same things. A
+// reformat, a re-indent, and a line-ending change all answer true; a line that
+// gained a character does not.
+func (d *Diff) WhitespaceOnly(path string, hunk int) bool {
+	var added, removed []string
+
+	for i := range d.Files {
+		if pathOf(&d.Files[i]) != path {
+			continue
+		}
+
+		for _, l := range d.Files[i].Lines {
+			if l.Hunk != hunk {
+				continue
+			}
+
+			switch l.Kind {
+			case KindAdd:
+				added = append(added, squeeze(l.Text))
+			case KindRemove:
+				removed = append(removed, squeeze(l.Text))
+			}
+		}
+	}
+
+	if len(added) == 0 && len(removed) == 0 {
+		return false
+	}
+
+	added, removed = withoutBlanks(added), withoutBlanks(removed)
+	slices.Sort(added)
+	slices.Sort(removed)
+
+	return slices.Equal(added, removed)
+}
+
+// withoutBlanks drops lines that are empty once whitespace is gone, so adding
+// or removing a blank line reads as whitespace rather than as content.
+func withoutBlanks(lines []string) []string {
+	out := lines[:0:0]
+
+	for _, l := range lines {
+		if l != "" {
+			out = append(out, l)
+		}
+	}
+
+	return out
+}
+
+func squeeze(s string) string {
+	return strings.NewReplacer(" ", "", "\t", "", "\r", "").Replace(s)
+}
+
+func pathOf(f *File) string {
+	if f.NewPath != "" {
+		return f.NewPath
+	}
+
+	return f.OldPath
 }
 
 // Repeated reports the post-image paths the diff carries more than once, in

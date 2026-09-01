@@ -314,6 +314,52 @@ func TestSearchIsCaseInsensitiveUntilItIsNot(t *testing.T) {
 	}
 }
 
+// A reformat buried among real changes is the thing that makes a diff feel
+// long. Hiding it has to say how much was hidden and take it out of the read
+// count too, or the count could never reach its own total.
+func TestWhitespaceHunksFoldAway(t *testing.T) {
+	t.Parallel()
+
+	patch := `diff --git a/x.go b/x.go
+--- a/x.go
++++ b/x.go
+@@ -1,3 +1,3 @@
+ package x
+-  a := 1
++	a := 1
+@@ -20,2 +20,3 @@
+ func f() {}
++// a real change
+`
+
+	m, _, _ := fixtureWith(t, patch)
+
+	if !strings.Contains(plain(m.Frame()), "a := 1") {
+		t.Fatal("the whitespace hunk is not shown to begin with")
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'w', Text: "w"})
+
+	frame := plain(m.Frame())
+	if strings.Contains(frame, "a := 1") {
+		t.Errorf("the whitespace hunk is still shown:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "1 hunk hidden: whitespace only") {
+		t.Errorf("nothing says a hunk was hidden:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "a real change") {
+		t.Error("folding hid a hunk that changes something")
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'w', Text: "w"})
+
+	if !strings.Contains(plain(m.Frame()), "a := 1") {
+		t.Error("w did not bring the hunk back")
+	}
+}
+
 // Reading a change is reading one package at a time, and a flat list of paths
 // makes the reader do that grouping in their head on every scroll. The heading
 // carries the counts so a directory can be taken or left as a unit, and ]d
