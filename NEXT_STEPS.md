@@ -54,73 +54,89 @@ server. `filter/` and `tui/table` are already named for extraction there, and th
 request cache is the next thing that wants to move, since both tools now ask GitHub the
 same questions.
 
-## Next, and first: the screens are hard to read
+## The screens are hard to read — mostly done
 
-Highest priority, ahead of everything below. All of it came out of driving the built
-binary rather than reading the code, which is why none of it showed up in a test.
+All of it came out of driving the built binary rather than reading the code,
+which is why none of it showed up in a test. What is left is the two items that
+need more than a rendering change.
 
-### The review screen
+### Still open
 
-**A comment is hard to read where it sits.** The body renders in the diff's own rail at
-lower contrast than the code around it, so the thing being written is quieter than the
-thing being written about. A note is worse, because it carries a shell transcript and
-reads as more grey lines. The fix is not more contrast on the same shape: give a comment
-a shape of its own, so a reader's eye finds it without reading the rail. What that shape
-is has to be tried on a real review with several comments on one hunk, since that is
-where the current one breaks down.
+**Neither queue can be narrowed.** No `/`, no filter, no jump-to-repository, on a
+list that runs to 78 rows. gh-dash has one and it is the reason a long queue stays
+usable.
 
-**Editing means leaving.** Every write goes out to `$EDITOR` and comes back, which is
-right for a paragraph and wrong for fixing a word, changing a severity, or answering
-"looks good". An inline editor for the one-line cases, with `$EDITOR` still there for the
-long ones, is what the screen wants. `bubbles/textarea` is already in the module graph.
+**Both queues draw nothing for four to six seconds.** No spinner, no partial list,
+an empty terminal. The inbox also runs its sections one after another when they are
+independent searches: four of them cost 6.3 seconds where the slowest alone is under
+two. Run them concurrently and draw each bucket as it lands. That is the same
+progressive draw the rating needs before it can order the queue, so the two are
+built together.
 
-**The review body and the review note cannot be reached at all.** They render as
-decoration: their rows carry no comment index, `tab` walks past them, and `e` on one says
-"no comment here". So the review's own prose is readable in the screen and editable only
-by hand in the TOML, which is the editor this tool exists to replace. They need to be
-rows a cursor can land on and a key can edit, and they should be the first thing `tab`
-offers on a review that has neither, since a review with no body is the common way to
-post something unsigned.
+**A third view: the code alone.** `c` cycles the diff and the comments; the missing
+stop is the post-change file with an nvim-style sign column, comments folded to a
+marker carrying a severity glyph and a count. Three modes, one key: both, the code,
+the comments. Whether the comment then opens in a bottom split, a right split at
+wide widths, or a modal over the frame is deliberately unsettled: it wants trying
+on a real review first.
 
-**`r`, `d`, and `x` are three keys for one decision.** Three unmodified letters, next to
-each other, each irreversibly restamping whatever the cursor is on, with `.` to repeat.
-Nothing asks and nothing says what changed except a footer. A chord (`m` then `r`, or
-`space` then the letter) would make the decision deliberate and free three letters, one
-of which is worth more elsewhere. Worth pinning the alternatives before picking: a chord,
-a single cycling key, or a confirm on the destructive one only.
+### Done
 
-**Nothing says where the checkout is.** `C`, `!`, and `M` all behave differently
-depending on whether this laptop has a clone, whether it is on the pull request head, and
-whether the tree is dirty. The screen knows all three (`Tree`, `OnHead`) and shows none of
-it, so the way to find out is to press a key and read the refusal. One field in the title
-bar covers it.
+**A comment has a shape of its own.** The body used to render in the note style, so
+the prose was dimmer than the code it was about, and a wrapped note repeated its
+bullet per line and read as a list. A comment now opens on a blank row under a
+heavy rail, names its severity in caps, keeps the body at the contrast of the code,
+and caps prose at 88 columns with a margin off the right edge. Only the note stays
+dim, under one capital label: it is the evidence, not the finding.
 
-### Both list screens
+**Editing happens in the frame.** `e` opens a box in place of the block, so the
+line being answered stays on screen: `ctrl+s` saves, `esc` abandons, `ctrl+e` hands
+what is typed to `$EDITOR` for what a text box is the wrong shape for. It writes a
+comment, an answer to a thread, and the review's own body and note. Modal editing
+is deliberately not here: it belongs in aragonite as `tui/editor`, shared by every
+tool that writes prose in a terminal, and is recorded there.
 
-**The section heading scrolls away.** With four configured sections and 78 rows, row 40
-sits under no visible heading, so the one thing a bucket is for is gone exactly when the
-list is long enough to need it. A sticky heading, or the current section in the subtitle.
+**The review's body and note are rows.** They carried no comment index, so `tab`
+walked past them and `e` said there was no comment here, which left the review's own
+prose editable only in the TOML. Both are drawn whether or not anything is written
+in them, since a field that appears once it is filled in is one nobody knows to fill
+in, and the screen opens on the body.
 
-**Truncation cuts the identifying end off.** `executablebooks/mdit-py-plugins#1…` drops
-the pull request number, and a thread's path drops its `:LINE`, so two threads on one
-file render as the same row twice. Both columns should truncate from the left and keep
-the tail, since the tail is what names the thing.
+**`m` then `r`, `d`, or `x`.** Three unmodified letters next to the motion keys each
+restamped whatever the cursor was on. A bare press now names the chord rather than
+doing nothing, because the hand that learned them keeps reaching for them.
 
-**There is no way to narrow 78 rows.** No `/`, no filter, no jump-to-repository. gh-dash
-has one and it is the reason a long queue stays usable.
+**`z` folds.** What the cursor is on: a whole file from its name, one hunk from
+anywhere inside it, a note from its comment. `za` inverts, `zR` opens everything,
+`zM` folds to the file names, which turns an eight-file review into one screen with
+the comment count on each file. It also found a bug the whitespace fold had all
+along: a hidden hunk's comments were reported as no longer in the diff.
 
-**Both queues draw nothing for four to six seconds.** No spinner, no partial list, an
-empty terminal. The inbox also runs its sections one after another when they are
-independent searches: four of them cost 6.3 seconds where the slowest alone is under two.
-Run them concurrently and draw each bucket as it lands.
+**The title bar says where the checkout is.** `C`, `!`, and `M` each behave
+differently for on head, off head, and no clone, and the way to find out was to
+press a key and read the refusal.
 
-**A bot's preview line is its own metadata.** A coderabbit thread previews as
-`_🎯 Functional Correctness_ | _🟡 Minor_ | _⚡ Quick win_` rather than as what it said,
-which was four of eight rows in the new bucket on a real queue. Skip a leading line that
-is only emphasis and punctuation.
+**Hints are drawn one way.** The key bracketed inside the word it does
+(`[c]omments`, `[S]ubmit`) and bracketed in front where the word does not carry it
+(`[tab] switch`), which is enough of a legend that a footer needs none. The same
+shape captions the second key of a chord while it waits. It is
+`aragonite/tui/keyhint`, copied into `internal/tui/hint.go` until aragonite
+releases the version carrying it; **that release is what deletes the copy.**
 
-**`(s)`.** "4 section(s)", "2 comment(s)", "2 open review thread(s)". `plural` already
-exists in `internal/tui` and these three call sites do not use it.
+**A row keeps its identifying end.** Truncating from the right dropped a pull
+request number and a thread's `:LINE`, so two threads on one file rendered as the
+same row twice.
+
+**The section a row is in.** The heading scrolls away exactly when the list is long
+enough to need it, so the header carries the one the cursor sits under.
+
+**A bot's preview line was its own labels.** `_🎯 Functional Correctness_ | _🟡
+Minor_ | _⚡ Quick win_` rather than what it said, which was four of eight rows in
+one bucket on a real queue. A leading line whose every bar-separated part is
+emphasis is passed over.
+
+**`(s)`.** One `humanize.Plural` now, which the three packages that count things
+share.
 
 ## Reviewing with no checkout — done
 
@@ -762,6 +778,15 @@ contains "total", so `awk` is handed two numbers and the gate fails with a synta
 rather than a verdict. `internal/rate` has such a function, which is how it surfaced. The
 local task is anchored to `grep '^total:'` now, and the template renders the loose version
 into every project it has made.
+
+Two things are owed to [aragonite](https://github.com/KyleKing/aragonite), both
+written there and both waiting on a release:
+
+- `tui/keyhint` is committed and is what `internal/tui/hint.go` is a copy of. The
+  release deletes the copy and takes the import
+- `tui/editor` is recorded in its README and not written: modal editing over a text
+  box, or a pane handing the buffer to the user's own nvim, shared by every tool
+  here that writes prose in a terminal
 
 ## Open questions
 
