@@ -1,3 +1,15 @@
+## v0.3.0 (2026-09-01)
+
+### Feat
+
+- **tui**: anchor a jump near the top of the frame and confirm before posting
+- **tui**: title the frame with the path and how far the cursor has read
+
+### Fix
+
+- hold the post summary back until the review screen exits
+- **post**: address replies to the pull request's own comment route
+
 ## v0.2.0 (2026-08-31)
 
 ### Feat
