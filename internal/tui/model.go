@@ -59,6 +59,10 @@ type Model struct {
 	posted     bool
 	confirming bool
 	help       bool
+	// failure is the last submit that did not post, cleared by one that does.
+	// The screen leaves through it, so a run that failed to post says so on
+	// stdout and in the exit code rather than only in a footer nobody kept.
+	failure error
 }
 
 // New builds the review screen for a prepared review and the diff it was
@@ -428,6 +432,7 @@ func (m *Model) focus(index int) {
 }
 
 func (m *Model) applySubmit(msg submittedMsg) {
+	m.failure = msg.err
 	if msg.err != nil {
 		m.say(msg.err.Error(), true)
 
@@ -505,9 +510,9 @@ func (m *Model) blockEnd() int {
 
 // viewHeight is the frame minus the title and footer lines.
 func (m *Model) viewHeight() int {
-	const chrome = 2
+	const title = 1
 
-	return max(1, m.height-chrome)
+	return max(1, m.height-title-len(m.footerLines()))
 }
 
 // clamp holds v inside [0, hi], which is every bound a row index has.

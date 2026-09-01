@@ -89,11 +89,20 @@ func openReview(ctx context.Context, number int, stdout io.Writer) error {
 	// as it happens draws over the frame.
 	var log strings.Builder
 
-	if err := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(opened.Path, &log)); err != nil {
-		return fmt.Errorf("reviewing #%d: %w", number, err)
+	runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(opened.Path, &log))
+
+	// The log is written either way: a post that failed partway through still
+	// names the endpoints it reached, which is what says whether anything
+	// landed on GitHub.
+	if err := write(stdout, log.String()); err != nil {
+		return err
 	}
 
-	return write(stdout, log.String())
+	if runErr != nil {
+		return fmt.Errorf("reviewing #%d: %w", number, runErr)
+	}
+
+	return nil
 }
 
 // submitter posts from inside the review screen. What it returns is the one

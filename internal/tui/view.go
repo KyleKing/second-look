@@ -36,7 +36,7 @@ func (m *Model) render() string {
 		body = m.helpLines()
 	}
 
-	return strings.Join(append(append([]string{m.title()}, body...), m.footer()), "\n")
+	return strings.Join(append(append([]string{m.title()}, body...), m.footerLines()...), "\n")
 }
 
 func (m *Model) title() string {
@@ -103,23 +103,40 @@ func (m *Model) rowPath() string {
 	return m.screen.rows[m.cursor].path
 }
 
-func (m *Model) footer() string {
-	if m.status != "" {
-		style := m.styles.footer
-		if m.failed {
-			style = m.styles.fail
+// maxFailLines caps how much of the frame a failure takes. A refusal from gh
+// runs longer than one line, and the reason a post failed is the one message
+// that must not be cut off mid-word.
+const maxFailLines = 3
+
+// footerLines is the bottom of the frame. Everything but a failure fits one
+// line; a failure wraps, and whatever still does not fit reaches the
+// scrollback when the screen exits.
+func (m *Model) footerLines() []string {
+	if m.status == "" {
+		var b strings.Builder
+
+		for _, k := range m.hints() {
+			b.WriteString(" " + m.styles.key.Render(k[0]) + m.styles.footer.Render(" "+k[1]))
 		}
 
-		return style.Render(cut(m.status, m.width))
+		return []string{b.String()}
 	}
 
-	var b strings.Builder
-
-	for _, k := range m.hints() {
-		b.WriteString(" " + m.styles.key.Render(k[0]) + m.styles.footer.Render(" "+k[1]))
+	if !m.failed {
+		return []string{m.styles.footer.Render(cut(m.status, m.width))}
 	}
 
-	return b.String()
+	lines := wrap(m.status, m.width)
+	if len(lines) > maxFailLines {
+		lines = append(lines[:maxFailLines-1:maxFailLines-1], lines[maxFailLines-1]+" …")
+	}
+
+	out := make([]string, 0, len(lines))
+	for _, l := range lines {
+		out = append(out, m.styles.fail.Render(cut(l, m.width)))
+	}
+
+	return out
 }
 
 // hints is what is actionable where the cursor is standing. The keys that

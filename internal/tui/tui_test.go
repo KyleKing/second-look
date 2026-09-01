@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -83,6 +84,58 @@ func press(m *tui.Model, k tea.KeyPressMsg) {
 	_, cmd := m.Update(k)
 	if cmd != nil {
 		m.Update(cmd())
+	}
+}
+
+// refuser is a submitter that fails the way gh does, in one long sentence.
+type refuser struct{ err error }
+
+func (r *refuser) post(context.Context, *artifact.Review) (string, error) { return "", r.err }
+
+// A post that fails has to be readable and has to outlive the screen. The
+// footer is one line and gh's refusals are not, and the alternate screen takes
+// the frame with it, so an error only shown there is an error nobody keeps.
+func TestAFailedSubmitIsReadableAndReported(t *testing.T) {
+	t.Parallel()
+
+	//nolint:err113 // the text is the point: this stands in for what gh writes
+	fail := errors.New("submitting: checking the pull request head: reading pull request #42: " +
+		"running gh: exit status 1: gh: Resource not accessible by integration (HTTP 403)")
+
+	rev := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+		Comments: []artifact.Comment{comment("c1", parsed, artifact.SideRight, 15, "check err")},
+	}
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+
+	if err := artifact.Save(path, rev); err != nil {
+		t.Fatal(err)
+	}
+
+	r := &refuser{err: fail}
+	m := tui.New(t.Context(), rev, diff.Parse([]byte(patch)), path, r.post)
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+
+	if !errors.Is(m.Failure(), fail) {
+		t.Errorf("the screen kept %v, want the submit failure", m.Failure())
+	}
+
+	frame := plain(m.Frame())
+	for _, want := range []string{"Resource not accessible", "(HTTP 403)"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("want %q in the frame, got:\n%s", want, frame)
+		}
+	}
+
+	for i, line := range strings.Split(frame, "\n") {
+		if len([]rune(line)) > 80 {
+			t.Errorf("line %d is %d columns wide: %q", i, len([]rune(line)), line)
+		}
 	}
 }
 

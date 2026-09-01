@@ -16,9 +16,16 @@ import (
 // Run opens the review screen and blocks until the person leaves it. Every
 // change is written to the artifact as it is made, so quitting loses nothing
 // and a crash loses only the keystroke in flight.
+// A submit that failed is returned once the screen has closed, since a footer
+// the alternate screen takes back with it is not a report.
 func Run(ctx context.Context, r *artifact.Review, d *diff.Diff, path string, submit Submitter) error {
-	if _, err := tea.NewProgram(New(ctx, r, d, path, submit)).Run(); err != nil {
+	final, err := tea.NewProgram(New(ctx, r, d, path, submit)).Run()
+	if err != nil {
 		return fmt.Errorf("running the review screen: %w", err)
+	}
+
+	if m, ok := final.(*Model); ok {
+		return m.failure
 	}
 
 	return nil
