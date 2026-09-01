@@ -12,8 +12,8 @@ import (
 )
 
 // The frames worth pinning are the ones a reader looks at longest and the two
-// overlays that cover them. Colour is stripped: every state carries a glyph as
-// well as a colour, so the glyph is what a monochrome terminal shows and what a
+// overlays that cover them. Color is stripped: every state carries a glyph as
+// well as a color, so the glyph is what a monochrome terminal shows and what a
 // golden file can hold without pinning a lipgloss version.
 //
 // These drive the model rather than a pty, because Frame is deterministic and a

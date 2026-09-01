@@ -13,6 +13,7 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/post"
+	"github.com/kyleking/second-look/internal/skill"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -24,6 +25,7 @@ var (
 	errUsagePost      = errors.New("usage: second-look post <pr> [--dry-run]")
 	errUsageReview    = errors.New("usage: second-look <pr>")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--payload]")
+	errUsageSkill     = errors.New("usage: second-look skill")
 )
 
 func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
@@ -44,6 +46,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return showCmd(args[1:], stdout)
 	case "post":
 		return postCmd(ctx, args[1:], stdout)
+	case "skill":
+		return skillCmd(args[1:], stdout)
 	default:
 		return reviewCmd(ctx, args, stdout)
 	}
@@ -264,6 +268,18 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 
 	//nolint:wrapcheck // Run's own error already names what failed
 	return post.Run(ctx, post.GH(), path, r, stdout)
+}
+
+// skillCmd prints the agent instructions the binary carries. Printing the
+// content rather than a path is the point: a path into an install tree is
+// version-pinned and breaks on the next upgrade, so the caller reads it fresh
+// every time and there is no copy to go stale.
+func skillCmd(args []string, stdout io.Writer) error {
+	if len(args) != 0 {
+		return errUsageSkill
+	}
+
+	return write(stdout, skill.Content)
 }
 
 func write(w io.Writer, s string) error {

@@ -8,6 +8,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look show <pr> --payload  print exactly what would be sent
   second-look post <pr>            post the review
   second-look post <pr> --dry-run  print the request without sending it
+  second-look skill                print the agent instructions this binary carries
 
   --help  the full contract, including every JSON field
 `
@@ -66,6 +67,14 @@ COMMANDS
       comment is still a draft. On success the prepared review is removed:
       GitHub is the source of truth from that point and re-running post would
       publish a second copy.
+
+  second-look skill
+      Print the instructions for an agent driving this binary, as a skill file
+      ready to write to a skills directory. It says what this help does not:
+      which commands an agent should never run, and how to use the local fields.
+      Read it, or install it with
+
+        second-look skill > ~/.claude/skills/second-look/SKILL.md
 
 BATCH SHAPE (stdin to second-look comment add)
 
