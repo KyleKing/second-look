@@ -31,6 +31,8 @@ type keyMap struct {
 	Draft    key.Binding
 	Skip     key.Binding
 	Seen     key.Binding
+	Search   key.Binding
+	Accept   key.Binding
 	Submit   key.Binding
 	Help     key.Binding
 	Quit     key.Binding
@@ -58,6 +60,8 @@ func defaultKeyMap() keyMap {
 		Draft:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
 		Skip:     key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
 		Seen:     key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "read")),
+		Search:   key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
+		Accept:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
 		Submit:   key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
 		Help:     key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", "quit")),
@@ -85,6 +89,7 @@ func helpLines() [][2]string {
 		{"g / G", "top, bottom"},
 		{"] / [", "go to the next, previous: h hunk, f file, c comment, t thread, u unread hunk"},
 		{"n / N", "repeat that motion forward, backward"},
+		{"/", "search; tab in the prompt restricts it to hunks not yet read"},
 		{"tab / shift+tab", "next, previous thing wanting a decision"},
 		{".", "repeat the last change"},
 		{"space", "mark the hunk read, or the whole file from a file line"},

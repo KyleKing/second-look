@@ -39,6 +39,11 @@ COMMANDS
       last change. So triaging a review reads "]c" then "n . n . n .", and
       reading one through reads "]u" then "n" until nothing answers.
 
+      / searches, and tab inside the prompt restricts the search to hunks not
+      yet read, which is the question a second pass asks and no other reviewer
+      answers. A committed pattern becomes the motion n repeats, so a search and
+      a jump between hunks are walked with the same key.
+
       space marks the hunk under the cursor read, or the whole file from a file
       line. What is read is kept in .second-look/seen/ against the hunk's
       content rather than its position, so a force-push that does not touch a

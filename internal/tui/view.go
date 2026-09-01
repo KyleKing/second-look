@@ -129,6 +129,10 @@ const maxFailLines = 3
 // line; a failure wraps, and whatever still does not fit reaches the
 // scrollback when the screen exits.
 func (m *Model) footerLines() []string {
+	if m.searching {
+		return []string{m.prompt()}
+	}
+
 	if m.status == "" {
 		var b strings.Builder
 
@@ -154,6 +158,21 @@ func (m *Model) footerLines() []string {
 	}
 
 	return out
+}
+
+// prompt is the search line. It says what the scope is rather than leaving it
+// to be remembered, and names the key that changes it, because a search that
+// silently skipped most of the diff would be the worst kind of wrong.
+func (m *Model) prompt() string {
+	scope := "all"
+	if m.search.unread {
+		scope = "unread"
+	}
+
+	head := m.styles.key.Render("/") + m.styles.footer.Render(scope+" ")
+	tail := m.styles.footer.Render("  tab: scope")
+
+	return cut(head+m.search.input.View()+tail, m.width)
 }
 
 // hints is what is actionable where the cursor is standing. The keys that

@@ -59,6 +59,7 @@ type Model struct {
 
 	keys   keyMap
 	styles styles
+	search search
 
 	// pending is the ] or [ waiting for the object that completes it.
 	pending rune
@@ -73,6 +74,7 @@ type Model struct {
 	posted     bool
 	posting    bool
 	confirming bool
+	searching  bool
 	help       bool
 	// failure is the last submit that did not post, cleared by one that does.
 	// The screen leaves through it, so a run that failed to post says so on
@@ -106,7 +108,7 @@ func New(
 ) *Model {
 	m := &Model{
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
-		keys: defaultKeyMap(), styles: newStyles(),
+		keys: defaultKeyMap(), styles: newStyles(), search: newSearch(),
 		width: minWidth, height: startHeight,
 	}
 
@@ -190,6 +192,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.answer(msg)
 	}
 
+	if m.searching {
+		return m.typing(msg)
+	}
+
 	if m.pending != 0 {
 		m.object(msg)
 
@@ -210,6 +216,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.help = !m.help
 
 		return m, nil
+	}
+
+	if key.Matches(msg, m.keys.Search) {
+		cmd := m.begin()
+
+		return m, cmd
 	}
 
 	if key.Matches(msg, m.keys.Forward) || key.Matches(msg, m.keys.Backward) {

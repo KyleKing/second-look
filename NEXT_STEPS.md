@@ -118,6 +118,22 @@ thing a reader needs most, where they are, was the one thing that vanished; it c
 `Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
 keys while the cursor is inside a comment, since both sets do not fit 80 columns.
 
+## Search — done
+
+`/` opens the one prompt the screen has, and a committed pattern becomes the motion `n`
+repeats, so a search and a jump between hunks are walked with the same key rather than
+two. Matching is case-insensitive until the pattern carries an uppercase letter.
+
+`tab` inside the prompt flips the scope between the whole diff and hunks nobody has read,
+which is the part [requirements.md](requirements.md) says no tool anywhere does. The
+prompt names the scope rather than leaving it to be remembered, because a search that
+silently skipped most of the diff would be the worst kind of wrong.
+
+The prompt is `bubbles/textinput`, which handles unicode and paste properly. Its cursor
+schedules a blink half a second out and reschedules forever, so `press` in the model
+tests drops a command that has not answered in 100ms; waiting on each blink cost the
+package thirteen seconds a run.
+
 ## Seen-state — done
 
 `space` marks the hunk under the cursor read, or every hunk of a file from its file line.

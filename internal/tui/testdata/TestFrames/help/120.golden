@@ -4,6 +4,7 @@ kyleking/jj-diff #42                                                            
   g / G             top, bottom
   ] / [             go to the next, previous: h hunk, f file, c comment, t thread, u unread hunk
   n / N             repeat that motion forward, backward
+  /                 search; tab in the prompt restricts it to hunks not yet read
   tab / shift+tab   next, previous thing wanting a decision
   .                 repeat the last change
   space             mark the hunk read, or the whole file from a file line
@@ -14,7 +15,6 @@ kyleking/jj-diff #42                                                            
   S                 submit the review to GitHub, S again to confirm
   ? / esc           this help, back
   q                 quit
-
 
 
 

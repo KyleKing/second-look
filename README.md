@@ -23,6 +23,9 @@ before anything is sent.
 Conversations already open on the pull request are shown where they anchor, so a second
 pass answers what was said last time. `e` on one writes the reply in `$EDITOR`.
 
+`/` searches, and `tab` in the prompt restricts it to hunks you have not read yet. The
+pattern becomes a motion, so `n` walks the matches the same way it walks hunks.
+
 `space` marks a hunk read and `]u` goes to the next unread one, so a long review is
 finished when nothing answers `]u`. What is read is keyed by the hunk's content, so a
 force-push that leaves a hunk alone leaves it read.

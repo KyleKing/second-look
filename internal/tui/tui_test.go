@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	xansi "github.com/charmbracelet/x/ansi"
@@ -81,10 +82,26 @@ func fixtureWith(t *testing.T, patch string, cs ...artifact.Comment) (*tui.Model
 
 // press sends a keystroke and runs whatever it returned, which is what the
 // program loop would do and the only way a submit reaches the submitter.
+//
+// A command that has not answered quickly is dropped rather than waited on. The
+// search prompt's cursor schedules a blink half a second out and reschedules
+// forever, and a test that waited for each one would spend its whole run
+// watching a cursor the program loop runs in the background anyway.
 func press(m *tui.Model, k tea.KeyPressMsg) {
 	_, cmd := m.Update(k)
-	if cmd != nil {
-		m.Update(cmd())
+	if cmd == nil {
+		return
+	}
+
+	const patience = 100 * time.Millisecond
+
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+
+	select {
+	case msg := <-done:
+		m.Update(msg)
+	case <-time.After(patience):
 	}
 }
 
@@ -230,6 +247,82 @@ func TestAPendingMotionCancels(t *testing.T) {
 
 	if strings.Contains(plain(m.Frame()), "no motion for") {
 		t.Error("escape resolved the prefix instead of canceling it")
+	}
+}
+
+// Search is a motion like any other: committing a pattern is what n repeats, so
+// a search and a jump to the next hunk are walked with the same key. And the
+// scope is the part no other reviewer offers -- matches inside hunks nobody has
+// read yet, which is the question a second pass actually asks.
+func TestSearchIsAMotionAndCanBeScopedToUnread(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the only one"))
+
+	typeSearch(m, "split")
+
+	if got := m.CursorText(); !strings.Contains(got, "split") {
+		t.Fatalf("the cursor landed on %q, which does not match", got)
+	}
+
+	first := m.CursorRow()
+
+	// n walks to the next match without naming the pattern again.
+	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+
+	if m.CursorRow() == first {
+		t.Error("n did not repeat the search")
+	}
+
+	if got := m.CursorText(); !strings.Contains(got, "split") {
+		t.Errorf("n landed on %q, which does not match", got)
+	}
+
+	// Nothing is read, so an unread-scoped search finds the same rows. A screen
+	// with nowhere to record what is read finds none, which is the honest
+	// answer rather than silently searching everything.
+	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	press(m, tea.KeyPressMsg{Code: '/', Text: "/"})
+	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+	typeInto(m, "split")
+	press(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if !strings.Contains(plain(m.Frame()), "no unread match") {
+		t.Errorf("an unread search with nowhere to record read state found something:\n%s",
+			plain(m.Frame()))
+	}
+}
+
+// A pattern with an uppercase letter is matched exactly, which is the rule
+// every editor uses and the one nobody has to be told.
+func TestSearchIsCaseInsensitiveUntilItIsNot(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the only one"))
+
+	typeSearch(m, "SPLIT")
+
+	if !strings.Contains(plain(m.Frame()), "no match for SPLIT") {
+		t.Errorf("an uppercase pattern matched lowercase text:\n%s", plain(m.Frame()))
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	typeSearch(m, "SPLIT(")
+
+	if !strings.Contains(plain(m.Frame()), "no match") {
+		t.Error("the second search should also find nothing")
+	}
+}
+
+func typeSearch(m *tui.Model, pattern string) {
+	press(m, tea.KeyPressMsg{Code: '/', Text: "/"})
+	typeInto(m, pattern)
+	press(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+}
+
+func typeInto(m *tui.Model, text string) {
+	for _, r := range text {
+		press(m, tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 }
 
