@@ -32,6 +32,7 @@ type keyMap struct {
 	Skip     key.Binding
 	Seen     key.Binding
 	Search   key.Binding
+	List     key.Binding
 	Accept   key.Binding
 	Submit   key.Binding
 	Help     key.Binding
@@ -61,6 +62,7 @@ func defaultKeyMap() keyMap {
 		Skip:     key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
 		Seen:     key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "read")),
 		Search:   key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
+		List:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
 		Accept:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
 		Submit:   key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
 		Help:     key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
@@ -92,6 +94,7 @@ func helpLines() [][2]string {
 		{"/", "search; tab in the prompt restricts it to hunks not yet read"},
 		{"tab / shift+tab", "next, previous thing wanting a decision"},
 		{".", "repeat the last change"},
+		{"c", "the comments alone, by file, and back"},
 		{"space", "mark the hunk read, or the whole file from a file line"},
 		{"r / d / x", "mark it ready, draft, or skipped"},
 		{"e", "edit a comment, or answer an open thread, in $EDITOR"},

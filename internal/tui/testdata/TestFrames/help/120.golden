@@ -7,6 +7,7 @@ kyleking/jj-diff #42                                                            
   /                 search; tab in the prompt restricts it to hunks not yet read
   tab / shift+tab   next, previous thing wanting a decision
   .                 repeat the last change
+  c                 the comments alone, by file, and back
   space             mark the hunk read, or the whole file from a file line
   r / d / x         mark it ready, draft, or skipped
   e                 edit a comment, or answer an open thread, in $EDITOR
@@ -20,5 +21,4 @@ kyleking/jj-diff #42                                                            
 
 
 
-
- j/k line ] go tab next S submit ? help q quit
+ j/k line ] go c comments S submit ? help q quit

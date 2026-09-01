@@ -212,6 +212,80 @@ func comment(c *artifact.Comment, index int, path string, width, numWidth int) [
 	return rows
 }
 
+// buildList is the review without the diff: every comment that will post,
+// under the file it belongs to, with the counts on the heading.
+//
+// It is the same rows the diff view uses, so every motion, the search, and
+// every action work in it unchanged. Skipped comments are counted rather than
+// listed: a finding considered and declined is worth recording and not worth
+// re-reading, and the diff view still shows it where it sits.
+func buildList(r *artifact.Review, d *diff.Diff, width int) screen {
+	s := screen{numWidth: numberWidth(d)}
+	s.rows = append(s.rows, header(r, width-s.numWidth-rail)...)
+
+	for _, path := range commentPaths(r) {
+		c := countFor(r, path)
+		s.rows = append(s.rows, row{kind: rowBlank, comment: -1}, row{
+			kind: rowFile, path: path, comment: -1,
+			text: fmt.Sprintf("%s  %d ready · %d draft · %d skipped", path, c.ready, c.draft, c.skip),
+		})
+
+		for i := range r.Comments {
+			if r.Comments[i].Path != path || r.Comments[i].Status == artifact.StatusSkip {
+				continue
+			}
+
+			s.rows = append(s.rows, comment(&r.Comments[i], i, path, width, s.numWidth)...)
+		}
+	}
+
+	if len(s.rows) == len(header(r, width-s.numWidth-rail)) {
+		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
+			row{kind: rowFile, text: "no comments staged", comment: -1})
+	}
+
+	return s
+}
+
+// commentPaths is every file a comment sits on, in the order the diff carries
+// them, so the list reads in the same order as the diff behind it.
+func commentPaths(r *artifact.Review) []string {
+	seenPath := map[string]bool{}
+
+	var out []string
+
+	for i := range r.Comments {
+		if p := r.Comments[i].Path; p != "" && !seenPath[p] {
+			seenPath[p] = true
+
+			out = append(out, p)
+		}
+	}
+
+	return out
+}
+
+func countFor(r *artifact.Review, path string) tally {
+	var out tally
+
+	for i := range r.Comments {
+		if r.Comments[i].Path != path {
+			continue
+		}
+
+		switch r.Comments[i].Status {
+		case artifact.StatusReady:
+			out.ready++
+		case artifact.StatusDraft:
+			out.draft++
+		case artifact.StatusSkip:
+			out.skip++
+		}
+	}
+
+	return out
+}
+
 // indexThreads groups the open threads by the diff line they anchor to, the
 // same way staged comments are grouped, so both render under the same line.
 func indexThreads(ts []threads.Thread) map[anchor][]int {

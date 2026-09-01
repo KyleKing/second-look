@@ -1,0 +1,24 @@
+kyleking/jj-diff #42  comments                0% · 1 ready · 1 draft · 1 skipped
+                                                                                
+internal/vcs/diff.go  1 ready · 1 draft · 0 skipped
+     │ ● major
+     │ split can fail now, so this has to check err.
+     │ ◐ question
+     │ Is first still 1 after the change?
+     │ · Unverified: I have not read the caller.
+
+internal/vcs/git.go  0 ready · 0 draft · 1 skipped
+
+
+
+
+
+
+
+
+
+
+
+
+
+ j/k line ] go c diff S submit ? help q quit

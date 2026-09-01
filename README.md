@@ -23,6 +23,9 @@ before anything is sent.
 Conversations already open on the pull request are shown where they anchor, so a second
 pass answers what was said last time. `e` on one writes the reply in `$EDITOR`.
 
+`c` shows the comments alone, by file, and `c` again goes back to the same comment in the
+diff.
+
 `/` searches, and `tab` in the prompt restricts it to hunks you have not read yet. The
 pattern becomes a motion, so `n` walks the matches the same way it walks hunks.
 

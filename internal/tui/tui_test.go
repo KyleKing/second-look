@@ -314,6 +314,64 @@ func TestSearchIsCaseInsensitiveUntilItIsNot(t *testing.T) {
 	}
 }
 
+// The comment view is the review without the diff. What makes it worth having
+// is that it is the same rows, so every motion and action still works, and that
+// coming back lands on the comment you were reading rather than at the top.
+func TestTheCommentViewKeepsYourPlace(t *testing.T) {
+	t.Parallel()
+
+	skipped := comment("c3", parsed, artifact.SideRight, 201, "held back")
+	skipped.Status = artifact.StatusSkip
+	skipped.SkipReason = "unverified"
+
+	skipped.Path = "internal/vcs/git.go"
+
+	m, path := fixture(t,
+		comment("c1", parsed, artifact.SideRight, 15, "the split can fail"),
+		skipped)
+
+	go2(m, ']', 'c')
+	was := m.CommentUnderCursor()
+
+	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "1 ready · 0 draft · 0 skipped") {
+		t.Errorf("the file heading does not carry the counts:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "0 ready · 0 draft · 1 skipped") {
+		t.Errorf("the skipped comment's file is missing its count:\n%s", frame)
+	}
+
+	// A finding considered and declined is worth recording and not worth
+	// re-reading, so it is counted rather than listed.
+	if strings.Contains(frame, "held back") {
+		t.Error("a skipped comment was listed rather than counted")
+	}
+
+	if !strings.Contains(frame, "the split can fail") {
+		t.Errorf("the comment that will post is missing:\n%s", frame)
+	}
+
+	// Actions work here, because these are the same rows.
+	press(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+
+	if got := m.CommentUnderCursor(); got != was {
+		t.Errorf("coming back landed on comment %d, want %d", got, was)
+	}
+
+	saved, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if saved.Comments[0].Status != artifact.StatusDraft {
+		t.Errorf("d in the comment view left c1 %q", saved.Comments[0].Status)
+	}
+}
+
 func typeSearch(m *tui.Model, pattern string) {
 	press(m, tea.KeyPressMsg{Code: '/', Text: "/"})
 	typeInto(m, pattern)

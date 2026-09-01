@@ -118,6 +118,18 @@ thing a reader needs most, where they are, was the one thing that vanished; it c
 `Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
 keys while the cursor is inside a comment, since both sets do not fit 80 columns.
 
+## The comment view — done
+
+`c` shows the comments alone, grouped by the file they sit on, with each heading carrying
+its own ready, draft, and skipped counts. A skipped comment is counted rather than listed:
+a finding considered and declined is worth recording and not worth re-reading, and the
+diff view still shows it where it sits.
+
+It is a filter over the same rows rather than a second screen, so every motion, the
+search, and `r`/`d`/`x`/`e` all work in it with no extra code. `c` again returns to the
+same comment in the diff, and the one case that cannot round-trip, a cursor sitting on a
+skipped comment, says so rather than landing silently at the top.
+
 ## Search — done
 
 `/` opens the one prompt the screen has, and a committed pattern becomes the motion `n`

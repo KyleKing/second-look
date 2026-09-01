@@ -39,6 +39,11 @@ COMMANDS
       last change. So triaging a review reads "]c" then "n . n . n .", and
       reading one through reads "]u" then "n" until nothing answers.
 
+      c shows the comments alone, grouped by file with the counts on each
+      heading and skipped ones counted rather than listed, and c again goes
+      back to the same comment in the diff. It is the same rows either way, so
+      every key works in both.
+
       / searches, and tab inside the prompt restricts the search to hunks not
       yet read, which is the question a second pass asks and no other reviewer
       answers. A committed pattern becomes the motion n repeats, so a search and

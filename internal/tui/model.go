@@ -75,6 +75,7 @@ type Model struct {
 	posting    bool
 	confirming bool
 	searching  bool
+	listing    bool
 	help       bool
 	// failure is the last submit that did not post, cleared by one that does.
 	// The screen leaves through it, so a run that failed to post says so on
@@ -188,51 +189,21 @@ type motion struct {
 }
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if m.confirming {
+	// A prompt, a confirmation, and a half-typed motion each own the keyboard
+	// until they are finished, so they are answered before anything else.
+	switch {
+	case m.confirming:
 		return m.answer(msg)
-	}
-
-	if m.searching {
+	case m.searching:
 		return m.typing(msg)
-	}
-
-	if m.pending != 0 {
+	case m.pending != 0:
 		m.object(msg)
 
 		return m, nil
 	}
 
-	if key.Matches(msg, m.keys.Quit) {
-		if m.help {
-			m.help = false
-
-			return m, nil
-		}
-
-		return m, tea.Quit
-	}
-
-	if key.Matches(msg, m.keys.Help) {
-		m.help = !m.help
-
-		return m, nil
-	}
-
-	if key.Matches(msg, m.keys.Search) {
-		cmd := m.begin()
-
-		return m, cmd
-	}
-
-	if key.Matches(msg, m.keys.Forward) || key.Matches(msg, m.keys.Backward) {
-		m.pending = ']'
-		if key.Matches(msg, m.keys.Backward) {
-			m.pending = '['
-		}
-
-		m.say(objectMenu(m.pending), false)
-
-		return m, nil
+	if handled, model, cmd := m.mode(msg); handled {
+		return model, cmd
 	}
 
 	if m.moved(msg) {
@@ -255,6 +226,40 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.act(msg)
+}
+
+// mode handles the keys that change what the screen is showing rather than what
+// the review says, and reports whether one of them matched.
+func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, m.keys.Quit):
+		if m.help {
+			m.help = false
+
+			return true, m, nil
+		}
+
+		return true, m, tea.Quit
+	case key.Matches(msg, m.keys.Help):
+		m.help = !m.help
+	case key.Matches(msg, m.keys.List):
+		m.toggleList()
+	case key.Matches(msg, m.keys.Search):
+		cmd := m.begin()
+
+		return true, m, cmd
+	case key.Matches(msg, m.keys.Forward), key.Matches(msg, m.keys.Backward):
+		m.pending = ']'
+		if key.Matches(msg, m.keys.Backward) {
+			m.pending = '['
+		}
+
+		m.say(objectMenu(m.pending), false)
+	default:
+		return false, m, nil
+	}
+
+	return true, m, nil
 }
 
 // records marks the changes the repeat key can replay: the ones that take no
@@ -350,6 +355,29 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 	m.follow()
 
 	return true
+}
+
+// toggleList swaps between the diff and the comments alone, keeping the cursor
+// on the same comment across the swap. Losing your place is what makes a second
+// view a detour rather than a shortcut.
+func (m *Model) toggleList() {
+	was := m.current()
+	m.listing = !m.listing
+	m.rebuild()
+
+	m.cursor = 0
+	m.reveal()
+	m.say("", false)
+
+	if was < 0 {
+		return
+	}
+
+	if !m.focus(was) {
+		// The only comment the list leaves out is a skipped one, and landing
+		// silently at the top would read as the cursor having been lost.
+		m.say("skipped comments are counted here, not listed", false)
+	}
 }
 
 // again repeats the last motion, in its own direction or reversed. It is what
@@ -838,7 +866,7 @@ func (m *Model) askSubmit() {
 
 	c := m.counts()
 	if c.draft > 0 {
-		m.focus(m.firstDraft())
+		_ = m.focus(m.firstDraft())
 		m.say(fmt.Sprintf("%d comment(s) still draft, r to post it or x to skip it", c.draft), true)
 
 		return
@@ -894,15 +922,17 @@ func (m *Model) firstDraft() int {
 
 // focus puts the cursor on a comment by index, so a refusal points at what has
 // to change rather than only counting it.
-func (m *Model) focus(index int) {
+func (m *Model) focus(index int) bool {
 	for i, r := range m.screen.rows {
 		if r.head && r.comment == index {
 			m.cursor = i
 			m.reveal()
 
-			return
+			return true
 		}
 	}
+
+	return false
 }
 
 func (m *Model) settled() bool { return m.posted || m.posting }
@@ -920,6 +950,14 @@ func (m *Model) applySubmit(msg submittedMsg) {
 }
 
 func (m *Model) rebuild() {
+	if m.listing {
+		m.screen = buildList(m.review, m.diff, m.width)
+		m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
+		m.follow()
+
+		return
+	}
+
 	m.screen = build(m.review, m.diff, m.threads, m.width)
 	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()

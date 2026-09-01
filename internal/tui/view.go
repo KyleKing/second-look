@@ -47,7 +47,9 @@ func (m *Model) title() string {
 	right := cut(fmt.Sprintf("%s · %s%d ready · %d draft · %d skipped",
 		m.progress(), m.readCount(), c.ready, c.draft, c.skip), m.width)
 
-	if path := m.rowPath(); path != "" {
+	if m.listing {
+		left += "  comments"
+	} else if path := m.rowPath(); path != "" {
 		left += "  " + path
 	}
 
@@ -63,7 +65,7 @@ func (m *Model) title() string {
 // readCount is how much of the diff has been read, which is the number that
 // says whether the review is finished. It is absent when nothing records it.
 func (m *Model) readCount() string {
-	if m.read == nil {
+	if m.read == nil || m.listing {
 		return ""
 	}
 
@@ -189,9 +191,13 @@ func (m *Model) hints() [][2]string {
 		middle = [][2]string{{"r/d/x", "state"}, {"e", "edit"}}
 	}
 
+	view := [2]string{"c", "comments"}
+	if m.listing {
+		view = [2]string{"c", "diff"}
+	}
+
 	hints := make([][2]string, 0, len(middle)+6)
-	hints = append(hints,
-		[2]string{"j/k", "line"}, [2]string{"]", "go"}, [2]string{"tab", "next"})
+	hints = append(hints, [2]string{"j/k", "line"}, [2]string{"]", "go"}, view)
 	hints = append(hints, middle...)
 
 	return append(hints, [2]string{"S", "submit"}, [2]string{"?", "help"}, [2]string{"q", "quit"})
