@@ -3,9 +3,10 @@ package inbox
 import (
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kyleking/second-look/internal/humanize"
 )
 
 // Write prints the queue for a person to read. Buckets keep their order and an
@@ -58,16 +59,14 @@ func widths(items []PullRequest) (int, int) {
 	var name, author int
 
 	for i := range items {
-		name = max(name, width(where(&items[i])))
-		author = max(author, min(authorCap, width(items[i].Author)))
+		name = max(name, humanize.Width(where(&items[i])))
+		author = max(author, min(authorCap, humanize.Width(items[i].Author)))
 	}
 
 	return name, author
 }
 
 func where(p *PullRequest) string { return fmt.Sprintf("%s#%d", p.Repository, p.Number) }
-
-func width(s string) int { return len([]rune(s)) }
 
 // firstSentence is as much of a failure as a queue is worth spending. GitHub
 // answers a rate limit with four hundred characters of terms of service and a
@@ -94,7 +93,7 @@ func line(p *PullRequest, now time.Time, nameWidth, authorWidth int) string {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "%-*s  %-*s  %5s",
-		nameWidth, where(p), authorWidth, clip(p.Author, authorWidth), ago(p.Updated, now))
+		nameWidth, where(p), authorWidth, humanize.Clip(p.Author, authorWidth), humanize.Ago(p.Updated, now))
 
 	if p.Draft {
 		b.WriteString("  draft")
@@ -107,39 +106,4 @@ func line(p *PullRequest, now time.Time, nameWidth, authorWidth int) string {
 	b.WriteString("  " + p.Title)
 
 	return b.String()
-}
-
-func clip(s string, to int) string {
-	runes := []rune(s)
-	if len(runes) <= to {
-		return s
-	}
-
-	return string(runes[:to-1]) + "…"
-}
-
-// ago is how stale a pull request is, which is the field that decides what to
-// look at when two are otherwise equal.
-func ago(then, now time.Time) string {
-	if then.IsZero() {
-		return ""
-	}
-
-	const (
-		day  = 24 * time.Hour
-		year = 365 * day
-	)
-
-	d := now.Sub(then)
-
-	switch {
-	case d < time.Hour:
-		return strconv.Itoa(int(d.Minutes())) + "m"
-	case d < day:
-		return strconv.Itoa(int(d.Hours())) + "h"
-	case d < year:
-		return strconv.Itoa(int(d/day)) + "d"
-	}
-
-	return strconv.Itoa(int(d/year)) + "y"
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/x/term"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/conversations"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
@@ -37,6 +38,7 @@ var (
 	errUsagePost      = errors.New("usage: second-look post <pr> [--dry-run|--only <id>]")
 	errUsageReview    = errors.New("usage: second-look <pr>")
 	errUsageInbox     = errors.New("usage: second-look inbox [--json]")
+	errUsageThreads   = errors.New("usage: second-look threads [--json]")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--payload|--threads]")
 	errUsageSkill     = errors.New("usage: second-look skill")
 )
@@ -61,6 +63,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return postCmd(ctx, args[1:], stdout)
 	case "inbox":
 		return inboxCmd(ctx, args[1:], stdout)
+	case "threads":
+		return threadsCmd(ctx, args[1:], stdout)
 	case "skill":
 		return skillCmd(args[1:], stdout)
 	default:
@@ -355,6 +359,53 @@ func postFlags(args []string) (bool, string, error) {
 // inboxLimit is how many pull requests each bucket asks for. A queue longer
 // than this is not a queue, and the search costs the same either way.
 const inboxLimit = 30
+
+// threadsCmd prints the conversation queue: the discussions across your open
+// pull requests that moved since you last looked, then the ones still waiting on
+// you, then the ones waiting on somebody else.
+//
+// It never writes a read mark. Printing a queue is not reading it, and a run
+// that emptied the first bucket by being run would hide the one thing the
+// bucket is for.
+func threadsCmd(ctx context.Context, args []string, stdout io.Writer) error {
+	asJSON, err := oneOf(args, errUsageThreads, "--json")
+	if err != nil {
+		return err
+	}
+
+	queue, err := conversations.Fetch(ctx, ".", conversations.DefaultLimit)
+	if err != nil {
+		return fmt.Errorf("reading your conversations: %w", err)
+	}
+
+	looked, err := loadLooked()
+	if err != nil {
+		return err
+	}
+
+	buckets := conversations.Buckets(queue, looked)
+
+	if asJSON == "--json" {
+		return writeJSON(stdout, buckets)
+	}
+
+	//nolint:wrapcheck // Write's own error already names what failed
+	return conversations.Write(stdout, buckets, time.Now())
+}
+
+func loadLooked() (*conversations.Looked, error) {
+	path, err := conversations.LookedPath()
+	if err != nil {
+		return nil, fmt.Errorf("reading your read conversations: %w", err)
+	}
+
+	looked, err := conversations.LoadLooked(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading your read conversations: %w", err)
+	}
+
+	return looked, nil
+}
 
 // inboxCmd prints the review queue in three buckets. It reads GitHub and
 // nothing local, so it works from anywhere with a gh login rather than only
