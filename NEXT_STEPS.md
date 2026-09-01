@@ -118,6 +118,36 @@ thing a reader needs most, where they are, was the one thing that vanished; it c
 `Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
 keys while the cursor is inside a comment, since both sets do not fit 80 columns.
 
+## Seen-state — done
+
+`space` marks the hunk under the cursor read, or every hunk of a file from its file line.
+`]u` goes to the next unread hunk and `n` repeats it, so a review is finished when nothing
+answers `]u`. The title carries `n/m read`, and a read hunk shows a `✓` on its heading,
+which is a glyph rather than a color so the number that says how much is left survives a
+monochrome terminal. Every mark is written through immediately, the way every other change
+is, so quitting loses nothing.
+
+A hunk is identified by what it says: the file plus every line of the hunk, kinds
+included, line numbers left out. That is what makes read-state survive a force-push
+without a carry-over step, since a hunk that slides down the file answers the same
+identity and one whose text changed does not. `.second-look/seen/pr-<n>.toml` holds the
+hashes, pruned on every `get` to the hunks the current diff still carries, and `get`
+reports how many were already read.
+
+**range-diff was built and measured out.** The plan was to delegate to `git range-diff`
+first and fall back to the hash, and it turns out to answer nothing the hash does not.
+Rebase onto a commit touching an unrelated file: range-diff says `=`, and the two
+cumulative diffs are byte-identical, so the hash already carries the mark. Rebase onto a
+commit touching the hunk's own context: range-diff says `!`, and the hunk's text differs,
+so the hash correctly leaves it unread. `=` and "the hash matches" are one condition.
+Getting more out of it would mean attributing a cumulative-diff hunk to a single commit,
+which is blame-level work. [requirements.md](requirements.md) carries the same finding
+where the decision was made.
+
+Still unbuilt from the same Must: `jj interdiff`, which was named beside range-diff and
+loses to the hash for the same reason, and per-commit browsing, which seen-state is
+supposed to replace and which was never built to begin with.
+
 ## The keymap — rebuilt
 
 Moving is a grammar now rather than a key per destination. `]` or `[` plus an object

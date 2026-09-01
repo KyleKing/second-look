@@ -83,12 +83,26 @@ Local fields carry what the review is actually built on: the command that proved
 finding and what it printed, the doubt, the reason a finding was declined. A `skip` with
 its reason stays in the file, so a considered-and-declined finding reads as considered.
 
-**Seen-state delegates before it invents.** `git range-diff old..new` and `jj interdiff`
-already answer "what did the author actually change since I looked," and both are better
-tested than anything I would write. Cache the diff I reviewed, and on the next fetch ask
-range-diff which hunks it matches. Only hunks range-diff cannot map fall back to a
-content hash over the normalized post-image plus context. Cached diffs are collected when
-the PR merges or after a TTL.
+**Seen-state is a content hash, and range-diff was measured out.** The rule was to
+delegate to `git range-diff` before inventing anything, falling back to a content hash
+only for hunks it could not map. Built and tested both ways, range-diff answers nothing
+the hash does not.
+
+It reports per commit, and calls a pair identical only when the patch matches byte for
+byte, context included. Rebase a branch onto a commit that touches an unrelated file and
+range-diff says `=` while the two cumulative diffs are byte-identical, so the hash already
+carries the mark. Rebase onto a commit that touches the hunk's own context and range-diff
+says `!` while the hunk's text differs, so the hash correctly leaves it unread. The two
+conditions are the same condition. Applying range-diff's verdict per hunk rather than per
+commit would mean attributing a cumulative-diff hunk to one commit, which is blame-level
+work with its own failure modes, and it is not obviously better than reading the hunk
+again.
+
+So a hunk is identified by the file it belongs to plus every line of the hunk, kinds
+included, with the line numbers left out. A hunk that slides down the file stays read; a
+hunk whose text changed comes back unread. Marks live in `.second-look/seen/pr-<n>.toml`,
+keyed by that hash rather than by head commit, and are pruned to the hunks the current
+diff still carries. Cached diffs are collected when the PR merges or after a TTL.
 
 **Cache aggressively**, following gh-repo-dashboard's model. Every forge call, every
 parsed diff, and every derived index is cacheable, scoped by repo and PR, invalidated on

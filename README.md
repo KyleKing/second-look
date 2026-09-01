@@ -23,6 +23,10 @@ before anything is sent.
 Conversations already open on the pull request are shown where they anchor, so a second
 pass answers what was said last time. `e` on one writes the reply in `$EDITOR`.
 
+`space` marks a hunk read and `]u` goes to the next unread one, so a long review is
+finished when nothing answers `]u`. What is read is keyed by the hunk's content, so a
+force-push that leaves a hunk alone leaves it read.
+
 `!` drops to your shell in the repository and attaches what the session printed to the
 comment under the cursor, so a comment carries the output that proves it. That note is
 local and never posted.

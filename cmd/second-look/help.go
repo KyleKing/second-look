@@ -34,9 +34,15 @@ COMMANDS
       one in $EDITOR, and submit the review with S. Press ? for every key.
 
       Moving is a grammar rather than a key per destination: ] or [ followed by
-      h, f, c, or t goes to the next or previous hunk, file, comment, or thread,
-      n repeats that motion and N reverses it, and . repeats the last change. So
-      triaging a review reads "]c" then "n . n . n .".
+      h, f, c, t, or u goes to the next or previous hunk, file, comment, thread,
+      or unread hunk, n repeats that motion and N reverses it, and . repeats the
+      last change. So triaging a review reads "]c" then "n . n . n .", and
+      reading one through reads "]u" then "n" until nothing answers.
+
+      space marks the hunk under the cursor read, or the whole file from a file
+      line. What is read is kept in .second-look/seen/ against the hunk's
+      content rather than its position, so a force-push that does not touch a
+      hunk leaves it read.
 
       E edits a comment's local note, and ! hands the terminal to $SHELL in the
       repository and appends what the session printed to that note. Running the

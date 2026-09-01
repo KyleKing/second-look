@@ -14,6 +14,8 @@ import (
 	"github.com/kyleking/aragonite/vcs"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
 
@@ -62,7 +64,12 @@ func Run(ctx context.Context, out io.Writer, root string, number int) error {
 		return err
 	}
 
-	return writeReview(out, root, repoID, pr)
+	previous := headOf(root, number)
+	if err := writeReview(out, root, repoID, pr); err != nil {
+		return err
+	}
+
+	return carryRead(out, root, number, previous, pr.HeadSHA)
 }
 
 // cacheThreads reads the conversations already open on the pull request, so a
@@ -88,6 +95,52 @@ func cacheThreads(ctx context.Context, out io.Writer, root string, id repo, sha 
 	}
 
 	return nil
+}
+
+// headOf is the commit the prepared review was last staged against, or empty
+// when there is no review yet.
+func headOf(root string, number int) string {
+	review, err := artifact.Load(artifact.Path(root, number))
+	if err != nil {
+		return ""
+	}
+
+	return review.HeadSHA
+}
+
+// carryRead reports how much of the new head was already read, and prunes marks
+// for hunks the new diff no longer carries. Nothing is moved: a mark is stored
+// against a hunk's content, so it survives a new head on its own.
+func carryRead(out io.Writer, root string, number int, oldSHA, newSHA string) error {
+	if oldSHA == "" || oldSHA == newSHA {
+		return nil
+	}
+
+	path := seen.Path(root, number)
+
+	set, err := seen.Load(path)
+	if err != nil {
+		return fmt.Errorf("reading what has already been read: %w", err)
+	}
+
+	newPatch, err := artifact.LoadDiff(root, newSHA)
+	if err != nil {
+		return fmt.Errorf("reading the cached diff: %w", err)
+	}
+
+	current := diff.Parse(newPatch)
+	carried := seen.Carry(set, current)
+
+	if err := seen.Save(path, set, seen.Hunks(current)); err != nil {
+		return fmt.Errorf("writing what has been read: %w", err)
+	}
+
+	total := len(seen.Hunks(current))
+	if carried == 0 || total == 0 {
+		return nil
+	}
+
+	return say(out, fmt.Sprintf("%d of %d hunk(s) were already read\n", carried, total))
 }
 
 // repo names the repository a review is filed against.

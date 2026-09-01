@@ -10,7 +10,9 @@ import (
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/ghcassette"
+	"github.com/kyleking/second-look/internal/seen"
 )
 
 // An agent replies by putting a real comment id in in_reply_to, and this is
@@ -54,6 +56,67 @@ func TestShowThreadsNamesTheIDAReplyAddresses(t *testing.T) {
 		if open[i].Path == "" || open[i].Line == 0 {
 			t.Errorf("thread %d anchors nowhere: %+v", i, open[i])
 		}
+	}
+}
+
+// Read-state has to outlive a force-push, which is the whole reason a mark is
+// stored against a hunk's content rather than its position. The head moves and
+// the diff is the same, so what was read is still read.
+func TestGetCarriesReadHunksOntoANewHead(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, getCassette(t, sha))
+	seedReview(t, dir, fixtureHeadSHA)
+
+	// Read everything against the head the fixture was staged at.
+	seedDiff(t, dir)
+
+	patch, err := artifact.LoadDiff(dir, fixtureHeadSHA)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	refs := seen.Hunks(diff.Parse(patch))
+
+	set, err := seen.Load(seen.Path(dir, 2))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, r := range refs {
+		set.Mark(true, r.ID)
+	}
+
+	if err := seen.Save(seen.Path(dir, 2), set, refs); err != nil {
+		t.Fatal(err)
+	}
+
+	res := runCLI(t, s, dir, "get", "2")
+	if res.code != 0 {
+		t.Fatalf("get failed: %s%s", res.stdout, res.stderr)
+	}
+
+	if !strings.Contains(res.stdout, "were already read") {
+		t.Errorf("get did not say what carried:\n%s", res.stdout)
+	}
+
+	// The head moved, so the marks are only still there because they are keyed
+	// by what the hunk says rather than by the commit it sat on.
+	moved, err := artifact.LoadDiff(dir, sha)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	after := seen.Hunks(diff.Parse(moved))
+
+	back, err := seen.Load(seen.Path(dir, 2))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := back.Count(after); got != len(after) {
+		t.Errorf("%d of %d hunks stayed read across the head move", got, len(after))
 	}
 }
 
