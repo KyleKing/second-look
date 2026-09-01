@@ -296,7 +296,7 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 	case key.Matches(msg, l.keys.Quit):
-		cmd := l.leave()
+		cmd := l.leave(msg)
 
 		return l, cmd
 	case key.Matches(msg, l.keys.Search):
@@ -641,10 +641,11 @@ func (l *List) moved(msg tea.KeyPressMsg) bool {
 	return true
 }
 
-// leave puts a narrowed queue back before it leaves the screen, since a filter
-// is a state to get out of and quitting to get out of it loses the queue.
-func (l *List) leave() tea.Cmd {
-	if l.filter.on() {
+// leave answers q and esc. Escape puts a narrowed queue back rather than
+// leaving, since a filter is a state to get out of; q means what it says either
+// way.
+func (l *List) leave(msg tea.KeyPressMsg) tea.Cmd {
+	if l.filter.on() && key.Matches(msg, l.keys.Back) {
 		l.clearFilter()
 
 		return nil

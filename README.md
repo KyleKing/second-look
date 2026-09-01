@@ -23,7 +23,13 @@ finished from an empty directory, with its state under your config directory rat
 in a working copy. `second-look reviews` lists those beside the checkout's own.
 
 The inbox runs its sections at once and draws each as it lands, with the headings saying
-which searches are still out. `/` narrows any of the queues to the rows carrying a word, matching the repository, the
+which searches are still out. Each bucket is ordered for triage rather than by recency:
+what you have already started here first, then the smallest of what an earlier read
+rated, then what has waited longest, with drafts under all of it. Every signal comes off
+this laptop, so ordering eighty rows costs no API calls, and the rating shows on the row
+where a diff was cached to work it out. What a reviewer would also want and cannot have
+for free is how large an unrated diff is and whether they are the only human asked:
+`gh search prs` returns neither. `/` narrows any of the queues to the rows carrying a word, matching the repository, the
 author, the title, and the line last said, with the header saying how many are held back.
 `esc` puts them back before it leaves the screen.
 

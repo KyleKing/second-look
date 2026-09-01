@@ -56,7 +56,11 @@ type keyMap struct {
 	Submit    key.Binding
 	Merge     key.Binding
 	Help      key.Binding
-	Quit      key.Binding
+	// Back leaves whatever has the keyboard without leaving the screen. It is
+	// esc alone: q shares Quit's binding, and a prompt that reads q as a cancel
+	// cannot be typed a word containing one.
+	Back key.Binding
+	Quit key.Binding
 }
 
 func defaultKeyMap() keyMap {
@@ -95,6 +99,7 @@ func defaultKeyMap() keyMap {
 		Submit:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
 		Merge:     key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
 		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 		Quit:      key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", quitWord)),
 	}
 }

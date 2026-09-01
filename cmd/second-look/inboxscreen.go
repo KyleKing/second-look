@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
@@ -42,6 +44,10 @@ type inboxScreen struct {
 	// configured says the sections came from the config, which is what decides
 	// whether the first one can be called what is waiting on you.
 	configured bool
+	// local is what this laptop already holds for each pull request: a prepared
+	// review, and what its cached diff was rated. It is read once when the
+	// screen opens, since ordering a queue by it must cost no API calls.
+	local map[string]inbox.Known
 	// armed is the row A was pressed on. Approving is the one thing here that
 	// cannot be taken back by deleting something, so it takes the key twice.
 	armed string
@@ -192,6 +198,7 @@ type bucketMsg struct {
 // run one after another cost the sum of four searches where the slowest alone
 // is under two seconds, and an empty terminal until then reads as a hang.
 func (s *inboxScreen) Start() tea.Cmd {
+	s.local = localKnowledge()
 	s.buckets = s.plan()
 	s.waiting = len(s.buckets)
 	s.armed = ""
@@ -218,11 +225,40 @@ func (s *inboxScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
 	}
 
 	if answered.at < len(s.buckets) {
+		inbox.Rank(answered.bucket.Items, s.known)
 		s.buckets[answered.at] = answered.bucket
 		s.waiting--
 	}
 
 	return nil, true
+}
+
+// known is what this laptop holds for one row of the queue.
+func (s *inboxScreen) known(p *inbox.PullRequest) inbox.Known {
+	return s.local[fmt.Sprintf("%s#%d", p.Repository, p.Number)]
+}
+
+// localKnowledge reads every review staged on this laptop and whatever each one
+// rated its diff. A queue is ordered from it, so nothing here reaches GitHub
+// and a failure leaves the queue in the order the searches answered.
+func localKnowledge() map[string]inbox.Known {
+	rows, err := staged()
+	if err != nil {
+		return nil
+	}
+
+	out := make(map[string]inbox.Known, len(rows))
+
+	for i := range rows {
+		r := &rows[i]
+
+		cost, rated := artifact.LoadScore(filepath.Dir(filepath.Dir(r.Path)), r.HeadSHA)
+		out[fmt.Sprintf("%s#%d", r.Repository, r.Number)] = inbox.Known{
+			Reviewed: true, Cost: cost, Rated: rated,
+		}
+	}
+
+	return out
 }
 
 // counts leads with the number worth acting on, which is what is waiting on you
@@ -290,12 +326,13 @@ func (s *inboxScreen) sections() []tui.Section {
 
 		for j := range b.Items {
 			p := &b.Items[j]
+			key := fmt.Sprintf("%s#%d", p.Repository, p.Number)
 			rows = append(rows, tui.Row{
-				Key:  fmt.Sprintf("%s#%d", p.Repository, p.Number),
-				Left: fmt.Sprintf("%s#%d", p.Repository, p.Number),
+				Key:  key,
+				Left: key,
 				Mid:  humanize.Clip(p.Author, authorCap),
 				Age:  humanize.Ago(p.Updated, now),
-				Tail: waiting(p),
+				Tail: rated(s.local[key]) + waiting(p),
 			})
 		}
 
@@ -306,6 +343,16 @@ func (s *inboxScreen) sections() []tui.Section {
 }
 
 const authorCap = 14
+
+// rated is what an earlier read of this pull request made of it, which is the
+// one number here that is about the change rather than about the queue.
+func rated(k inbox.Known) string {
+	if !k.Rated {
+		return ""
+	}
+
+	return fmt.Sprintf("cost %d  ", k.Cost)
+}
 
 // waiting is what the row says past the columns: whether it is a draft, its
 // labels, and the title.

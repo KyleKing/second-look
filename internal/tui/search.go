@@ -50,7 +50,7 @@ func (m *Model) typing(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.commit(strings.TrimSpace(m.search.input.Value()))
 
 		return m, nil
-	case key.Matches(msg, m.keys.Quit):
+	case key.Matches(msg, m.keys.Back):
 		m.searching = false
 		m.search.input.Blur()
 		m.say("", false)

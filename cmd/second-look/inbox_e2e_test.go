@@ -78,6 +78,10 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	sc.await("pending your review")
 	sc.await("kyleking/aragonite#100")
 
+	// The queue is ordered for triage rather than by the order the searches
+	// answered, so the row is named rather than assumed to be the first.
+	sc.press("/aragonite#100")
+	sc.press("\r")
 	sc.press("\r")
 	sc.await("kyleking/aragonite #100")
 
@@ -120,6 +124,9 @@ func TestInboxScreenApprovesOnTheSecondPress(t *testing.T) {
 
 	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
 	sc.await("kyleking/aragonite#100")
+
+	sc.press("/aragonite#100")
+	sc.press("\r")
 
 	sc.press("A")
 	sc.await("A again to approve")
@@ -178,6 +185,9 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 
 	// Everything after this point is a second draw of text the first screen
 	// already wrote, so the wait has to start where the first one left off.
+	sc.press("/aragonite#100")
+	sc.press("\r")
+
 	from := sc.mark()
 
 	sc.press("m")

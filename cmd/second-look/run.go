@@ -230,7 +230,7 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 	out, runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(t, opened.Path, &log),
 		tui.WithThreads(opened.Threads), tui.WithSeen(opened.Read, opened.SeenPath),
 		tui.WithSender(sender(t, opened.Path, &log)), tui.WithTree(tree(opened)),
-		tui.WithMerger(merger(t)))
+		tui.WithMerger(merger(t)), tui.WithStore(t.Store))
 
 	// The log is written either way: a post that failed partway through still
 	// names the endpoints it reached, which is what says whether anything

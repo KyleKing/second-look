@@ -52,10 +52,13 @@ type Model struct {
 	read    *seen.Set
 	seenAt  string
 	path    string
-	submit  Submitter
-	send    Sender
-	merge   Merger
-	tree    Tree
+	// store is the directory this review's caches live in, which is where the
+	// rating is left for the queue to read.
+	store  string
+	submit Submitter
+	send   Sender
+	merge  Merger
+	tree   Tree
 
 	screen screen
 	cursor int
@@ -109,6 +112,12 @@ type Model struct {
 
 // Option configures the review screen.
 type Option func(*Model)
+
+// WithStore names where this review's caches live, so the rating the screen
+// works out is left where the queue can read it.
+func WithStore(root string) Option {
+	return func(m *Model) { m.store = root }
+}
 
 // WithSeen carries which hunks have already been read, and where to write that
 // back. Without it the screen still runs and space says there is nowhere to
@@ -227,6 +236,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.cosmetic, m.cost = msg.cosmetic, msg.score
+		m.keepScore()
 
 		if asked {
 			m.setFold(foldCosmetic)
@@ -775,6 +785,19 @@ func (m *Model) setFold(want foldLevel) {
 	m.fold = want
 	m.rebuild()
 	m.say(foldWord(m.fold), false)
+}
+
+// keepScore leaves the rating where the queue can read it, so ordering eighty
+// rows costs no diff reads. A failure is silent: the number is a convenience,
+// and a queue with no number for a row is what a row nobody has opened looks
+// like.
+func (m *Model) keepScore() {
+	if !m.cost.Rated() || m.store == "" {
+		return
+	}
+
+	//nolint:errcheck // the rating is a convenience; nothing depends on it landing
+	_ = artifact.SaveScore(m.store, m.review.HeadSHA, m.cost.Total)
 }
 
 // askStructure answers t: it reads the diff once, keeps the answer, and says so

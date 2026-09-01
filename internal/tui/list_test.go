@@ -364,3 +364,21 @@ func TestAQueueDrawsEachSectionAsItLands(t *testing.T) {
 		t.Errorf("the cursor sits on %q, want the first row of the queue", got)
 	}
 }
+
+// q means what it says, and a filter is a state esc gets out of. They shared one
+// binding, so q cleared the filter instead of leaving and a pattern carrying a q
+// cancelled itself as it was typed.
+func TestQuitLeavesAndEscapeClearsTheFilter(t *testing.T) {
+	t.Parallel()
+
+	l := list(t, func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil })
+
+	// The pattern carries a q, which used to cancel the prompt as it was typed.
+	typeList(l, "/questions")
+	shows(t, l, []string{"showing 1 of 3", "a-much-longer-repository-name#7"}, nil)
+
+	_, cmd := l.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	if cmd == nil {
+		t.Error("q did not leave the screen while a filter was on")
+	}
+}

@@ -62,13 +62,6 @@ need more than a rendering change.
 
 ### Still open
 
-**Both queues draw nothing for four to six seconds.** No spinner, no partial list,
-an empty terminal. The inbox also runs its sections one after another when they are
-independent searches: four of them cost 6.3 seconds where the slowest alone is under
-two. Run them concurrently and draw each bucket as it lands. That is the same
-progressive draw the rating needs before it can order the queue, so the two are
-built together.
-
 **What a removal reads as in the code view.** It stands as one line saying how much
 came out, which is enough to know something was there and not enough to know what.
 A preview of the two sides is the answer, and its shape (a bottom split, a right
@@ -76,6 +69,15 @@ split at wide widths, or a modal over the frame) is deliberately unsettled: it w
 driving on a real review before it is built.
 
 ### Done
+
+**The inbox fills in as it answers, and orders itself for triage.** Its sections are
+independent searches, so they run at once and each is drawn as it lands rather than
+the terminal staying empty until the slowest returns. Each bucket is then ordered by
+what this laptop already knows: a review started here first, then the smallest of what
+an earlier read rated, then the oldest, with drafts under all of it. Nothing there
+costs an API call. Two things a reviewer would also want — how large an unrated diff
+is, and whether they are the only human asked — would cost one per row, because
+`gh search prs` returns neither.
 
 **`/` narrows a queue.** It matches the repository, the author, the title, and the
 line last said, narrows as it is typed, and says how many rows it is holding back,
@@ -802,9 +804,11 @@ needs, all in v0.9.0.
 
 ## Open questions
 
-**What the queue sorts by past about forty rows.** Recency is right for thirteen and
-arbitrary for eighty, and the review-cost rating is the obvious candidate, which makes
-this the first real consumer of it.
+**Whether the queue should pay for what it cannot know for free.** It orders on local
+signals now, which leaves two a reviewer would want: how large an unrated diff is, and
+whether they are the only human asked. Both cost an API call per row, which on a
+configured inbox is about eighty per open. A lazy version (rate what the cursor passes,
+cache by head SHA) would bound that to what is actually looked at.
 
 **Whether the review-cost rating moves to aragonite.** It reads the diff, the symbol
 graph, and the changed symbols, so it may belong next to `codeintel` rather than here.

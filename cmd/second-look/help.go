@@ -211,7 +211,14 @@ NAMING A PULL REQUEST
       The sections are independent searches, so they run at once and the screen
       draws each as it lands, with the headings saying which are still out. / on
       any of these screens narrows the rows to those carrying a word, matching
-      the repository, the author, the title, and the line last said.
+      the repository, the author, the title, and the line last said; esc puts
+      them back and q leaves.
+
+      Each bucket is ordered for triage rather than by recency: what you have
+      already started here, then the smallest of what an earlier read rated,
+      then what has waited longest, with drafts under all of it. Every signal
+      comes off this laptop, so ordering costs no API call, and a row carries
+      the rating where a cached diff was there to work it out.
 
       enter reviews the pull request under the cursor, C moves a checkout onto
       it, m comments on the pull request itself in $EDITOR, A approves it (A

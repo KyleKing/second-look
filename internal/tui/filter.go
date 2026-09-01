@@ -53,7 +53,7 @@ func (l *List) typeFilter(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		l.filter.input.Blur()
 
 		return l, nil
-	case key.Matches(msg, l.keys.Quit):
+	case key.Matches(msg, l.keys.Back):
 		l.clearFilter()
 
 		return l, nil
