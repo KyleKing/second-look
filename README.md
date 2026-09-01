@@ -3,14 +3,18 @@
 Prepare a code review locally, with Claude Code drafting comments you edit by hand, then
 post it to GitHub in one deterministic call.
 
-Fetching a pull request, staging comments, and posting them all work. The TUI that
-replaces reading the diff in `$EDITOR` is not built yet.
+Fetching a pull request, staging comments, reading the diff on screen, and posting all
+work.
 
 ```bash
 second-look get 42        # fetch the PR, check it out, cache the diff
-# an agent drafts comments through the change-review skill
-second-look post 42       # post the review in one call
+# an agent drafts comments through the skill the binary prints
+second-look 42            # read the diff, triage the comments, submit with a key
+second-look post 42       # or post from the shell in one call
 ```
+
+`second-look skill` prints the instructions an agent needs to drive it, ready to write
+into a skills directory.
 
 Every comment is anchored to the diff line it points at. A comment on a line the diff
 does not carry is refused while staging, and one whose line has moved since is refused

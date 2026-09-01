@@ -21,8 +21,11 @@ second-look 42            # read the diff, triage comments, submit with a key
 second-look               # the same, for whatever this branch belongs to
 ```
 
-Reached, with the submit itself the one step nobody has run against GitHub from inside
-the screen. What alpha still leaves out: seen-state, the inbox, the rating, existing
+Reached. The submit from inside the screen is driven on a real pty against the recorded
+gh, and the requests it makes are the ones that posted the review on
+[#2](https://github.com/KyleKing/second-look/pull/2) for real; it is the one step nobody
+has run against live GitHub from inside the screen rather than from the shell. What alpha
+still leaves out: seen-state, the inbox, the rating, existing
 review threads fetched back from GitHub, and writing a new comment without an agent.
 
 ## Decided since
@@ -78,6 +81,25 @@ against rather than being restamped on every open.
 
 The `change-review` skill drafts through `second-look` and no longer writes a markdown
 staging file. The original is backed up at `~/.claude/change-review-pre-sl.bak/`.
+
+`internal/ghcassette` records and replays the gh subprocess through a `PATH` shim, so the
+tests in `cmd/second-look` drive the built binary against the bytes GitHub actually sent.
+The review and the reply on
+[KyleKing/second-look#2](https://github.com/KyleKing/second-look/pull/2) were posted for
+real and recorded; the head that moved, the draft refusal, the reply that failed after the
+review posted, and the unanchored comment are all derived from those two recordings rather
+than checked in again. The review screen is driven on a real pty through submit and every
+quit path, and `internal/tui/testdata/TestFrames/` pins the review, comment, help, and
+confirm frames at 80 and 120 columns. [AGENTS.local.md](AGENTS.local.md) carries the
+recording procedure.
+
+Two things the critique of the review screen found and fixed. A keystroke after a
+successful post called `save`, which wrote back the prepared review that `post` had
+deleted, so `second-look post` would have published the same review a second time. And the
+cursor was a background color with no glyph or attribute, so under `NO_COLOR` the one
+thing a reader needs most, where they are, was the one thing that vanished; it carries
+`Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
+keys while the cursor is inside a comment, since both sets do not fit 80 columns.
 
 ## 1. Scaffold from my_go_template — done
 
@@ -172,7 +194,7 @@ interface itself waits for a second implementation to shape it.
 gh-repo-dashboard's suite passes and it now lints clean, down from 121 issues, because
 the packages carrying most of them left.
 
-## 5. `second-look skill`
+## 5. `second-look skill` — done
 
 `go:embed` the skill file and print it to stdout. The same build produces the binary and
 its documentation, so the two cannot disagree about the schema.
@@ -181,6 +203,12 @@ its documentation, so the two cannot disagree about the schema.
 second-look skill        # read it
 second-look skill > ~/.claude/skills/change-review/SKILL.md
 ```
+
+It ships the contract second-look owns and nothing else: the commands, the anchor rules,
+the local fields, and the opening line telling an agent not to open the review screen. The
+schema itself stays in `--help`, which lives beside the code that enforces it, so the
+skill has nothing to drift from. The voice rules stay in the personal `change-review`
+skill, which is where they belong and where a public repository should not carry them.
 
 hunk does this as `hunk skill path`, which prints a path to a skill file bundled in its
 install tree and tells you to load or symlink it. That path is version-pinned
@@ -234,7 +262,24 @@ Releasing aragonite is `cz bump` plus a pushed tag, since the Go module proxy re
 library from its tag and no goreleaser is involved. Consumers then `go get` the new
 version and commit the `go.mod` change.
 
+## Settled
+
+**The coverage floor is enforced and passes at 76.0%.** `internal/get` did not need
+aragonite's stubs widened after all: the cassette replaces gh at the process boundary, so
+the pty and CLI tests exercise it for real. What was missing was counting them. `go test
+-cover` instruments the test binary and everything those tests run happens in a child, so
+the binary is built with `go build -cover` and both halves are merged as covdata. CI runs
+it through the template's `ci:project` hook, which needs no workflow edit.
+
 ## Deferred
+
+**Backport the subprocess coverage pattern to
+[my_go_template](https://github.com/KyleKing/my_go_template).** Any project whose tests
+drive its own binary has the same blind spot, and the template's `test:coverage-min`
+currently reports a number that ignores them. The override in
+`.config/mise/conf.d/user.toml` is the shape; upstream it wants a variable name that is
+not `SECOND_LOOK_COVERDIR`.
+
 
 **Backport the typos short-hash rule to [my_go_template](https://github.com/KyleKing/my_go_template).**
 `.typos.toml` here teaches typos to read an abbreviated commit hash as a hash rather
@@ -244,12 +289,6 @@ is the second `.rej` case from AGENTS.md: keep it locally and open the same chan
 upstream.
 
 ## Open questions
-
-**The 70% coverage floor is not enforced anywhere.** `mise run test:coverage-min`
-exists, CI does not run it, and it has never passed: 45.1% before the review screen
-and 49.8% after. `internal/get` is the largest gap, and it is untestable as written because
-aragonite's command stubs are exported only to aragonite's own tests. Either widen those
-or drop the task.
 
 **Whether the review-cost rating moves to aragonite.** It reads the diff, the symbol
 graph, and the changed symbols, so it may belong next to `codeintel` rather than here.
