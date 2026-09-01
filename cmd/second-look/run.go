@@ -20,6 +20,7 @@ import (
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/post"
+	"github.com/kyleking/second-look/internal/prepared"
 	"github.com/kyleking/second-look/internal/skill"
 	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
@@ -39,6 +40,7 @@ var (
 	errUsageReview    = errors.New("usage: second-look <pr>")
 	errUsageInbox     = errors.New("usage: second-look inbox [--json]")
 	errUsageThreads   = errors.New("usage: second-look threads [--json]")
+	errUsageReviews   = errors.New("usage: second-look reviews [--json]")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--payload|--threads]")
 	errUsageSkill     = errors.New("usage: second-look skill")
 )
@@ -65,6 +67,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return inboxCmd(ctx, args[1:], stdout)
 	case "threads":
 		return threadsCmd(ctx, args[1:], stdout)
+	case "reviews":
+		return reviewsCmd(args[1:], stdout)
 	case "skill":
 		return skillCmd(args[1:], stdout)
 	default:
@@ -405,6 +409,27 @@ func loadLooked() (*conversations.Looked, error) {
 	}
 
 	return looked, nil
+}
+
+// reviewsCmd lists what is staged under .second-look in this checkout. The
+// artifact is deleted when it posts, so everything it prints is unfinished.
+func reviewsCmd(args []string, stdout io.Writer) error {
+	asJSON, err := oneOf(args, errUsageReviews, "--json")
+	if err != nil {
+		return err
+	}
+
+	rows, err := prepared.List(".")
+	if err != nil && !errors.Is(err, prepared.ErrNoDir) {
+		return fmt.Errorf("listing the staged reviews: %w", err)
+	}
+
+	if asJSON == "--json" {
+		return writeJSON(stdout, rows)
+	}
+
+	//nolint:wrapcheck // Write's own error already names what failed
+	return prepared.Write(stdout, rows, time.Now())
 }
 
 // inboxCmd prints the review queue in three buckets. It reads GitHub and
