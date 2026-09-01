@@ -74,8 +74,14 @@ func pick(
 ) (string, error) {
 	found, err := checkouts.Find(ctx, checkouts.Dashboard(), c.Repository, c.HeadRef)
 	if err != nil {
-		//nolint:wrapcheck // Find's own error already names what it asked and why
-		return "", err
+		// The dashboard is how a clone is found rather than how a review
+		// happens, so one that cannot be run costs the checkout and not the
+		// answer.
+		if err := write(stdout, err.Error()+"\n"); err != nil {
+			return "", err
+		}
+
+		return "", nil
 	}
 
 	if len(found) == 0 {

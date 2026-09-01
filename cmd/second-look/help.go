@@ -220,10 +220,10 @@ NAMING A PULL REQUEST
 
       A pull request in another repository is found by asking gh-repo-dashboard
       which clones of it are on this laptop ("gh repo-dashboard --cli", read
-      from its cache, so no network). One answer is used, several are offered
-      best first (already on the branch, then clean, then one that would need a
-      stash), and none means the reply has nowhere to be staged, since the
-      prepared review lives in the repository it belongs to.
+      from its cache, so no network). One answer is used and several are offered
+      best first: already on the branch, then clean, then one that would need a
+      stash. None, or a dashboard too old to answer, means the review opens from
+      the API with its state under the user config directory.
 
   second-look reviews [--json]
       List the reviews staged under .second-look/ in this checkout, newest
