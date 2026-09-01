@@ -125,8 +125,6 @@ func TestCommentAddRefusesAnUnanchoredLine(t *testing.T) {
 // guardOnly keeps the two reads the anchor guard makes and drops the post, for
 // a run that is expected to stop before it sends anything.
 func guardOnly(c *ghcassette.Cassette) {
-	const reads = 2
-
 	c.Interactions = c.Interactions[:reads]
 }
 

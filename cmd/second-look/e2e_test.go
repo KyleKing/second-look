@@ -178,3 +178,91 @@ func runCLIStdin(t *testing.T, s *ghcassette.Session, dir, stdin string, args ..
 
 	return res
 }
+
+// scratchRepo is a git repository with one commit and the fixture's remote. The
+// review screen reads the diff from the recording rather than from the working
+// tree, so what the commit contains does not matter; that HEAD is a real commit
+// and the remote names the repository does.
+func scratchRepo(t *testing.T) (string, string) {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	git := func(args ...string) string {
+		t.Helper()
+
+		cmd := exec.CommandContext(t.Context(), "git", args...) // #nosec G204 -- constants from this function
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=second-look", "GIT_AUTHOR_EMAIL=test@example.com",
+			"GIT_COMMITTER_NAME=second-look", "GIT_COMMITTER_EMAIL=test@example.com")
+
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("git %v: %v", args, err)
+		}
+
+		return strings.TrimSpace(string(out))
+	}
+
+	git("init", "--quiet", "--initial-branch", "fixture/review-target")
+	git("commit", "--quiet", "--allow-empty", "-m", "fixture")
+	git("remote", "add", "origin", "git@github.com:KyleKing/second-look.git")
+
+	return dir, git("rev-parse", "HEAD")
+}
+
+// seedReview writes a fixture review re-stamped onto the scratch repository's
+// head, since the screen refuses a review staged against a different commit.
+func seedReview(t *testing.T, dir, fixture, sha string) {
+	t.Helper()
+
+	// #nosec G304,G703 -- a fixture in this package
+	raw, err := os.ReadFile(filepath.Join("testdata", "review", fixture))
+	if err != nil {
+		t.Fatalf("reading the fixture review: %v", err)
+	}
+
+	path := filepath.Join(dir, ".second-look", "pr-2.toml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("creating the workspace: %v", err)
+	}
+
+	body := strings.ReplaceAll(string(raw), fixtureHeadSHA, sha)
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil { // #nosec G703 -- the test's own directory
+		t.Fatalf("writing the fixture review: %v", err)
+	}
+}
+
+// reviewCassette is the recording re-stamped onto the scratch head, with the
+// two reads repeated. Opening the screen and guarding the submit each make
+// them, and GitHub answers the same request the same way.
+func reviewCassette(t *testing.T, sha string) string {
+	t.Helper()
+
+	return deriveFrom(t, "post-review", "review-screen", func(c *ghcassette.Cassette) {
+		restamp(c, sha)
+		c.Interactions = append(c.Interactions[:reads:reads], c.Interactions...)
+	})
+}
+
+// openOnlyCassette is what opening the screen costs and nothing more, so a run
+// that posts anything fails on an unrecorded call.
+func openOnlyCassette(t *testing.T, sha string) string {
+	t.Helper()
+
+	return deriveFrom(t, "post-review", "open-only", func(c *ghcassette.Cassette) {
+		restamp(c, sha)
+		c.Interactions = c.Interactions[:reads]
+	})
+}
+
+// reads is how many gh calls reading a pull request costs: the pull request
+// itself, then its diff.
+const reads = 2
+
+func restamp(c *ghcassette.Cassette, sha string) {
+	for i := range c.Interactions {
+		c.Interactions[i].Stdout = strings.ReplaceAll(c.Interactions[i].Stdout, fixtureHeadSHA, sha)
+	}
+}
