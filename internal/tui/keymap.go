@@ -7,9 +7,12 @@ import "charm.land/bubbles/v2/key"
 // `.` repeats the last change. Two things follow: `n` keeps the meaning it has
 // everywhere else, and an object added later costs no key.
 //
-// Nothing is chorded beyond the two page keys, because ctrl+c, ctrl+d, ctrl+s,
-// and ctrl+z belong to the terminal and Meta chords do not survive tmux and ssh
-// intact, which makes a chord the one binding that cannot be relied on.
+// Every chord is a plain letter followed by another, for the same reason: ctrl+c,
+// ctrl+d, ctrl+s, and ctrl+z belong to the terminal and Meta chords do not
+// survive tmux and ssh intact, so a modifier is the one binding that cannot be
+// relied on. `m` then r, d, or x restamps a comment and `z` then a, R, or M
+// folds a note, which leaves both irreversible restamps behind a deliberate
+// pair of keys rather than under one letter next to the motion keys.
 type keyMap struct {
 	Up        key.Binding
 	Down      key.Binding
@@ -28,6 +31,7 @@ type keyMap struct {
 	Note      key.Binding
 	Shell     key.Binding
 	Checkout  key.Binding
+	State     key.Binding
 	Ready     key.Binding
 	Draft     key.Binding
 	Skip      key.Binding
@@ -35,6 +39,7 @@ type keyMap struct {
 	Search    key.Binding
 	List      key.Binding
 	Fold      key.Binding
+	Zed       key.Binding
 	Structure key.Binding
 	Accept    key.Binding
 	Send      key.Binding
@@ -63,6 +68,7 @@ func defaultKeyMap() keyMap {
 		Note:      key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "note")),
 		Shell:     key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
 		Checkout:  key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
+		State:     key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "state")),
 		Ready:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
 		Draft:     key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
 		Skip:      key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
@@ -70,6 +76,7 @@ func defaultKeyMap() keyMap {
 		Search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 		List:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
 		Fold:      key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
+		Zed:       key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
 		Structure: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "no code changed")),
 		Accept:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
 		Send:      key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
@@ -109,8 +116,9 @@ func helpLines() [][2]string {
 		{"w", "hide hunks that change nothing but whitespace, and show them again"},
 		{"t", "hide hunks that change no code at all, comments and re-wraps included"},
 		{"space", "mark the hunk read, or the whole file from a file line"},
-		{"r / d / x", "mark it ready, draft, or skipped"},
-		{"e", "edit a comment, or answer an open thread, in $EDITOR"},
+		{"m then r / d / x", "mark the comment ready, draft, or skipped"},
+		{"z then a / R / M", "fold this note, open every note, close every note"},
+		{"e", "edit a comment, the review's body or note, or answer a thread"},
 		{"E", "edit the comment's local note in $EDITOR"},
 		{"!", "run a shell here and attach what it printed to the note"},
 		{"C", "move the checkout onto this pull request"},

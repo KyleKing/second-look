@@ -201,7 +201,9 @@ func (m *Model) hints() [][2]string {
 	case m.currentThread() >= 0:
 		middle = [][2]string{{"e", "reply"}}
 	case m.current() >= 0:
-		middle = [][2]string{{"r/d/x", "state"}, {"e", "edit"}}
+		middle = [][2]string{{"m", "state"}, {"e", "edit"}}
+	case m.current() != noComment:
+		middle = [][2]string{{"e", "write"}}
 	}
 
 	view := [2]string{"c", "comments"}
@@ -270,7 +272,7 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 		return "  " + r.text, m.styles.file
 	case rowHunk:
 		return "  " + m.readGlyph(r) + r.text, m.styles.hunk
-	case rowComment:
+	case rowComment, rowNote:
 		return m.commentRow(r)
 	case rowThread:
 		return m.threadRow(r)
@@ -281,13 +283,19 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 	return r.text, m.styles.body
 }
 
+// commentRow draws a prepared comment. The bar is heavier than a thread's
+// because this one is still being written, and the body is at the contrast of
+// the code around it, since the prose is the thing being read on the rows it
+// occupies. Only the note stays dim: it is evidence, not the finding.
 func (m *Model) commentRow(r row) (string, lipgloss.Style) {
-	text := strings.Repeat(" ", m.screen.numWidth+indent) + "│ " + r.text
-	if !r.head {
-		return text, m.styles.note
-	}
+	text := strings.Repeat(" ", m.screen.numWidth+indent) + "┃ " + r.text
 
-	if r.comment < 0 {
+	switch {
+	case r.kind == rowNote:
+		return text, m.styles.note
+	case !r.head:
+		return text, m.styles.body
+	case r.comment < 0:
 		return text, m.styles.rail
 	}
 

@@ -11,8 +11,9 @@ kyleking/jj-diff #42                                                            
   w                 hide hunks that change nothing but whitespace, and show them again
   t                 hide hunks that change no code at all, comments and re-wraps included
   space             mark the hunk read, or the whole file from a file line
-  r / d / x         mark it ready, draft, or skipped
-  e                 edit a comment, or answer an open thread, in $EDITOR
+  m then r / d / x  mark the comment ready, draft, or skipped
+  z then a / R / M  fold this note, open every note, close every note
+  e                 edit a comment, the review's body or note, or answer a thread
   E                 edit the comment's local note in $EDITOR
   !                 run a shell here and attach what it printed to the note
   C                 move the checkout onto this pull request
@@ -20,5 +21,4 @@ kyleking/jj-diff #42                                                            
   S                 submit the review to GitHub, S again to confirm
   M                 squash-merge the pull request, M again to confirm
   ? / esc           this help, back
-  q                 quit
- j/k line ] go c comments S submit ? help q quit
+ j/k line ] go c comments e write S submit ? help q quit

@@ -28,6 +28,7 @@ const (
 	rowHunk
 	rowCode
 	rowComment
+	rowNote
 	rowThread
 	rowBlank
 )
@@ -50,6 +51,9 @@ type row struct {
 	hunk int
 	// head marks the first row of a comment block, which is where a jump lands.
 	head bool
+	// folded marks a row standing in for lines it is hiding, which is what za
+	// inverts.
+	folded bool
 }
 
 // screen is the flattened review: the diff with each open thread and each
@@ -62,31 +66,31 @@ type screen struct {
 // build flattens the diff and the prepared review into rows at the given width.
 // A comment whose path is absent from the diff is listed at the end rather than
 // dropped, because a comment nobody can see is a comment nobody can retract.
-func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, width int, h hider) screen {
+func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) screen {
 	s := screen{numWidth: numberWidth(d)}
 	byLine := indexComments(r)
 	byThread := indexThreads(ts)
 	placed := make([]bool, len(r.Comments))
 
-	s.rows = append(s.rows, header(r, width-s.numWidth-rail)...)
+	s.rows = append(s.rows, header(r, lay, s.numWidth)...)
 
 	for _, g := range group(d) {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
 			row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
 
 		for _, i := range g.files {
-			s.rows = append(s.rows, s.fileRows(&d.Files[i], d, r, ts, byLine, byThread, placed, width, h)...)
+			s.rows = append(s.rows, s.fileRows(&d.Files[i], d, r, ts, byLine, byThread, placed, lay)...)
 		}
 	}
 
-	return s.appendUnanchored(r, placed, width)
+	return s.appendUnanchored(r, placed, lay)
 }
 
 // fileRows is one file: its name, whatever it says about itself, and every hunk
 // with the threads and comments that hang off each line.
 func (s screen) fileRows(
 	f *diff.File, d *diff.Diff, r *artifact.Review, ts []threads.Thread,
-	byLine, byThread map[anchor][]int, placed []bool, width int, h hider,
+	byLine, byThread map[anchor][]int, placed []bool, lay layout,
 ) []row {
 	p := filePath(f)
 	rows := []row{{kind: rowFile, text: p, path: p, comment: -1}}
@@ -102,7 +106,7 @@ func (s screen) fileRows(
 			// The test walks the file, so it is asked once per hunk rather
 			// than once per line.
 			hunk = l.Hunk
-			hide = h.skip != nil && h.skip(p, hunk)
+			hide = lay.hide.skip != nil && lay.hide.skip(p, hunk)
 
 			if hide {
 				folded++
@@ -122,19 +126,19 @@ func (s screen) fileRows(
 		// What is already on GitHub comes before what this pass is adding, so a
 		// comment reads as an answer to the conversation above it.
 		for _, t := range byThread[anchorOf(p, l)] {
-			rows = append(rows, threadRows(&ts[t], t, p, width, s.numWidth)...)
+			rows = append(rows, threadRows(&ts[t], t, p, lay.width, s.numWidth)...)
 		}
 
 		for _, c := range byLine[anchorOf(p, l)] {
 			placed[c] = true
-			rows = append(rows, comment(&r.Comments[c], c, p, width, s.numWidth)...)
+			rows = append(rows, commentRows(&r.Comments[c], c, p, lay, s.numWidth)...)
 		}
 	}
 
 	if folded > 0 {
 		rows = append(rows, row{
 			kind: rowHunk, path: p, comment: -1,
-			text: plural(folded, "hunk") + " hidden: " + h.why,
+			text: plural(folded, "hunk") + " hidden: " + lay.hide.why,
 		})
 	}
 
@@ -143,7 +147,7 @@ func (s screen) fileRows(
 
 // appendUnanchored lists comments no diff line claimed. Staging refuses those,
 // so reaching one means the diff moved under a review that was already staged.
-func (s screen) appendUnanchored(r *artifact.Review, placed []bool, width int) screen {
+func (s screen) appendUnanchored(r *artifact.Review, placed []bool, lay layout) screen {
 	var loose []int
 
 	for i := range r.Comments {
@@ -164,7 +168,7 @@ func (s screen) appendUnanchored(r *artifact.Review, placed []bool, width int) s
 		s.rows = append(s.rows, row{
 			kind: rowHunk, text: fmt.Sprintf("%s %s %d", c.Path, c.Side, c.Line), comment: -1,
 		})
-		s.rows = append(s.rows, comment(c, i, c.Path, width, s.numWidth)...)
+		s.rows = append(s.rows, commentRows(c, i, c.Path, lay, s.numWidth)...)
 	}
 
 	return s
@@ -199,53 +203,6 @@ func indexComments(r *artifact.Review) map[anchor][]int {
 	return out
 }
 
-// header is the review's own prose, which has nowhere else to live: the title
-// bar already names the pull request, so this carries only what a person wrote
-// about the whole change.
-func header(r *artifact.Review, width int) []row {
-	var rows []row
-
-	for _, block := range [][2]string{{"body", r.Body}, {"note", r.Note}} {
-		if block[1] == "" {
-			continue
-		}
-
-		rows = append(rows, row{kind: rowHunk, text: "review " + block[0], comment: -1})
-		for _, l := range wrap(block[1], width) {
-			rows = append(rows, row{kind: rowComment, text: l, comment: -1})
-		}
-	}
-
-	return rows
-}
-
-func comment(c *artifact.Comment, index int, path string, width, numWidth int) []row {
-	avail := width - numWidth - rail
-	head := fmt.Sprintf("%s %s", statusGlyph(c.Status), c.Severity)
-
-	if c.InReplyTo != 0 {
-		head += fmt.Sprintf(" reply to %d", c.InReplyTo)
-	}
-
-	if c.Status == artifact.StatusSkip && c.SkipReason != "" {
-		head += " — " + c.SkipReason
-	}
-
-	body, note := wrap(c.Body, avail), wrap(c.Note, avail-bodyIndent)
-	rows := make([]row, 0, 1+len(body)+len(note))
-	rows = append(rows, row{kind: rowComment, text: head, path: path, comment: index, head: true})
-
-	for _, l := range body {
-		rows = append(rows, row{kind: rowComment, text: l, path: path, comment: index})
-	}
-
-	for _, l := range note {
-		rows = append(rows, row{kind: rowComment, text: "· " + l, path: path, comment: index})
-	}
-
-	return rows
-}
-
 // buildList is the review without the diff: every comment that will post,
 // under the file it belongs to, with the counts on the heading.
 //
@@ -253,9 +210,9 @@ func comment(c *artifact.Comment, index int, path string, width, numWidth int) [
 // every action work in it unchanged. Skipped comments are counted rather than
 // listed: a finding considered and declined is worth recording and not worth
 // re-reading, and the diff view still shows it where it sits.
-func buildList(r *artifact.Review, d *diff.Diff, width int) screen {
+func buildList(r *artifact.Review, d *diff.Diff, lay layout) screen {
 	s := screen{numWidth: numberWidth(d)}
-	s.rows = append(s.rows, header(r, width-s.numWidth-rail)...)
+	s.rows = append(s.rows, header(r, lay, s.numWidth)...)
 
 	for _, path := range commentPaths(r) {
 		c := countFor(r, path)
@@ -269,11 +226,11 @@ func buildList(r *artifact.Review, d *diff.Diff, width int) screen {
 				continue
 			}
 
-			s.rows = append(s.rows, comment(&r.Comments[i], i, path, width, s.numWidth)...)
+			s.rows = append(s.rows, commentRows(&r.Comments[i], i, path, lay, s.numWidth)...)
 		}
 	}
 
-	if len(s.rows) == len(header(r, width-s.numWidth-rail)) {
+	if len(s.rows) == len(header(r, lay, s.numWidth)) {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
 			row{kind: rowFile, text: "no comments staged", comment: -1})
 	}

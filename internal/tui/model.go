@@ -90,7 +90,10 @@ type Model struct {
 	// has an answer to show.
 	cost    rate.Score
 	reading bool
-	help    bool
+	// notes is which notes are folded open, against the default that a short
+	// one shows and a long one does not.
+	notes folds
+	help  bool
 	// checkout is C, answered by the caller once the screen has closed.
 	checkout bool
 	// failure is the last submit that did not post, cleared by one that does.
@@ -126,7 +129,7 @@ func New(
 	m := &Model{
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
 		keys: defaultKeyMap(), styles: newStyles(), search: newSearch(),
-		width: minWidth, height: startHeight,
+		width: minWidth, height: startHeight, notes: folds{},
 	}
 
 	for _, opt := range opts {
@@ -261,9 +264,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case m.searching:
 		return m.typing(msg)
 	case m.pending != 0:
-		m.object(msg)
-
-		return m, nil
+		return m.complete(msg)
 	}
 
 	if handled, model, cmd := m.mode(msg); handled {
@@ -271,6 +272,14 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.moved(msg) {
+		return m, nil
+	}
+
+	// The state keys sit behind m now. A bare press is answered rather than
+	// ignored, because the hand that learned them reaches for them for weeks.
+	if m.stateKey(msg) {
+		m.say("m first: m r ready · m d draft · m x skip", false)
+
 		return m, nil
 	}
 
@@ -314,6 +323,14 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		cmd := m.askStructure()
 
 		return true, m, cmd
+	case key.Matches(msg, m.keys.Zed):
+		m.pending = 'z'
+
+		m.say("z  a this note   R open every note   M close every note", false)
+	case key.Matches(msg, m.keys.State):
+		m.pending = 'm'
+
+		m.say("m  r ready   d draft   x skip", false)
 	case key.Matches(msg, m.keys.Search):
 		cmd := m.begin()
 
@@ -335,27 +352,135 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 // records marks the changes the repeat key can replay: the ones that take no
 // further input, so replaying one does exactly what it did the first time.
 func (m *Model) records(msg tea.KeyPressMsg) bool {
-	return key.Matches(msg, m.keys.Ready) ||
-		key.Matches(msg, m.keys.Draft) ||
-		key.Matches(msg, m.keys.Skip) ||
-		key.Matches(msg, m.keys.Seen)
+	return key.Matches(msg, m.keys.Seen)
 }
 
-// object completes a pending ] or [. An unknown letter cancels rather than
-// waiting, since a half-typed motion that swallows the next keystroke is worse
-// than one that says it did not land.
-func (m *Model) object(msg tea.KeyPressMsg) {
-	step := 1
-	if m.pending == '[' {
-		step = -1
-	}
-
+// complete answers the second key of a chord. An unknown letter cancels rather
+// than waiting, since a half-typed chord that swallows the next keystroke is
+// worse than one that says it did not land.
+func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	prefix := m.pending
 	m.pending = 0
 
 	if key.Matches(msg, m.keys.Quit) {
 		m.say("", false)
 
+		return m, nil
+	}
+
+	switch prefix {
+	case 'z':
+		m.foldNote(msg)
+
+		return m, nil
+	case 'm':
+		if !m.stateKey(msg) {
+			m.say("no state for "+msg.String()+"; r ready, d draft, x skip", false)
+
+			return m, nil
+		}
+
+		replay := msg
+		m.change = &replay
+
+		return m.act(msg)
+	}
+
+	m.object(prefix, msg)
+
+	return m, nil
+}
+
+// stateKey reports whether a key names one of the three comment states.
+func (m *Model) stateKey(msg tea.KeyPressMsg) bool {
+	return key.Matches(msg, m.keys.Ready) ||
+		key.Matches(msg, m.keys.Draft) ||
+		key.Matches(msg, m.keys.Skip)
+}
+
+// foldNote answers the z chord: za inverts the block under the cursor, zo and
+// zc name a direction, and zR and zM answer for every note at once.
+func (m *Model) foldNote(msg tea.KeyPressMsg) {
+	switch msg.String() {
+	case "a":
+		m.setNote(m.current(), !m.expanded(m.current()))
+	case "o":
+		m.setNote(m.current(), true)
+	case "c":
+		m.setNote(m.current(), false)
+	case "R":
+		m.allNotes(true)
+	case "M":
+		m.allNotes(false)
+	default:
+		m.say("no fold for "+msg.String()+"; a this one, R open all, M close all", false)
+	}
+}
+
+// setNote folds one block open or closed. A comment with nothing in its note
+// has nothing to fold, which is worth saying rather than answering with a frame
+// that did not change.
+func (m *Model) setNote(index int, open bool) {
+	switch {
+	case index == noComment:
+		m.say("nothing to fold here", false)
+
 		return
+	case index >= 0 && m.review.Comments[index].Note == "":
+		m.say("no note on "+m.review.Comments[index].ID, false)
+
+		return
+	case index == reviewBody && m.review.Body == "",
+		index == reviewNote && m.review.Note == "":
+		m.say("nothing written here yet; e writes it", false)
+
+		return
+	}
+
+	m.notes[index] = open
+	m.rebuild()
+	m.say("", false)
+}
+
+// allNotes answers zR and zM. Both write every block explicitly, so what is
+// open no longer depends on how long each note happens to be.
+func (m *Model) allNotes(open bool) {
+	for i := range m.review.Comments {
+		m.notes[i] = open
+	}
+
+	m.notes[reviewBody], m.notes[reviewNote] = open, open
+
+	m.rebuild()
+	m.say(foldedWord(open), false)
+}
+
+func foldedWord(open bool) string {
+	if open {
+		return "every note open"
+	}
+
+	return "every note closed"
+}
+
+// expanded reports whether the block under the cursor is drawn in full. It is
+// read off the frame rather than recomputed, so za always inverts what the eye
+// is looking at.
+func (m *Model) expanded(index int) bool {
+	for _, r := range m.screen.rows {
+		if r.comment == index && r.folded {
+			return false
+		}
+	}
+
+	return true
+}
+
+// object completes a pending ] or [.
+func (m *Model) object(prefix rune, msg tea.KeyPressMsg) {
+	step := 1
+	if prefix == '[' {
+		step = -1
 	}
 
 	switch msg.String() {
@@ -741,20 +866,26 @@ func (m *Model) say(text string, failed bool) {
 // edit opens $EDITOR on whatever the cursor is standing on, which owns the
 // terminal until it exits, following the same rule as running the code under
 // review. On a prepared comment it edits the body; on a thread already posted
-// it writes the reply to it, since a posted comment cannot be changed.
+// it writes the reply to it, since a posted comment cannot be changed; and on
+// the review's own body or note it edits the review's prose, which is the one
+// thing on this screen that used to be editable only in the file.
 func (m *Model) edit() tea.Cmd {
 	if t := m.currentThread(); t >= 0 {
 		return m.open("", editedMsg{index: -1, replyTo: t})
 	}
 
-	i := m.current()
-	if i < 0 {
+	switch i := m.current(); i {
+	case reviewBody:
+		return m.open(m.review.Body, editedMsg{index: reviewBody, replyTo: -1, field: fieldBody})
+	case reviewNote:
+		return m.open(m.review.Note, editedMsg{index: reviewNote, replyTo: -1, field: fieldNote})
+	case noComment:
 		m.say("no comment here", false)
 
 		return nil
+	default:
+		return m.open(m.review.Comments[i].Body, editedMsg{index: i, replyTo: -1, field: fieldBody})
 	}
-
-	return m.open(m.review.Comments[i].Body, editedMsg{index: i, replyTo: -1, field: fieldBody})
 }
 
 // editNote opens the local note, which is where the evidence for a comment
@@ -938,8 +1069,23 @@ func (m *Model) applyEdit(msg editedMsg) {
 		return
 	}
 
-	if msg.body == "" && msg.field == fieldBody {
+	// A review's body is emptied deliberately; a comment's body left empty is
+	// an editor closed without saving, which is a cancel rather than a change.
+	if msg.body == "" && msg.field == fieldBody && msg.index != reviewBody {
 		m.say("empty body, nothing changed", false)
+
+		return
+	}
+
+	switch msg.index {
+	case reviewBody:
+		m.review.Body = msg.body
+		m.save("review body updated")
+
+		return
+	case reviewNote:
+		m.review.Note = msg.body
+		m.save("review note updated; it stays local")
 
 		return
 	}
@@ -1240,15 +1386,17 @@ func (m *Model) applyMerge(msg mergedMsg) {
 }
 
 func (m *Model) rebuild() {
+	lay := layout{width: m.width, hide: m.skipper(), open: m.notes}
+
 	if m.listing {
-		m.screen = buildList(m.review, m.diff, m.width)
+		m.screen = buildList(m.review, m.diff, lay)
 		m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 		m.follow()
 
 		return
 	}
 
-	m.screen = build(m.review, m.diff, m.threads, m.width, m.skipper())
+	m.screen = build(m.review, m.diff, m.threads, lay)
 	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()
 }
@@ -1285,9 +1433,17 @@ func (m *Model) jump(step int, what string, want func(row) bool) {
 
 // reveal anchors the cursor near the top of the frame, stopping at the last
 // full frame of rows so the end of the review is not scrolled into blankness.
+//
+// A comment block opens with a blank row, so landing on one keeps a row more:
+// the line a comment is about is the context it cannot be read without.
 func (m *Model) reveal() {
+	margin := jumpMargin
+	if m.cursor > 0 && m.screen.rows[m.cursor-1].kind == rowBlank {
+		margin++
+	}
+
 	h := m.viewHeight()
-	m.offset = clamp(m.cursor-jumpMargin, len(m.screen.rows)-h)
+	m.offset = clamp(m.cursor-margin, len(m.screen.rows)-h)
 }
 
 // follow keeps the cursor on screen with a few rows of context either side,

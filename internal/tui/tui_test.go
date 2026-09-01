@@ -88,6 +88,12 @@ func fixtureWith(t *testing.T, patch string, cs ...artifact.Comment) (*tui.Model
 // search prompt's cursor schedules a blink half a second out and reschedules
 // forever, and a test that waited for each one would spend its whole run
 // watching a cursor the program loop runs in the background anyway.
+// state presses the chord that restamps the comment under the cursor.
+func state(m *tui.Model, letter rune) {
+	press(m, tea.KeyPressMsg{Code: 'm', Text: "m"})
+	press(m, tea.KeyPressMsg{Code: letter, Text: string(letter)})
+}
+
 func press(m *tui.Model, k tea.KeyPressMsg) {
 	_, cmd := m.Update(k)
 	if cmd == nil {
@@ -367,7 +373,7 @@ func TestMotionRepeatsAndDotReplaysTheChange(t *testing.T) {
 	go2(m, ']', 'c')
 	first := m.CommentUnderCursor()
 
-	press(m, tea.KeyPressMsg{Code: 'x', Text: "x"})
+	state(m, 'x')
 	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
 	press(m, tea.KeyPressMsg{Code: '.', Text: "."})
 	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
@@ -693,7 +699,7 @@ func TestTheCommentViewKeepsYourPlace(t *testing.T) {
 	}
 
 	// Actions work here, because these are the same rows.
-	press(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+	state(m, 'd')
 	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 
 	if got := m.CommentUnderCursor(); got != was {
@@ -765,14 +771,14 @@ func TestPostingOneCommentTakesItOffTheReview(t *testing.T) {
 
 	// A draft has not been ruled on, so naming it directly still does nothing.
 	go2(m, ']', 'c')
-	press(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+	state(m, 'd')
 	press(m, tea.KeyPressMsg{Code: 'P', Text: "P"})
 
 	if len(sent) != 0 {
 		t.Fatalf("a draft was posted on its own: %v", sent)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'r', Text: "r"})
+	state(m, 'r')
 	press(m, tea.KeyPressMsg{Code: 'P', Text: "P"})
 
 	if len(sent) != 1 {
@@ -917,8 +923,10 @@ func TestCommentsRenderUnderTheirAnchor(t *testing.T) {
 				t.Fatalf("the comment body never rendered:\n%s", strings.Join(lines, "\n"))
 			}
 
-			// Walk up off the comment block to the diff line it hangs from.
-			for at > 0 && strings.Contains(lines[at], "\u2502 ") {
+			// Walk up off the comment block, its rail and the blank row that
+			// opens it, to the diff line it hangs from.
+			for at > 0 && (strings.TrimSpace(lines[at]) == "" ||
+				strings.Contains(lines[at], "\u2503 ") || strings.Contains(lines[at], "\u2502 ")) {
 				at--
 			}
 
@@ -978,8 +986,8 @@ func TestSkippingFillsInAReason(t *testing.T) {
 
 	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "on the add"))
 
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	m.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	go2(m, ']', 'c')
+	state(m, 'x')
 
 	saved, err := artifact.Load(path)
 	if err != nil {
@@ -1141,15 +1149,13 @@ func TestNothingIsWrittenBackAfterAPost(t *testing.T) {
 		t.Fatalf("standing in for the removal a post does: %v", err)
 	}
 
-	for _, k := range []tea.KeyPressMsg{
-		{Code: tea.KeyTab},
-		{Code: 'x', Text: "x"},
-		{Code: 'd', Text: "d"},
-		{Code: 'r', Text: "r"},
-		{Code: 'e', Text: "e"},
-	} {
-		press(m, k)
+	go2(m, ']', 'c')
+
+	for _, letter := range []rune{'x', 'd', 'r'} {
+		state(m, letter)
 	}
+
+	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatal("the prepared review came back, so posting again would post it twice")
