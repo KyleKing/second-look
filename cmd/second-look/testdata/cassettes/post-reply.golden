@@ -1,0 +1,87 @@
+[[interaction]]
+args = ['pr', 'view', '2', '--json', 'number,title,state,url,isDraft,mergeStateStatus,headRefName,headRefOid,headRepositoryOwner,baseRefName,statusCheckRollup']
+stdout = """
+{"baseRefName":"main","headRefName":"fixture/review-target","headRefOid":"6bc1218809a6faf83bc266c7a10b6b096f814a74","headRepositoryOwner":{"id":"MDQ6VXNlcjM3ODQzMzk=","name":"Kyle King","login":"KyleKing"},"isDraft":true,"mergeStateStatus":"CLEAN","number":2,"state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:31Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804254","name":"ci","startedAt":"2026-09-01T01:39:55Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:12Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804313","name":"hooks","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:12Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804103","name":"actionlint","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:15Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804383","name":"lint","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:21Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804266","name":"project","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:09Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804319","name":"benchmark","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"}],"title":"test: Add a recording-target pull request for cassette tests","url":"https://github.com/KyleKing/second-look/pull/2"}
+"""
+exit = 0
+
+[[interaction]]
+args = ['pr', 'diff', '2']
+stdout = """
+diff --git a/testdata/fixture/sample.go b/testdata/fixture/sample.go
+new file mode 100644
+index 0000000..2007e8b
+--- /dev/null
++++ b/testdata/fixture/sample.go
+@@ -0,0 +1,57 @@
++// Package fixture is the recording target for second-look's own tests. It is
++// never compiled: it lives under testdata so the Go tool ignores it, and it
++// exists only to give a long-lived pull request a diff worth commenting on.
++package fixture
++
++import (
++	"errors"
++	"fmt"
++	"os"
++	"strconv"
++)
++
++var errEmptyBudget = errors.New("budget file is empty")
++
++// ReadBudget reads a line-per-entry budget file and totals it.
++func ReadBudget(path string) (int, error) {
++	raw, err := os.ReadFile(path)
++	if err != nil {
++		return 0, err
++	}
++
++	total := 0
++
++	for _, line := range splitLines(string(raw)) {
++		n, err := strconv.Atoi(line)
++		if err != nil {
++			continue
++		}
++
++		total += n
++	}
++
++	if total == 0 {
++		return 0, errEmptyBudget
++	}
++
++	return total, nil
++}
++
++func splitLines(s string) []string {
++	out := []string{}
++	start := 0
++
++	for i := 0; i < len(s); i++ {
++		if s[i] == '\\n' {
++			out = append(out, s[start:i])
++			start = i + 1
++		}
++	}
++
++	return append(out, s[start:])
++}
++
++// Describe renders a budget total for a person.
++func Describe(total int) string {
++	return fmt.Sprintf("%d units", total)
++}
+"""
+exit = 0
+
+[[interaction]]
+args = ['api', '--method', 'POST', '/repos/KyleKing/second-look/pulls/2/reviews', '--input', '-']
+stdin = '{"commit_id":"6bc1218809a6faf83bc266c7a10b6b096f814a74","body":"Answering the thread on the budget reader.","event":"COMMENT"}'
+stdout = '{"id":5073201844,"node_id":"PRR_kwDOT-RSFs8AAAABLmLqtA","user":{"login":"KyleKing","id":3784339,"node_id":"MDQ6VXNlcjM3ODQzMzk=","avatar_url":"https://avatars.githubusercontent.com/u/3784339?u=59f8cc4f32bd1a7975775b985e3bee10bfc009d4&v=4","gravatar_id":"","url":"https://api.github.com/users/KyleKing","html_url":"https://github.com/KyleKing","followers_url":"https://api.github.com/users/KyleKing/followers","following_url":"https://api.github.com/users/KyleKing/following{/other_user}","gists_url":"https://api.github.com/users/KyleKing/gists{/gist_id}","starred_url":"https://api.github.com/users/KyleKing/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/KyleKing/subscriptions","organizations_url":"https://api.github.com/users/KyleKing/orgs","repos_url":"https://api.github.com/users/KyleKing/repos","events_url":"https://api.github.com/users/KyleKing/events{/privacy}","received_events_url":"https://api.github.com/users/KyleKing/received_events","type":"User","user_view_type":"public","site_admin":false},"body":"Answering the thread on the budget reader.","state":"COMMENTED","html_url":"https://github.com/KyleKing/second-look/pull/2#pullrequestreview-5073201844","pull_request_url":"https://api.github.com/repos/KyleKing/second-look/pulls/2","author_association":"OWNER","_links":{"html":{"href":"https://github.com/KyleKing/second-look/pull/2#pullrequestreview-5073201844"},"pull_request":{"href":"https://api.github.com/repos/KyleKing/second-look/pulls/2"}},"submitted_at":"2026-09-01T01:50:52Z","commit_id":"6bc1218809a6faf83bc266c7a10b6b096f814a74"}'
+exit = 0
+
+[[interaction]]
+args = ['api', '--method', 'POST', '/repos/KyleKing/second-look/pulls/2/comments/3900038873/replies', '--input', '-']
+stdin = '{"body":"Agreed, and the wrap wants the path rather than the call: the caller already knows it called ReadBudget."}'
+stdout = "{\"url\":\"https://api.github.com/repos/KyleKing/second-look/pulls/comments/3900052046\",\"pull_request_review_id\":5073201937,\"id\":3900052046,\"node_id\":\"PRRC_kwDOT-RSFs7odhJO\",\"diff_hunk\":\"@@ -0,0 +1,57 @@\\n+// Package fixture is the recording target for second-look's own tests. It is\\n+// never compiled: it lives under testdata so the Go tool ignores it, and it\\n+// exists only to give a long-lived pull request a diff worth commenting on.\\n+package fixture\\n+\\n+import (\\n+\\t\\\"errors\\\"\\n+\\t\\\"fmt\\\"\\n+\\t\\\"os\\\"\\n+\\t\\\"strconv\\\"\\n+)\\n+\\n+var errEmptyBudget = errors.New(\\\"budget file is empty\\\")\\n+\\n+// ReadBudget reads a line-per-entry budget file and totals it.\\n+func ReadBudget(path string) (int, error) {\\n+\\traw, err := os.ReadFile(path)\\n+\\tif err != nil {\\n+\\t\\treturn 0, err\",\"path\":\"testdata/fixture/sample.go\",\"commit_id\":\"6bc1218809a6faf83bc266c7a10b6b096f814a74\",\"original_commit_id\":\"6bc1218809a6faf83bc266c7a10b6b096f814a74\",\"user\":{\"login\":\"KyleKing\",\"id\":3784339,\"node_id\":\"MDQ6VXNlcjM3ODQzMzk=\",\"avatar_url\":\"https://avatars.githubusercontent.com/u/3784339?v=4\",\"gravatar_id\":\"\",\"url\":\"https://api.github.com/users/KyleKing\",\"html_url\":\"https://github.com/KyleKing\",\"followers_url\":\"https://api.github.com/users/KyleKing/followers\",\"following_url\":\"https://api.github.com/users/KyleKing/following{/other_user}\",\"gists_url\":\"https://api.github.com/users/KyleKing/gists{/gist_id}\",\"starred_url\":\"https://api.github.com/users/KyleKing/starred{/owner}{/repo}\",\"subscriptions_url\":\"https://api.github.com/users/KyleKing/subscriptions\",\"organizations_url\":\"https://api.github.com/users/KyleKing/orgs\",\"repos_url\":\"https://api.github.com/users/KyleKing/repos\",\"events_url\":\"https://api.github.com/users/KyleKing/events{/privacy}\",\"received_events_url\":\"https://api.github.com/users/KyleKing/received_events\",\"type\":\"User\",\"user_view_type\":\"public\",\"site_admin\":false},\"body\":\"Agreed, and the wrap wants the path rather than the call: the caller already knows it called ReadBudget.\",\"created_at\":\"2026-09-01T01:50:53Z\",\"updated_at\":\"2026-09-01T01:50:53Z\",\"html_url\":\"https://github.com/KyleKing/second-look/pull/2#discussion_r3900052046\",\"pull_request_url\":\"https://api.github.com/repos/KyleKing/second-look/pulls/2\",\"_links\":{\"self\":{\"href\":\"https://api.github.com/repos/KyleKing/second-look/pulls/comments/3900052046\"},\"html\":{\"href\":\"https://github.com/KyleKing/second-look/pull/2#discussion_r3900052046\"},\"pull_request\":{\"href\":\"https://api.github.com/repos/KyleKing/second-look/pulls/2\"}},\"reactions\":{\"url\":\"https://api.github.com/repos/KyleKing/second-look/pulls/comments/3900052046/reactions\",\"total_count\":0,\"+1\":0,\"-1\":0,\"laugh\":0,\"hooray\":0,\"confused\":0,\"heart\":0,\"rocket\":0,\"eyes\":0},\"start_line\":null,\"original_start_line\":null,\"start_side\":null,\"line\":19,\"original_line\":19,\"side\":\"RIGHT\",\"in_reply_to_id\":3900038873,\"author_association\":\"OWNER\",\"original_position\":19,\"position\":19,\"subject_type\":\"line\"}"
+exit = 0

@@ -1,0 +1,20 @@
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 2
+head_sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
+event = "COMMENT"
+body = "Answering the thread on the budget reader."
+note = "Recorded against PR #2 so the replies endpoint has a real interaction to replay."
+
+[[comment]]
+id = "answer-unwrapped-read-error"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+body = "Agreed, and the wrap wants the path rather than the call: the caller already knows it called ReadBudget."
+in_reply_to = 3900038873
+note = "The thread this answers is the one the review recording created."
+severity = "minor"
+status = "ready"

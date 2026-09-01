@@ -88,7 +88,13 @@ func workspace(t *testing.T, fixture string) string {
 func derive(t *testing.T, name string, fn func(*ghcassette.Cassette)) string {
 	t.Helper()
 
-	c := recording(t)
+	return deriveFrom(t, "post-review", name, fn)
+}
+
+func deriveFrom(t *testing.T, from, name string, fn func(*ghcassette.Cassette)) string {
+	t.Helper()
+
+	c := load(t, from)
 	fn(c)
 
 	path := filepath.Join(t.TempDir(), name+".golden")
@@ -99,12 +105,12 @@ func derive(t *testing.T, name string, fn func(*ghcassette.Cassette)) string {
 	return path
 }
 
-func recording(t *testing.T) *ghcassette.Cassette {
+func load(t *testing.T, name string) *ghcassette.Cassette {
 	t.Helper()
 
-	c, err := ghcassette.Load(cassettePath(t, "post-review"))
+	c, err := ghcassette.Load(cassettePath(t, name))
 	if err != nil {
-		t.Fatalf("loading the recording: %v", err)
+		t.Fatalf("loading the %s recording: %v", name, err)
 	}
 
 	return c
@@ -115,7 +121,7 @@ func recording(t *testing.T) *ghcassette.Cassette {
 func seedDiff(t *testing.T, dir string) {
 	t.Helper()
 
-	c := recording(t)
+	c := load(t, "post-review")
 
 	patch, err := c.Response("pr", "diff", "2")
 	if err != nil {
