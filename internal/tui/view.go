@@ -110,8 +110,8 @@ func (m *Model) readCount() string {
 // lines rather than in comments. Everywhere else it is how far down the screen
 // is, fixed width so the title does not shift under the eye on every keystroke.
 func (m *Model) position() string {
-	if at := m.commentAt(); at > 0 {
-		return fmt.Sprintf("comment %d/%d", at, len(m.review.Comments))
+	if at, total := m.commentAt(); at > 0 {
+		return fmt.Sprintf("comment %d/%d", at, total)
 	}
 
 	last := len(m.screen.rows) - 1
@@ -122,15 +122,29 @@ func (m *Model) position() string {
 	return fmt.Sprintf("%3d%%", m.cursor*100/last)
 }
 
-// commentAt is which comment the cursor is inside, counted from one, or zero on
-// anything else.
-func (m *Model) commentAt() int {
-	i := m.current()
-	if i < 0 || i >= len(m.review.Comments) {
-		return 0
+// commentAt is which comment the cursor is inside and how many the screen is
+// showing, counted in the order they are drawn rather than the order they sit
+// in the file: the number has to agree with what ]c walks. A folded-away
+// comment leaves the count as well as the frame. Zero means the cursor is on
+// something that is not a comment.
+func (m *Model) commentAt() (int, int) {
+	want := m.current()
+
+	var at, total int
+
+	for _, r := range m.screen.rows {
+		if !isComment(r) {
+			continue
+		}
+
+		total++
+
+		if r.comment == want {
+			at = total
+		}
 	}
 
-	return i + 1
+	return at, total
 }
 
 // tally is how many comments will post, how many block the post, and how many
