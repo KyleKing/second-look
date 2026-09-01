@@ -125,3 +125,13 @@ when two suites run at once (`hk check --all` runs `ci` and `verify-released`
 concurrently, each running the whole suite). A new capability query that nothing answers
 will put the 2-second stall back: add it to `answers` in that file rather than widening
 the deadline.
+
+Two things the harness has to get right, each of which cost a session:
+
+- `wait` waits for the reader as well as for the exit. A process that has exited may still
+  have bytes in the pty, so an assertion about the last thing it wrote (the escape that
+  gives the alternate screen back) fails under load without that
+- `await` searches the whole buffer, which is wrong the moment a screen closes and
+  reopens: the same text is written twice and the wait answers from the first draw, so the
+  next keystroke goes into a program that has not started. Take a `mark()` and use
+  `awaitFrom` across any handoff that comes back to a screen

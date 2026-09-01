@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -155,6 +156,66 @@ func withApprove(t *testing.T) string {
 	})
 
 	path := filepath.Join(t.TempDir(), "inbox-approve.golden")
+	if err := ghcassette.Save(path, c); err != nil {
+		t.Fatalf("writing the derived cassette: %v", err)
+	}
+
+	return path
+}
+
+// TestInboxScreenCommentsThroughTheEditor is the one verb that leaves the screen
+// and comes back: m closes it, $EDITOR writes the body, gh posts it on the pull
+// request itself, and the queue is drawn again.
+func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
+	t.Parallel()
+
+	const body = "Rebased this onto main, CI is green now."
+
+	s := ghcassette.Replay(t, withComment(t, body))
+	home := t.TempDir()
+
+	editor := filepath.Join(t.TempDir(), "editor")
+	script := "#!/bin/sh\nprintf '" + body + "\\n' > \"$1\"\n"
+
+	if err := os.WriteFile(editor, []byte(script), 0o700); err != nil { //nolint:gosec // it has to run
+		t.Fatalf("writing the editor: %v", err)
+	}
+
+	sc := openReview(t, s, t.TempDir(),
+		"HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "EDITOR="+editor, "inbox")
+	sc.await("kyleking/aragonite#100")
+
+	// Everything after this point is a second draw of text the first screen
+	// already wrote, so the wait has to start where the first one left off.
+	from := sc.mark()
+
+	sc.press("m")
+	sc.awaitFrom(from, "commented on kyleking/aragonite#100")
+
+	// The queue comes back, which is what makes a comment a detour rather than
+	// the end of the session.
+	sc.awaitFrom(from, "pending your review")
+
+	sc.press("q")
+	sc.wait()
+
+	s.RequireAllPlayed(t)
+}
+
+// withComment is the searches, the comment m sends, then the searches again for
+// the queue it returns to.
+func withComment(t *testing.T, body string) string {
+	t.Helper()
+
+	c := load(t, "inbox")
+	searches := c.Interactions
+
+	c.Interactions = append(append([]ghcassette.Interaction{}, searches...), ghcassette.Interaction{
+		Args: []string{"pr", "comment", "100", "--repo", "kyleking/aragonite", "--body", body},
+	})
+	c.Interactions = append(c.Interactions, searches...)
+
+	path := filepath.Join(t.TempDir(), "inbox-comment.golden")
 	if err := ghcassette.Save(path, c); err != nil {
 		t.Fatalf("writing the derived cassette: %v", err)
 	}

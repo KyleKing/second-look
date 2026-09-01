@@ -142,10 +142,23 @@ func (s *screen) text() string {
 // frame readable.
 func (s *screen) await(want string) {
 	s.t.Helper()
+	s.awaitFrom(0, want)
+}
+
+// mark is how much has been written so far, for a test that has to tell one
+// draw from the next. A screen that closes and reopens writes the same text
+// twice, and await over the whole buffer would answer from the first draw and
+// send the next keystroke into a program that has not started yet.
+// It counts what text() answers with rather than raw bytes, since that is what
+// awaitFrom slices.
+func (s *screen) mark() int { return len(s.text()) }
+
+func (s *screen) awaitFrom(mark int, want string) {
+	s.t.Helper()
 
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		if strings.Contains(s.text(), want) {
+		if text := s.text(); len(text) > mark && strings.Contains(text[mark:], want) {
 			return
 		}
 
