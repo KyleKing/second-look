@@ -2,6 +2,14 @@ package tui
 
 import "charm.land/bubbles/v2/key"
 
+// The keymap is a motion grammar rather than a key per destination. `]` or `[`
+// followed by an object names a motion, `n` and `N` repeat it either way, and
+// `.` repeats the last change. Two things follow: `n` keeps the meaning it has
+// everywhere else, and an object added later costs no key.
+//
+// Nothing is chorded beyond the two page keys, because ctrl+c, ctrl+d, ctrl+s,
+// and ctrl+z belong to the terminal and Meta chords do not survive tmux and ssh
+// intact, which makes a chord the one binding that cannot be relied on.
 type keyMap struct {
 	Up       key.Binding
 	Down     key.Binding
@@ -9,10 +17,11 @@ type keyMap struct {
 	HalfDown key.Binding
 	Top      key.Binding
 	Bottom   key.Binding
-	NextHunk key.Binding
-	PrevHunk key.Binding
-	NextFile key.Binding
-	PrevFile key.Binding
+	Forward  key.Binding
+	Backward key.Binding
+	Again    key.Binding
+	Reverse  key.Binding
+	Repeat   key.Binding
 	NextNote key.Binding
 	PrevNote key.Binding
 	Edit     key.Binding
@@ -34,14 +43,15 @@ func defaultKeyMap() keyMap {
 		HalfDown: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
 		Top:      key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("g/G", "top, bottom")),
 		Bottom:   key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("g/G", "top, bottom")),
-		NextHunk: key.NewBinding(key.WithKeys("n"), key.WithHelp("n/p", "hunk")),
-		PrevHunk: key.NewBinding(key.WithKeys("p"), key.WithHelp("n/p", "hunk")),
-		NextFile: key.NewBinding(key.WithKeys("}", "]"), key.WithHelp("}/{", "file")),
-		PrevFile: key.NewBinding(key.WithKeys("{", "["), key.WithHelp("}/{", "file")),
-		NextNote: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "comment")),
-		PrevNote: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "comment")),
+		Forward:  key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "go")),
+		Backward: key.NewBinding(key.WithKeys("["), key.WithHelp("[", "go back")),
+		Again:    key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "again")),
+		Reverse:  key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "back")),
+		Repeat:   key.NewBinding(key.WithKeys("."), key.WithHelp(".", "repeat")),
+		NextNote: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next")),
+		PrevNote: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous")),
 		Edit:     key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
-		Note:     key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "note")),
+		Note:     key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "note")),
 		Shell:    key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
 		Ready:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
 		Draft:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
@@ -52,6 +62,17 @@ func defaultKeyMap() keyMap {
 	}
 }
 
+// objects are what `]` and `[` accept. The letter is the first letter of the
+// thing, and the order is the order they appear in a review.
+func objects() [][2]string {
+	return [][2]string{
+		{"h", "hunk"},
+		{"f", "file"},
+		{"c", "comment"},
+		{"t", "thread"},
+	}
+}
+
 // helpLines is the full help overlay, one row per line, so the footer can stay
 // a single line.
 func helpLines() [][2]string {
@@ -59,13 +80,14 @@ func helpLines() [][2]string {
 		{"j / k", "move a line"},
 		{"ctrl+d / ctrl+u", "move half a page"},
 		{"g / G", "top, bottom"},
-		{"n / p", "next, previous hunk"},
-		{"} / {", "next, previous file"},
-		{"tab / shift+tab", "next, previous comment"},
-		{"e", "edit a comment, or answer an open thread, in $EDITOR"},
-		{"N", "edit the comment's local note in $EDITOR"},
-		{"!", "run a shell here and attach what it printed to the note"},
+		{"] / [", "go to the next, previous: h hunk, f file, c comment, t thread"},
+		{"n / N", "repeat that motion forward, backward"},
+		{"tab / shift+tab", "next, previous thing wanting a decision"},
+		{".", "repeat the last change"},
 		{"r / d / x", "mark it ready, draft, or skipped"},
+		{"e", "edit a comment, or answer an open thread, in $EDITOR"},
+		{"E", "edit the comment's local note in $EDITOR"},
+		{"!", "run a shell here and attach what it printed to the note"},
 		{"S", "submit the review to GitHub, S again to confirm"},
 		{"? / esc", "this help, back"},
 		{"q", "quit"},

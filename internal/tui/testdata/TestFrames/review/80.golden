@@ -21,4 +21,4 @@ internal/vcs/git.go
 
 
 
- j/k line tab comment n/p hunk }/{ file S submit ? help q quit
+ j/k line ] go tab next S submit ? help q quit

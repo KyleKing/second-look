@@ -145,7 +145,7 @@ func (m *Model) footerLines() []string {
 // diff are shown on code, because both sets at once do not fit an 80-column
 // frame and quitting has to be visible in either.
 func (m *Model) hints() [][2]string {
-	middle := [][2]string{{"n/p", "hunk"}, {"}/{", "file"}}
+	var middle [][2]string
 
 	switch {
 	case m.currentThread() >= 0:
@@ -154,8 +154,9 @@ func (m *Model) hints() [][2]string {
 		middle = [][2]string{{"r/d/x", "state"}, {"e", "edit"}}
 	}
 
-	hints := make([][2]string, 0, len(middle)+5)
-	hints = append(hints, [2]string{"j/k", "line"}, [2]string{"tab", "comment"})
+	hints := make([][2]string, 0, len(middle)+6)
+	hints = append(hints,
+		[2]string{"j/k", "line"}, [2]string{"]", "go"}, [2]string{"tab", "next"})
 	hints = append(hints, middle...)
 
 	return append(hints, [2]string{"S", "submit"}, [2]string{"?", "help"}, [2]string{"q", "quit"})

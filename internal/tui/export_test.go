@@ -6,3 +6,6 @@ func (m *Model) Frame() string { return m.render() }
 
 // Failure is the submit that did not post, which Run leaves through.
 func (m *Model) Failure() error { return m.failure }
+
+// CommentUnderCursor is which comment the cursor is inside, or -1.
+func (m *Model) CommentUnderCursor() int { return m.current() }

@@ -135,8 +135,8 @@ func TestRunningOutOfCommentsSaysSo(t *testing.T) {
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the only one"))
 
-	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
-	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+	go2(m, ']', 'c')
+	go2(m, ']', 'c')
 
 	if want := "no comment after this one"; !strings.Contains(plain(m.Frame()), want) {
 		t.Errorf("want %q in the frame:\n%s", want, plain(m.Frame()))
@@ -149,6 +149,94 @@ func TestRunningOutOfCommentsSaysSo(t *testing.T) {
 	if strings.Contains(plain(m.Frame()), "no comment after") {
 		t.Error("the boundary message outlived the keystroke that caused it")
 	}
+}
+
+// The grammar is what makes a two-key motion cost two keys once: name it, then
+// walk it with n, while the repeat key replays the last change. Triaging a
+// whole review is therefore one motion followed by alternating repeats.
+func TestMotionRepeatsAndDotReplaysTheChange(t *testing.T) {
+	t.Parallel()
+
+	m, path := fixture(t,
+		comment("c1", parsed, artifact.SideRight, 15, "first"),
+		comment("c2", parsed, artifact.SideRight, 14, "second"),
+		comment("c3", "internal/vcs/git.go", artifact.SideRight, 201, "third"))
+
+	// n before any motion, and . before any change, say so rather than guessing.
+	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+
+	if !strings.Contains(plain(m.Frame()), "no motion to repeat") {
+		t.Error("n with nothing to repeat said nothing")
+	}
+
+	press(m, tea.KeyPressMsg{Code: '.', Text: "."})
+
+	if !strings.Contains(plain(m.Frame()), "nothing to repeat") {
+		t.Error(". with nothing to repeat said nothing")
+	}
+
+	go2(m, ']', 'c')
+	first := m.CommentUnderCursor()
+
+	press(m, tea.KeyPressMsg{Code: 'x', Text: "x"})
+	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	press(m, tea.KeyPressMsg{Code: '.', Text: "."})
+	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	press(m, tea.KeyPressMsg{Code: '.', Text: "."})
+
+	saved, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := range saved.Comments {
+		if saved.Comments[i].Status != artifact.StatusSkip {
+			t.Errorf("%s is %q; one motion then repeats should have skipped all three",
+				saved.Comments[i].ID, saved.Comments[i].Status)
+		}
+	}
+
+	// The backward prefix walks the same objects the other way, so two of them
+	// come back to where the first motion landed. Comments are ordered by where
+	// they anchor, not by how they were written, which is why this compares
+	// against that index rather than zero.
+	go2(m, '[', 'c')
+	go2(m, '[', 'c')
+
+	if got := m.CommentUnderCursor(); got != first {
+		t.Errorf("[c twice from the last comment landed on %d, want %d", got, first)
+	}
+}
+
+// An unfinished motion must not swallow the next keystroke, and escape has to
+// get out of it, since a prefix nobody meant is the easiest key to mistype.
+func TestAPendingMotionCancels(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "only"))
+
+	go2(m, ']', 'z')
+
+	if !strings.Contains(plain(m.Frame()), "no motion for z") {
+		t.Errorf("an unknown object said nothing:\n%s", plain(m.Frame()))
+	}
+
+	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	// Escape canceled rather than quitting or resolving, so the screen still
+	// answers an ordinary key.
+	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+	if strings.Contains(plain(m.Frame()), "no motion for") {
+		t.Error("escape resolved the prefix instead of canceling it")
+	}
+}
+
+// go2 types a two-key motion: the prefix, then the object.
+func go2(m *tui.Model, prefix, object rune) {
+	press(m, tea.KeyPressMsg{Code: prefix, Text: string(prefix)})
+	press(m, tea.KeyPressMsg{Code: object, Text: string(object)})
 }
 
 func fitsWidth(t *testing.T, what, frame string, width int) {
@@ -381,8 +469,8 @@ func TestJumpingToAFileShowsItsContent(t *testing.T) {
 	t.Parallel()
 
 	m, _, _ := fixtureWith(t, longPatch(t))
-	m.Update(tea.KeyPressMsg{Code: '}', Text: "}"})
-	m.Update(tea.KeyPressMsg{Code: '}', Text: "}"})
+	go2(m, ']', 'f')
+	go2(m, ']', 'f')
 
 	lines := strings.Split(plain(m.Frame()), "\n")
 

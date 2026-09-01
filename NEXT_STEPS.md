@@ -118,11 +118,34 @@ thing a reader needs most, where they are, was the one thing that vanished; it c
 `Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
 keys while the cursor is inside a comment, since both sets do not fit 80 columns.
 
+## The keymap — rebuilt
+
+Moving is a grammar now rather than a key per destination. `]` or `[` plus an object
+letter names a motion (`h` hunk, `f` file, `c` comment, `t` thread), `n` repeats it and
+`N` reverses it, and `.` repeats the last change. Triaging a review is `]c` then
+`n . n . n .`.
+
+Three things drove it. `n`/`p` meant "next hunk", which collides with the one vim
+convention every reader already has, and `n` now means what it means everywhere else.
+Every new destination used to cost another key pair, and seen-state alone adds two more;
+an object costs no keyspace under the grammar. And chording is a dead end here: ctrl+c,
+ctrl+d, ctrl+s, and ctrl+z belong to the terminal, and Meta chords do not survive tmux
+and ssh intact, so a chord is the one binding that cannot be relied on. The two page
+keys are the only chords left.
+
+`.` records only the changes that need no further input, which is `r`, `d`, and `x`.
+Replaying an editor blind is not a repeat of anything. An unfinished `]` cancels on
+escape and refuses an unknown letter rather than swallowing the next keystroke, since a
+prefix nobody meant is the easiest key to mistype.
+
+`E` took the note, freeing `N`. `tab` still walks whatever wants a decision, so the
+single-key path a first-time reader finds is still there.
+
 ## Evidence on a comment — done
 
 The schema always had `note`, local and never posted. The screen could not reach it, so
 the evidence a comment rests on could only be written by an agent through `comment add`.
-`N` edits the note in `$EDITOR` now, and `!` hands the terminal to `$SHELL` in the
+`E` edits the note in `$EDITOR` now, and `!` hands the terminal to `$SHELL` in the
 repository and appends what the session printed to the note under the cursor. Run the
 code under review, come back, and the comment carries the output rather than a claim
 about it.

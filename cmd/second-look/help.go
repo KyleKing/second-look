@@ -30,10 +30,15 @@ COMMANDS
 
   second-look <pr>
       Open the review screen: the diff with the prepared review's comments
-      inline, where they anchor. Navigate by hunk, mark a comment ready, draft,
-      or skipped, edit one in $EDITOR, and submit the review with S.
+      inline, where they anchor. Mark a comment ready, draft, or skipped, edit
+      one in $EDITOR, and submit the review with S. Press ? for every key.
 
-      N edits a comment's local note, and ! hands the terminal to $SHELL in the
+      Moving is a grammar rather than a key per destination: ] or [ followed by
+      h, f, c, or t goes to the next or previous hunk, file, comment, or thread,
+      n repeats that motion and N reverses it, and . repeats the last change. So
+      triaging a review reads "]c" then "n . n . n .".
+
+      E edits a comment's local note, and ! hands the terminal to $SHELL in the
       repository and appends what the session printed to that note. Running the
       code under review and then writing the comment is the flow that exists
       for; the note never posts, so a transcript stays on this machine.

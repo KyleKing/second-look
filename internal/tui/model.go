@@ -57,6 +57,14 @@ type Model struct {
 	keys   keyMap
 	styles styles
 
+	// pending is the ] or [ waiting for the object that completes it.
+	pending rune
+	// last is the motion n repeats and N reverses, and change is the keystroke
+	// . replays. Only a change that needs no further input is recorded, since
+	// replaying an editor blind is not a repeat of anything.
+	last   *motion
+	change *tea.KeyPressMsg
+
 	status     string
 	failed     bool
 	posted     bool
@@ -160,9 +168,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// motion is a direction and what to stop on, kept so n can repeat it.
+type motion struct {
+	step int
+	what string
+	want func(row) bool
+}
+
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.confirming {
 		return m.answer(msg)
+	}
+
+	if m.pending != 0 {
+		m.object(msg)
+
+		return m, nil
 	}
 
 	if key.Matches(msg, m.keys.Quit) {
@@ -181,11 +202,91 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if key.Matches(msg, m.keys.Forward) || key.Matches(msg, m.keys.Backward) {
+		m.pending = ']'
+		if key.Matches(msg, m.keys.Backward) {
+			m.pending = '['
+		}
+
+		m.say(objectMenu(m.pending), false)
+
+		return m, nil
+	}
+
 	if m.moved(msg) {
 		return m, nil
 	}
 
+	if key.Matches(msg, m.keys.Repeat) {
+		if m.change == nil {
+			m.say("nothing to repeat", false)
+
+			return m, nil
+		}
+
+		return m.act(*m.change)
+	}
+
+	if m.records(msg) {
+		replay := msg
+		m.change = &replay
+	}
+
 	return m.act(msg)
+}
+
+// records marks the changes the repeat key can replay: the ones that take no
+// further input, so replaying one does exactly what it did the first time.
+func (m *Model) records(msg tea.KeyPressMsg) bool {
+	return key.Matches(msg, m.keys.Ready) ||
+		key.Matches(msg, m.keys.Draft) ||
+		key.Matches(msg, m.keys.Skip)
+}
+
+// object completes a pending ] or [. An unknown letter cancels rather than
+// waiting, since a half-typed motion that swallows the next keystroke is worse
+// than one that says it did not land.
+func (m *Model) object(msg tea.KeyPressMsg) {
+	step := 1
+	if m.pending == '[' {
+		step = -1
+	}
+
+	m.pending = 0
+
+	if key.Matches(msg, m.keys.Quit) {
+		m.say("", false)
+
+		return
+	}
+
+	switch msg.String() {
+	case "h":
+		m.repeatable(motion{step, "hunk", isKind(rowHunk)})
+	case "f":
+		m.repeatable(motion{step, "file", isKind(rowFile)})
+	case "c":
+		m.repeatable(motion{step, "comment", isComment})
+	case "t":
+		m.repeatable(motion{step, "thread", isThread})
+	default:
+		m.say("no motion for "+msg.String(), false)
+	}
+}
+
+// repeatable runs a motion and remembers it, so n walks the same object.
+func (m *Model) repeatable(mo motion) {
+	m.last = &mo
+	m.jump(mo.step, mo.what, mo.want)
+}
+
+func objectMenu(prefix rune) string {
+	parts := make([]string, 0, len(objects()))
+	for _, o := range objects() {
+		parts = append(parts, o[0]+" "+o[1])
+	}
+
+	return string(prefix) + "  " + strings.Join(parts, "   ")
 }
 
 // moved handles every key that only changes where the cursor is, so the action
@@ -208,18 +309,14 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 		m.cursor = 0
 	case key.Matches(msg, m.keys.Bottom):
 		m.cursor = len(m.screen.rows) - 1
-	case key.Matches(msg, m.keys.NextHunk):
-		return m.jump(1, "hunk", isKind(rowHunk))
-	case key.Matches(msg, m.keys.PrevHunk):
-		return m.jump(-1, "hunk", isKind(rowHunk))
-	case key.Matches(msg, m.keys.NextFile):
-		return m.jump(1, "file", isKind(rowFile))
-	case key.Matches(msg, m.keys.PrevFile):
-		return m.jump(-1, "file", isKind(rowFile))
 	case key.Matches(msg, m.keys.NextNote):
-		return m.jump(1, "comment", isHead)
+		m.repeatable(motion{1, "comment or thread", isHead})
 	case key.Matches(msg, m.keys.PrevNote):
-		return m.jump(-1, "comment", isHead)
+		m.repeatable(motion{-1, "comment or thread", isHead})
+	case key.Matches(msg, m.keys.Again):
+		return m.again(1)
+	case key.Matches(msg, m.keys.Reverse):
+		return m.again(-1)
 	default:
 		return false
 	}
@@ -229,6 +326,24 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 
 	return true
 }
+
+// again repeats the last motion, in its own direction or reversed. It is what
+// makes a two-key motion cost two keys once rather than every time.
+func (m *Model) again(direction int) bool {
+	if m.last == nil {
+		m.say("no motion to repeat; ] names one", false)
+
+		return true
+	}
+
+	m.jump(m.last.step*direction, m.last.what, m.last.want)
+
+	return true
+}
+
+func isComment(r row) bool { return r.head && r.kind == rowComment && r.comment >= 0 }
+
+func isThread(r row) bool { return r.head && r.kind == rowThread }
 
 func isKind(k rowKind) func(row) bool {
 	return func(r row) bool { return r.kind == k }
@@ -693,14 +808,14 @@ func (m *Model) moveBy(n int) {
 // Running out of matches says so, because a key that silently does nothing
 // reads as a key that is not working, and the end of a review is where one more
 // press is most likely.
-func (m *Model) jump(step int, what string, want func(row) bool) bool {
+func (m *Model) jump(step int, what string, want func(row) bool) {
 	for i := m.cursor + step; i >= 0 && i < len(m.screen.rows); i += step {
 		if want(m.screen.rows[i]) {
 			m.cursor = i
 			m.say("", false)
 			m.reveal()
 
-			return true
+			return
 		}
 	}
 
@@ -710,8 +825,6 @@ func (m *Model) jump(step int, what string, want func(row) bool) bool {
 	}
 
 	m.say(fmt.Sprintf("no %s %s this one", what, where), false)
-
-	return true
 }
 
 // reveal anchors the cursor near the top of the frame, stopping at the last

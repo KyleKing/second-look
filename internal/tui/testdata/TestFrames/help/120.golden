@@ -2,13 +2,14 @@ kyleking/jj-diff #42                                                            
   j / k             move a line
   ctrl+d / ctrl+u   move half a page
   g / G             top, bottom
-  n / p             next, previous hunk
-  } / {             next, previous file
-  tab / shift+tab   next, previous comment
-  e                 edit a comment, or answer an open thread, in $EDITOR
-  N                 edit the comment's local note in $EDITOR
-  !                 run a shell here and attach what it printed to the note
+  ] / [             go to the next, previous: h hunk, f file, c comment, t thread
+  n / N             repeat that motion forward, backward
+  tab / shift+tab   next, previous thing wanting a decision
+  .                 repeat the last change
   r / d / x         mark it ready, draft, or skipped
+  e                 edit a comment, or answer an open thread, in $EDITOR
+  E                 edit the comment's local note in $EDITOR
+  !                 run a shell here and attach what it printed to the note
   S                 submit the review to GitHub, S again to confirm
   ? / esc           this help, back
   q                 quit
@@ -20,5 +21,4 @@ kyleking/jj-diff #42                                                            
 
 
 
-
- j/k line tab comment n/p hunk }/{ file S submit ? help q quit
+ j/k line ] go tab next S submit ? help q quit
