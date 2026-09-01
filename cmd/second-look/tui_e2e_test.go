@@ -130,7 +130,7 @@ func (s *screen) wait() int {
 func TestReviewScreenSubmits(t *testing.T) {
 	t.Parallel()
 
-	dir, sha := scratchRepo(t)
+	dir, sha := scratchRepo(t, headBranch)
 	s := ghcassette.Replay(t, reviewCassette(t, sha))
 	seedReview(t, dir, "staged.toml", sha)
 
@@ -191,7 +191,7 @@ func TestReviewScreenQuitsWithoutPosting(t *testing.T) {
 		t.Run(quit.name, func(t *testing.T) {
 			t.Parallel()
 
-			dir, sha := scratchRepo(t)
+			dir, sha := scratchRepo(t, headBranch)
 			s := ghcassette.Replay(t, openOnlyCassette(t, sha))
 			seedReview(t, dir, "staged.toml", sha)
 

@@ -18,6 +18,9 @@ import (
 // The branch is never pushed to again, so the anchors stay valid.
 const fixtureHeadSHA = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
 
+// headBranch is the pull request's head ref, which the recording names.
+const headBranch = "fixture/review-target"
+
 //nolint:gochecknoglobals // the binary under test, built once by TestMain
 var binary string
 
@@ -179,11 +182,14 @@ func runCLIStdin(t *testing.T, s *ghcassette.Session, dir, stdin string, args ..
 	return res
 }
 
-// scratchRepo is a git repository with one commit and the fixture's remote. The
-// review screen reads the diff from the recording rather than from the working
-// tree, so what the commit contains does not matter; that HEAD is a real commit
-// and the remote names the repository does.
-func scratchRepo(t *testing.T) (string, string) {
+// scratchRepo is a git repository with one commit on branch, and a remote that
+// names the fixture repository at an address nothing answers. The review screen
+// reads the diff from the recording rather than from the working tree, so what
+// the commit contains does not matter; that HEAD is a real commit and the
+// remote parses does. The unreachable host is the point: gh is replayed from a
+// cassette, git is not, so a path that reaches for the network fails here
+// rather than passing on someone's laptop and hanging in CI.
+func scratchRepo(t *testing.T, branch string) (string, string) {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -205,9 +211,9 @@ func scratchRepo(t *testing.T) (string, string) {
 		return strings.TrimSpace(string(out))
 	}
 
-	git("init", "--quiet", "--initial-branch", "fixture/review-target")
+	git("init", "--quiet", "--initial-branch", branch)
 	git("commit", "--quiet", "--allow-empty", "-m", "fixture")
-	git("remote", "add", "origin", "git@github.com:KyleKing/second-look.git")
+	git("remote", "add", "origin", "https://127.0.0.1:1/KyleKing/second-look.git")
 
 	return dir, git("rev-parse", "HEAD")
 }
