@@ -382,3 +382,75 @@ func TestQuitLeavesAndEscapeClearsTheFilter(t *testing.T) {
 		t.Error("q did not leave the screen while a filter was on")
 	}
 }
+
+// counted is a loader that records how many times it was started, since a tab
+// nobody has looked at must cost no requests and a tab looked at twice must not
+// pay for it twice.
+type counted struct {
+	starts int
+	rows   []tui.Section
+}
+
+func (c *counted) Start() tea.Cmd {
+	c.starts++
+	c.rows = []tui.Section{{Name: "answered", Rows: []tui.Row{{Key: "X", Left: "repo#9"}}}}
+
+	return nil
+}
+
+func (*counted) Absorb(tea.Msg) (tea.Cmd, bool) { return nil, false }
+
+// The three queues are one program with three tabs. A tab is loaded when it is
+// first looked at, switching back puts the cursor where it was left, and the
+// strip says which one is being read.
+func TestTabsLoadOnceAndKeepWhereEachWasLeft(t *testing.T) {
+	t.Parallel()
+
+	late := &counted{}
+
+	l := tui.NewTabs([]tui.Tab{
+		{
+			Name: "conversations", Title: "second-look conversations",
+			Sections: queue, Act: func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
+		},
+		{
+			Name: "inbox", Title: "second-look inbox",
+			Sections: func() []tui.Section { return late.rows },
+			Act:      func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
+			Loader:   late,
+		},
+	}, 0)
+	l.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+
+	if late.starts != 0 {
+		t.Errorf("the tab nobody looked at ran %d search(es)", late.starts)
+	}
+
+	// Leave the cursor somewhere the other tab cannot be confused with.
+	l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	shows(t, l, []string{"[1] conversations", "[2] inbox"}, nil)
+
+	if got := l.CursorKey(); got != "T2" {
+		t.Fatalf("the cursor sits on %q, want the second row", got)
+	}
+
+	l.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	shows(t, l, []string{"repo#9"}, []string{"kyleking/tlr#118"})
+
+	if late.starts != 1 {
+		t.Errorf("the tab ran %d search(es) on being opened, want 1", late.starts)
+	}
+
+	l.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
+
+	if got := l.CursorKey(); got != "T2" {
+		t.Errorf("the tab came back with the cursor on %q, want where it was left", got)
+	}
+
+	// Switching back is not a reason to search again.
+	l.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
+
+	if late.starts != 1 {
+		t.Errorf("the tab ran %d search(es) in total, want 1", late.starts)
+	}
+}

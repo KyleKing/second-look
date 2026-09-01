@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/conversations"
 	"github.com/kyleking/second-look/internal/ghrun"
@@ -32,52 +33,80 @@ type threadsScreen struct {
 	// closes. Staging an answer means opening the review screen, which cannot
 	// happen while this one owns the terminal.
 	reply *conversations.Conversation
+	// waiting is the fetch still out, and failed the one that was refused. A
+	// queue that is empty because it has not answered yet says so rather than
+	// reading as a queue with nothing in it.
+	waiting bool
+	failed  error
 }
 
-// openThreads reads the queue, shows it, and writes the read marks back on the
-// way out. The marks are saved once rather than on every keystroke: the file is
-// user-level state that every checkout shares, and rewriting it under the
-// cursor would make a crash mid-queue lose more than the keystroke in flight.
-func openThreads(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
-	queue, err := conversations.Fetch(ctx, ".", conversations.DefaultLimit)
-	if err != nil {
-		return fmt.Errorf("reading your conversations: %w", err)
-	}
-
+// newThreadsScreen reads the read marks, which are local, and leaves the queue
+// itself to the loader: fetching it is a network round trip and nothing should
+// pay for it until the queue is looked at.
+func newThreadsScreen(ctx context.Context) (*threadsScreen, error) {
 	looked, err := loadLooked()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	path, err := conversations.LookedPath()
 	if err != nil {
-		return fmt.Errorf("reading your read conversations: %w", err)
+		return nil, fmt.Errorf("reading your read conversations: %w", err)
 	}
 
-	s := &threadsScreen{
-		ctx: ctx, queue: queue, looked: looked, path: path, repo: currentRepo(ctx),
+	return &threadsScreen{
+		ctx: ctx, queue: &conversations.Queue{}, looked: looked,
+		path: path, repo: currentRepo(ctx),
+	}, nil
+}
+
+// queueMsg is the conversation queue, answered or refused.
+type queueMsg struct {
+	queue *conversations.Queue
+	err   error
+}
+
+// Start fetches the queue. It is one request rather than the inbox's several,
+// so there is nothing to draw progressively; what it buys is a screen that
+// opens now and a tab nobody switches to that costs nothing.
+func (s *threadsScreen) Start() tea.Cmd {
+	s.waiting = true
+
+	return func() tea.Msg {
+		queue, err := conversations.Fetch(s.ctx, ".", conversations.DefaultLimit)
+
+		return queueMsg{queue: queue, err: err}
 	}
-	s.buckets = conversations.Buckets(queue, looked)
+}
 
-	list := tui.NewList("second-look conversations", s.sections, s.act).
-		WithSubtitle(s.counts).
-		WithHints(threadsHints).
-		WithHelp(threadsHelp)
+func (s *threadsScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
+	answered, ok := msg.(queueMsg)
+	if !ok {
+		return nil, false
+	}
 
-	_, runErr := tui.RunList(list)
+	s.waiting = false
 
-	// The marks are worth keeping even when an action failed: what was read was
-	// still read.
+	if answered.err != nil {
+		s.failed = answered.err
+
+		return nil, true
+	}
+
+	s.failed = nil
+	s.queue = answered.queue
+	s.buckets = conversations.Buckets(answered.queue, s.looked)
+
+	return nil, true
+}
+
+// save writes the read marks back. They are saved once, on the way out, rather
+// than on every keystroke: the file is user-level state that every checkout
+// shares, and rewriting it under the cursor would make a crash mid-queue lose
+// more than the keystroke in flight.
+func (s *threadsScreen) save() error {
 	if err := conversations.SaveLooked(s.path, s.looked, s.queue.Conversations); err != nil {
 		return fmt.Errorf("saving what you read: %w", err)
-	}
-
-	if runErr != nil {
-		return fmt.Errorf("reading your conversations: %w", runErr)
-	}
-
-	if s.reply != nil {
-		return answer(ctx, s.reply, s.repo, stdin, stdout)
 	}
 
 	return nil
@@ -113,6 +142,14 @@ var threadsHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 // much of it is still unread. The unread figure is live rather than from the
 // snapshot, so it falls as rows are read.
 func (s *threadsScreen) counts() string {
+	if s.failed != nil {
+		return "the search failed"
+	}
+
+	if s.waiting {
+		return "searching…"
+	}
+
 	unread := 0
 
 	for i := range s.queue.Conversations {
@@ -127,6 +164,10 @@ func (s *threadsScreen) counts() string {
 // sections turns the snapshot into rows. The unread mark is read live, so
 // marking one clears its mark where it sits rather than moving it.
 func (s *threadsScreen) sections() []tui.Section {
+	if s.waiting || s.failed != nil {
+		return []tui.Section{{Name: "your conversations", Note: s.counts()}}
+	}
+
 	now := time.Now()
 
 	out := make([]tui.Section, 0, len(s.buckets))
@@ -226,7 +267,7 @@ func (s *threadsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 	case tui.ActReply:
 		return s.stageReply(c)
 	case tui.ActRefresh:
-		return s.refresh()
+		return "", false, nil
 	case tui.ActCheckout, tui.ActComment, tui.ActApprove:
 		return "", false, errNotOnAConversation
 	}
@@ -298,16 +339,4 @@ func (s *threadsScreen) stageReply(c *conversations.Conversation) (string, bool,
 	s.looked.Mark(c, time.Now())
 
 	return "opening " + c.Where(), true, nil
-}
-
-func (s *threadsScreen) refresh() (string, bool, error) {
-	queue, err := conversations.Fetch(s.ctx, ".", conversations.DefaultLimit)
-	if err != nil {
-		return "", false, fmt.Errorf("reading your conversations: %w", err)
-	}
-
-	s.queue = queue
-	s.buckets = conversations.Buckets(queue, s.looked)
-
-	return s.counts(), false, nil
 }

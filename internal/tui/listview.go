@@ -31,6 +31,12 @@ func (l *List) render() string {
 
 	b.WriteString(l.header())
 	b.WriteByte('\n')
+
+	if strip := l.tabStrip(); strip != "" {
+		b.WriteString(" " + strip)
+		b.WriteByte('\n')
+	}
+
 	b.WriteString(l.bodyView())
 	b.WriteByte('\n')
 	b.WriteString(l.footer())
@@ -219,6 +225,7 @@ func defaultListHelp() [][2]string {
 	return [][2]string{
 		{"j/k, ctrl+u/d, g/G", "move, half page, top and bottom"},
 		{"ctrl+e/ctrl+y", "scroll without moving the cursor"},
+		{"1/2/3, ] / [", "the queue to read"},
 		{"tab", "the next group"},
 		{"/", "narrow to the rows carrying a word; esc puts them back"},
 		{"enter", "read the whole conversation, and mark it read"},

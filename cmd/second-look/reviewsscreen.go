@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +31,9 @@ type reviewsScreen struct {
 	open *ref
 }
 
+// reviewsHints is the footer, which advertises only the keys this screen offers.
+var reviewsHints = [][2]string{{enterKey, "open"}, {refreshKey, "refresh"}, {"?", helpArg}}
+
 var reviewsHelp = helpFor(helpMove(), [][2]string{
 	{enterKey, "open the review screen for it"},
 	{"/", "narrow to the rows carrying a word; esc puts them back"},
@@ -44,32 +46,6 @@ var reviewsHelp = helpFor(helpMove(), [][2]string{
 	"A pull request based on another one staged here is grouped with it, bottom",
 	"first, which is the order the diffs read in.",
 ))
-
-// openReviews shows the staged reviews and opens whichever one was chosen, once
-// this screen has given the terminal back.
-func openReviews(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
-	rows, err := staged()
-	if err != nil {
-		return err
-	}
-
-	s := &reviewsScreen{ctx: ctx, rows: rows}
-
-	list := tui.NewList("second-look staged reviews", s.sections, s.act).
-		WithSubtitle(s.counts).
-		WithHints([][2]string{{enterKey, "open"}, {"ctrl+r", "refresh"}, {"?", helpArg}}).
-		WithHelp(reviewsHelp)
-
-	if _, err := tui.RunList(list); err != nil {
-		return fmt.Errorf("listing the staged reviews: %w", err)
-	}
-
-	if s.open != nil {
-		return openRef(ctx, *s.open, stdin, stdout)
-	}
-
-	return nil
-}
 
 func (s *reviewsScreen) counts() string {
 	blocked := 0

@@ -67,6 +67,7 @@ func helpMove() [][2]string {
 	return [][2]string{
 		{"j/k, ctrl+u/d, g/G", "move, half page, top and bottom"},
 		{"ctrl+e/ctrl+y", "scroll without moving the cursor"},
+		{"1/2/3, ] / [", "the queue to read: the inbox, the conversations, what is staged here"},
 	}
 }
 
@@ -657,7 +658,7 @@ func threadsCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.W
 	// A terminal gets the screen; a pipe or --json gets the text, so an agent
 	// and a person run the same command.
 	if asJSON != jsonArg && onATerminal() {
-		return openThreads(ctx, stdin, stdout)
+		return openQueue(ctx, tabConversations, stdin, stdout)
 	}
 
 	queue, err := conversations.Fetch(ctx, ".", conversations.DefaultLimit)
@@ -703,7 +704,7 @@ func reviewsCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.W
 	}
 
 	if asJSON != jsonArg && onATerminal() {
-		return openReviews(ctx, stdin, stdout)
+		return openQueue(ctx, tabReviews, stdin, stdout)
 	}
 
 	rows, err := staged()
@@ -751,7 +752,7 @@ func inboxCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 	}
 
 	if asJSON != jsonArg && onATerminal() {
-		return openInbox(ctx, stdin, stdout)
+		return openQueue(ctx, tabInbox, stdin, stdout)
 	}
 
 	buckets := queue(ctx, os.Stderr)

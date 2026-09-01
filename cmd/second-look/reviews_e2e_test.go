@@ -111,8 +111,10 @@ func broken(t *testing.T, dir string, number int) {
 	}
 }
 
-// The staged-review screen on a terminal: the rows are drawn, and a file that
-// no longer parses says why rather than opening into an empty review.
+// The staged-review screen on a terminal: the rows are drawn, a file that no
+// longer parses says why rather than opening into an empty review, and the tab
+// it opened on is one of three. The other two are not loaded, which the empty
+// cassette is what proves: a tab nobody switched to makes no request.
 func TestReviewsScreen(t *testing.T) {
 	t.Parallel()
 
@@ -127,6 +129,7 @@ func TestReviewsScreen(t *testing.T) {
 
 	sc := openReview(t, s, dir, "reviews")
 	sc.await("second-look staged reviews")
+	sc.await("[3] staged")
 	sc.await("staged under .second-look")
 	sc.await("KyleKing/second-look#2")
 

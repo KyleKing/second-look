@@ -160,6 +160,13 @@ type List struct {
 	hints     [][2]string
 	helpLines [][2]string
 
+	// tabs is the other queues this screen holds, empty for a screen that is
+	// only itself. at is which one is being read and views is where each of the
+	// others was left.
+	tabs  []Tab
+	at    int
+	views []view
+
 	status  string
 	failed  bool
 	help    bool
@@ -250,13 +257,20 @@ func RunList(l *List) (*List, error) {
 // Init lays out the first frame at the assumed size, which the terminal
 // corrects with a resize before anything is drawn.
 func (l *List) Init() tea.Cmd {
-	l.rebuild()
-
 	if l.loader == nil {
+		l.rebuild()
+
 		return nil
 	}
 
-	return l.loader.Start()
+	if len(l.views) > 0 {
+		l.views[l.at].started = true
+	}
+
+	cmd := l.loader.Start()
+	l.rebuild()
+
+	return cmd
 }
 
 // Update handles a keypress or a resize. Everything else is the caller's, which
@@ -272,8 +286,11 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return l.handleKey(msg)
 	}
 
-	if l.loader != nil {
-		if cmd, mine := l.loader.Absorb(msg); mine {
+	// Every tab's loader is fed, not only the one being read: a queue switched
+	// away from mid-search still has answers coming, and dropping them would
+	// leave it half full whenever it is switched back to.
+	for _, ld := range l.loaders() {
+		if cmd, mine := ld.Absorb(msg); mine {
 			l.rebuild()
 
 			return l, cmd
@@ -281,6 +298,26 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return l, nil
+}
+
+func (l *List) loaders() []Loader {
+	if len(l.tabs) == 0 {
+		if l.loader == nil {
+			return nil
+		}
+
+		return []Loader{l.loader}
+	}
+
+	out := make([]Loader, 0, len(l.tabs))
+
+	for i := range l.tabs {
+		if l.tabs[i].Loader != nil {
+			out = append(out, l.tabs[i].Loader)
+		}
+	}
+
+	return out
 }
 
 func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -307,6 +344,10 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		l.help = true
 
 		return l, nil
+	}
+
+	if cmd, ok := l.tabKey(msg); ok {
+		return l, cmd
 	}
 
 	if l.moved(msg) {
@@ -523,11 +564,17 @@ func (l *List) half() int {
 	return l.visible() / halves
 }
 
-// visible is how many lines the frame has for rows, after the header and footer.
+// visible is how many lines the frame has for rows, after the header, the tab
+// strip where there is one, and the footer.
 func (l *List) visible() int {
 	const chrome = 3
 
-	return max(0, l.height-chrome)
+	strip := 0
+	if len(l.tabs) >= several {
+		strip = 1
+	}
+
+	return max(0, l.height-chrome-strip)
 }
 
 func abs(n int) int {

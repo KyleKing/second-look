@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -83,49 +82,6 @@ var inboxHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	"They run at once and each is drawn as it lands, and a search that failed says",
 	"so and leaves the others alone.",
 ))
-
-// openInbox shows the queue and performs whatever the screen was left for,
-// coming back to it afterwards.
-//
-// Reviewing is the one handoff that does not come back: the review screen is
-// where the rest of the work happens, and returning to a queue behind it would
-// re-run three searches nobody asked for.
-func openInbox(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
-	for {
-		cfg, err := configured(os.Stderr)
-		if err != nil {
-			return err
-		}
-
-		s := &inboxScreen{
-			ctx:        ctx,
-			configured: len(cfg.Sections) > 0,
-			plan:       func() []inbox.Bucket { return planQueue(cfg) },
-		}
-
-		list := tui.NewList("second-look inbox", s.sections, s.act).
-			WithLoader(s).
-			WithSubtitle(s.counts).
-			WithHints(inboxHints).
-			WithHelp(inboxHelp)
-
-		if _, err := tui.RunList(list); err != nil {
-			return fmt.Errorf("reading your review queue: %w", err)
-		}
-
-		if s.next == nil {
-			return nil
-		}
-
-		if s.next.act == tui.ActChoose {
-			return openRef(ctx, s.next.at, stdin, stdout)
-		}
-
-		if err := perform(ctx, s.next, stdin, stdout); err != nil {
-			return err
-		}
-	}
-}
 
 // perform runs what the screen closed for. A failure is reported and the queue
 // comes back, because a checkout that could not move or an editor that was
