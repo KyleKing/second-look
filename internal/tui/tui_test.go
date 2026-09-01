@@ -1275,8 +1275,8 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 
 // The file name scrolls off exactly when the diff is long enough to lose track
 // of which file is in front of you, so the title carries it from then on.
-// minFrame is the shortest frame the screen draws, which is where anything
-// worth keeping on screen has to earn its line.
+// The shortest frame the screen draws, which is where anything worth keeping on
+// screen has to earn its line.
 const minFrame = 10
 
 func TestTheTitleCarriesTheFileOnceItsHeadingHasScrolledOff(t *testing.T) {
@@ -1386,6 +1386,65 @@ func TestSavingAnEditMakesADraftReady(t *testing.T) {
 
 	if got := reviewAt(t, path).Comments[1].Status; got != artifact.StatusSkip {
 		t.Errorf("the edited skip is %q, want skip", got)
+	}
+}
+
+// An edit abandoned mid-sentence used to be gone: the buffer was thrown away on
+// escape, so a long comment half written was lost with the keystroke that left
+// it. It is kept beside the review now and offered back where it was left.
+func TestAnUnfinishedEditIsKeptAndOfferedBack(t *testing.T) {
+	t.Parallel()
+
+	store := t.TempDir()
+	_, path, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+	m := tui.New(t.Context(), reviewAt(t, path), diff.Parse([]byte(patch)), path,
+		func(context.Context, *artifact.Review) (string, error) { return "", nil },
+		tui.WithStore(store))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	go2(m, ']', 'c')
+	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	typeIn(m, ", and say why")
+	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if got := reviewAt(t, path).Comments[0].Body; got != "check err" {
+		t.Fatalf("escape wrote the comment anyway: %q", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "check err, and say why") {
+		t.Fatalf("the unfinished edit was not offered back:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "ctrl+r") {
+		t.Errorf("the frame does not say how to drop it:\n%s", frame)
+	}
+
+	// The other half of the decision: what the comment says now is one
+	// keystroke away, so accepting the restore is a choice rather than a
+	// default nobody saw.
+	press(m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+
+	if got := plain(m.Frame()); strings.Contains(got, "and say why") {
+		t.Fatalf("ctrl+r did not put back what the comment says:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+
+	if got := plain(m.Frame()); strings.Contains(got, "and say why") {
+		t.Errorf("the dropped edit came back:\n%s", got)
+	}
+
+	// Saving takes the buffer, so there is nothing left to offer.
+	typeIn(m, " first")
+	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	if _, err := os.Stat(artifact.DraftPath(store, "body-c1")); !os.IsNotExist(err) {
+		t.Errorf("the buffer outlived the save that consumed it")
 	}
 }
 

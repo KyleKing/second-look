@@ -179,8 +179,10 @@ func (s screen) removed(run []diff.Line, p string, hunk int, c codeCtx) []row {
 	}
 
 	at := goneAt{path: p, old: run[0].Old}
-	head := row{kind: rowGone, path: p, comment: -1, hunk: hunk, gone: at.old,
-		text: plural(len(run), "line") + " removed"}
+	head := row{
+		kind: rowGone, path: p, comment: -1, hunk: hunk, gone: at.old,
+		text: plural(len(run), "line") + " removed",
+	}
 
 	if !c.lay.fold.gone[at] {
 		for _, ln := range run {
@@ -234,13 +236,14 @@ func goneRuns(d *diff.Diff) []goneAt {
 // hanging is what sits under one line of code: the open conversations on it,
 // then the comments this review is staging against it.
 func (s screen) hanging(p string, ln diff.Line, c codeCtx) []row {
-	var rows []row
+	a := anchorOf(p, ln)
+	rows := make([]row, 0, len(c.byThread[a])+len(c.byLine[a]))
 
-	for _, t := range c.byThread[anchorOf(p, ln)] {
+	for _, t := range c.byThread[a] {
 		rows = append(rows, threadMarker(&c.ts[t], t, p)...)
 	}
 
-	for _, i := range c.byLine[anchorOf(p, ln)] {
+	for _, i := range c.byLine[a] {
 		c.placed[i] = true
 		rows = append(rows, commentMarker(&c.r.Comments[i], i, p, c.lay, s.numWidth)...)
 	}

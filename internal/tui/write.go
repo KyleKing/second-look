@@ -18,9 +18,13 @@ func severities() [][2]string {
 		{"m", "major"},
 		{"n", "minor"},
 		{"t", "nit"},
-		{"q", "question"},
+		{"q", question},
 	}
 }
+
+// question is the severity of a comment that asks rather than tells, which is
+// what a reply staged from a thread is and what the a chord's q writes.
+const question = "question"
 
 // staging is a comment being written for the first time: where it lands and how
 // it is ranked, both settled before the editor opens so the buffer that comes
@@ -70,12 +74,35 @@ func (m *Model) writeAs(msg tea.KeyPressMsg) tea.Cmd {
 	r := m.screen.rows[m.cursor]
 	a := anchorOf(r.path, r.line)
 
-	return m.beginEdit(
-		fmt.Sprintf("a %s comment on %s:%d", severity, a.path, a.line), "",
-		editedMsg{
-			index: noComment, replyTo: -1,
-			fresh: &staging{path: a.path, side: a.side, line: a.line, severity: severity},
-		})
+	fresh := &staging{path: a.path, side: a.side, line: a.line, severity: severity}
+	title := fmt.Sprintf("a %s comment on %s:%d", severity, a.path, a.line)
+
+	return m.beginEdit(title, "", editedMsg{index: noComment, replyTo: -1, fresh: fresh})
+}
+
+// draftKey names the buffer on disk for whatever is being written, so a second
+// edit of the same thing is offered what the first left. A reply is keyed by
+// the comment it answers rather than by the thread's place in the list, which
+// changes as threads are resolved.
+func (m *Model) draftKey(msg editedMsg) string {
+	switch {
+	case msg.fresh != nil:
+		f := msg.fresh
+
+		return fmt.Sprintf("new-%s-%s-%d", f.path, f.side, f.line)
+	case msg.replyTo >= 0 && msg.replyTo < len(m.threads):
+		return fmt.Sprintf("reply-%d", m.threads[msg.replyTo].ReplyTo())
+	case msg.index == reviewBody:
+		return "review-body"
+	case msg.index == reviewNote:
+		return "review-note"
+	case msg.index < 0 || msg.index >= len(m.review.Comments):
+		return "unplaced"
+	case msg.field == fieldNote:
+		return "note-" + m.review.Comments[msg.index].ID
+	}
+
+	return "body-" + m.review.Comments[msg.index].ID
 }
 
 // stageNew puts a comment written here into the prepared review, quoting the

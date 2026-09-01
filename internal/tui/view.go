@@ -153,7 +153,8 @@ func (m *Model) commentAt() (int, int) {
 
 	var at, total int
 
-	for _, r := range m.screen.rows {
+	for i := range m.screen.rows {
+		r := m.screen.rows[i]
 		if !isComment(r) {
 			continue
 		}

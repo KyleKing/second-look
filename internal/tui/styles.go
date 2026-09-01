@@ -67,11 +67,11 @@ func newStyles() styles {
 		fail:    sk.Error,
 		ok:      sk.Success,
 		severity: map[string]lipgloss.Style{
-			"blocker":  base.Foreground(p.Red).Bold(true),
-			"major":    base.Foreground(p.Peach).Bold(true),
-			"minor":    base.Foreground(p.Yellow),
-			"nit":      base.Foreground(p.Teal),
-			"question": base.Foreground(p.Sky),
+			"blocker": base.Foreground(p.Red).Bold(true),
+			"major":   base.Foreground(p.Peach).Bold(true),
+			"minor":   base.Foreground(p.Yellow),
+			"nit":     base.Foreground(p.Teal),
+			question:  base.Foreground(p.Sky),
 		},
 	}
 }

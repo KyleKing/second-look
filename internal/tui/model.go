@@ -428,7 +428,9 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case 'a':
-		return m, m.writeAs(msg)
+		cmd := m.writeAs(msg)
+
+		return m, cmd
 	case 'S':
 		return m.submitAs(msg)
 	case 'm':
@@ -447,6 +449,22 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.object(prefix, msg)
 
 	return m, nil
+}
+
+// write answers the three keys that put prose into the review: the comment's
+// note, whatever the cursor is standing on, and a comment that does not exist
+// yet.
+func (m *Model) write(msg tea.KeyPressMsg) tea.Cmd {
+	switch {
+	case key.Matches(msg, m.keys.Note):
+		return m.editNote()
+	case key.Matches(msg, m.keys.Write):
+		m.askWrite()
+
+		return nil
+	}
+
+	return m.edit()
 }
 
 // stateKey reports whether a key names one of the three comment states.
@@ -483,8 +501,8 @@ func (m *Model) foldNote(msg tea.KeyPressMsg) {
 // what the eye is looking at rather than about a fold on a file the current
 // view does not draw.
 func (m *Model) anyFolded() bool {
-	for _, r := range m.screen.rows {
-		if r.folded {
+	for i := range m.screen.rows {
+		if m.screen.rows[i].folded {
 			return true
 		}
 	}
@@ -597,8 +615,8 @@ func foldedWord(open bool) string {
 // read off the frame rather than recomputed, so za always inverts what the eye
 // is looking at.
 func (m *Model) expanded(index int) bool {
-	for _, r := range m.screen.rows {
-		if r.comment == index && r.folded {
+	for i := range m.screen.rows {
+		if m.screen.rows[i].comment == index && m.screen.rows[i].folded {
 			return false
 		}
 	}
@@ -952,16 +970,11 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.wantCheckout()
 
 		return m, cmd
-	case key.Matches(msg, m.keys.Note):
-		cmd := m.editNote()
+	case key.Matches(msg, m.keys.Note), key.Matches(msg, m.keys.Edit),
+		key.Matches(msg, m.keys.Write):
+		cmd := m.write(msg)
 
 		return m, cmd
-	case key.Matches(msg, m.keys.Edit):
-		cmd := m.edit()
-
-		return m, cmd
-	case key.Matches(msg, m.keys.Write):
-		m.askWrite()
 	case key.Matches(msg, m.keys.Submit):
 		m.askSubmit()
 	case key.Matches(msg, m.keys.Open):
@@ -1240,6 +1253,10 @@ func (m *Model) applyEdit(msg editedMsg) {
 		return
 	}
 
+	// The buffer has landed, or it was empty and there is nothing to offer
+	// back, so what was kept on disk for it goes.
+	m.drop(m.draftKey(msg))
+
 	// A review's body is emptied deliberately; a comment's body left empty is
 	// an editor closed without saving, which is a cancel rather than a change.
 	if msg.body == "" && msg.field == fieldBody && msg.index != reviewBody {
@@ -1346,7 +1363,7 @@ func (m *Model) stageReply(msg editedMsg) {
 
 	m.review.Upsert(artifact.Comment{
 		ID: id, Path: t.Path, Side: t.Side, Line: t.Line,
-		InReplyTo: t.ReplyTo(), Body: msg.body, Severity: "question", Status: artifact.StatusReady,
+		InReplyTo: t.ReplyTo(), Body: msg.body, Severity: question, Status: artifact.StatusReady,
 	})
 
 	m.save(fmt.Sprintf("reply to %d staged, ready to post", t.ReplyTo()))
@@ -1584,8 +1601,8 @@ func (m *Model) firstDraft() int {
 // focus puts the cursor on a comment by index, so a refusal points at what has
 // to change rather than only counting it.
 func (m *Model) focus(index int) bool {
-	for i, r := range m.screen.rows {
-		if r.head && r.comment == index {
+	for i := range m.screen.rows {
+		if r := m.screen.rows[i]; r.head && r.comment == index {
 			m.cursor = i
 			m.reveal()
 
