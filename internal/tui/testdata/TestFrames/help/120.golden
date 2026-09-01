@@ -21,4 +21,4 @@ kyleking/jj-diff #42                                                        0% Â
   S                 submit the review to GitHub, S again to confirm
   M                 squash-merge the pull request, M again to confirm
   ? / esc           this help, back
- [j/k] line  []] go to  [c]omments  writ[e]  [S]ubmit  [?] help  [q]uit
+ [j/k] line  []] go to  [c]ode  writ[e]  [S]ubmit  [?] help  [q]uit

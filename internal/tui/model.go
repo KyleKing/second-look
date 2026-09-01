@@ -82,7 +82,7 @@ type Model struct {
 	merging   bool
 	asking    confirmKind
 	searching bool
-	listing   bool
+	view      viewMode
 	// editing is the in-place editor, nil when nothing is being written.
 	editing *editor
 	fold    foldLevel
@@ -319,7 +319,7 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Help):
 		m.help = !m.help
 	case key.Matches(msg, m.keys.List):
-		m.toggleList()
+		m.cycleView()
 	case key.Matches(msg, m.keys.Fold):
 		m.setFold(foldWhitespace)
 	case key.Matches(msg, m.keys.Structure):
@@ -455,16 +455,17 @@ func (m *Model) openHere() bool {
 	return m.expanded(r.comment)
 }
 
-// setNote records a note's fold and reports whether there was one to fold.
-// Answering a keystroke with a frame that did not change reads as a key that
-// is not working.
+// setNote records the fold for the block a comment owns and reports whether
+// there was anything to fold. The code view folds the comment itself, so there
+// always is; every other view folds the note under it. Answering a keystroke
+// with a frame that did not change reads as a key that is not working.
 func (m *Model) setNote(index int, open bool) bool {
 	switch {
 	case index == noComment:
 		m.say("nothing to fold here", false)
 
 		return false
-	case index >= 0 && m.review.Comments[index].Note == "":
+	case index >= 0 && m.view != viewCode && m.review.Comments[index].Note == "":
 		m.say("no note on "+m.review.Comments[index].ID, false)
 
 		return false
@@ -598,12 +599,12 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 	return true
 }
 
-// toggleList swaps between the diff and the comments alone, keeping the cursor
-// on the same comment across the swap. Losing your place is what makes a second
-// view a detour rather than a shortcut.
-func (m *Model) toggleList() {
+// cycleView walks the three views, keeping the cursor on the same comment
+// across the change. Losing your place is what makes another view a detour
+// rather than a shortcut.
+func (m *Model) cycleView() {
 	was := m.current()
-	m.listing = !m.listing
+	m.view = m.view.next()
 	m.rebuild()
 
 	m.cursor = 0
@@ -611,6 +612,8 @@ func (m *Model) toggleList() {
 	m.say("", false)
 
 	if was < 0 {
+		m.say(m.view.String(), false)
+
 		return
 	}
 
@@ -1437,15 +1440,15 @@ func (m *Model) applyMerge(msg mergedMsg) {
 func (m *Model) rebuild() {
 	lay := layout{width: m.width, hide: m.skipper(), fold: m.folded}
 
-	if m.listing {
+	switch m.view {
+	case viewComments:
 		m.screen = buildList(m.review, m.diff, lay)
-		m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
-		m.follow()
-
-		return
+	case viewCode:
+		m.screen = buildCode(m.review, m.diff, m.threads, lay)
+	case viewDiff:
+		m.screen = build(m.review, m.diff, m.threads, lay)
 	}
 
-	m.screen = build(m.review, m.diff, m.threads, lay)
 	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()
 }

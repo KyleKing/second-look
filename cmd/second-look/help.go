@@ -92,10 +92,14 @@ NAMING A PULL REQUEST
       package, with the file and hunk counts on each heading so a directory can
       be taken or left as a unit. ]d walks the groups.
 
-      c shows the comments alone, grouped by file with the counts on each
-      heading and skipped ones counted rather than listed, and c again goes
-      back to the same comment in the diff. It is the same rows either way, so
-      every key works in both.
+      c walks three views: both, the code, the comments. Both is the diff with
+      what is being said about it inline. The code is the file as it reads after
+      the change, with a removal standing as one line saying how much came out
+      and each conversation standing as one row naming what it is, which za
+      opens. The comments are what will post, grouped by file with the counts on
+      each heading and skipped ones counted rather than listed. It is the same
+      rows in all three, so every key works in each, and the cursor keeps its
+      comment across the change.
 
       / searches, and tab inside the prompt restricts the search to hunks not
       yet read, which is the question a second pass asks and no other reviewer

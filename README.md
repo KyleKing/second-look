@@ -124,8 +124,12 @@ advisory, deterministic, and decides nothing.
 Files are grouped by directory with file and hunk counts on each heading, and `]d` walks
 the groups.
 
-`c` shows the comments alone, by file, and `c` again goes back to the same comment in the
-diff.
+`c` walks three views: both, the code, the comments. Both is the diff with what is being
+said about it inline. The code is the file as it reads after the change, where a removal
+stands as one line saying how much came out and a comment stands as one row that `za`
+opens, because a +/- pair leaves working out what the code now says to the reader and four
+comments on one hunk bury it. The comments are what will post, by file. The cursor keeps
+its comment across the change.
 
 `e` opens an editor in the frame, in place of the block it is writing, so the line being
 answered stays on screen. `ctrl+s` saves, `esc` abandons, and `ctrl+e` hands what is typed

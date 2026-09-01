@@ -30,6 +30,7 @@ const (
 	rowCode
 	rowComment
 	rowNote
+	rowGone
 	rowThread
 	rowBlank
 )

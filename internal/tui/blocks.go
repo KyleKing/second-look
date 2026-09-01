@@ -78,6 +78,13 @@ type layout struct {
 // anything is written in them: a review posted with no body is unsigned, and a
 // field that appears only once it is filled in is one nobody knows to fill in.
 func header(r *artifact.Review, lay layout, numWidth int) []row {
+	if r.Body == "" && r.Note == "" {
+		return []row{{
+			kind: rowComment, comment: reviewBody, head: true,
+			text: "REVIEW  no body, no note · e to write one",
+		}}
+	}
+
 	avail := proseCols(lay.width, numWidth)
 
 	return append(

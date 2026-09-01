@@ -29,8 +29,11 @@ func TestFrames(t *testing.T) {
 		{"review", nil},
 		{"comment", []tea.KeyPressMsg{{Code: tea.KeyTab}}},
 		{"help", []tea.KeyPressMsg{{Code: '?', Text: "?"}}},
-		{"confirm", []tea.KeyPressMsg{{Code: 'x', Text: "x"}, {Code: 'S', Text: "S"}}},
-		{"comments", []tea.KeyPressMsg{{Code: 'c', Text: "c"}}},
+		{"confirm", []tea.KeyPressMsg{
+			{Code: 'm', Text: "m"}, {Code: 'x', Text: "x"}, {Code: 'S', Text: "S"},
+		}},
+		{"code", []tea.KeyPressMsg{{Code: 'c', Text: "c"}}},
+		{"comments", []tea.KeyPressMsg{{Code: 'c', Text: "c"}, {Code: 'c', Text: "c"}}},
 	}
 
 	for _, width := range []int{80, 120} {

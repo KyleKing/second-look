@@ -47,9 +47,11 @@ func (m *Model) title() string {
 	right := cut(fmt.Sprintf("%s · %s · %s%s%d ready · %d draft · %d skipped",
 		m.progress(), m.treeWord(), m.costCount(), m.readCount(), c.ready, c.draft, c.skip), m.width)
 
-	if m.listing {
-		left += "  comments"
-	} else if path := m.rowPath(); path != "" {
+	if word := m.view.String(); word != "" {
+		left += "  " + word
+	}
+
+	if path := m.rowPath(); path != "" {
 		left += "  " + path
 	}
 
@@ -92,7 +94,7 @@ func (m *Model) costCount() string {
 // readCount is how much of the diff has been read, which is the number that
 // says whether the review is finished. It is absent when nothing records it.
 func (m *Model) readCount() string {
-	if m.read == nil || m.listing {
+	if m.read == nil || m.view == viewComments {
 		return ""
 	}
 
@@ -216,9 +218,9 @@ func (m *Model) hints() [][2]string {
 		middle = [][2]string{{"e", "write"}}
 	}
 
-	view := [2]string{"c", "comments"}
-	if m.listing {
-		view = [2]string{"c", "diff"}
+	view := [2]string{"c", m.view.next().String()}
+	if m.view.next() == viewDiff {
+		view = [2]string{"c", "the diff"}
 	}
 
 	hints := make([][2]string, 0, len(middle)+6)
@@ -291,6 +293,10 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 		return "  " + m.readGlyph(r) + r.text, m.styles.hunk
 	case rowComment, rowNote:
 		return m.commentRow(r)
+	case rowGone:
+		// It sits in the column the sign of a kept line sits in, so what came
+		// out reads as part of the file rather than as something said about it.
+		return strings.Repeat(" ", m.screen.numWidth+1) + "▁ " + r.text, m.styles.remove
 	case rowThread:
 		return m.threadRow(r)
 	case rowCode:

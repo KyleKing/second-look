@@ -1,6 +1,5 @@
 kyleking/jj-diff #42  comments                                              0% · on head · 1 ready · 1 draft · 1 skipped
-     ┃ REVIEW BODY  empty · e to write one                                                                              
-     ┃ REVIEW NOTE  empty · e to write one
+     ┃ REVIEW  no body, no note · e to write one                                                                        
 
   internal/vcs/diff.go  1 ready · 1 draft · 0 skipped
 
@@ -21,4 +20,5 @@ kyleking/jj-diff #42  comments                                              0% �
 
 
 
- [j/k] line  []] go to  [c] diff  writ[e]  [S]ubmit  [?] help  [q]uit
+
+comments

@@ -89,6 +89,8 @@ func fixtureWith(t *testing.T, patch string, cs ...artifact.Comment) (*tui.Model
 // search prompt's cursor schedules a blink half a second out and reschedules
 // forever, and a test that waited for each one would spend its whole run
 // watching a cursor the program loop runs in the background anyway.
+func nextView(m *tui.Model) { press(m, tea.KeyPressMsg{Code: 'c', Text: "c"}) }
+
 // The state chord is m then a letter, which is how a comment is restamped.
 func state(m *tui.Model, letter rune) {
 	press(m, tea.KeyPressMsg{Code: 'm', Text: "m"})
@@ -678,7 +680,10 @@ func TestTheCommentViewKeepsYourPlace(t *testing.T) {
 	go2(m, ']', 'c')
 	was := m.CommentUnderCursor()
 
-	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+	// c walks three views, so the comments are two presses from the diff and
+	// the diff is one press back.
+	nextView(m)
+	nextView(m)
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "1 ready · 0 draft · 0 skipped") {
@@ -701,7 +706,7 @@ func TestTheCommentViewKeepsYourPlace(t *testing.T) {
 
 	// Actions work here, because these are the same rows.
 	state(m, 'd')
-	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+	nextView(m)
 
 	if got := m.CommentUnderCursor(); got != was {
 		t.Errorf("coming back landed on comment %d, want %d", got, was)
@@ -1214,8 +1219,8 @@ func TestTheReviewBodyIsWrittenFromTheScreen(t *testing.T) {
 
 	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
 
-	if got := m.CursorText(); !strings.Contains(got, "REVIEW BODY") {
-		t.Fatalf("the screen does not open on the review body: %q", got)
+	if got := m.CursorText(); !strings.Contains(got, "no body, no note") {
+		t.Fatalf("the screen does not open on the review's own prose: %q", got)
 	}
 
 	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
@@ -1231,6 +1236,8 @@ func TestTheReviewBodyIsWrittenFromTheScreen(t *testing.T) {
 		t.Errorf("body = %q", saved.Body)
 	}
 
+	// The one row is two the moment either is written, so the note it now
+	// carries is reachable in its own right.
 	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
 
 	if got := m.CursorText(); !strings.Contains(got, "REVIEW NOTE") {
@@ -1378,5 +1385,42 @@ func TestZFoldsAFileAHunkAndTheWholeReview(t *testing.T) {
 
 	if frame = plain(m.Frame()); !strings.Contains(frame, "lines, err := split(r)") {
 		t.Errorf("zR did not open it again:\n%s", frame)
+	}
+}
+
+// The code view is the file as it reads after the change, which is the question
+// a review turns on and the one a +/- pair leaves the reader to work out.
+func TestTheCodeViewShowsTheFileThatResults(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the split can fail"))
+
+	nextView(m)
+
+	frame := plain(m.Frame())
+
+	if strings.Contains(frame, "lines := split(r)") {
+		t.Errorf("a removed line is still drawn:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "1 line removed") {
+		t.Errorf("what came out is not accounted for:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "lines, err := split(r)") {
+		t.Errorf("the line that results is missing:\n%s", frame)
+	}
+
+	// A comment stands as one row until it is asked for, so four on one hunk
+	// do not bury the code they are about.
+	if !strings.Contains(frame, "▸ ● MAJOR  ready  the split can fail") {
+		t.Fatalf("the comment is not folded to a marker:\n%s", frame)
+	}
+
+	go2(m, ']', 'c')
+	go2(m, 'z', 'a')
+
+	if got := plain(m.Frame()); strings.Contains(got, "▸ ● MAJOR") {
+		t.Errorf("za did not open the comment:\n%s", got)
 	}
 }
