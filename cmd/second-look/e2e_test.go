@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 	// Passed through explicitly rather than inherited: `go test -test.gocoverdir`
 	// overwrites GOCOVERDIR in the test process, so a child that read it would
 	// write into the unit run's directory and be dropped.
-	coverDir = os.Getenv("SECOND_LOOK_COVERDIR")
+	coverDir = os.Getenv("COVERDIR_SUBPROCESS")
 
 	// -cover makes the subprocess record what it ran, which is the only way
 	// these tests count: go test instruments the test binary, and everything

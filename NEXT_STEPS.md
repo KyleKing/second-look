@@ -319,7 +319,8 @@ it through the template's `ci:project` hook, which needs no workflow edit.
 drive its own binary has the same blind spot, and the template's `test:coverage-min`
 currently reports a number that ignores them. The override in
 `.config/mise/conf.d/user.toml` is the shape; upstream it wants a variable name that is
-not `SECOND_LOOK_COVERDIR`.
+not project-specific; second-look already uses `COVERDIR_SUBPROCESS`, which is the
+name the template should render.
 
 
 **Backport the typos short-hash rule to [my_go_template](https://github.com/KyleKing/my_go_template).**
