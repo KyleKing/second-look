@@ -24,9 +24,9 @@ second-look               # the same, for whatever this branch belongs to
 Reached. The submit from inside the screen is driven on a real pty against the recorded
 gh, and the requests it makes are the ones that posted the review on
 [#2](https://github.com/KyleKing/second-look/pull/2) for real; it is the one step nobody
-has run against live GitHub from inside the screen rather than from the shell. What alpha
-still leaves out: writing a new comment (rather than a reply) without an agent. Seen-state,
-the inbox, and the rating all landed.
+has run against live GitHub from inside the screen rather than from the shell. Seen-state,
+the inbox, the rating, and writing a comment without an agent all landed, so nothing alpha
+named is outstanding.
 
 ## Beyond alpha: replace gh-dash
 
@@ -57,27 +57,50 @@ same questions.
 ## The screens are hard to read — mostly done
 
 All of it came out of driving the built binary rather than reading the code,
-which is why none of it showed up in a test. What is left is the two items that
-need more than a rendering change.
+which is why none of it showed up in a test. What is left needs more than a
+rendering change.
 
 ### Still open
 
-**An edit abandoned mid-sentence is lost.** The in-place editor writes to the artifact
-when you accept it and throws the buffer away when you press escape, so a long comment
-half written is gone if you leave the screen or the terminal dies. What it wants is the
-buffer kept on disk beside the review, and a restore offered next time the same comment
-is opened, shown against what the comment says now so accepting or discarding is a
-decision rather than a guess. Where the buffer lives, whether one abandoned an hour ago
-is still worth offering, and what a restore does to a comment edited elsewhere since are
-all unsettled.
-
-**What a removal reads as in the code view.** It stands as one line saying how much
-came out, which is enough to know something was there and not enough to know what.
-A preview of the two sides is the answer, and its shape (a bottom split, a right
-split at wide widths, or a modal over the frame) is deliberately unsettled: it wants
-driving on a real review before it is built.
+**Nothing discards a staged review.** `second-look reviews` lists what is on disk and
+opens it, and the only way to be rid of one is `rm -r` on the directory it lives in. A
+review prepared from outside a checkout lives under the user config directory, so it is
+listed from every working directory on this laptop until somebody deletes it by hand,
+which is how an empty artifact from a verification run turns up in an unrelated repository
+weeks later. It wants a key on that screen, a confirmation, and a message naming the
+directory it removed.
 
 ### Done
+
+**An edit left unfinished is offered back.** The editor threw its buffer away on escape,
+so a long comment half written was gone with the keystroke that left it. It is written
+through on every key now, kept under `.second-look/drafts/` beside the review, and offered
+back the next time the same thing is opened, with how long ago it was left. `ctrl+r` puts
+back what the field says instead, so the two are one keystroke apart rather than a guess.
+Age does not expire one: a buffer is offered however old it is, and saying when it was
+left is what makes that safe.
+
+**A removal opens where it stands.** In the code view a run of removed lines is one row
+saying how much came out, and `za` now opens it in place, comments on those lines
+included. A bottom split, a right split, and a modal were the three shapes considered; the
+fold is the fourth and the only one the screen already had a grammar for.
+
+**A comment can be written without an agent.** `a` then a severity letter opens the editor
+under the line the cursor is on, and `ctrl+s` stages it ready with the anchor quoted. It
+was the last thing on the review screen that needed something else to do it, and it closes
+the gap alpha was still carrying.
+
+**Notes are drawn until you fold them.** A note over two lines used to start folded, which
+hid the evidence for the comment it sits under. `zi` inverts every fold the way `za`
+inverts one, which is the toggle vim spells `zi`.
+
+**Saving an edit makes a draft ready.** Writing the comment out is the ruling a draft is
+waiting for, and reaching for `m r` afterwards was a second decision nobody was making. A
+skip keeps its status: it is a decision with a reason against it.
+
+**The title carries the file only once its heading has gone.** It was there whichever row
+the cursor was on, truncated from the right, so the name went first and the directory it
+was in survived. The list screens already carried their section heading this way.
 
 **The three queues are one screen with three tabs.** `inbox`, `threads`, and `reviews`
 each open on their own tab, digits and `]`/`[` switch, and each tab keeps its own cursor,

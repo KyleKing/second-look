@@ -154,33 +154,49 @@ base did not counts next; and size is only the tiebreaker. The number is
 advisory, deterministic, and decides nothing.
 
 Files are grouped by directory with file and hunk counts on each heading, and `]d` walks
-the groups.
+the groups. The title names the file the cursor is in once that file's own heading has
+scrolled off the top, beside where the frame sits and which comment the cursor is on. A
+heading you can still see is not worth the width.
 
 `c` walks three views: both, the code, the comments. Both is the diff with what is being
 said about it inline. The code is the file as it reads after the change, where a removal
-stands as one line saying how much came out and a comment stands as one row that `za`
-opens, because a +/- pair leaves working out what the code now says to the reader and four
-comments on one hunk bury it. The comments are what will post, by file. The cursor keeps
+stands as one line saying how much came out and a comment stands as one row, both of which
+`za` opens where they are, because a +/- pair leaves working out what the code now says to
+the reader and four comments on one hunk bury it. The comments are what will post, by file. The cursor keeps
 its comment across the change.
 
-`e` opens an editor in the frame, in place of the block it is writing, so the line being
-answered stays on screen. `ctrl+s` saves, `esc` abandons, and `ctrl+e` hands what is typed
-to `$EDITOR` for the edits a text box is the wrong shape for. It writes a comment, an
-answer to an open thread, and the review's own body and note.
+`a` then `b`, `m`, `n`, `t`, or `q` writes a comment on the line under the cursor, ranked
+blocker to question. The editor opens under the line, and `ctrl+s` stages the comment
+ready with the line it anchors to already quoted, so nothing has to be restamped and the
+post guard has what it needs.
 
-`S` then `S`, `a`, `r`, or `c` submits: as the review already stands, approving, requesting
-changes, or commenting. The second key both confirms the post and says what kind of review
-it is, which is the only way to change that short of editing the file.
+`e` opens an editor in the frame, in place of the block it is writing, so the line being
+answered stays on screen. `ctrl+s` saves, `esc` leaves it, and `ctrl+e` hands what is typed
+to `$EDITOR` for the edits a text box is the wrong shape for. It writes a comment, an
+answer to an open thread, and the review's own body and note. Saving an edit marks a draft
+ready, since writing the comment out is the ruling a draft was waiting for; a skip keeps
+its status, because a skip is a decision with a reason against it.
+
+An edit left unfinished is kept beside the review rather than thrown away, so a terminal
+that dies mid-sentence loses nothing. The next `e` on the same thing opens on what was
+left, says how long ago, and `ctrl+r` puts back what the field says now, which is the
+other half of the decision.
+
+`S` then `a`, `r`, or `c` submits, approving, requesting changes, or commenting. The second
+key both confirms the post and says what kind of review it is: there is no key for "send it
+as whatever the file already says", because that is the decision the confirmation exists to
+take.
 
 `m` then `r`, `d`, or `x` marks a comment ready, draft, or skipped. It is a chord because
 each of those restamps whatever the cursor is on, irreversibly, and three unmodified
 letters next to the motion keys made that one keystroke away.
 
 `z` folds what the cursor is on: a whole file from its name, one hunk from anywhere inside
-it, and a comment's note from the comment. `za` inverts it, `zR` opens everything, and
-`zM` folds to the file names, which is the outline a long review is read from. A note over
-two lines starts folded, since it carries the evidence for a comment rather than the
-comment itself.
+it, a comment's note from the comment, and in the code view the run of removed lines from
+the row standing for it. `za` inverts it, `zi` inverts the whole review, `zR` opens
+everything, and `zM` folds to the file names, which is the outline a long review is read
+from. Everything is drawn until you fold it: a note is the evidence for the comment above
+it, and one folded by default is one nobody reads.
 
 `/` searches, and `tab` in the prompt restricts it to hunks you have not read yet. The
 pattern becomes a motion, so `n` walks the matches the same way it walks hunks.

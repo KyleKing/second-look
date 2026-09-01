@@ -342,7 +342,8 @@ Layered so the footer stays short.
 | --- | --- |
 | Universal | `q` quit, `esc` back, `enter` select, `/` search, `?` help, `:` command |
 | Motion | `j`/`k` line, `n`/`p` hunk, `}`/`{` file, `g`/`G` top and bottom |
-| Review | `space` seen, `c` comment, `S` then `a`/`r`/`c` submit, `o` on GitHub, `u` unresolved only |
+| Review | `space` seen, `c` comment, `a` then a severity writes one, `S` then `a`/`r`/`c` submit, `o` on GitHub, `u` unresolved only |
+| Fold | `z` then `a` here, `i` invert all, `R` open all, `M` to the file names |
 | Queue | `1`/`2`/`3` and `]`/`[` the tab, `tab` the next group |
 | View | `-` file overlay, `g` context pane, `s` split, `w` whitespace, `t` syntax-aware |
 | Thread | `ctrl+j`/`ctrl+k` scroll, `tab` complete, `r` reply, `R` resolve |
