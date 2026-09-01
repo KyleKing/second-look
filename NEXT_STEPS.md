@@ -93,6 +93,23 @@ quit path, and `internal/tui/testdata/TestFrames/` pins the review, comment, hel
 confirm frames at 80 and 120 columns. [AGENTS.local.md](AGENTS.local.md) carries the
 recording procedure.
 
+Five more the pty found, each proved before it was fixed. A post that failed
+showed one truncated line, took the reason with it when the alternate screen
+closed, and exited 0, so nothing recorded that GitHub had refused; the footer
+wraps a failure now, the whole error reaches the scrollback, and the exit code
+says so. Posting is asynchronous and `posted` was only set when the result
+arrived, so six fast `S` presses armed and confirmed a second post before the
+first answered. A review with no body and every comment skipped posted an empty
+review and reported success; a COMMENT carrying nothing is refused, and an
+APPROVE, which says something on its own, is not. Running `second-look <pr>`
+without a terminal, which is exactly what an agent that ignores the skill does,
+answered with Bubble Tea's "could not open TTY" and now names `second-look show
+<pr>` instead. And the frame measured itself in runes: a comment in Japanese ran
+211 cells into a 120-column frame, and a sentence in a script that puts no
+spaces between its words was truncated after one line rather than wrapped.
+Everything is measured in terminal cells now, and an over-wide word is broken
+rather than dropped.
+
 Two things the critique of the review screen found and fixed. A keystroke after a
 successful post called `save`, which wrote back the prepared review that `post` had
 deleted, so `second-look post` would have published the same review a second time. And the
