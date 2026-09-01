@@ -80,6 +80,18 @@ func Save(path string, c *Cassette) error {
 	return nil
 }
 
+// Response returns the stdout recorded for the first call matching args, so a
+// test that needs the same bytes as a fixture reads them from the cassette
+// rather than from a second copy on disk.
+func (c *Cassette) Response(args ...string) (string, error) {
+	i, err := c.Match(0, args)
+	if err != nil {
+		return "", err
+	}
+
+	return c.Interactions[i].Stdout, nil
+}
+
 // Match finds the first interaction at or after start whose args equal args.
 // Replay is ordered rather than free lookup, so a call made twice with
 // different responses replays both in the order they were recorded.

@@ -1,0 +1,81 @@
+[[interaction]]
+args = ['pr', 'view', '2', '--json', 'number,title,state,url,isDraft,mergeStateStatus,headRefName,headRefOid,headRepositoryOwner,baseRefName,statusCheckRollup']
+stdout = """
+{"baseRefName":"main","headRefName":"fixture/review-target","headRefOid":"6bc1218809a6faf83bc266c7a10b6b096f814a74","headRepositoryOwner":{"id":"MDQ6VXNlcjM3ODQzMzk=","name":"Kyle King","login":"KyleKing"},"isDraft":true,"mergeStateStatus":"CLEAN","number":2,"state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:31Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804254","name":"ci","startedAt":"2026-09-01T01:39:55Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:12Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804313","name":"hooks","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:12Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804103","name":"actionlint","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:15Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804383","name":"lint","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:21Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804266","name":"project","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:09Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804319","name":"benchmark","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"}],"title":"test: Add a recording-target pull request for cassette tests","url":"https://github.com/KyleKing/second-look/pull/2"}
+"""
+exit = 0
+
+[[interaction]]
+args = ['pr', 'diff', '2']
+stdout = """
+diff --git a/testdata/fixture/sample.go b/testdata/fixture/sample.go
+new file mode 100644
+index 0000000..2007e8b
+--- /dev/null
++++ b/testdata/fixture/sample.go
+@@ -0,0 +1,57 @@
++// Package fixture is the recording target for second-look's own tests. It is
++// never compiled: it lives under testdata so the Go tool ignores it, and it
++// exists only to give a long-lived pull request a diff worth commenting on.
++package fixture
++
++import (
++	"errors"
++	"fmt"
++	"os"
++	"strconv"
++)
++
++var errEmptyBudget = errors.New("budget file is empty")
++
++// ReadBudget reads a line-per-entry budget file and totals it.
++func ReadBudget(path string) (int, error) {
++	raw, err := os.ReadFile(path)
++	if err != nil {
++		return 0, err
++	}
++
++	total := 0
++
++	for _, line := range splitLines(string(raw)) {
++		n, err := strconv.Atoi(line)
++		if err != nil {
++			continue
++		}
++
++		total += n
++	}
++
++	if total == 0 {
++		return 0, errEmptyBudget
++	}
++
++	return total, nil
++}
++
++func splitLines(s string) []string {
++	out := []string{}
++	start := 0
++
++	for i := 0; i < len(s); i++ {
++		if s[i] == '\\n' {
++			out = append(out, s[start:i])
++			start = i + 1
++		}
++	}
++
++	return append(out, s[start:])
++}
++
++// Describe renders a budget total for a person.
++func Describe(total int) string {
++	return fmt.Sprintf("%d units", total)
++}
+"""
+exit = 0
+
+[[interaction]]
+args = ['api', '--method', 'POST', '/repos/KyleKing/second-look/pulls/2/reviews', '--input', '-']
+stdin = "{\"commit_id\":\"6bc1218809a6faf83bc266c7a10b6b096f814a74\",\"body\":\"A few things on the budget reader.\",\"event\":\"COMMENT\",\"comments\":[{\"path\":\"testdata/fixture/sample.go\",\"side\":\"RIGHT\",\"body\":\"This returns os.ReadFile's error with no context, so the caller sees a bare `no such file or directory` and cannot tell which budget failed. Wrap it: `fmt.Errorf(\\\"reading %s: %w\\\", path, err)`.\",\"line\":19},{\"path\":\"testdata/fixture/sample.go\",\"side\":\"RIGHT\",\"start_side\":\"RIGHT\",\"body\":\"A line that does not parse is skipped silently, so a typo in the budget file reads as a smaller total rather than as an error. Return the failure instead of continuing past it.\",\"line\":28,\"start_line\":25},{\"path\":\"testdata/fixture/sample.go\",\"side\":\"RIGHT\",\"body\":\"A budget that really does total zero is reported as empty. Check whether any entry parsed instead of checking the total.\",\"line\":33}]}"
+stdout = '{"id":5073185970,"node_id":"PRR_kwDOT-RSFs8AAAABLmKssg","user":{"login":"KyleKing","id":3784339,"node_id":"MDQ6VXNlcjM3ODQzMzk=","avatar_url":"https://avatars.githubusercontent.com/u/3784339?u=59f8cc4f32bd1a7975775b985e3bee10bfc009d4&v=4","gravatar_id":"","url":"https://api.github.com/users/KyleKing","html_url":"https://github.com/KyleKing","followers_url":"https://api.github.com/users/KyleKing/followers","following_url":"https://api.github.com/users/KyleKing/following{/other_user}","gists_url":"https://api.github.com/users/KyleKing/gists{/gist_id}","starred_url":"https://api.github.com/users/KyleKing/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/KyleKing/subscriptions","organizations_url":"https://api.github.com/users/KyleKing/orgs","repos_url":"https://api.github.com/users/KyleKing/repos","events_url":"https://api.github.com/users/KyleKing/events{/privacy}","received_events_url":"https://api.github.com/users/KyleKing/received_events","type":"User","user_view_type":"public","site_admin":false},"body":"A few things on the budget reader.","state":"COMMENTED","html_url":"https://github.com/KyleKing/second-look/pull/2#pullrequestreview-5073185970","pull_request_url":"https://api.github.com/repos/KyleKing/second-look/pulls/2","author_association":"OWNER","_links":{"html":{"href":"https://github.com/KyleKing/second-look/pull/2#pullrequestreview-5073185970"},"pull_request":{"href":"https://api.github.com/repos/KyleKing/second-look/pulls/2"}},"submitted_at":"2026-09-01T01:48:22Z","commit_id":"6bc1218809a6faf83bc266c7a10b6b096f814a74"}'
+exit = 0

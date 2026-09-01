@@ -69,6 +69,23 @@ func Start(t TB, cassette string) *Session {
 	return s
 }
 
+// Replay prepares a cassette that is never recorded, for a case derived from a
+// recording rather than observed: a head that moved, a call that failed.
+func Replay(t TB, cassette string) *Session {
+	t.Helper()
+
+	dir, err := stub()
+	if err != nil {
+		t.Fatalf("building the gh stub: %v", err)
+	}
+
+	return &Session{
+		cassette: cassette,
+		journal:  filepath.Join(t.TempDir(), "journal"),
+		binDir:   dir,
+	}
+}
+
 // Recording reports whether this run talks to GitHub.
 func (s *Session) Recording() bool { return s.record }
 

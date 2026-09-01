@@ -1,0 +1,67 @@
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 2
+head_sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
+event = "COMMENT"
+body = "A few things on the budget reader."
+note = "Recorded against PR #2 to give second-look's own tests a real review to replay."
+
+[[comment]]
+id = "unwrapped-read-error"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+body = "This returns os.ReadFile's error with no context, so the caller sees a bare `no such file or directory` and cannot tell which budget failed. Wrap it: `fmt.Errorf(\"reading %s: %w\", path, err)`."
+anchor = "\t\treturn 0, err"
+note = "Matches the wrapping rule in AGENTS.md."
+severity = "major"
+status = "ready"
+
+[[comment]]
+id = "swallowed-parse-error"
+path = "testdata/fixture/sample.go"
+line = 28
+side = "RIGHT"
+start_line = 25
+start_side = "RIGHT"
+body = "A line that does not parse is skipped silently, so a typo in the budget file reads as a smaller total rather than as an error. Return the failure instead of continuing past it."
+anchor = "\t\t}"
+note = "The failure mode is a wrong number, not a crash, which is why it is worth catching here."
+severity = "major"
+status = "ready"
+
+[[comment]]
+id = "zero-is-not-empty"
+path = "testdata/fixture/sample.go"
+line = 33
+side = "RIGHT"
+body = "A budget that really does total zero is reported as empty. Check whether any entry parsed instead of checking the total."
+anchor = "\tif total == 0 {"
+note = ""
+severity = "minor"
+status = "ready"
+
+[[comment]]
+id = "hand-rolled-split"
+path = "testdata/fixture/sample.go"
+line = 40
+side = "RIGHT"
+body = "strings.Split does this."
+anchor = "func splitLines(s string) []string {"
+note = "Holding this back: strings.Split keeps the trailing empty field too, so it is the same behavior, but I want to reread splitLines before saying so on the pull request."
+severity = "nit"
+status = "draft"
+
+[[comment]]
+id = "describe-pluralization"
+path = "testdata/fixture/sample.go"
+line = 56
+side = "RIGHT"
+body = '"1 units" reads wrong.'
+anchor = "\treturn fmt.Sprintf(\"%d units\", total)"
+note = ""
+severity = "nit"
+status = "skip"
+skip_reason = "Fixture code nobody reads output from."
