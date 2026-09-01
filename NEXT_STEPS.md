@@ -314,21 +314,16 @@ it through the template's `ci:project` hook, which needs no workflow edit.
 
 ## Deferred
 
-**Backport the subprocess coverage pattern to
-[my_go_template](https://github.com/KyleKing/my_go_template).** Any project whose tests
-drive its own binary has the same blind spot, and the template's `test:coverage-min`
-currently reports a number that ignores them. The override in
-`.config/mise/conf.d/user.toml` is the shape; upstream it wants a variable name that is
-not project-specific; second-look already uses `COVERDIR_SUBPROCESS`, which is the
-name the template should render.
-
-
-**Backport the typos short-hash rule to [my_go_template](https://github.com/KyleKing/my_go_template).**
-`.typos.toml` here teaches typos to read an abbreviated commit hash as a hash rather
-than a misspelling, which every repo rendered from the template will need the first time
-a hash reaches a commit message or a fixture. The local rule stands on its own, so this
-is the second `.rej` case from AGENTS.md: keep it locally and open the same change
-upstream.
+Both backports to [my_go_template](https://github.com/KyleKing/my_go_template) are done
+and sit unpushed there:
+[`e665527`](https://github.com/KyleKing/my_go_template/commit/e665527) counts subprocess
+tests toward the coverage floor, and
+[`82fcd6d`](https://github.com/KyleKing/my_go_template/commit/82fcd6d) teaches typos to
+read an abbreviated commit hash as a hash. Once the template releases and second-look
+takes a `copier update`, the `test:coverage-min` override in
+`.config/mise/conf.d/user.toml` can be deleted: the two now agree on
+`COVERDIR_SUBPROCESS`, so the rendered task drives this project's `TestMain` unchanged.
+`ci:project` stays, since it is what runs the floor in CI.
 
 ## Open questions
 
