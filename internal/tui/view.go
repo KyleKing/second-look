@@ -115,19 +115,28 @@ func (m *Model) footer() string {
 
 	var b strings.Builder
 
-	for _, k := range [][2]string{
-		{"n/p", "hunk"},
-		{"}/{", "file"},
-		{"tab", "comment"},
-		{"e", "edit"},
-		{"r/d/x", "state"},
-		{"S", "submit"},
-		{"?", "help"},
-	} {
+	for _, k := range m.hints() {
 		b.WriteString(" " + m.styles.key.Render(k[0]) + m.styles.footer.Render(" "+k[1]))
 	}
 
 	return b.String()
+}
+
+// hints is what is actionable where the cursor is standing. The keys that
+// change a comment are shown on a comment and the keys that skip through the
+// diff are shown on code, because both sets at once do not fit an 80-column
+// frame and quitting has to be visible in either.
+func (m *Model) hints() [][2]string {
+	middle := [][2]string{{"n/p", "hunk"}, {"}/{", "file"}}
+	if m.current() >= 0 {
+		middle = [][2]string{{"r/d/x", "state"}, {"e", "edit"}}
+	}
+
+	hints := make([][2]string, 0, len(middle)+5)
+	hints = append(hints, [2]string{"j/k", "line"}, [2]string{"tab", "comment"})
+	hints = append(hints, middle...)
+
+	return append(hints, [2]string{"S", "submit"}, [2]string{"?", "help"}, [2]string{"q", "quit"})
 }
 
 func (m *Model) helpLines() []string {

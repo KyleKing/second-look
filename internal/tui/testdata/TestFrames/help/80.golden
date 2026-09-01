@@ -21,4 +21,4 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
 
 
 
- n/p hunk }/{ file tab comment e edit r/d/x state S submit ? help
+ j/k line tab comment n/p hunk }/{ file S submit ? help q quit

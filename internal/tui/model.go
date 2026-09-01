@@ -364,7 +364,7 @@ func (m *Model) askSubmit() {
 	c := m.counts()
 	if c.draft > 0 {
 		m.focus(m.firstDraft())
-		m.say(fmt.Sprintf("%d comment(s) still draft, r to post it or x to drop it", c.draft), true)
+		m.say(fmt.Sprintf("%d comment(s) still draft, r to post it or x to skip it", c.draft), true)
 
 		return
 	}

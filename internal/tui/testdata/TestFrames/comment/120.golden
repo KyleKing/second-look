@@ -1,9 +1,9 @@
-kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skipped
-                                                                                
+kyleking/jj-diff #42  internal/vcs/diff.go                                           22% · 1 ready · 1 draft · 1 skipped
+
 internal/vcs/diff.go
   @@ -14,6 +14,7 @@ func Parse(r io.Reader) ([]Hunk, error) {
  14       first := 1
-     │ ◐ question
+     │ ◐ question                                                                                                       
      │ Is first still 1 after the change?
      │ · Unverified: I have not read the caller.
  15 -     lines := split(r)
@@ -21,4 +21,4 @@ internal/vcs/git.go
 
 
 
- j/k line tab comment n/p hunk }/{ file S submit ? help q quit
+ j/k line tab comment r/d/x state e edit S submit ? help q quit

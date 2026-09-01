@@ -27,6 +27,7 @@ func TestFrames(t *testing.T) {
 		keys []tea.KeyPressMsg
 	}{
 		{"review", nil},
+		{"comment", []tea.KeyPressMsg{{Code: tea.KeyTab}}},
 		{"help", []tea.KeyPressMsg{{Code: '?', Text: "?"}}},
 		{"confirm", []tea.KeyPressMsg{{Code: 'x', Text: "x"}, {Code: 'S', Text: "S"}}},
 	}
