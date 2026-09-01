@@ -52,6 +52,15 @@ const (
 	jsonArg = "--json"
 )
 
+// The lines all three list screens share. They are one tui.List, so a reader
+// should not have to learn three vocabularies for the same keys.
+const (
+	enterKey  = "enter"
+	helpMove  = "  j/k, ctrl+u/d, g/G   move, half page, top and bottom"
+	helpGroup = "  tab                  the next group"
+	helpLeave = "  q, esc               leave"
+)
+
 func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) == 0 {
 		return reviewCurrent(ctx, stdin, stdout)
@@ -71,7 +80,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	case "post":
 		return postCmd(ctx, args[1:], stdout)
 	case "inbox":
-		return inboxCmd(ctx, args[1:], stdout)
+		return inboxCmd(ctx, args[1:], stdin, stdout)
 	case "threads":
 		return threadsCmd(ctx, args[1:], stdin, stdout)
 	case "reviews":
@@ -544,10 +553,14 @@ func staged() ([]prepared.Review, error) {
 // inboxCmd prints the review queue in three buckets. It reads GitHub and
 // nothing local, so it works from anywhere with a gh login rather than only
 // inside a checkout.
-func inboxCmd(ctx context.Context, args []string, stdout io.Writer) error {
+func inboxCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	asJSON, err := oneOf(args, errUsageInbox, jsonArg)
 	if err != nil {
 		return err
+	}
+
+	if asJSON != jsonArg && onATerminal() {
+		return openInbox(ctx, stdin, stdout)
 	}
 
 	buckets := inbox.Buckets(ctx, ".", inboxLimit)

@@ -35,8 +35,10 @@ before anything is sent.
 Conversations already open on the pull request are shown where they anchor, so a second
 pass answers what was said last time. `e` on one writes the reply in `$EDITOR`.
 
-`second-look inbox` prints your review queue in three buckets: pending your review,
-reviewed and still open, then reviewed and merged.
+`second-look inbox` is your review queue in three buckets: pending your review, reviewed
+and still open, then reviewed and merged. `enter` on a row opens the review, which needs no
+clone of that repository, so getting to one costs an API read rather than a clone and a
+branch switch. A pipe or `--json` gets the text instead of the screen.
 
 `second-look threads` is the queue of conversations across every open pull request you
 are involved in, in three buckets: what moved since you last looked, what is still

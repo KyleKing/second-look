@@ -33,10 +33,10 @@ type reviewsScreen struct {
 }
 
 var reviewsHelp = []string{
-	"  j/k, ctrl+u/d, g/G   move, half page, top and bottom",
+	helpMove,
 	"  enter                open the review screen for it",
 	"  ctrl+r               read the directory again",
-	"  q, esc               leave",
+	helpLeave,
 	"",
 	"  blocked means a comment is still a draft, which stops the submit.",
 	"  Every review here is unfinished: the file is deleted when it posts.",
@@ -56,7 +56,7 @@ func openReviews(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 
 	list := tui.NewList("second-look staged reviews", s.sections, s.act).
 		WithSubtitle(s.counts).
-		WithHints([][2]string{{"enter", "open"}, {"ctrl+r", "refresh"}, {"?", helpArg}}).
+		WithHints([][2]string{{enterKey, "open"}, {"ctrl+r", "refresh"}, {"?", helpArg}}).
 		WithHelp(reviewsHelp)
 
 	if _, err := tui.RunList(list); err != nil {
@@ -155,10 +155,15 @@ func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 	return "", false, nil
 }
 
-// errNotHere covers the keys the conversation queue offers and this screen does
-// not. Saying so beats a key that silently does nothing.
-var errNotHere = errors.New("that key belongs to the conversation queue; " +
-	"enter opens a review, ? lists the keys")
+// The keys another list screen offers and this one does not. Saying so beats a
+// key that silently does nothing.
+var (
+	errNotHere = errors.New("that key belongs to the conversation queue; " +
+		"enter opens a review, ? lists the keys")
+	errNotInInbox = errors.New("that key belongs to the conversation queue; " +
+		"enter reviews the pull request, o opens it on GitHub, ? lists the keys")
+	errNoPullRequest = errors.New("this row is a search that failed, not a pull request")
+)
 
 // choose leaves the screen so the review can open. Two Bubble Tea programs
 // cannot own the terminal at once, so which review was chosen is carried out

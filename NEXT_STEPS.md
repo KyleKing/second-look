@@ -216,7 +216,7 @@ head I just landed on. Only a terminal is asked, so an agent's run never has its
 moved. The move that fails after the stash still prints the hint, which is the case the
 pty test pins.
 
-## The inbox — done, as a CLI
+## The inbox — done
 
 `second-look inbox` prints the review queue in three buckets, in the order they want
 doing: pending your review, reviewed and still open, then reviewed and merged. Each line
@@ -230,11 +230,14 @@ stack trace, which is the behaviour that was designed for and got tested by acci
 GitHub answers a rate limit with four hundred characters of terms of service, so the
 human view prints the first sentence and points at `--json` for the rest.
 
-Two things are not built. Searching and sorting are left to the caller, since the JSON
-output is a better sort key than anything a flag would give. And there is no TUI inbox
-yet, which is what "available from the CLI as well as the TUI" asks for; the buckets and
-the per-line metadata are the part both need and they live in `internal/inbox` rather than
-in `cmd`.
+The screen is built too, as the same `tui.List` the other two lists are, so all three
+share their keys and their help. `enter` opens the review, which needs no clone of the
+repository, and `o` opens it on GitHub. A bucket whose search failed carries one row saying
+so and leaves the others alone.
+
+Searching and sorting are still left to the caller, since the JSON output is a better sort
+key than anything a flag would give. Ranking a long queue by review cost is the open
+question below.
 
 **Its cassette is written rather than recorded**, alone among the four. A real recording
 carries the private repository names, usernames, and pull request titles of whatever is in

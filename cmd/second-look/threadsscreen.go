@@ -84,7 +84,7 @@ func openThreads(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 
 // threadsHints is the footer, which advertises only the keys this screen offers.
 var threadsHints = [][2]string{
-	{"enter", "read"},
+	{enterKey, "read"},
 	{"space", "mark read"},
 	{"r", "reply"},
 	{"R", "resolve"},
@@ -94,15 +94,15 @@ var threadsHints = [][2]string{
 }
 
 var threadsHelp = []string{
-	"  j/k, ctrl+u/d, g/G   move, half page, top and bottom",
-	"  tab                  the next group",
+	helpMove,
+	helpGroup,
 	"  enter                read the whole conversation, and mark it read",
 	"  space                mark read without opening it",
 	"  r                    leave and open the review screen to stage a reply",
 	"  R                    thumbs-up it, and resolve the thread when there is one",
 	"  o                    open it on GitHub",
 	"  ctrl+r               read the queue again",
-	"  q, esc               leave",
+	helpLeave,
 	"",
 	"  ● marks a conversation that moved since you last read it.",
 	"  A reply is staged into that pull request's prepared review and posts with it,",

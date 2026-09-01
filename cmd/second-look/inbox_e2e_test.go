@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -60,4 +61,58 @@ func TestInboxJSON(t *testing.T) {
 			t.Errorf("the %s field is missing:\n%s", want, res.stdout)
 		}
 	}
+}
+
+// TestInboxScreenOpensAReviewWithNoClone is the queue doing what a dashboard is
+// for: enter on a row opens the review, and the row it lands on is a repository
+// this laptop has no clone of, so opening it costs the two API reads and
+// nothing else.
+func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	s := ghcassette.Replay(t, inboxThenReview(t))
+
+	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
+	sc.await("pending your review")
+	sc.await("kyleking/aragonite#100")
+
+	sc.press("\r")
+	sc.await("kyleking/aragonite #100")
+
+	sc.press("q")
+	sc.wait()
+}
+
+// inboxThenReview is the three searches, then the two reads that opening the
+// first row costs, addressed to the pull request that row names.
+func inboxThenReview(t *testing.T) string {
+	t.Helper()
+
+	c := load(t, "inbox")
+	recorded := load(t, "post-review")
+
+	for i := range recorded.Interactions[:reads] {
+		in := recorded.Interactions[i]
+
+		for j, arg := range in.Args {
+			if arg == "2" {
+				in.Args[j] = "100"
+			}
+
+			if arg == fixtureRepo {
+				in.Args[j] = "kyleking/aragonite"
+			}
+		}
+
+		in.Stdout = strings.ReplaceAll(in.Stdout, `"number":2`, `"number":100`)
+		c.Interactions = append(c.Interactions, in)
+	}
+
+	path := filepath.Join(t.TempDir(), "inbox-review.golden")
+	if err := ghcassette.Save(path, c); err != nil {
+		t.Fatalf("writing the derived cassette: %v", err)
+	}
+
+	return path
 }

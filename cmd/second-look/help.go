@@ -163,10 +163,15 @@ NAMING A PULL REQUEST
       because GitHub owns it from that moment.
 
   second-look inbox [--json]
-      Print the review queue in three buckets, in the order they want doing:
-      pending your review, reviewed and still open, then reviewed and merged.
-      Each line carries the repository, the author, how stale it is, and the
-      title, which is enough to triage without opening anything.
+      The review queue in three buckets, in the order they want doing: pending
+      your review, reviewed and still open, then reviewed and merged. Each line
+      carries the repository, the author, how stale it is, and the title, which
+      is enough to triage without opening anything. A terminal gets the screen
+      and a pipe or --json gets the text.
+
+      enter reviews the pull request under the cursor and o opens it on GitHub.
+      Opening one needs no clone of its repository, which is the point: getting
+      to a review costs an API read rather than a clone and a branch switch.
 
       It reads GitHub and nothing local, so it works from anywhere gh is logged
       in rather than only inside a checkout. One bucket failing prints its
