@@ -35,6 +35,7 @@ type keyMap struct {
 	List     key.Binding
 	Fold     key.Binding
 	Accept   key.Binding
+	Send     key.Binding
 	Submit   key.Binding
 	Help     key.Binding
 	Quit     key.Binding
@@ -66,6 +67,7 @@ func defaultKeyMap() keyMap {
 		List:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
 		Fold:     key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
 		Accept:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
+		Send:     key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
 		Submit:   key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
 		Help:     key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", "quit")),
@@ -104,6 +106,7 @@ func helpLines() [][2]string {
 		{"e", "edit a comment, or answer an open thread, in $EDITOR"},
 		{"E", "edit the comment's local note in $EDITOR"},
 		{"!", "run a shell here and attach what it printed to the note"},
+		{"P", "post the comment under the cursor on its own, now"},
 		{"S", "submit the review to GitHub, S again to confirm"},
 		{"? / esc", "this help, back"},
 		{"q", "quit"},

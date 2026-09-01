@@ -118,6 +118,21 @@ thing a reader needs most, where they are, was the one thing that vanished; it c
 `Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
 keys while the cursor is inside a comment, since both sets do not fit 80 columns.
 
+## Posting one comment on its own — done
+
+`second-look post <pr> --only <id>` and `P` in the review screen post a single staged
+comment through the standalone comment endpoint, outside any review. It is for the finding
+that should not wait for the rest: a build broken for everyone, a secret in a diff.
+
+The anchor guard runs first, the same as for a whole review, and the comment is removed
+from the prepared review afterwards for the same reason a posted review's artifact is
+deleted: GitHub owns it from that moment, and a copy left staged would go out a second
+time. A reply goes to the replies endpoint instead, since that endpoint already names the
+comment it answers. A skipped or draft comment is refused however directly it is named.
+
+`P` asks nothing first, where `S` asks twice. A single comment is small enough to take
+back by deleting it on GitHub; a whole review is not.
+
 ## Hiding whitespace — done
 
 `w` hides every hunk that changes nothing but whitespace, says how many it hid on the

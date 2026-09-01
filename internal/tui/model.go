@@ -50,6 +50,7 @@ type Model struct {
 	seenAt  string
 	path    string
 	submit  Submitter
+	send    Sender
 
 	screen screen
 	cursor int
@@ -148,6 +149,12 @@ type editedMsg struct {
 	err     error
 }
 
+type sentMsg struct {
+	id      string
+	summary string
+	err     error
+}
+
 type submittedMsg struct {
 	summary string
 	err     error
@@ -166,6 +173,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyEdit(msg)
 
 		return m, nil
+	case sentMsg:
+		m.applySent(msg)
+
+		return m, tea.ClearScreen
 	case submittedMsg:
 		m.applySubmit(msg)
 
@@ -560,6 +571,10 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.setStatus(artifact.StatusSkip)
 	case key.Matches(msg, m.keys.Seen):
 		m.markRead()
+	case key.Matches(msg, m.keys.Send):
+		cmd := m.sendOne()
+
+		return m, cmd
 	case key.Matches(msg, m.keys.Shell):
 		cmd := m.shell()
 
@@ -873,6 +888,51 @@ func (m *Model) currentThread() int {
 	}
 
 	return r.thread
+}
+
+// sendOne posts the comment under the cursor on its own. It asks nothing first:
+// a single comment is the one thing here small enough to take back by deleting
+// it on GitHub, where a whole review is not.
+func (m *Model) sendOne() tea.Cmd {
+	i := m.current()
+	if i < 0 {
+		m.say("no comment here", false)
+
+		return nil
+	}
+
+	if m.send == nil {
+		m.say("this screen cannot post a single comment", true)
+
+		return nil
+	}
+
+	if m.review.Comments[i].Status != artifact.StatusReady {
+		m.say("only a ready comment goes out on its own; r marks it ready", false)
+
+		return nil
+	}
+
+	ctx, review, id := m.ctx, m.review, m.review.Comments[i].ID
+	m.say("posting "+id+"…", false)
+
+	return func() tea.Msg {
+		summary, err := m.send(ctx, review, id)
+
+		return sentMsg{id: id, summary: summary, err: err}
+	}
+}
+
+func (m *Model) applySent(msg sentMsg) {
+	if msg.err != nil {
+		m.failure = msg.err
+		m.say(msg.err.Error(), true)
+
+		return
+	}
+
+	m.rebuild()
+	m.say(msg.summary, false)
 }
 
 // askSubmit asks before it posts. Posting is the only thing the screen does

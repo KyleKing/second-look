@@ -16,3 +16,7 @@ func (m *Model) CursorRow() int { return m.cursor }
 
 // CursorText is what the row under the cursor says.
 func (m *Model) CursorText() string { return rowText(m.screen.rows[m.cursor]) }
+
+// SetSender supplies the single-comment poster after construction, which is
+// what a test needs when the sender has to see the model's own review.
+func (m *Model) SetSender(s Sender) { m.send = s }

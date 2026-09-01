@@ -64,6 +64,55 @@ func (r *Review) Empty() bool {
 	return true
 }
 
+// ErrNoSuchComment is an id the prepared review does not carry.
+var ErrNoSuchComment = errors.New("no comment with that id is staged")
+
+// ErrNotPostable is a comment that cannot go out on its own: a skipped one was
+// declined, and a draft has not been ruled on.
+var ErrNotPostable = errors.New("a skipped or draft comment is not posted")
+
+// OnePayload builds the body for a single comment posted on its own, outside a
+// review. A reply carries only its text, since the endpoint it goes to already
+// names the comment it answers.
+func (r *Review) OnePayload(id string) (any, *Comment, error) {
+	for i := range r.Comments {
+		c := &r.Comments[i]
+		if c.ID != id {
+			continue
+		}
+
+		if c.Status != StatusReady {
+			return nil, nil, fmt.Errorf("%s: %w", id, ErrNotPostable)
+		}
+
+		if c.InReplyTo != 0 {
+			return ReplyPayload{Body: c.Body}, c, nil
+		}
+
+		return commentPayload{
+			Path: c.Path, Side: c.Side, StartSide: c.StartSide,
+			Body: c.Body, Line: c.Line, StartLine: c.StartLine,
+		}, c, nil
+	}
+
+	return nil, nil, fmt.Errorf("%q: %w", id, ErrNoSuchComment)
+}
+
+// Remove drops a comment by id and reports whether it was there. It is what
+// follows a comment posted on its own: GitHub owns it from that moment, and a
+// copy left staged would go out a second time with the review.
+func (r *Review) Remove(id string) bool {
+	for i := range r.Comments {
+		if r.Comments[i].ID == id {
+			r.Comments = append(r.Comments[:i], r.Comments[i+1:]...)
+
+			return true
+		}
+	}
+
+	return false
+}
+
 // Payload builds what gets posted: the review itself, and the replies that have
 // to go to their own endpoint. Skipped comments and every local field are absent
 // by construction, since nothing here reads them.

@@ -110,6 +110,72 @@ func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.
 	return write(out, "removed "+path+"\n")
 }
 
+// One posts a single comment on its own, outside any review, and takes it out
+// of the prepared review afterwards.
+//
+// It is for the finding worth saying now rather than at the end: a build that
+// is broken for everyone, a secret in a diff. The rest of the review stays
+// staged, and GitHub owns the comment from the moment it lands, so it is
+// removed here for the same reason a posted review's artifact is deleted.
+func One(ctx context.Context, p Poster, path string, r *artifact.Review, id string, out io.Writer) error {
+	payload, c, err := r.OnePayload(id)
+	if err != nil {
+		return fmt.Errorf("posting %s on its own: %w", id, err)
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("encoding the comment: %w", err)
+	}
+
+	endpoint := commentEndpoint(r)
+	if c.InReplyTo != 0 {
+		endpoint = replyEndpoint(r, c.InReplyTo)
+	}
+
+	if c.InReplyTo == 0 {
+		body, err = withCommit(body, r.HeadSHA)
+		if err != nil {
+			return err
+		}
+	}
+
+	//nolint:wrapcheck // the caller reports the raw gh failure verbatim
+	if err := p.Post(ctx, endpoint, body); err != nil {
+		return err
+	}
+
+	if err := write(out, "posted "+endpoint+"\n"); err != nil {
+		return err
+	}
+
+	r.Remove(id)
+
+	if err := artifact.Save(path, r); err != nil {
+		return fmt.Errorf("the comment posted; rewriting %s: %w", path, err)
+	}
+
+	return write(out, "removed "+id+" from "+path+"\n")
+}
+
+// withCommit adds the head the comment was anchored against. A standalone
+// comment names its own commit, where a review names it once for all of them.
+func withCommit(body []byte, sha string) ([]byte, error) {
+	var fields map[string]any
+	if err := json.Unmarshal(body, &fields); err != nil {
+		return nil, fmt.Errorf("encoding the comment: %w", err)
+	}
+
+	fields["commit_id"] = sha
+
+	out, err := json.Marshal(fields)
+	if err != nil {
+		return nil, fmt.Errorf("encoding the comment: %w", err)
+	}
+
+	return out, nil
+}
+
 // DryRun prints what Run would send without sending it.
 func DryRun(out io.Writer, r *artifact.Review) error {
 	payload, replies, err := r.Payload()
@@ -156,6 +222,10 @@ func postReplies(ctx context.Context, p Poster, r *artifact.Review, replies []ar
 
 func reviewEndpoint(r *artifact.Review) string {
 	return fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", r.Owner, r.Repo, r.Number)
+}
+
+func commentEndpoint(r *artifact.Review) string {
+	return fmt.Sprintf("/repos/%s/%s/pulls/%d/comments", r.Owner, r.Repo, r.Number)
 }
 
 func replyEndpoint(r *artifact.Review, commentID int64) string {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/x/exp/golden"
 
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/ghcassette"
 )
 
@@ -60,6 +61,67 @@ func TestPostDryRun(t *testing.T) {
 
 // TestPostRefusesDrafts is the staged review as an agent leaves it, with one
 // comment still undecided. Nothing may post until a person rules on it.
+// A finding worth saying now rather than at the end goes out on its own. The
+// rest of the review stays staged, and the comment leaves the file because
+// GitHub owns it from that moment: a copy left behind would go out twice.
+func TestPostOneCommentOnItsOwn(t *testing.T) {
+	t.Parallel()
+
+	dir := workspace(t, "triaged.toml")
+	s := ghcassette.Replay(t, derive(t, "post-one", func(c *ghcassette.Cassette) {
+		// The review POST is replaced by the single-comment endpoint, which is
+		// the one call this makes after the two reads.
+		c.Interactions = c.Interactions[:reads+1]
+		c.Interactions[reads].Args = []string{
+			"api", "--method", "POST", "/repos/KyleKing/second-look/pulls/2/comments", "--input", "-",
+		}
+	}))
+
+	res := runCLI(t, s, dir, "post", "2", "--only", "zero-is-not-empty")
+	if res.code != 0 {
+		t.Fatalf("post --only failed: %s%s", res.stdout, res.stderr)
+	}
+
+	if !strings.Contains(res.stdout, "/pulls/2/comments") {
+		t.Errorf("the standalone endpoint was not used:\n%s", res.stdout)
+	}
+
+	review, err := artifact.Load(filepath.Join(dir, ".second-look", "pr-2.toml"))
+	if err != nil {
+		t.Fatalf("the prepared review: %v", err)
+	}
+
+	for i := range review.Comments {
+		if review.Comments[i].ID == "zero-is-not-empty" {
+			t.Error("the posted comment is still staged and would go out twice")
+		}
+	}
+
+	if len(review.Comments) == 0 {
+		t.Error("posting one comment took the rest of the review with it")
+	}
+
+	s.RequireAllPlayed(t)
+}
+
+// A comment that was skipped was declined and a draft has not been ruled on, so
+// neither goes out on its own however directly it is named.
+func TestPostOneRefusesWhatWasNotRuledOn(t *testing.T) {
+	t.Parallel()
+
+	dir := workspace(t, "triaged.toml")
+	s := ghcassette.Replay(t, derive(t, "guard-only-skip", guardOnly))
+
+	res := runCLI(t, s, dir, "post", "2", "--only", "hand-rolled-split")
+	if res.code == 0 {
+		t.Fatalf("a skipped comment posted on its own:\n%s", res.stdout)
+	}
+
+	if !strings.Contains(res.stderr, "not posted") {
+		t.Errorf("the refusal does not say why:\n%s", res.stderr)
+	}
+}
+
 func TestPostRefusesDrafts(t *testing.T) {
 	t.Parallel()
 

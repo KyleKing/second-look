@@ -75,6 +75,13 @@ first.
 Before replying to a bot thread, check whether a later commit already resolved it; close
 a stale thread with a one-line pointer to the fixing commit instead of raising it again.
 
+## Saying one thing now
+
+`second-look post <pr> --only <id>` posts a single staged comment on its own, outside any
+review, and takes it out of the file. It is for the finding that should not wait for the
+rest of the review: a build broken for everyone, a secret in a diff. The anchor guard runs
+first and the rest of the review stays staged. Ask before using it, the same as posting.
+
 ## Editing on a later pass
 
 Reuse a comment's `id` and the edit replaces it; a new id appends a duplicate. Once the

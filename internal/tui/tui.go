@@ -13,9 +13,22 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 )
 
+// Sender posts one comment on its own, outside any review. It is a separate
+// seam from Submitter because it is a different request with a different
+// consequence: the comment is gone from the prepared review afterwards, and the
+// rest of the review is still staged.
+type Sender func(ctx context.Context, r *artifact.Review, id string) (string, error)
+
+// WithSender allows posting a single comment from inside the screen. Without
+// one, the key says so rather than appearing to work.
+func WithSender(send Sender) Option {
+	return func(m *Model) { m.send = send }
+}
+
 // Run opens the review screen and blocks until the person leaves it. Every
 // change is written to the artifact as it is made, so quitting loses nothing
 // and a crash loses only the keystroke in flight.
+//
 // A submit that failed is returned once the screen has closed, since a footer
 // the alternate screen takes back with it is not a report.
 func Run(

@@ -14,10 +14,10 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
   e                 edit a comment, or answer an open thread, in $EDITOR
   E                 edit the comment's local note in $EDITOR
   !                 run a shell here and attach what it printed to the note
+  P                 post the comment under the cursor on its own, now
   S                 submit the review to GitHub, S again to confirm
   ? / esc           this help, back
   q                 quit
-
 
 
 

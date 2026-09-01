@@ -513,6 +513,63 @@ func fitsWidth(t *testing.T, what, frame string, width int) {
 	}
 }
 
+// A finding worth saying now goes out on its own, and what proves it worked is
+// that the comment leaves the prepared review: a copy left staged would go out
+// a second time with the rest.
+func TestPostingOneCommentTakesItOffTheReview(t *testing.T) {
+	t.Parallel()
+
+	draft := comment("c2", parsed, artifact.SideRight, 14, "not ruled on")
+	draft.Status = artifact.StatusDraft
+
+	m, path, _ := fixtureWith(t, patch,
+		comment("c1", parsed, artifact.SideRight, 15, "the split can fail"), draft)
+
+	var sent []string
+
+	m.SetSender(func(_ context.Context, r *artifact.Review, id string) (string, error) {
+		sent = append(sent, id)
+		r.Remove(id)
+
+		if err := artifact.Save(path, r); err != nil {
+			return "", fmt.Errorf("saving: %w", err)
+		}
+
+		return "posted " + id, nil
+	})
+
+	// A draft has not been ruled on, so naming it directly still does nothing.
+	go2(m, ']', 'c')
+	press(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+	press(m, tea.KeyPressMsg{Code: 'P', Text: "P"})
+
+	if len(sent) != 0 {
+		t.Fatalf("a draft was posted on its own: %v", sent)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'r', Text: "r"})
+	press(m, tea.KeyPressMsg{Code: 'P', Text: "P"})
+
+	if len(sent) != 1 {
+		t.Fatalf("posted %v, want exactly one comment", sent)
+	}
+
+	saved, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := range saved.Comments {
+		if saved.Comments[i].ID == sent[0] {
+			t.Error("the posted comment is still staged and would go out twice")
+		}
+	}
+
+	if len(saved.Comments) != 1 {
+		t.Errorf("%d comments are left, want the one that did not post", len(saved.Comments))
+	}
+}
+
 // refuser is a submitter that fails the way gh does, in one long sentence.
 type refuser struct{ err error }
 

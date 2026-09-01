@@ -32,7 +32,7 @@ var (
 	errUnknownCommand = errors.New("unknown command; try second-look -h")
 	errUsageComment   = errors.New("usage: second-look comment add <pr>")
 	errUsageGet       = errors.New("usage: second-look get <pr>")
-	errUsagePost      = errors.New("usage: second-look post <pr> [--dry-run]")
+	errUsagePost      = errors.New("usage: second-look post <pr> [--dry-run|--only <id>]")
 	errUsageReview    = errors.New("usage: second-look <pr>")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--payload|--threads]")
 	errUsageSkill     = errors.New("usage: second-look skill")
@@ -104,7 +104,8 @@ func openReview(ctx context.Context, number int, stdout io.Writer) error {
 	var log strings.Builder
 
 	runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(opened.Path, &log),
-		tui.WithThreads(opened.Threads), tui.WithSeen(opened.Read, opened.SeenPath))
+		tui.WithThreads(opened.Threads), tui.WithSeen(opened.Read, opened.SeenPath),
+		tui.WithSender(sender(opened.Path, &log)))
 
 	// The log is written either way: a post that failed partway through still
 	// names the endpoints it reached, which is what says whether anything
@@ -134,6 +135,23 @@ func submitter(path string, log io.Writer) tui.Submitter {
 		}
 
 		return fmt.Sprintf("posted to %s/%s #%d", r.Owner, r.Repo, r.Number), nil
+	}
+}
+
+// sender posts one comment from inside the review screen. The guard runs first
+// for the same reason it does for a whole review: a comment whose line moved
+// would land on whatever now sits there.
+func sender(path string, log io.Writer) tui.Sender {
+	return func(ctx context.Context, r *artifact.Review, id string) (string, error) {
+		if err := post.Guard(ctx, ".", r); err != nil {
+			return "", fmt.Errorf("posting %s: %w", id, err)
+		}
+
+		if err := post.One(ctx, post.GH(), path, r, id, log); err != nil {
+			return "", fmt.Errorf("posting %s: %w", id, err)
+		}
+
+		return "posted " + id + "; it is off the review now", nil
 	}
 }
 
@@ -279,7 +297,7 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return errUsagePost
 	}
 
-	dry, err := onlyFlag(args[1:], "--dry-run", errUsagePost)
+	dry, only, err := postFlags(args[1:])
 	if err != nil {
 		return err
 	}
@@ -299,6 +317,11 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 
+	if only != "" {
+		//nolint:wrapcheck // One's own error already names what failed
+		return post.One(ctx, post.GH(), path, r, only, stdout)
+	}
+
 	if dry {
 		//nolint:wrapcheck // DryRun's own error already names what failed
 		return post.DryRun(stdout, r)
@@ -306,6 +329,22 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 
 	//nolint:wrapcheck // Run's own error already names what failed
 	return post.Run(ctx, post.GH(), path, r, stdout)
+}
+
+// postFlags reads post's two optional flags. --only takes an id, and neither
+// flag may accompany the other: a dry run of one comment is a different command
+// nobody asked for, and guessing which was meant would post something.
+func postFlags(args []string) (bool, string, error) {
+	switch {
+	case len(args) == 0:
+		return false, "", nil
+	case len(args) == 1 && args[0] == "--dry-run":
+		return true, "", nil
+	case len(args) == 2 && args[0] == "--only" && args[1] != "":
+		return false, args[1], nil
+	}
+
+	return false, "", errUsagePost
 }
 
 // skillCmd prints the agent instructions the binary carries. Printing the
@@ -358,15 +397,6 @@ func prNumber(pr string) (int, error) {
 	}
 
 	return number, nil
-}
-
-// onlyFlag reads the one optional flag a command takes. Anything else is
-// refused rather than ignored: a mistyped --dry-run that fell through would
-// post the review.
-func onlyFlag(args []string, want string, usage error) (bool, error) {
-	flag, err := oneOf(args, usage, want)
-
-	return flag == want, err
 }
 
 // oneOf reads at most one flag out of a set, and refuses two at once: a command

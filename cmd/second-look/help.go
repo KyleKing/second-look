@@ -9,6 +9,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look show <pr> --threads  print the open review threads and their ids
   second-look post <pr>            post the review
   second-look post <pr> --dry-run  print the request without sending it
+  second-look post <pr> --only <id>  post one comment on its own, now
   second-look skill                print the agent instructions this binary carries
 
   --help  the full contract, including every JSON field
@@ -38,6 +39,10 @@ COMMANDS
       or unread hunk, n repeats that motion and N reverses it, and . repeats the
       last change. So triaging a review reads "]c" then "n . n . n .", and
       reading one through reads "]u" then "n" until nothing answers.
+
+      P posts the comment under the cursor on its own, now, and takes it off
+      the review. It asks nothing first: a single comment is small enough to
+      take back by deleting it on GitHub, where a whole review is not.
 
       w hides hunks that change nothing but whitespace and says how many it
       hid, and takes them out of the read count too, since a hunk nobody is
@@ -117,6 +122,12 @@ COMMANDS
       comment is still a draft. On success the prepared review is removed:
       GitHub is the source of truth from that point and re-running post would
       publish a second copy.
+
+  second-look post <pr> --only <id>
+      Post one comment on its own, outside any review, for the finding worth
+      saying now rather than at the end. The anchor guard runs first, the rest
+      of the review stays staged, and the comment is taken out of the file
+      because GitHub owns it from that moment.
 
   second-look skill
       Print the instructions for an agent driving this binary, as a skill file
