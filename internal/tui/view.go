@@ -399,6 +399,22 @@ func cut(s string, width int) string {
 	return ansi.Truncate(s, width, "…")
 }
 
+// cutTail keeps the end of what does not fit rather than the start, because the
+// end is what names the thing: a pull request number, a line number, the file
+// itself. Two threads on one long path render as the same row otherwise.
+func cutTail(s string, width int) string {
+	if width < 1 {
+		return ""
+	}
+
+	over := textWidth(s) - width
+	if over <= 0 {
+		return s
+	}
+
+	return "…" + ansi.TruncateLeft(s, over+1, "")
+}
+
 func pad(s string, width int) string {
 	if n := width - textWidth(s); n > 0 {
 		return s + strings.Repeat(" ", n)

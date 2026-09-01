@@ -79,10 +79,49 @@ func FirstLine(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 
 	for line := range strings.SplitSeq(s, "\n") {
-		if t := strings.TrimSpace(line); t != "" {
+		if t := strings.TrimSpace(line); t != "" && !banner(t) {
 			return t
 		}
 	}
 
 	return ""
+}
+
+// banner reports a line that is a bot labeling its own comment rather than
+// saying anything: "_🎯 Functional Correctness_ | _🟡 Minor_ | _⚡ Quick win_".
+// Previewing that tells a reader nothing about the thread, and on a queue where
+// half the rows are one reviewer it is half the queue.
+func banner(line string) bool {
+	// One emphasized sentence is a comment written in italics. Two bar-separated
+	// ones are a bot's row of labels.
+	const labels = 2
+
+	parts := strings.Split(line, "|")
+	if len(parts) < labels {
+		return false
+	}
+
+	for _, part := range parts {
+		if !emphasized(strings.TrimSpace(part)) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func emphasized(s string) bool {
+	const shortest = 2
+
+	if len(s) < shortest {
+		return false
+	}
+
+	for _, mark := range []string{"_", "*"} {
+		if strings.HasPrefix(s, mark) && strings.HasSuffix(s, mark) {
+			return true
+		}
+	}
+
+	return false
 }

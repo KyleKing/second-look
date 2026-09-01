@@ -46,13 +46,35 @@ func (l *List) header() string {
 	}
 
 	right := l.styles.subtitle.Render(l.subtitle() + " ")
-	gap := l.width - textWidth(left) - textWidth(right)
 
+	// The section yields to the counts and the title, since it is the one part
+	// of the line a reader can recover by looking at the rows under it.
+	const shortest = 8
+
+	room := l.width - textWidth(left) - textWidth(right) - indent
+	if section := l.section(); section != "" && room > shortest {
+		left += l.styles.subtitle.Render("  " + cut(section, room))
+	}
+
+	gap := l.width - textWidth(left) - textWidth(right)
 	if gap < 1 {
 		return cut(left, l.width)
 	}
 
 	return left + strings.Repeat(" ", gap) + right
+}
+
+// section is the heading the cursor sits under, which the header carries
+// because the heading itself scrolls away exactly when the list is long enough
+// to need it.
+func (l *List) section() string {
+	for i := min(l.cursor, len(l.lines)-1); i >= 0; i-- {
+		if h := l.lines[i].heading; h != "" {
+			return h
+		}
+	}
+
+	return ""
 }
 
 func (l *List) bodyView() string {
@@ -121,7 +143,7 @@ func (l *List) row(r *Row, left, mid int) string {
 		b.WriteString(" ")
 	}
 
-	b.WriteString(" " + pad(cut(r.Left, left), left))
+	b.WriteString(" " + pad(cutTail(r.Left, left), left))
 	b.WriteString("  " + pad(cut(r.Mid, mid), mid))
 	// The age column is fixed rather than measured: "13h" and "4d" are the whole
 	// range, and letting it vary would move the columns beside it between lists.
