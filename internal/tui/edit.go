@@ -59,7 +59,7 @@ func (m *Model) fit() {
 // box on screen the way it keeps a comment on screen.
 func (m *Model) toHead() {
 	for i := m.cursor; i >= 0; i-- {
-		if m.editingHere(i) {
+		if m.editingHere(i) || m.editingUnder(i) {
 			m.cursor = i
 			m.reveal()
 
@@ -101,9 +101,10 @@ func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 // editingHere reports whether the editor stands in for the block that starts at
-// row i.
+// row i. A comment written from nothing replaces no block, so it is drawn under
+// the line it will anchor to instead.
 func (m *Model) editingHere(i int) bool {
-	if m.editing == nil || i < 0 || i >= len(m.screen.rows) {
+	if m.editing == nil || m.editing.msg.fresh != nil || i < 0 || i >= len(m.screen.rows) {
 		return false
 	}
 
@@ -117,6 +118,23 @@ func (m *Model) editingHere(i int) bool {
 	}
 
 	return r.kind == rowComment && r.comment == m.editing.msg.index
+}
+
+// editingUnder reports whether the comment being written belongs under row i,
+// which is the line of the diff it will anchor to.
+func (m *Model) editingUnder(i int) bool {
+	if m.editing == nil || m.editing.msg.fresh == nil || i < 0 || i >= len(m.screen.rows) {
+		return false
+	}
+
+	r := m.screen.rows[i]
+	if r.kind != rowCode {
+		return false
+	}
+
+	f := m.editing.msg.fresh
+
+	return anchorOf(r.path, r.line) == anchor{path: f.path, side: f.side, line: f.line}
 }
 
 // spanEnd is the last row of the block starting at from.

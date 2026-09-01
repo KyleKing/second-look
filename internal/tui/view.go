@@ -243,6 +243,8 @@ func (m *Model) hints() [][2]string {
 		middle = [][2]string{{"m", "mark"}, {"e", "edit"}, {"z", "fold"}}
 	case m.current() != noComment:
 		middle = [][2]string{{"e", "write"}}
+	case m.onCode():
+		middle = [][2]string{{"a", "add"}}
 	}
 
 	view := [2]string{"c", m.view.next().String()}
@@ -255,6 +257,12 @@ func (m *Model) hints() [][2]string {
 	hints = append(hints, middle...)
 
 	return append(hints, [2]string{"S", "submit"}, [2]string{"?", "help"}, [2]string{"q", quitWord})
+}
+
+// onCode reports whether the cursor is on a line of the diff, which is the one
+// place a new comment can anchor.
+func (m *Model) onCode() bool {
+	return m.cursor >= 0 && m.cursor < len(m.screen.rows) && m.screen.rows[m.cursor].kind == rowCode
 }
 
 func (m *Model) helpLines() []string {
@@ -288,6 +296,10 @@ func (m *Model) rowLines() []string {
 		}
 
 		out = append(out, m.renderRow(i, width))
+
+		if m.editingUnder(i) {
+			out = append(out, m.editorLines()...)
+		}
 	}
 
 	for len(out) < h {

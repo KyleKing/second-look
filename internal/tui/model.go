@@ -186,6 +186,9 @@ type editedMsg struct {
 	field   field
 	body    string
 	err     error
+	// fresh is where a comment written from nothing lands, nil for every edit
+	// of something already staged.
+	fresh *staging
 }
 
 type sentMsg struct {
@@ -424,6 +427,8 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.foldNote(msg)
 
 		return m, nil
+	case 'a':
+		return m, m.writeAs(msg)
 	case 'S':
 		return m.submitAs(msg)
 	case 'm':
@@ -955,6 +960,8 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.edit()
 
 		return m, cmd
+	case key.Matches(msg, m.keys.Write):
+		m.askWrite()
 	case key.Matches(msg, m.keys.Submit):
 		m.askSubmit()
 	case key.Matches(msg, m.keys.Open):
@@ -971,7 +978,8 @@ func (m *Model) changes(msg tea.KeyPressMsg) bool {
 	return key.Matches(msg, m.keys.Ready) ||
 		key.Matches(msg, m.keys.Draft) ||
 		key.Matches(msg, m.keys.Skip) ||
-		key.Matches(msg, m.keys.Edit)
+		key.Matches(msg, m.keys.Edit) ||
+		key.Matches(msg, m.keys.Write)
 }
 
 // current is the comment the cursor is inside, or -1 when it is on code.
@@ -1236,6 +1244,12 @@ func (m *Model) applyEdit(msg editedMsg) {
 	// an editor closed without saving, which is a cancel rather than a change.
 	if msg.body == "" && msg.field == fieldBody && msg.index != reviewBody {
 		m.say("empty body, nothing changed", false)
+
+		return
+	}
+
+	if msg.fresh != nil {
+		m.stageNew(msg)
 
 		return
 	}

@@ -1273,6 +1273,67 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 	}
 }
 
+// The file name scrolls off exactly when the diff is long enough to lose track
+// of which file is in front of you, so the title carries it from then on.
+// Writing a comment with no agent involved was the last thing alpha left out:
+// the screen could restamp, edit, and answer a thread, and it could not start
+// one of its own.
+func TestWritingANewCommentOnTheLineUnderTheCursor(t *testing.T) {
+	t.Parallel()
+
+	m, path := fixture(t)
+
+	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "not one") {
+		t.Fatalf("a on the review's own prose was taken:\n%s", got)
+	}
+
+	go2(m, ']', 'h')
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+
+	line := m.CursorText()
+
+	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "[b]locker") {
+		t.Fatalf("a did not offer a severity:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'm', Text: "m"})
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "a major comment on") {
+		t.Fatalf("the editor did not open on the line:\n%s", frame)
+	}
+
+	// The line being commented on has to stay on screen, which is the whole
+	// reason the editor is in the frame rather than in $EDITOR.
+	if !strings.Contains(frame, strings.TrimSpace(line)) {
+		t.Errorf("the line being commented on left the frame:\n%s", frame)
+	}
+
+	typeIn(m, "this can fail")
+	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	saved := reviewAt(t, path)
+	if len(saved.Comments) != 1 {
+		t.Fatalf("comments = %+v", saved.Comments)
+	}
+
+	c := saved.Comments[0]
+	if c.ID != "mine-1" || c.Body != "this can fail" || c.Severity != "major" {
+		t.Errorf("staged %+v", c)
+	}
+
+	// It is ready and it carries the line it anchors to, so the post guard has
+	// what it needs and nothing has to be restamped first.
+	if c.Status != artifact.StatusReady || c.Anchor == "" {
+		t.Errorf("status = %q, anchor = %q", c.Status, c.Anchor)
+	}
+}
+
 // Saving an edit is the ruling a draft is waiting for. Writing the comment and
 // then reaching for m r to say it can go is a second decision nobody is making.
 func TestSavingAnEditMakesADraftReady(t *testing.T) {
