@@ -54,6 +54,7 @@ type keyMap struct {
 	Accept    key.Binding
 	Send      key.Binding
 	Submit    key.Binding
+	Open      key.Binding
 	Merge     key.Binding
 	Help      key.Binding
 	// Back leaves whatever has the keyboard without leaving the screen. It is
@@ -97,6 +98,7 @@ func defaultKeyMap() keyMap {
 		Accept:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
 		Send:      key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
 		Submit:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
+		Open:      key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "on GitHub")),
 		Merge:     key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
 		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
@@ -128,11 +130,11 @@ func foldObjects() [][2]string {
 }
 
 // events are what the second key of the submit chord can say the review is.
-// Pressing S again sends it as whatever it already says it is, which is the
-// path that has to stay two keystrokes.
-func events(staged string) [][2]string {
+// There is no key for "send it as whatever it already says": what a review is
+// posted as is the decision the confirmation exists to take, and a second S
+// would take it without naming it.
+func events() [][2]string {
 	return [][2]string{
-		{"S", "send as " + staged},
 		{"a", "approve"},
 		{"r", "request changes"},
 		{"c", commentWord},
@@ -163,7 +165,8 @@ func helpLines() [][2]string {
 		{"!", "run a shell here and attach what it printed to the note"},
 		{"C", "move the checkout onto this pull request"},
 		{"P", "post the comment under the cursor on its own, now"},
-		{"S then S / a / r / c", "submit: as staged, approving, requesting changes, commenting"},
+		{"S then a / r / c", "submit, approving, requesting changes, or commenting"},
+		{"o", "open the pull request on GitHub"},
 		{"M", "squash-merge the pull request, M again to confirm"},
 		{"? / esc", "this help, back"},
 		{"q", quitWord},

@@ -839,7 +839,7 @@ func TestAFailedSubmitIsReadableAndReported(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
-	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 
 	if !errors.Is(m.Failure(), fail) {
 		t.Errorf("the screen kept %v, want the submit failure", m.Failure())
@@ -860,7 +860,8 @@ func TestAFailedSubmitIsReadableAndReported(t *testing.T) {
 }
 
 // Posting is asynchronous, so the keys pressed while it is in flight arrive
-// before the result that sets posted. Four fast S presses must still post once.
+// before the result that sets posted. Four fast confirmations must still post
+// once.
 func TestSubmittingTwiceBeforeTheFirstAnswers(t *testing.T) {
 	t.Parallel()
 
@@ -869,7 +870,9 @@ func TestSubmittingTwiceBeforeTheFirstAnswers(t *testing.T) {
 	var cmds []tea.Cmd
 
 	for range 4 {
-		_, cmd := m.Update(tea.KeyPressMsg{Code: 'S', Text: "S"})
+		m.Update(tea.KeyPressMsg{Code: 'S', Text: "S"})
+
+		_, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
 		if cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -1082,9 +1085,9 @@ func TestSubmitAsksFirst(t *testing.T) {
 		frame string
 		event string
 	}{
-		{"asks", nil, 0, "[S]end as COMMENT", ""},
+		{"asks", nil, 0, "[a]pprove", ""},
 		{
-			name: "as staged", after: []tea.KeyPressMsg{{Code: 'S', Text: "S"}},
+			name: "commenting", after: []tea.KeyPressMsg{{Code: 'c', Text: "c"}},
 			posts: 1, frame: "posted 3 comments", event: artifact.EventComment,
 		},
 		{
@@ -1096,6 +1099,7 @@ func TestSubmitAsksFirst(t *testing.T) {
 			posts: 1, frame: "posted 3 comments", event: artifact.EventRequestChanges,
 		},
 		{"canceled", []tea.KeyPressMsg{{Code: 'j', Text: "j"}}, 0, "nothing was posted", ""},
+		{"S again does not send", []tea.KeyPressMsg{{Code: 'S', Text: "S"}}, 0, "nothing was posted", ""},
 	}
 
 	for _, tc := range tests {
@@ -1182,7 +1186,7 @@ func TestNothingIsWrittenBackAfterAPost(t *testing.T) {
 	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "on the add"))
 
 	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
-	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 
 	if err := os.Remove(path); err != nil {
 		t.Fatalf("standing in for the removal a post does: %v", err)

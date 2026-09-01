@@ -54,11 +54,12 @@ type Model struct {
 	path    string
 	// store is the directory this review's caches live in, which is where the
 	// rating is left for the queue to read.
-	store  string
-	submit Submitter
-	send   Sender
-	merge  Merger
-	tree   Tree
+	store   string
+	submit  Submitter
+	send    Sender
+	merge   Merger
+	browser Opener
+	tree    Tree
 
 	screen screen
 	cursor int
@@ -928,6 +929,8 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case key.Matches(msg, m.keys.Submit):
 		m.askSubmit()
+	case key.Matches(msg, m.keys.Open):
+		m.browse()
 	case key.Matches(msg, m.keys.Merge):
 		m.askMergeNow()
 	}
@@ -1341,8 +1344,8 @@ func (m *Model) applySent(msg sentMsg) {
 
 // askSubmit opens the submit chord. Posting is the only thing the screen does
 // that cannot be taken back, so the second key both confirms it and says what
-// kind of review it is: SS sends what the review already says it is, and Sa,
-// Sr, and Sc name one, which is the only way to change it short of the file.
+// kind of review it is: Sa, Sr, and Sc each name one, and naming it is the only
+// way to post.
 func (m *Model) askSubmit() {
 	// posting is set from the moment the request is dispatched, not when it
 	// answers, because the keys pressed while it is in flight arrive first and
@@ -1376,7 +1379,7 @@ func (m *Model) askSubmit() {
 	m.pending = 'S'
 	// The pull request is already named in the title bar, so the prompt spends
 	// its width on what the keys do and stays readable in an 80-column frame.
-	m.say("S  "+plural(c.ready, "comment")+"  "+hintLine(styles{}, events(m.event())), false)
+	m.say("S  "+plural(c.ready, "comment")+"  "+hintLine(styles{}, events()), false)
 }
 
 // submitAs answers the second key of the submit chord.
@@ -1384,8 +1387,6 @@ func (m *Model) submitAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var event string
 
 	switch {
-	case key.Matches(msg, m.keys.Submit):
-		event = m.event()
 	case msg.String() == "a":
 		event = artifact.EventApprove
 	case msg.String() == "r":
@@ -1477,12 +1478,28 @@ func (m *Model) answer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m *Model) event() string {
-	if m.review.Event == "" {
-		return artifact.EventComment
+// browse opens the pull request in whatever the desktop calls a browser. It
+// runs in front of the screen rather than as a command, because the open
+// returns as soon as the browser has been told and there is nothing to wait
+// for.
+func (m *Model) browse() {
+	if m.browser == nil {
+		m.say("opening a browser is not available here", true)
+
+		return
 	}
 
-	return m.review.Event
+	if err := m.browser(m.ctx, m.review); err != nil {
+		m.say(err.Error(), true)
+
+		return
+	}
+
+	m.say("opened "+m.where()+" on GitHub", false)
+}
+
+func (m *Model) where() string {
+	return fmt.Sprintf("%s/%s#%d", m.review.Owner, m.review.Repo, m.review.Number)
 }
 
 func (m *Model) firstDraft() int {
@@ -1521,7 +1538,7 @@ func (m *Model) applySubmit(msg submittedMsg) {
 	}
 
 	m.posted = true
-	m.say(msg.summary+", press q to leave", false)
+	m.say(msg.summary+", o opens it on GitHub, q leaves", false)
 }
 
 // applyMerge reports the merge. A failure is carried out of the screen the way

@@ -230,10 +230,10 @@ func TestReviewScreenSubmits(t *testing.T) {
 	sc.press("mr")
 	sc.await("is ready")
 
-	// SS sends the review as whatever it already says it is; Sa, Sr, and Sc
-	// name one instead, which is the only way to change it short of the file.
+	// Sa, Sr, and Sc each name what the review is posted as, and naming it is
+	// the only way to post: there is no key for "send it as whatever it says".
 	sc.press("S")
-	sc.press("S")
+	sc.press("c")
 	sc.await("posted to KyleKing/second-look #2")
 
 	sc.press("q")

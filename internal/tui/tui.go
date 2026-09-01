@@ -70,6 +70,17 @@ func WithSender(send Sender) Option {
 	return func(m *Model) { m.send = send }
 }
 
+// Opener shows the pull request in a browser. It reads nothing back: what the
+// screen wants is for the page to be open, and whether anyone looked at it is
+// not something a terminal can find out.
+type Opener func(ctx context.Context, r *artifact.Review) error
+
+// WithOpener allows o to open the pull request in a browser. Without one, the
+// key says so rather than appearing to work.
+func WithOpener(open Opener) Option {
+	return func(m *Model) { m.browser = open }
+}
+
 // Run opens the review screen and blocks until the person leaves it. Every
 // change is written to the artifact as it is made, so quitting loses nothing
 // and a crash loses only the keystroke in flight.

@@ -230,7 +230,7 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 	out, runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(t, opened.Path, &log),
 		tui.WithThreads(opened.Threads), tui.WithSeen(opened.Read, opened.SeenPath),
 		tui.WithSender(sender(t, opened.Path, &log)), tui.WithTree(tree(opened)),
-		tui.WithMerger(merger(t)), tui.WithStore(t.Store))
+		tui.WithMerger(merger(t)), tui.WithStore(t.Store), tui.WithOpener(opener(t)))
 
 	// The log is written either way: a post that failed partway through still
 	// names the endpoints it reached, which is what says whether anything
@@ -308,6 +308,24 @@ func merger(t get.Target) tui.Merger {
 		}
 
 		return fmt.Sprintf("merged %s/%s #%d", r.Owner, r.Repo, r.Number), nil
+	}
+}
+
+// opener shows the pull request in a browser, which is what to do with a review
+// the moment it posts: the thread it opened is on GitHub now and nothing local
+// carries it any more.
+func opener(t get.Target) tui.Opener {
+	return func(ctx context.Context, r *artifact.Review) error {
+		args := []string{"browse", "-n", strconv.Itoa(r.Number)}
+		if t.Remote() != "" {
+			args = append(args, "--repo", t.Remote())
+		}
+
+		if err := ghrun.GH().Run(ctx, t.Dir(), args...); err != nil {
+			return fmt.Errorf("opening #%d: %w", r.Number, err)
+		}
+
+		return nil
 	}
 }
 
