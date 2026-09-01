@@ -1,12 +1,12 @@
 [[interaction]]
-args = ['pr', 'view', '2', '--json', 'number,title,state,url,isDraft,mergeStateStatus,headRefName,headRefOid,headRepositoryOwner,baseRefName,statusCheckRollup']
+args = ['pr', 'view', '2', '--json', 'number,title,state,url,isDraft,mergeStateStatus,headRefName,headRefOid,headRepositoryOwner,baseRefName,statusCheckRollup', '--repo', 'KyleKing/second-look']
 stdout = """
 {"baseRefName":"main","headRefName":"fixture/review-target","headRefOid":"6bc1218809a6faf83bc266c7a10b6b096f814a74","headRepositoryOwner":{"id":"MDQ6VXNlcjM3ODQzMzk=","name":"Kyle King","login":"KyleKing"},"isDraft":true,"mergeStateStatus":"CLEAN","number":2,"state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:31Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804254","name":"ci","startedAt":"2026-09-01T01:39:55Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:12Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804313","name":"hooks","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:12Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804103","name":"actionlint","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:15Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804383","name":"lint","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:21Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804266","name":"project","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:09Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804319","name":"benchmark","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"}],"title":"test: Add a recording-target pull request for cassette tests","url":"https://github.com/KyleKing/second-look/pull/2"}
 """
 exit = 0
 
 [[interaction]]
-args = ['pr', 'diff', '2']
+args = ['pr', 'diff', '2', '--repo', 'KyleKing/second-look']
 stdout = """
 diff --git a/testdata/fixture/sample.go b/testdata/fixture/sample.go
 new file mode 100644

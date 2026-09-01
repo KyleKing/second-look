@@ -21,6 +21,7 @@ func TestReviews(t *testing.T) {
 	broken(t, dir, 9)
 
 	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "reviews", func(c *ghcassette.Cassette) {
+		inCheckout(c)
 		c.Interactions = nil
 	}))
 
@@ -49,6 +50,7 @@ func TestReviewsWithNothingStaged(t *testing.T) {
 	t.Parallel()
 
 	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "reviews-empty", func(c *ghcassette.Cassette) {
+		inCheckout(c)
 		c.Interactions = nil
 	}))
 
@@ -69,6 +71,7 @@ func TestReviewsJSON(t *testing.T) {
 	seedReview(t, dir, sha)
 
 	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "reviews-json", func(c *ghcassette.Cassette) {
+		inCheckout(c)
 		c.Interactions = nil
 	}))
 
@@ -118,6 +121,7 @@ func TestReviewsScreen(t *testing.T) {
 	broken(t, dir, 9)
 
 	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "reviews-screen", func(c *ghcassette.Cassette) {
+		inCheckout(c)
 		c.Interactions = nil
 	}))
 

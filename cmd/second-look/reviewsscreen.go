@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kyleking/second-look/internal/humanize"
@@ -28,7 +29,7 @@ var (
 type reviewsScreen struct {
 	ctx  context.Context //nolint:containedctx // it bounds the reread a refresh makes
 	rows []prepared.Review
-	open int
+	open *ref
 }
 
 var reviewsHelp = []string{
@@ -39,16 +40,16 @@ var reviewsHelp = []string{
 	"",
 	"  blocked means a comment is still a draft, which stops the submit.",
 	"  Every review here is unfinished: the file is deleted when it posts.",
-	"  Opening one you are not standing on moves the checkout onto it, and asks",
-	"  first if that would strand uncommitted work.",
+	"  A review with no checkout of its repository is listed in its own group and",
+	"  opens the same way, from the API.",
 }
 
 // openReviews shows the staged reviews and opens whichever one was chosen, once
 // this screen has given the terminal back.
 func openReviews(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
-	rows, err := prepared.List(".")
-	if err != nil && !errors.Is(err, prepared.ErrNoDir) {
-		return fmt.Errorf("listing the staged reviews: %w", err)
+	rows, err := staged()
+	if err != nil {
+		return err
 	}
 
 	s := &reviewsScreen{ctx: ctx, rows: rows}
@@ -62,8 +63,8 @@ func openReviews(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 		return fmt.Errorf("listing the staged reviews: %w", err)
 	}
 
-	if s.open > 0 {
-		return openStaged(ctx, s.open, stdin, stdout)
+	if s.open != nil {
+		return openRef(ctx, *s.open, stdin, stdout)
 	}
 
 	return nil
@@ -84,16 +85,21 @@ func (s *reviewsScreen) counts() string {
 	return fmt.Sprintf("%d staged · %d blocked", len(s.rows), blocked)
 }
 
-// sections is one group, because a handful of staged reviews sorted by recency
-// needs no buckets and inventing some would be noise.
+// sections splits by where the review is kept, because that is what says
+// whether the code under review is on this disk. Within a group recency is the
+// order and no further bucket earns its place.
 func (s *reviewsScreen) sections() []tui.Section {
 	now := time.Now()
-	rows := make([]tui.Row, 0, len(s.rows))
+	here := make([]tui.Row, 0, len(s.rows))
+
+	var away []tui.Row
 
 	for i := range s.rows {
 		r := &s.rows[i]
-		rows = append(rows, tui.Row{
-			Key:  strconv.Itoa(r.Number),
+		row := tui.Row{
+			// The key names the repository as well as the number, since the same
+			// number in two repositories is two rows.
+			Key:  r.Where(),
 			Left: r.Where(),
 			Mid:  prepared.State(r),
 			Age:  humanize.Ago(r.Modified, now),
@@ -101,10 +107,23 @@ func (s *reviewsScreen) sections() []tui.Section {
 			// A review with a draft in it is the one to come back to, which is
 			// what the unread mark means on this screen.
 			Unread: r.Blocked() || r.Broken != "",
-		})
+		}
+
+		if r.Detached {
+			away = append(away, row)
+
+			continue
+		}
+
+		here = append(here, row)
 	}
 
-	return []tui.Section{{Name: "staged under .second-look", Rows: rows}}
+	out := []tui.Section{{Name: "staged under .second-look", Rows: here}}
+	if len(away) > 0 {
+		out = append(out, tui.Section{Name: "staged with no checkout", Rows: away})
+	}
+
+	return out
 }
 
 // holds is what the review carries, or why it could not be read.
@@ -117,18 +136,13 @@ func holds(r *prepared.Review) string {
 }
 
 func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
-	number, err := strconv.Atoi(row.Key)
-	if err != nil {
-		return "", false, fmt.Errorf("%w: %s", errUnknownRow, row.Key)
-	}
-
 	switch a {
 	case tui.ActChoose:
-		return s.choose(number)
+		return s.choose(row.Key)
 	case tui.ActRefresh:
-		rows, err := prepared.List(".")
-		if err != nil && !errors.Is(err, prepared.ErrNoDir) {
-			return "", false, fmt.Errorf("listing the staged reviews: %w", err)
+		rows, err := staged()
+		if err != nil {
+			return "", false, err
 		}
 
 		s.rows = rows
@@ -147,22 +161,23 @@ var errNotHere = errors.New("that key belongs to the conversation queue; " +
 	"enter opens a review, ? lists the keys")
 
 // choose leaves the screen so the review can open. Two Bubble Tea programs
-// cannot own the terminal at once, so the number is carried out rather than the
-// screen opening it from inside.
-func (s *reviewsScreen) choose(number int) (string, bool, error) {
+// cannot own the terminal at once, so which review was chosen is carried out
+// rather than the screen opening it from inside.
+func (s *reviewsScreen) choose(key string) (string, bool, error) {
 	for i := range s.rows {
-		if s.rows[i].Number != number {
+		if s.rows[i].Where() != key {
 			continue
 		}
 
 		if s.rows[i].Broken != "" {
-			return "", false, fmt.Errorf("#%d: %w: %s", number, errUnreadable, s.rows[i].Broken)
+			return "", false, fmt.Errorf("%s: %w: %s", key, errUnreadable, s.rows[i].Broken)
 		}
 
-		s.open = number
+		owner, name, _ := strings.Cut(s.rows[i].Repository, "/")
+		s.open = &ref{owner: owner, repo: name, number: s.rows[i].Number}
 
-		return "opening #" + strconv.Itoa(number), true, nil
+		return "opening " + key, true, nil
 	}
 
-	return "", false, fmt.Errorf("%w: #%d", errUnknownRow, number)
+	return "", false, fmt.Errorf("%w: %s", errUnknownRow, key)
 }

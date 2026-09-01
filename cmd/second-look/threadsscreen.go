@@ -107,8 +107,8 @@ var threadsHelp = []string{
 	"  ● marks a conversation that moved since you last read it.",
 	"  A reply is staged into that pull request's prepared review and posts with it,",
 	"  so r leaves the queue and opens the review screen for it. Any repository will",
-	"  do: gh-repo-dashboard says which clones are on this laptop, and r moves that",
-	"  checkout onto the pull request, asking first if that would strand work.",
+	"  do, cloned here or not: gh-repo-dashboard says which clones are on this laptop,",
+	"  and a repository with none is reviewed from the API.",
 }
 
 // counts is the header's right-hand corner: how much is in the queue, and how

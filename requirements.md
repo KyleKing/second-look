@@ -193,6 +193,12 @@ Checking out is then a verb rather than a precondition, and it is lazy: offered 
 review screen when reading the tree is the thing being asked for, and never done to open
 a screen. A checkout that has to move is a checkout that asks first.
 
+It moves a clone that is already here and never makes one. Cloning is manual, so the lazy
+checkout is only ever the pull requests of a repository this directory is a checkout of,
+plus whichever other clones gh-repo-dashboard reports. A repository with no clone on this
+laptop is reviewed from the API and says so, because a tool that cloned tens of gigabytes
+to answer a keystroke would be the wrong tool.
+
 ### Which clone, when there are several
 
 One remote can be cloned several times on one laptop, plus its worktrees, and asking a
@@ -272,7 +278,9 @@ Navigation, only as far as the pipeline needs:
   hold a review while it is written, and answer conversations
 - Move between reviews without a checkout and without leaving the screen, which is the
   whole reason a dashboard is faster than a browser tab. Opening a pull request from any
-  list costs one API read, not a clone and a branch switch
+  list costs one API read, not a clone and a branch switch. Built: reading, triaging,
+  answering, and posting all work with no working copy, and `C` moves a clone that is
+  already here
 - A review-cost rating, deterministic, described below
 - Toggle whitespace and syntax-aware diffs inside a session, which no reviewed tool
   offers as a toggle

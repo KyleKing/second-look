@@ -7,11 +7,23 @@ Fetching a pull request, staging comments, reading the diff on screen, and posti
 work.
 
 ```bash
-second-look get 42        # fetch the PR, check it out, cache the diff
+second-look get 42        # fetch the PR, cache the diff, check it out
 # an agent drafts comments through the skill the binary prints
 second-look 42            # read the diff, triage the comments, submit with a key
 second-look post 42       # or post from the shell in one call
 ```
+
+A pull request is named three ways: `42` for this checkout's repository,
+`owner/repo#42`, or its URL. The last two need no clone of it. Reading the diff, triaging,
+answering a conversation, and posting all come off the API, so a review is prepared and
+finished from an empty directory, with its state under your config directory rather than
+in a working copy. `second-look reviews` lists those beside the checkout's own.
+
+`C` in the review screen is what gets a working copy when you want one: it moves the
+checkout onto the pull request, asks before it stashes anything, and draws the screen
+again. Cloning stays manual, so `C` moves a clone that is already on this laptop and says
+so when there is none. `!` refuses in that case too, rather than opening a shell against
+whatever the working directory happens to be.
 
 `second-look skill` prints the instructions an agent needs to drive it, ready to write
 into a skills directory.
@@ -49,24 +61,23 @@ where what it says is anchored to code and can be resolved. Its pull request com
 coverage tables and linkbacks nobody ever resolves, and admitting them filled the queue
 with 77 rows where 13 were real.
 
-`second-look reviews` lists what is staged under `.second-look/` in this checkout,
-newest first, and `enter` opens one. Everything it lists is unfinished, because the
-artifact is deleted the moment a review posts.
+`second-look reviews` lists what is staged under `.second-look/`, newest first: this
+checkout's, then the ones staged with no checkout of their repository at all. `enter`
+opens one. Everything it lists is unfinished, because the artifact is deleted the moment a
+review posts.
 
 Answering a conversation on a repository you are not standing in works too. second-look
 asks `gh repo-dashboard --cli` (from its cache, so no network) which clones of that
 repository are on this laptop, uses the one that answers, and offers the choice best first
-when several do: already on the branch, then clean, then one that would need a stash. It
-needs
+when several do: already on the branch, then clean, then one that would need a stash. A
+repository with no clone here is reviewed from the API instead. It needs
 [gh-repo-dashboard](https://github.com/kyleking/gh-repo-dashboard) new enough to print a
 `remote` field, and says so when it is not.
 
-Choosing a row off either list moves the checkout onto that pull request when standing
-somewhere else is what stops it opening. Uncommitted work is the case it asks about: it
-names how many files are dirty and offers to park them with `git stash`, and
-`git stash pop` brings them back. Nothing is popped for you, and declining leaves the
-tree as it was. Only a terminal is asked, so a piped run never has its working tree
-moved.
+Uncommitted work is the case the move asks about: it names how many files are dirty and
+offers to park them with `git stash`, and `git stash pop` brings them back. Nothing is
+popped for you, and declining leaves the tree as it was. Only a terminal is asked, so a
+piped run never has its working tree moved.
 
 `P` posts one comment on its own for the thing that should not wait, and
 `second-look post 42 --only <id>` does the same from the shell.
@@ -88,7 +99,8 @@ force-push that leaves a hunk alone leaves it read.
 
 `!` drops to your shell in the repository and attaches what the session printed to the
 comment under the cursor, so a comment carries the output that proves it. That note is
-local and never posted.
+local and never posted. It refuses while the checkout is on another branch or missing,
+since a shell there would run against something other than the diff.
 
 - [Next steps](NEXT_STEPS.md) — what alpha needs, in order, and what is still open
 - [Requirements](requirements.md) — scope, decisions made, and what is still open

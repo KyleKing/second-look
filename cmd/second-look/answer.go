@@ -12,30 +12,40 @@ import (
 	"github.com/kyleking/second-look/internal/conversations"
 )
 
-// Reasons a reply cannot be staged anywhere.
-var (
-	errNoCheckout = errors.New("no local checkout of it was found, and a reply is staged " +
-		"into the prepared review that lives in one; clone it, or answer on GitHub")
-	errNoneChosen = errors.New("no checkout was chosen")
-)
+// errNoneChosen is every offered checkout turned down, which is a decision
+// rather than a failure to find one.
+var errNoneChosen = errors.New("no checkout was chosen")
 
 // answer opens the review that stages a reply to a conversation, in whichever
-// checkout of its repository this laptop has.
+// checkout of its repository this laptop has and in none when it has none.
 //
-// Reading the queue needs no checkout and staging a reply does, because the
-// prepared review lives beside the diff cache and the read marks in the
-// repository it belongs to. So the checkout is found when the reply is asked
-// for rather than being a precondition for the queue.
+// Reading the queue needs no checkout, and neither does answering: the reply
+// carries the comment id it addresses, so it posts without a tree. A checkout is
+// still worth standing in when there is one, because that is where the diff
+// cache, the read marks, and an agent already look, so it is found when the
+// reply is asked for rather than being a precondition for the queue.
 func answer(
 	ctx context.Context, c *conversations.Conversation, here string, stdin io.Reader, stdout io.Writer,
 ) error {
+	owner, name, _ := strings.Cut(c.Repository, "/")
+	at := ref{owner: owner, repo: name, number: c.Number}
+
 	if here != "" && strings.EqualFold(here, c.Repository) {
-		return openStaged(ctx, c.Number, stdin, stdout)
+		return openRef(ctx, at, stdin, stdout)
 	}
 
 	root, err := pick(ctx, c, stdin, stdout)
 	if err != nil {
 		return fmt.Errorf("staging a reply to %s: %w", c.Where(), err)
+	}
+
+	if root == "" {
+		if err := write(stdout, "no checkout of "+c.Repository+
+			" here; reviewing "+c.Where()+" from the API\n"); err != nil {
+			return err
+		}
+
+		return openRef(ctx, at, stdin, stdout)
 	}
 
 	if err := write(stdout, "opening "+c.Where()+" in "+root+"\n"); err != nil {
@@ -50,12 +60,15 @@ func answer(
 		return fmt.Errorf("moving to %s: %w", root, err)
 	}
 
-	return openStaged(ctx, c.Number, stdin, stdout)
+	return openRef(ctx, at, stdin, stdout)
 }
 
-// pick is the checkout the review happens in. One candidate is used without
-// asking, since opening a review there moves nothing on its own, and several
-// means the ranking is a guess that the person at the keyboard settles.
+// pick is the checkout the review happens in, or empty for a repository this
+// laptop has no clone of, which is reviewed from the API instead.
+//
+// One candidate is used without asking, since opening a review there moves
+// nothing on its own, and several means the ranking is a guess that the person
+// at the keyboard settles.
 func pick(
 	ctx context.Context, c *conversations.Conversation, stdin io.Reader, stdout io.Writer,
 ) (string, error) {
@@ -66,7 +79,7 @@ func pick(
 	}
 
 	if len(found) == 0 {
-		return "", fmt.Errorf("%s: %w", c.Repository, errNoCheckout)
+		return "", nil
 	}
 
 	if len(found) == 1 {

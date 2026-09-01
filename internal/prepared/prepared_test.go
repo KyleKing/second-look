@@ -173,3 +173,62 @@ func TestWriteReportsStateAndCounts(t *testing.T) {
 		t.Errorf("a single reply is pluralized:\n%s", out)
 	}
 }
+
+// TestDetachedFindsReviewsWithNoCheckout is what keeps a review prepared away
+// from a clone findable. It lives three directories down under the state home,
+// beside state that is not a review at all.
+func TestDetachedFindsReviewsWithNoCheckout(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+
+	repo := filepath.Join(home, "github.com", "acme", "app")
+	if err := os.MkdirAll(repo, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	staged := stage(t)
+	if err := os.Rename(filepath.Join(staged, ".second-look"), filepath.Join(repo, ".second-look")); err != nil {
+		t.Fatal(err)
+	}
+
+	// The state home also holds the queue's read marks and, at the depth a
+	// repository sits at, whatever else is written there later.
+	if err := os.WriteFile(filepath.Join(home, "conversations.toml"), []byte("x = 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, "github.com", "acme", "nothing-staged"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := prepared.Detached(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(rows) != 3 {
+		t.Fatalf("%d row(s), want the 3 reviews staged: %+v", len(rows), rows)
+	}
+
+	for i := range rows {
+		if !rows[i].Detached {
+			t.Errorf("%s is not marked as having no checkout", rows[i].Where())
+		}
+	}
+}
+
+// TestDetachedOnAnEmptyHome is the first run, where nothing has been reviewed
+// away from a clone and the directory does not exist yet.
+func TestDetachedOnAnEmptyHome(t *testing.T) {
+	t.Parallel()
+
+	rows, err := prepared.Detached(filepath.Join(t.TempDir(), "never-written"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(rows) != 0 {
+		t.Errorf("%d row(s) from a home that does not exist", len(rows))
+	}
+}

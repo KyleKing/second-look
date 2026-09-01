@@ -1,4 +1,5 @@
-// Package prepared lists the reviews staged under .second-look/ in a checkout.
+// Package prepared lists the reviews staged under .second-look/, in a checkout
+// and in the state directory a review with no checkout is kept in.
 //
 // A prepared review is invisible until you remember its number. The artifact is
 // deleted the moment it posts, so whatever is on disk is unfinished work by
@@ -41,6 +42,10 @@ type Review struct {
 	// Body is set when the review carries a review-level comment, which posts
 	// even with no inline comment under it.
 	Body bool `json:"body"`
+
+	// Detached marks a review staged with no checkout of its repository, which
+	// lives in the state directory rather than in a working copy.
+	Detached bool `json:"detached,omitempty"`
 
 	// Broken is why a file on disk could not be read as a review. The row still
 	// lists: a file that no longer parses is the one most worth knowing about,
@@ -138,6 +143,77 @@ func List(root string) ([]Review, error) {
 	})
 
 	return out, nil
+}
+
+// Detached lists the reviews staged with no checkout, which live under
+// home/<host>/<owner>/<name>/.second-look. A missing directory is no reviews
+// rather than an error: reviewing away from a clone is the uncommon case.
+//
+// The state directory holds other things (the queue's read marks among them),
+// so a path that does not look like a repository is skipped rather than read.
+func Detached(home string) ([]Review, error) {
+	var out []Review
+
+	repos, err := repoDirs(home)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, root := range repos {
+		rows, err := List(root)
+		if err != nil {
+			if errors.Is(err, ErrNoDir) {
+				continue
+			}
+
+			return nil, err
+		}
+
+		for i := range rows {
+			rows[i].Detached = true
+		}
+
+		out = append(out, rows...)
+	}
+
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].Modified.After(out[j].Modified)
+	})
+
+	return out, nil
+}
+
+// repoDirs is every host/owner/name under home, which is the depth StateRoot
+// writes at.
+func repoDirs(home string) ([]string, error) {
+	const depth = 3
+
+	dirs := []string{home}
+
+	for range depth {
+		var next []string
+
+		for _, dir := range dirs {
+			entries, err := os.ReadDir(dir)
+			if os.IsNotExist(err) {
+				continue
+			}
+
+			if err != nil {
+				return nil, fmt.Errorf("reading %s: %w", dir, err)
+			}
+
+			for _, e := range entries {
+				if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+					next = append(next, filepath.Join(dir, e.Name()))
+				}
+			}
+		}
+
+		dirs = next
+	}
+
+	return dirs, nil
 }
 
 // prNumber reads the pull request number out of a staged review's filename.

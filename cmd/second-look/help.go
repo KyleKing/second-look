@@ -2,7 +2,9 @@ package main
 
 const shortHelp = `second-look — prepare a code review locally, then post it in one call.
 
-  second-look get <pr>             fetch the PR, check it out, prepare the review
+  <pr> is 42 for this checkout's repository, or owner/repo#42, or a PR URL.
+
+  second-look get <pr>             fetch the PR, prepare the review, check it out
   second-look comment add <pr>     stage comments from a JSON batch on stdin
   second-look show <pr>            print the prepared review
   second-look show <pr> --payload  print exactly what would be sent
@@ -32,10 +34,31 @@ posted fields, so a local field cannot leak by being forgotten.
 
 COMMANDS
 
+NAMING A PULL REQUEST
+
+  Every command below takes <pr> in three shapes. 42 is this checkout's own
+  repository. owner/repo#42 and a pull request URL name any other, which is what
+  makes reviewing one you have no clone of possible.
+
+  A review of a repository this directory is not a checkout of keeps its state
+  under the user config directory instead of in a working copy, one directory per
+  repository, and second-look reviews lists both.
+
   second-look <pr>
       Open the review screen: the diff with the prepared review's comments
       inline, where they anchor. Mark a comment ready, draft, or skipped, edit
       one in $EDITOR, and submit the review with S. Press ? for every key.
+
+      It needs no checkout. The diff, the open threads, and the comment id a
+      reply carries all come off the API, so a pull request is read, triaged,
+      answered, and posted with no working copy at all. What a tree adds is
+      reading around the change and running it, which is what C and ! are for.
+
+      C moves the working copy onto the pull request, asking before it stashes
+      anything, and draws the screen again. It is offered while standing in a
+      checkout of the same repository on another branch. Cloning is never done
+      for you: a repository with no clone here is reviewed from the API, and C
+      says so.
 
       Moving is a grammar rather than a key per destination: ] or [ followed by
       h, f, c, t, or u goes to the next or previous hunk, file, comment, thread,
@@ -75,32 +98,36 @@ COMMANDS
       E edits a comment's local note, and ! hands the terminal to $SHELL in the
       repository and appends what the session printed to that note. Running the
       code under review and then writing the comment is the flow that exists
-      for; the note never posts, so a transcript stays on this machine.
+      for; the note never posts, so a transcript stays on this machine. It
+      refuses while the checkout is on another branch or missing, since a shell
+      there would run against something other than the diff.
 
       Conversations already open on the pull request are shown where they
       anchor, and e on one writes the answer in $EDITOR, staged as a reply.
 
       It creates the prepared review and caches the diff if they are missing,
-      and never moves the working copy: the checkout has to already be on the
-      pull request head, which "gh pr checkout <pr>" or "second-look get <pr>"
-      does. A review staged against an older head is refused rather than shown
-      beside a diff it was not written against.
+      and moves the working copy only when C asks. A review staged against an
+      older head is refused rather than shown beside a diff it was not written
+      against.
 
   second-look
       The same, for the pull request the current branch belongs to. A branch
       with no pull request is an error, not a guess.
 
   second-look get <pr>
-      Read the pull request, move the working copy onto its head, write the
-      prepared review, and cache the diff under .second-look/diff/. Run this
-      first: every later command reads the head commit and the diff it leaves.
+      Read the pull request, write the prepared review, and cache the diff under
+      .second-look/diff/. Inside a checkout of the repository it also moves the
+      working copy onto the pull request head. Run this first: every later
+      command reads the head commit and the diff it leaves.
 
       It also caches the pull request's unresolved review threads under
       .second-look/threads/, which is what the review screen shows and answers.
       A resolved or outdated thread is skipped: an outdated one anchors to a
       line the diff no longer carries.
 
-      It never clones. A dirty working tree stops a move, and on a terminal it
+      It never clones, and it needs no checkout: a repository with no clone here
+      has its review, diff, and threads written under the user config directory
+      instead. A dirty working tree stops a move, and on a terminal it
       asks first: answer yes and the work is parked with git stash, which
       "git stash pop" brings back. A run nobody is watching is never asked and
       never moved. Already being on the pull request head is fine however dirty

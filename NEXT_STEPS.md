@@ -36,31 +36,11 @@ a clone and a branch switch. So the goal is one screen I can live in: read the q
 open any pull request in it, review it properly, answer the conversations, post, and move
 to the next one, without touching the working tree unless I mean to.
 
-Four things stand between here and that, in the order they want doing.
-
-**A review needs no checkout.** The diff comes from the API, an anchor is quoted from that
-diff, and a threaded reply carries a comment id, so nothing in the path needs git. What
-needs the tree is reading around the change and running it. So the artifact for a pull
-request with no clone here lives in the user state directory keyed by owner, repository,
-and number, `post` finds it from anywhere, and a checkout keeps its own `.second-look/`
-because that is where an agent looks and where the diff cache and read marks already are.
-`requirements.md` carries the rule.
-
-**Checking out becomes a lazy verb.** A key in the review screen, offered when reading the
-tree is what is being asked for, never a precondition for opening a screen. It reuses the
-stash question already built for `get`.
-
-**gh-repo-dashboard answers which clone.** One remote is cloned several times here, plus
-worktrees, and it already finds the peer checkouts of a remote. second-look shells out to
-`gh repo-dashboard --cli` (cached, so no network) and ranks what comes back: already on
-the head, then clean, then whichever can take a new branch, and it asks when the ranking
-is a guess. That needs one change upstream, since `--cli` prints no remote identity today
-and a path with no `owner/name` beside it cannot be matched to a pull request.
-
-**Then the list itself.** Sections driven by search queries rather than three fixed
-buckets, and the verbs gh-dash puts on a list row (checkout, comment, approve, merge)
-reachable from the queue. Issues beside pull requests is the one part of gh-dash I am not
-sure I want, so it waits for a real gap rather than parity for its own sake.
+Three of the four things that stood between here and that are built (below). What is left
+is **the list itself**: sections driven by search queries rather than three fixed buckets,
+and the verbs gh-dash puts on a list row (checkout, comment, approve, merge) reachable
+from the queue. Issues beside pull requests is the one part of gh-dash I am not sure I
+want, so it waits for a real gap rather than parity for its own sake.
 
 The division of labour with gh-repo-dashboard is worth stating, because two tools reading
 the same data is the failure mode to avoid. gh-repo-dashboard owns disk: clones,
@@ -69,6 +49,42 @@ aragonite owns the data both read and the views both draw, so neither is the oth
 server. `filter/` and `tui/table` are already named for extraction there, and the pull
 request cache is the next thing that wants to move, since both tools now ask GitHub the
 same questions.
+
+## Reviewing with no checkout — done
+
+A pull request is named three ways now: `42` for this checkout's repository,
+`owner/repo#42`, or a pull request URL, which is what a browser and a comment both hand
+over. Anything but a bare number reviews from the API alone, with the artifact, the diff
+cache, the thread cache, and the read marks under the user config directory, one directory
+per repository. `second-look reviews` lists those beside the checkout's own, because a
+review nobody can find again is a review lost.
+
+The addressing is the part that had to change upstream. aragonite's `GetPR` and `PRDiff`
+inferred the repository from a working directory, which is the assumption a tool holding
+pull requests from many repositories at once breaks. They take the repository explicitly
+now and pass `-R`. Inside a checkout second-look still passes nothing, because gh's own
+resolution reads the remotes and picks a fork's upstream correctly where a name derived
+from one remote would not. **That needs an aragonite release before this can be pushed.**
+
+Verified against live GitHub rather than only the cassette: prepared from an empty
+directory, read back from a third one, listed by `reviews` from a fourth, and the screen
+drawn on a real terminal with the three open threads on
+[#2](https://github.com/KyleKing/second-look/pull/2) rendered where they anchor.
+
+## The lazy checkout — done
+
+`C` in the review screen moves the working copy onto the pull request, asks before it
+stashes anything, and draws the screen again. The screen closes first because the stash
+question needs stdin and two Bubble Tea programs cannot own the terminal at once.
+
+Which means the checkout stopped being a precondition. `get.Open` reports where the tree
+is standing rather than refusing, so `ErrNotOnHead` is gone and choosing a row off either
+list opens the review instead of moving the tree, which answers the open question that was
+here about whether it should. `!` is the other half: a shell against another branch, or
+against a directory that is not the repository at all, is refused by name rather than run.
+
+Cloning stays manual. `C` moves a clone that is already here, and a repository with none
+says so.
 
 ## Decided since
 
@@ -576,12 +592,6 @@ takes a `copier update`, the `test:coverage-min` override in
 `ci:project` stays, since it is what runs the floor in CI.
 
 ## Open questions
-
-**Whether `enter` on the staged-review list should move the working tree at all.** It
-moves the checkout only when standing somewhere else is what stops the review opening,
-which is defensible and still surprising for a list of local files. Once a review opens
-with no checkout, the question answers itself: the move stops being needed and becomes the
-lazy verb.
 
 **What the queue sorts by past about forty rows.** Recency is right for thirteen and
 arbitrary for eighty, and the review-cost rating is the obvious candidate, which makes

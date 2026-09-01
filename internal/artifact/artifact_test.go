@@ -243,3 +243,37 @@ func TestValidateReportsEveryProblemAtOnce(t *testing.T) {
 		}
 	}
 }
+
+// TestStateRootRefusesWhatCannotNameADirectory is the one place a repository
+// read off a queue reaches the filesystem, so an owner or a name that walks out
+// of the state directory is refused rather than joined.
+func TestStateRootRefusesWhatCannotNameADirectory(t *testing.T) {
+	t.Parallel()
+
+	good, err := artifact.StateRoot("github.com", "acme", "app")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	home, err := artifact.StateHome()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want := filepath.Join(home, "github.com", "acme", "app"); good != want {
+		t.Errorf("StateRoot = %q, want %q", good, want)
+	}
+
+	for _, tc := range [][3]string{
+		{"github.com", "..", "app"},
+		{"github.com", "acme", ".."},
+		{"github.com", "acme/../..", "app"},
+		{"github.com", "", "app"},
+		{"github.com", "acme", ".hidden"},
+		{"", "acme", "app"},
+	} {
+		if got, err := artifact.StateRoot(tc[0], tc[1], tc[2]); err == nil {
+			t.Errorf("%q yielded %q, want a refusal", tc, got)
+		}
+	}
+}

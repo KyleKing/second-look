@@ -13,6 +13,40 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 )
 
+// Tree is what the working directory holds for the pull request under review.
+//
+// A review needs no working copy: the diff, the threads, and the comment id a
+// reply carries all come off the API. What a tree adds is reading around the
+// change and running it, so this is what the shell key can use and the checkout
+// key can offer.
+type Tree int
+
+const (
+	// TreeOnHead is a checkout standing on the pull request head, where a shell
+	// runs against the code the diff describes.
+	TreeOnHead Tree = iota
+	// TreeElsewhere is a checkout of the same repository standing on something
+	// else, which C moves onto the pull request.
+	TreeElsewhere
+	// TreeNone is no checkout of the repository here. Nothing in the screen
+	// conjures one: cloning is a decision rather than a side effect of reading.
+	TreeNone
+)
+
+// WithTree says where the working copy stands. The default is a checkout on the
+// head, which is what a review opened in its own repository has.
+func WithTree(t Tree) Option {
+	return func(m *Model) { m.tree = t }
+}
+
+// Outcome is what the screen was left through, beyond the failure it carries.
+type Outcome struct {
+	// Checkout reports that C asked for the working copy to be moved onto the
+	// pull request. The screen closes first: the move asks about uncommitted
+	// work, and two programs cannot own the terminal at once.
+	Checkout bool
+}
+
 // Sender posts one comment on its own, outside any review. It is a separate
 // seam from Submitter because it is a different request with a different
 // consequence: the comment is gone from the prepared review afterwards, and the
@@ -34,15 +68,15 @@ func WithSender(send Sender) Option {
 func Run(
 	ctx context.Context, r *artifact.Review, d *diff.Diff,
 	path string, submit Submitter, opts ...Option,
-) error {
+) (Outcome, error) {
 	final, err := tea.NewProgram(New(ctx, r, d, path, submit, opts...)).Run()
 	if err != nil {
-		return fmt.Errorf("running the review screen: %w", err)
+		return Outcome{}, fmt.Errorf("running the review screen: %w", err)
 	}
 
 	if m, ok := final.(*Model); ok {
-		return m.failure
+		return Outcome{Checkout: m.checkout}, m.failure
 	}
 
-	return nil
+	return Outcome{}, nil
 }

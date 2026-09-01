@@ -15,18 +15,18 @@ import (
 // watching, so an agent or a pipe never has its working tree moved.
 type Confirm func(question string) (bool, error)
 
-// Prepare moves the checkout onto a pull request's head so its review can be
-// opened, and parks uncommitted work first when ask agrees to it.
+// Prepare prepares a review, parking uncommitted work first when the move onto
+// the pull request head needs a clean tree and ask agrees to it.
 //
 // Turning the stash down leaves the tree untouched and the move undone, which is
 // the other way out: commit or stash by hand, then ask again.
-func Prepare(ctx context.Context, out io.Writer, root string, number int, ask Confirm) error {
-	err := Run(ctx, out, root, number)
+func Prepare(ctx context.Context, out io.Writer, t Target, ask Confirm) error {
+	err := Run(ctx, out, t)
 	if err == nil || !errors.Is(err, ErrDirtyTree) {
 		return err
 	}
 
-	yes, askErr := ask(fmt.Sprintf("%s. Stash them and check out #%d?", dirty(ctx, root), number))
+	yes, askErr := ask(fmt.Sprintf("%s. Stash them and check out #%d?", dirty(ctx, t.Work), t.Number))
 	if askErr != nil {
 		return askErr
 	}
@@ -36,7 +36,7 @@ func Prepare(ctx context.Context, out io.Writer, root string, number int, ask Co
 		return err
 	}
 
-	if err := stash.Push(ctx, root, fmt.Sprintf("second-look: before reviewing #%d", number)); err != nil {
+	if err := stash.Push(ctx, t.Work, fmt.Sprintf("second-look: before reviewing #%d", t.Number)); err != nil {
 		//nolint:wrapcheck // Push's own error already names what failed
 		return err
 	}
@@ -45,7 +45,7 @@ func Prepare(ctx context.Context, out io.Writer, root string, number int, ask Co
 		return err
 	}
 
-	return Run(ctx, out, root, number)
+	return Run(ctx, out, t)
 }
 
 // dirty describes what the move would clobber, so the question names a number of

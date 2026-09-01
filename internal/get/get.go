@@ -1,5 +1,6 @@
-// Package get prepares a review: it reads the pull request, moves the working
-// copy onto its head, writes the artifact, and caches the diff.
+// Package get prepares a review: it reads the pull request, writes the
+// artifact, and caches the diff. Inside a checkout of the repository it also
+// moves the working copy onto the pull request head.
 package get
 
 import (
@@ -29,60 +30,58 @@ var (
 	ErrNotARepo  = errors.New("not a git or jj repository")
 )
 
-// Run prepares the review for a pull request in the checkout at root.
-func Run(ctx context.Context, out io.Writer, root string, number int) error {
-	if !vcs.IsRepo(root) {
-		return fmt.Errorf("%s: %w", root, ErrNotARepo)
-	}
-
-	repoID, err := identify(ctx, root)
+// Run prepares the review for a pull request.
+//
+// A target with a checkout has its working copy moved onto the pull request
+// head, which is what makes reading around the change and running it possible.
+// A detached target moves nothing: everything the review itself needs comes off
+// the API, and there is no tree to move.
+func Run(ctx context.Context, out io.Writer, t Target) error {
+	pr, err := github.GetPR(ctx, t.Dir(), t.Remote(), t.Number)
 	if err != nil {
-		return err
-	}
-
-	pr, err := github.GetPR(ctx, root, number)
-	if err != nil {
-		return fmt.Errorf("reading pull request #%d: %w", number, err)
+		return fmt.Errorf("reading pull request #%d: %w", t.Number, err)
 	}
 	if pr.HeadSHA == "" {
-		return fmt.Errorf("#%d: %w", number, ErrNoHeadSHA)
+		return fmt.Errorf("#%d: %w", t.Number, ErrNoHeadSHA)
 	}
 
-	if err := checkout(ctx, out, root, pr); err != nil {
-		return err
+	if !t.Detached() {
+		if err := checkout(ctx, out, t.Work, pr); err != nil {
+			return err
+		}
 	}
 
-	patch, err := github.PRDiff(ctx, root, number)
+	patch, err := github.PRDiff(ctx, t.Dir(), t.Remote(), t.Number)
 	if err != nil {
 		return fmt.Errorf("caching the diff: %w", err)
 	}
-	if err := artifact.SaveDiff(root, pr.HeadSHA, patch); err != nil {
+	if err := artifact.SaveDiff(t.Store, pr.HeadSHA, patch); err != nil {
 		return fmt.Errorf("caching the diff: %w", err)
 	}
 
-	if err := cacheThreads(ctx, out, root, repoID, pr.HeadSHA, number); err != nil {
+	if err := cacheThreads(ctx, out, t, pr.HeadSHA); err != nil {
 		return err
 	}
 
-	previous := headOf(root, number)
-	if err := writeReview(out, root, repoID, pr); err != nil {
+	previous := headOf(t.Store, t.Number)
+	if err := writeReview(out, t, pr); err != nil {
 		return err
 	}
 
-	return carryRead(out, root, number, previous, pr.HeadSHA)
+	return carryRead(out, t.Store, t.Number, previous, pr.HeadSHA)
 }
 
 // cacheThreads reads the conversations already open on the pull request, so a
 // second pass can answer them. A repository whose threads cannot be read is
 // still worth reviewing, so the failure is reported and the run continues.
-func cacheThreads(ctx context.Context, out io.Writer, root string, id repo, sha string, number int) error {
-	open, err := threads.Fetch(ctx, root, id.owner, id.name, number)
+func cacheThreads(ctx context.Context, out io.Writer, t Target, sha string) error {
+	open, err := threads.Fetch(ctx, t.Dir(), t.Owner, t.Repo, t.Number)
 	if err != nil {
 		//nolint:wrapcheck // Fetch's own error already names the pull request
 		return err
 	}
 
-	if err := artifact.SaveThreads(root, sha, open); err != nil {
+	if err := artifact.SaveThreads(t.Store, sha, open); err != nil {
 		return fmt.Errorf("caching the review threads: %w", err)
 	}
 
@@ -153,12 +152,20 @@ type repo struct {
 // what says whether a conversation on another repository's pull request can be
 // answered from here.
 func Repository(ctx context.Context, root string) (string, error) {
+	if !vcs.IsRepo(root) {
+		return "", notARepo(root)
+	}
+
 	id, err := identify(ctx, root)
 	if err != nil {
 		return "", err
 	}
 
 	return id.owner + "/" + id.name, nil
+}
+
+func notARepo(root string) error {
+	return fmt.Errorf("%s: %w", root, ErrNotARepo)
 }
 
 // identify reads the repository off the remote rather than off the pull
@@ -245,8 +252,8 @@ func requireCleanTree(ctx context.Context, ops vcs.StatusReader, root string) er
 
 // writeReview creates the artifact, or moves an existing one onto the new head
 // and says how many comments came with it.
-func writeReview(out io.Writer, root string, id repo, pr *forge.PullRequest) error {
-	path := artifact.Path(root, pr.Number)
+func writeReview(out io.Writer, t Target, pr *forge.PullRequest) error {
+	path := artifact.Path(t.Store, pr.Number)
 
 	review, err := artifact.LoadOrNew(path)
 	if err != nil {
@@ -256,9 +263,9 @@ func writeReview(out io.Writer, root string, id repo, pr *forge.PullRequest) err
 	moved := review.HeadSHA != "" && review.HeadSHA != pr.HeadSHA
 
 	review.Version = artifact.SchemaVersion
-	review.Host = "github.com"
-	review.Owner = id.owner
-	review.Repo = id.name
+	review.Host = Host
+	review.Owner = t.Owner
+	review.Repo = t.Repo
 	review.Number = pr.Number
 	review.HeadSHA = pr.HeadSHA
 

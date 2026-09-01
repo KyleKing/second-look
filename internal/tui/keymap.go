@@ -27,6 +27,7 @@ type keyMap struct {
 	Edit     key.Binding
 	Note     key.Binding
 	Shell    key.Binding
+	Checkout key.Binding
 	Ready    key.Binding
 	Draft    key.Binding
 	Skip     key.Binding
@@ -59,6 +60,7 @@ func defaultKeyMap() keyMap {
 		Edit:     key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
 		Note:     key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "note")),
 		Shell:    key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
+		Checkout: key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
 		Ready:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
 		Draft:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
 		Skip:     key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
@@ -106,6 +108,7 @@ func helpLines() [][2]string {
 		{"e", "edit a comment, or answer an open thread, in $EDITOR"},
 		{"E", "edit the comment's local note in $EDITOR"},
 		{"!", "run a shell here and attach what it printed to the note"},
+		{"C", "move the checkout onto this pull request"},
 		{"P", "post the comment under the cursor on its own, now"},
 		{"S", "submit the review to GitHub, S again to confirm"},
 		{"? / esc", "this help, back"},

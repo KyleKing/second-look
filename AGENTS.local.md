@@ -67,6 +67,15 @@ with invented content. Every admit-or-drop rule is exercised against that one re
 because the rules interact: a bot's inline thread stays while the same bot's pull request
 comment goes, and that only reads as a rule when both are present.
 
+### `--repo` is in the recording, and stripped for the tests that stand in a checkout
+
+`post-review` and `post-reply` were recorded from a directory holding nothing but a
+prepared review, which is what `post` reads, so their `pr view` and `pr diff` calls carry
+`--repo KyleKing/second-look`: with no checkout to read a repository off, second-look names
+it. A test that stands in `scratchRepo` gets the other shape, because there gh resolves the
+repository itself, and `inCheckout` in `e2e_test.go` drops the flag for those. Re-recording
+produces the flag again, so the file stays canonical and `inCheckout` stays the derivation.
+
 ### The suite reaches nothing
 
 Only `gh` is replayed. `git` runs for real, so a code path that shells out to the network
@@ -74,6 +83,12 @@ would pass on a laptop that has credentials and hang in CI. `scratchRepo` points
 at `https://127.0.0.1:1/KyleKing/second-look.git`, which parses as the right repository
 and answers nothing. A test that starts failing with a connection error has found a new
 network call, not a broken fixture.
+
+`childEnv` also gives every child its own `HOME` and `XDG_CONFIG_HOME`. The queue's read
+marks and every review staged with no checkout live under the user config directory, so a
+child inheriting a real one would read the state of whoever runs the suite and write into
+it. A test that inspects that state appends its own `HOME`, which wins because `os/exec`
+keeps the last of a repeated variable.
 
 ## Coverage counts the subprocess
 

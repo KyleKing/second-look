@@ -23,6 +23,10 @@ const fixtureHeadSHA = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
 // headBranch is the pull request's head ref, which the recording names.
 const headBranch = "fixture/review-target"
 
+// fixtureRepo is the recording target, which the recorded reads name because
+// they were made from a directory that is not a checkout of it.
+const fixtureRepo = "KyleKing/second-look"
+
 //nolint:gochecknoglobals // the binary under test, built once by TestMain
 var (
 	binary   string
@@ -143,7 +147,7 @@ func seedDiff(t *testing.T, dir string) {
 
 	c := load(t, "post-review")
 
-	patch, err := c.Response("pr", "diff", "2")
+	patch, err := c.Response("pr", "diff", "2", "--repo", fixtureRepo)
 	if err != nil {
 		t.Fatalf("the cassette has no recorded diff: %v", err)
 	}
@@ -216,11 +220,25 @@ func runCLIStdinEnv(
 }
 
 // childEnv is what the binary under test runs with: the cassette's gh, the
-// repository its recording names, and where to record what it ran.
+// repository its recording names, where to record what it ran, and a home of
+// its own.
+//
+// The home matters as much as the cassette. The queue's read marks and the
+// reviews staged with no checkout both live under the user config directory, so
+// a child inheriting a real one would read the state of whoever is running the
+// suite and write into it. A test that wants to inspect that state appends its
+// own HOME, which wins.
 func childEnv(t *testing.T, s *ghcassette.Session) []string {
 	t.Helper()
 
-	env := append(s.Env(t), "GH_REPO=KyleKing/second-look")
+	home := t.TempDir()
+
+	env := append(s.Env(t),
+		"GH_REPO="+fixtureRepo,
+		"HOME="+home,
+		"XDG_CONFIG_HOME="+filepath.Join(home, ".config"),
+	)
+
 	if coverDir != "" {
 		env = append(env, "GOCOVERDIR="+coverDir)
 	}
@@ -315,6 +333,7 @@ func reviewCassette(t *testing.T, sha string) string {
 	t.Helper()
 
 	return deriveFrom(t, "post-review", "review-screen", func(c *ghcassette.Cassette) {
+		inCheckout(c)
 		restamp(c, sha)
 		c.Interactions = append(c.Interactions[:reads:reads], c.Interactions...)
 	})
@@ -328,6 +347,7 @@ func getCassette(t *testing.T, sha string) string {
 	t.Helper()
 
 	return deriveFrom(t, "post-review", "get", func(c *ghcassette.Cassette) {
+		inCheckout(c)
 		restamp(c, sha)
 		c.Interactions = append(c.Interactions[:reads:reads], threadInteraction(t)...)
 	})
@@ -352,6 +372,7 @@ func openOnlyCassette(t *testing.T, sha string) string {
 	t.Helper()
 
 	return deriveFrom(t, "post-review", "open-only", func(c *ghcassette.Cassette) {
+		inCheckout(c)
 		restamp(c, sha)
 		c.Interactions = c.Interactions[:reads]
 	})
@@ -360,6 +381,24 @@ func openOnlyCassette(t *testing.T, sha string) string {
 // reads is how many gh calls reading a pull request costs: the pull request
 // itself, then its diff.
 const reads = 2
+
+// inCheckout drops the --repo the recording carries. It was recorded from a
+// directory holding nothing but a prepared review, where the repository has to
+// be named; a test standing in a checkout of it leaves the repository to gh,
+// which is what the binary does there.
+func inCheckout(c *ghcassette.Cassette) {
+	for i := range c.Interactions {
+		args := c.Interactions[i].Args
+
+		for j := 0; j+1 < len(args); j++ {
+			if args[j] == "--repo" {
+				c.Interactions[i].Args = append(append([]string{}, args[:j]...), args[j+2:]...)
+
+				break
+			}
+		}
+	}
+}
 
 func restamp(c *ghcassette.Cassette, sha string) {
 	for i := range c.Interactions {

@@ -199,6 +199,7 @@ func TestGetRefusesToMoveADirtyTree(t *testing.T) {
 
 	dir, _ := scratchRepo(t, "some-other-branch")
 	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "elsewhere", func(c *ghcassette.Cassette) {
+		inCheckout(c)
 		c.Interactions = c.Interactions[:1]
 	}))
 
@@ -222,6 +223,7 @@ func TestGetRefusesSomewhereThatIsNotARepo(t *testing.T) {
 	t.Parallel()
 
 	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "no-calls", func(c *ghcassette.Cassette) {
+		inCheckout(c)
 		c.Interactions = nil
 	}))
 
@@ -263,6 +265,7 @@ func TestGetOffersToStashADirtyTree(t *testing.T) {
 
 			dir, _ := scratchRepo(t, "some-other-branch")
 			s := ghcassette.Replay(t, deriveFrom(t, "post-review", "stash-"+tc.name, func(c *ghcassette.Cassette) {
+				inCheckout(c)
 				c.Interactions = c.Interactions[:1]
 			}))
 

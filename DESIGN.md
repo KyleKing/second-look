@@ -48,12 +48,20 @@ flowchart TB
 | `review/rate` | Deterministic review-cost rating |
 | `conversations` | The cross-repository conversation queue and what has been read |
 | `resolve` | Resolve a thread, or thumbs-up what GitHub gives no resolve |
-| `prepared` | What is staged under `.second-look/` in a checkout |
+| `prepared` | What is staged under `.second-look/`, in a checkout and in the state directory |
 | `stash` | Park uncommitted work so the checkout can move onto a pull request |
 | `checkouts` | Which local clones hold a repository, asked of gh-repo-dashboard |
 | `aragonite/forge` | Fetch a pull request, post a review atomically |
 | `aragonite/vcs` | Diff, branch identity, and working-tree state for git and jj |
 | `aragonite/cache` | Everything network-derived and everything expensive to compute |
+
+State lives in one of two places, and every path helper takes a root and appends
+`.second-look` so neither is a special case. A pull request of the repository the working
+directory belongs to keeps its review, diff cache, thread cache, and read marks in that
+checkout, which is where an agent looks. Any other keeps them under the user config
+directory, one directory per host, owner, and name, because the queue spans repositories
+and a review filed into whichever checkout happened to be open would be lost to every
+other one.
 
 The CLI is the agent's interface. `--help` prints every subcommand, the JSON shapes each
 accepts and emits, and the errors each raises, so Claude Code can drive the tool with no
@@ -182,22 +190,28 @@ stopped it opening.
 
 ### Staged reviews
 
-What is on disk under `.second-look/` in this checkout, newest first. The artifact is
-deleted the moment a review posts, so every row is unfinished work: the review being
-written, or one whose head has since moved and which will refuse to post until it is
-prepared again.
+What is on disk under `.second-look/`, newest first, in two groups: this checkout, then
+the reviews staged with no checkout of their repository at all. The artifact is deleted the
+moment a review posts, so every row is unfinished work: the review being written, or one
+whose head has since moved and which will refuse to post until it is prepared again.
 
 ```
- second-look staged reviews                                  4 staged · 1 blocked
+ second-look staged reviews                                  5 staged · 1 blocked
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ staged under .second-look (4)                                                │
 │ ● #9                        unreadable  7m   owner, repo, and number are all  │
 │   kyleking/second-look#2    ready       7m   1 ready · 1 reply · body @6bc121 │
 │   kyleking/second-look#118  ready       17d  3 ready · 2 skipped · body       │
 │ ● kyleking/second-look#42   blocked     1y   3 ready · 1 draft · 1 skipped    │
+│ staged with no checkout (1)                                                  │
+│   acme/platform#904         ready       2h   2 ready · body        @91af0c2   │
 └──────────────────────────────────────────────────────────────────────────────┘
  [enter]open [ctrl+r]refresh [?]help
 ```
+
+The second group is what makes a review with no clone findable again. Both groups open the
+same way, from the API, and `C` inside the screen is what gets a working copy when one is
+wanted.
 
 A file that no longer parses is listed with its reason rather than skipped, because a
 review I cannot read is the row most worth knowing about. `blocked` means a comment is

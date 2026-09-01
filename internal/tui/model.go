@@ -51,6 +51,7 @@ type Model struct {
 	path    string
 	submit  Submitter
 	send    Sender
+	tree    Tree
 
 	screen screen
 	cursor int
@@ -79,6 +80,8 @@ type Model struct {
 	listing    bool
 	folding    bool
 	help       bool
+	// checkout is C, answered by the caller once the screen has closed.
+	checkout bool
 	// failure is the last submit that did not post, cleared by one that does.
 	// The screen leaves through it, so a run that failed to post says so on
 	// stdout and in the exit code rather than only in a footer nobody kept.
@@ -579,6 +582,10 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.shell()
 
 		return m, cmd
+	case key.Matches(msg, m.keys.Checkout):
+		cmd := m.wantCheckout()
+
+		return m, cmd
 	case key.Matches(msg, m.keys.Note):
 		cmd := m.editNote()
 
@@ -686,7 +693,44 @@ func (m *Model) editNote() tea.Cmd {
 // session printed to the note under the cursor. Running the code under review
 // and then writing the comment is the flow this exists for, and a transcript is
 // what makes the comment evidence rather than a claim.
+// C leaves the screen so the working copy can be moved onto the pull request,
+// which is the one thing reviewing from the API cannot supply.
+func (m *Model) wantCheckout() tea.Cmd {
+	switch m.tree {
+	case TreeOnHead:
+		m.say("the checkout is already on this pull request", false)
+
+		return nil
+	case TreeNone:
+		m.say("no checkout of "+m.review.Owner+"/"+m.review.Repo+" here; clone it first", true)
+
+		return nil
+	case TreeElsewhere:
+	}
+
+	m.checkout = true
+
+	return tea.Quit
+}
+
+// noTree is why the shell has nowhere useful to run, which is worth naming
+// rather than opening one against whatever the working directory happens to be.
+func (m *Model) noTree() string {
+	if m.tree == TreeNone {
+		return "no checkout of " + m.review.Owner + "/" + m.review.Repo +
+			" here, so a shell would run somewhere else"
+	}
+
+	return "the checkout is on another branch; C moves it onto this pull request"
+}
+
 func (m *Model) shell() tea.Cmd {
+	if m.tree != TreeOnHead {
+		m.say(m.noTree(), true)
+
+		return nil
+	}
+
 	i := m.current()
 	if i < 0 {
 		m.say("no comment here; the transcript attaches to one", false)

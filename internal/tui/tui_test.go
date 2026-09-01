@@ -105,6 +105,84 @@ func press(m *tui.Model, k tea.KeyPressMsg) {
 	}
 }
 
+// TestTreeDecidesWhatCheckoutAndShellCanDo is the lazy checkout. A review opens
+// whether or not a working copy is on its head, so asking for one is C, and a
+// shell that would run against something else is refused by name.
+func TestTreeDecidesWhatCheckoutAndShellCanDo(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		tree     tui.Tree
+		wants    bool
+		says     string
+		refusing string
+	}{
+		{
+			name: "standing on the head", tree: tui.TreeOnHead,
+			says: "already on this pull request",
+		},
+		{
+			name: "standing on another branch", tree: tui.TreeElsewhere, wants: true,
+			refusing: "C moves it onto this pull request",
+		},
+		{
+			name: "no checkout of it here", tree: tui.TreeNone,
+			says: "clone it first", refusing: "would run somewhere else",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := treeFixture(t, tc.tree)
+
+			press(m, tea.KeyPressMsg{Code: 'C', Text: "C"})
+
+			if got := m.WantsCheckout(); got != tc.wants {
+				t.Errorf("C asked for a checkout = %v, want %v", got, tc.wants)
+			}
+
+			if tc.says != "" && !strings.Contains(plain(m.Frame()), tc.says) {
+				t.Errorf("C never said %q:\n%s", tc.says, plain(m.Frame()))
+			}
+
+			if tc.refusing == "" {
+				return
+			}
+
+			// A shell on the head is the working path and launches one, so only
+			// the two that refuse are driven here.
+			press(m, tea.KeyPressMsg{Code: '!', Text: "!"})
+
+			if !strings.Contains(plain(m.Frame()), tc.refusing) {
+				t.Errorf("! never said %q:\n%s", tc.refusing, plain(m.Frame()))
+			}
+		})
+	}
+}
+
+func treeFixture(t *testing.T, tree tui.Tree) *tui.Model {
+	t.Helper()
+
+	sub := &counter{}
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+		Comments: []artifact.Comment{comment("c1", parsed, "RIGHT", 16, "a word")},
+	}
+
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, sub.post, tui.WithTree(tree))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	return m
+}
+
 // A terminal spends cells, not runes and not bytes: a CJK glyph takes two and
 // an accent takes one while costing two bytes. Every frame has to land inside
 // the width whatever the comment is written in.

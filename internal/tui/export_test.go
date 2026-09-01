@@ -34,3 +34,6 @@ func (l *List) CursorKey() string {
 
 	return ""
 }
+
+// WantsCheckout is C, which the caller answers once the screen has closed.
+func (m *Model) WantsCheckout() bool { return m.checkout }

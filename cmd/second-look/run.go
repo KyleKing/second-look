@@ -54,7 +54,7 @@ const (
 
 func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) == 0 {
-		return reviewCurrent(ctx, stdout)
+		return reviewCurrent(ctx, stdin, stdout)
 	}
 
 	switch args[0] {
@@ -65,9 +65,9 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	case "get":
 		return getCmd(ctx, args[1:], stdin, stdout)
 	case "comment":
-		return commentCmd(args[1:], stdin, stdout)
+		return commentCmd(ctx, args[1:], stdin, stdout)
 	case "show":
-		return showCmd(args[1:], stdout)
+		return showCmd(ctx, args[1:], stdout)
 	case "post":
 		return postCmd(ctx, args[1:], stdout)
 	case "inbox":
@@ -79,24 +79,24 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	case "skill":
 		return skillCmd(args[1:], stdout)
 	default:
-		return reviewCmd(ctx, args, stdout)
+		return reviewCmd(ctx, args, stdin, stdout)
 	}
 }
 
 // reviewCurrent opens the review for whatever the checkout is standing on.
 // There is no default: on a branch with no pull request the answer is an error,
 // not a guess at which one was meant.
-func reviewCurrent(ctx context.Context, stdout io.Writer) error {
+func reviewCurrent(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 	number, err := get.Current(ctx, ".")
 	if err != nil {
 		return fmt.Errorf("opening this branch's review: %w", err)
 	}
 
-	return openReview(ctx, number, stdout)
+	return openRef(ctx, ref{number: number}, stdin, stdout)
 }
 
-func reviewCmd(ctx context.Context, args []string, stdout io.Writer) error {
-	number, err := prNumber(args[0])
+func reviewCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
+	r, err := parseRef(args[0])
 	if err != nil {
 		return fmt.Errorf("%w: %q", errUnknownCommand, args[0])
 	}
@@ -105,7 +105,7 @@ func reviewCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return errUsageReview
 	}
 
-	return openReview(ctx, number, stdout)
+	return openRef(ctx, r, stdin, stdout)
 }
 
 // onATerminal reports whether a screen can be drawn. Both ends are checked
@@ -128,14 +128,45 @@ func currentRepo(ctx context.Context) string {
 	return name
 }
 
-func openReview(ctx context.Context, number int, stdout io.Writer) error {
-	if !term.IsTerminal(os.Stdin.Fd()) && !term.IsTerminal(os.Stdout.Fd()) {
-		return errNoTerminal
+// openRef opens the review for a pull request named on the command line or
+// chosen off a list.
+func openRef(ctx context.Context, r ref, stdin io.Reader, stdout io.Writer) error {
+	t, err := get.Resolve(ctx, ".", r.owner, r.repo, r.number)
+	if err != nil {
+		return fmt.Errorf("opening %s: %w", r, err)
 	}
 
-	opened, err := get.Open(ctx, ".", number)
+	return openReview(ctx, t, stdin, stdout)
+}
+
+// openReview draws the review screen, and answers C by moving the working copy
+// onto the pull request and drawing it again.
+//
+// The move happens out here because the screen has to give the terminal back
+// first: the stash question needs stdin, and two programs cannot own the
+// terminal at once.
+func openReview(ctx context.Context, t get.Target, stdin io.Reader, stdout io.Writer) error {
+	for {
+		again, err := review(ctx, t, stdout)
+		if err != nil || !again {
+			return err
+		}
+
+		if err := get.Prepare(ctx, stdout, t, confirm(stdin, stdout)); err != nil {
+			return fmt.Errorf("checking out #%d: %w", t.Number, err)
+		}
+	}
+}
+
+// review draws the screen once and reports whether it was left through C.
+func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
+	if !term.IsTerminal(os.Stdin.Fd()) && !term.IsTerminal(os.Stdout.Fd()) {
+		return false, errNoTerminal
+	}
+
+	opened, err := get.Open(ctx, t)
 	if err != nil {
-		return fmt.Errorf("opening #%d: %w", number, err)
+		return false, fmt.Errorf("opening #%d: %w", t.Number, err)
 	}
 
 	// The alternate screen owns the terminal until the screen exits, so what the
@@ -143,50 +174,43 @@ func openReview(ctx context.Context, number int, stdout io.Writer) error {
 	// as it happens draws over the frame.
 	var log strings.Builder
 
-	runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(opened.Path, &log),
+	out, runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(t, opened.Path, &log),
 		tui.WithThreads(opened.Threads), tui.WithSeen(opened.Read, opened.SeenPath),
-		tui.WithSender(sender(opened.Path, &log)))
+		tui.WithSender(sender(t, opened.Path, &log)), tui.WithTree(tree(opened)))
 
 	// The log is written either way: a post that failed partway through still
 	// names the endpoints it reached, which is what says whether anything
 	// landed on GitHub.
 	if err := write(stdout, log.String()); err != nil {
-		return err
+		return false, err
 	}
 
 	if runErr != nil {
-		return fmt.Errorf("reviewing #%d: %w", number, runErr)
+		return false, fmt.Errorf("reviewing #%d: %w", t.Number, runErr)
 	}
 
-	return nil
+	return out.Checkout, nil
 }
 
-// openStaged opens a review the person chose off a list, moving the checkout
-// onto the pull request first when that is what stands in the way.
-//
-// The tree is left alone otherwise: a review that opens where you are standing
-// has no reason to touch it, and the move is only offered because choosing a row
-// off a list is already saying which pull request you mean. The screen has given
-// the terminal back by the time this runs, so the stash question can be asked.
-func openStaged(ctx context.Context, number int, stdin io.Reader, stdout io.Writer) error {
-	err := openReview(ctx, number, stdout)
-	if !errors.Is(err, get.ErrNotOnHead) && !errors.Is(err, get.ErrStaleReview) {
-		return err
+// tree is where the working copy stands, which is what the shell key can use
+// and the checkout key can offer.
+func tree(opened *get.Review) tui.Tree {
+	switch {
+	case opened.Work == "":
+		return tui.TreeNone
+	case opened.OnHead:
+		return tui.TreeOnHead
+	default:
+		return tui.TreeElsewhere
 	}
-
-	if err := get.Prepare(ctx, stdout, ".", number, confirm(stdin, stdout)); err != nil {
-		return fmt.Errorf("preparing #%d: %w", number, err)
-	}
-
-	return openReview(ctx, number, stdout)
 }
 
 // submitter posts from inside the review screen. What it returns is the one
 // line the footer shows, so it stays short enough to survive a narrow frame,
 // and the endpoints it touched go to the log instead.
-func submitter(path string, log io.Writer) tui.Submitter {
+func submitter(t get.Target, path string, log io.Writer) tui.Submitter {
 	return func(ctx context.Context, r *artifact.Review) (string, error) {
-		if err := post.Guard(ctx, ".", r); err != nil {
+		if err := post.Guard(ctx, t.Dir(), t.Remote(), r); err != nil {
 			return "", fmt.Errorf("submitting: %w", err)
 		}
 
@@ -201,9 +225,9 @@ func submitter(path string, log io.Writer) tui.Submitter {
 // sender posts one comment from inside the review screen. The guard runs first
 // for the same reason it does for a whole review: a comment whose line moved
 // would land on whatever now sits there.
-func sender(path string, log io.Writer) tui.Sender {
+func sender(t get.Target, path string, log io.Writer) tui.Sender {
 	return func(ctx context.Context, r *artifact.Review, id string) (string, error) {
-		if err := post.Guard(ctx, ".", r); err != nil {
+		if err := post.Guard(ctx, t.Dir(), t.Remote(), r); err != nil {
 			return "", fmt.Errorf("posting %s: %w", id, err)
 		}
 
@@ -229,27 +253,29 @@ func getCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Write
 		return errUsageGet
 	}
 
-	number, err := prNumber(args[0])
+	t, err := target(ctx, args[0])
 	if err != nil {
 		return err
 	}
 
-	if err := get.Prepare(ctx, stdout, ".", number, confirm(stdin, stdout)); err != nil {
-		return fmt.Errorf("get %d: %w", number, err)
+	if err := get.Prepare(ctx, stdout, t, confirm(stdin, stdout)); err != nil {
+		return fmt.Errorf("get %s: %w", args[0], err)
 	}
 
 	return nil
 }
 
-func commentCmd(args []string, stdin io.Reader, stdout io.Writer) error {
+func commentCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) != 2 || args[0] != "add" {
 		return errUsageComment
 	}
 
-	path, err := artifactPath(args[1])
+	t, err := target(ctx, args[1])
 	if err != nil {
 		return err
 	}
+
+	path := artifact.Path(t.Store, t.Number)
 
 	r, err := artifact.Load(path)
 	if err != nil {
@@ -288,7 +314,7 @@ func commentCmd(args []string, stdin io.Reader, stdout io.Writer) error {
 		return fmt.Errorf("the batch was rejected and nothing was written:\n%w", err)
 	}
 
-	cached, err := artifact.LoadDiff(".", staged.HeadSHA)
+	cached, err := artifact.LoadDiff(t.Store, staged.HeadSHA)
 	if err != nil {
 		return fmt.Errorf("the batch was rejected and nothing was written: %w", err)
 	}
@@ -304,7 +330,7 @@ func commentCmd(args []string, stdin io.Reader, stdout io.Writer) error {
 	return write(stdout, fmt.Sprintf("%d comment(s) staged, %d total\n", len(b.Comments), len(staged.Comments)))
 }
 
-func showCmd(args []string, stdout io.Writer) error {
+func showCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	if len(args) == 0 {
 		return errUsageShow
 	}
@@ -314,10 +340,12 @@ func showCmd(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	path, err := artifactPath(args[0])
+	t, err := target(ctx, args[0])
 	if err != nil {
 		return err
 	}
+
+	path := artifact.Path(t.Store, t.Number)
 
 	r, err := artifact.Load(path)
 	if err != nil {
@@ -329,7 +357,7 @@ func showCmd(args []string, stdout io.Writer) error {
 	// asking GitHub, so it costs nothing and matches what the screen shows.
 	if flag == "--threads" {
 		var open []threads.Thread
-		if err := artifact.LoadThreads(".", r.HeadSHA, &open); err != nil {
+		if err := artifact.LoadThreads(t.Store, r.HeadSHA, &open); err != nil {
 			return fmt.Errorf("reading the cached review threads: %w", err)
 		}
 
@@ -362,10 +390,12 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 
-	path, err := artifactPath(args[0])
+	t, err := target(ctx, args[0])
 	if err != nil {
 		return err
 	}
+
+	path := artifact.Path(t.Store, t.Number)
 
 	r, err := artifact.Load(path)
 	if err != nil {
@@ -373,7 +403,7 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	//nolint:wrapcheck // guardAnchors' own error already names what failed
-	if err := post.Guard(ctx, ".", r); err != nil {
+	if err := post.Guard(ctx, t.Dir(), t.Remote(), r); err != nil {
 		return err
 	}
 
@@ -476,9 +506,9 @@ func reviewsCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.W
 		return openReviews(ctx, stdin, stdout)
 	}
 
-	rows, err := prepared.List(".")
-	if err != nil && !errors.Is(err, prepared.ErrNoDir) {
-		return fmt.Errorf("listing the staged reviews: %w", err)
+	rows, err := staged()
+	if err != nil {
+		return err
 	}
 
 	if asJSON == jsonArg {
@@ -487,6 +517,28 @@ func reviewsCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.W
 
 	//nolint:wrapcheck // Write's own error already names what failed
 	return prepared.Write(stdout, rows, time.Now())
+}
+
+// staged is every review on disk: this checkout's, then the ones staged with no
+// checkout of their repository at all. Both are unfinished work and neither is
+// findable without being listed.
+func staged() ([]prepared.Review, error) {
+	rows, err := prepared.List(".")
+	if err != nil && !errors.Is(err, prepared.ErrNoDir) {
+		return nil, fmt.Errorf("listing the staged reviews: %w", err)
+	}
+
+	home, err := artifact.StateHome()
+	if err != nil {
+		return nil, fmt.Errorf("listing the staged reviews: %w", err)
+	}
+
+	away, err := prepared.Detached(home)
+	if err != nil {
+		return nil, fmt.Errorf("listing the staged reviews: %w", err)
+	}
+
+	return append(rows, away...), nil
 }
 
 // inboxCmd prints the review queue in three buckets. It reads GitHub and
@@ -542,13 +594,28 @@ func writeJSON(w io.Writer, v any) error {
 	return nil
 }
 
-func artifactPath(pr string) (string, error) {
-	number, err := prNumber(pr)
+// target is which pull request a command names and where its state lives.
+//
+// A bare number takes the review staged in the working directory when there is
+// one, so a directory holding nothing but .second-look still answers for it.
+func target(ctx context.Context, arg string) (get.Target, error) {
+	r, err := parseRef(arg)
 	if err != nil {
-		return "", err
+		return get.Target{}, err
 	}
 
-	return artifact.Path(".", number), nil
+	if r.here() {
+		if t, ok := get.Staged(ctx, ".", r.number); ok {
+			return t, nil
+		}
+	}
+
+	t, err := get.Resolve(ctx, ".", r.owner, r.repo, r.number)
+	if err != nil {
+		return get.Target{}, fmt.Errorf("%s: %w", r, err)
+	}
+
+	return t, nil
 }
 
 func prNumber(pr string) (int, error) {

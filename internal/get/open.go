@@ -18,7 +18,6 @@ import (
 // Reasons a review cannot be opened where the caller is standing.
 var (
 	ErrNoPRForBranch = errors.New("this branch has no pull request; name one, or check one out")
-	ErrNotOnHead     = errors.New("the checkout is not on the pull request head")
 	ErrStaleReview   = errors.New("the prepared review was staged against an older head")
 )
 
@@ -38,54 +37,54 @@ type Review struct {
 	SeenPath string
 	Path     string
 	HeadSHA  string
+	// Work is the checkout the code under review is readable in, empty when
+	// there is none. OnHead says whether it is standing on the pull request
+	// head, which is what decides whether a shell opened there would run
+	// against the code the diff describes.
+	Work   string
+	OnHead bool
 }
 
 // Open reads a pull request into a review, creating the artifact and caching
 // the diff only when they are missing.
 //
-// It never moves the working copy. Checking out a pull request is `gh pr
-// checkout` or `second-look get`, and doing it as a side effect of opening a
-// screen would move a tree the reader did not ask to move.
-func Open(ctx context.Context, root string, number int) (*Review, error) {
-	if !vcs.IsRepo(root) {
-		return nil, fmt.Errorf("%s: %w", root, ErrNotARepo)
+// The working copy is neither moved nor required. Everything a review needs
+// comes off the API: the diff its anchors are quoted from, the threads a reply
+// answers, and the comment id a reply carries. What a tree adds is reading
+// around the change and running it, so where the checkout is standing is
+// reported rather than enforced, and moving it is a key in the screen.
+func Open(ctx context.Context, t Target) (*Review, error) {
+	pr, err := github.GetPR(ctx, t.Dir(), t.Remote(), t.Number)
+	if err != nil {
+		return nil, fmt.Errorf("reading pull request #%d: %w", t.Number, err)
 	}
 
-	id, err := identify(ctx, root)
+	standing, err := onHead(ctx, t, pr.HeadSHA)
 	if err != nil {
 		return nil, err
 	}
 
-	pr, err := github.GetPR(ctx, root, number)
-	if err != nil {
-		return nil, fmt.Errorf("reading pull request #%d: %w", number, err)
-	}
-
-	if err := requireHead(ctx, root, pr.HeadSHA, number); err != nil {
-		return nil, err
-	}
-
-	review, path, err := load(root, id, pr.Number, pr.HeadSHA)
+	review, path, err := load(t, pr.HeadSHA)
 	if err != nil {
 		return nil, err
 	}
 
 	if review.HeadSHA != pr.HeadSHA {
 		return nil, fmt.Errorf("%w: staged against %s, now at %s; run second-look get %d",
-			ErrStaleReview, short(review.HeadSHA), short(pr.HeadSHA), number)
+			ErrStaleReview, short(review.HeadSHA), short(pr.HeadSHA), t.Number)
 	}
 
-	patch, err := patchFor(ctx, root, number, review.HeadSHA)
+	patch, err := patchFor(ctx, t, review.HeadSHA)
 	if err != nil {
 		return nil, err
 	}
 
 	var open []threads.Thread
-	if err := artifact.LoadThreads(root, review.HeadSHA, &open); err != nil {
+	if err := artifact.LoadThreads(t.Store, review.HeadSHA, &open); err != nil {
 		return nil, fmt.Errorf("reading the cached review threads: %w", err)
 	}
 
-	seenPath := seen.Path(root, number)
+	seenPath := seen.Path(t.Store, t.Number)
 
 	read, err := seen.Load(seenPath)
 	if err != nil {
@@ -95,6 +94,7 @@ func Open(ctx context.Context, root string, number int) (*Review, error) {
 	return &Review{
 		Review: review, Diff: diff.Parse(patch), Threads: open,
 		Read: read, SeenPath: seenPath, Path: path, HeadSHA: pr.HeadSHA,
+		Work: t.Work, OnHead: standing,
 	}, nil
 }
 
@@ -103,7 +103,7 @@ func Open(ctx context.Context, root string, number int) (*Review, error) {
 // standing on the default branch looks like.
 func Current(ctx context.Context, root string) (int, error) {
 	if !vcs.IsRepo(root) {
-		return 0, fmt.Errorf("%s: %w", root, ErrNotARepo)
+		return 0, notARepo(root)
 	}
 
 	id, err := identify(ctx, root)
@@ -124,25 +124,26 @@ func Current(ctx context.Context, root string) (int, error) {
 	return pr.Number, nil
 }
 
-func requireHead(ctx context.Context, root, want string, number int) error {
-	head, err := vcs.HeadSHA(ctx, root)
+// onHead reports whether the checkout is standing on the pull request head. A
+// detached target has no checkout to stand anywhere.
+func onHead(ctx context.Context, t Target, want string) (bool, error) {
+	if t.Detached() {
+		return false, nil
+	}
+
+	head, err := vcs.HeadSHA(ctx, t.Work)
 	if err != nil {
-		return fmt.Errorf("reading the checkout: %w", err)
+		return false, fmt.Errorf("reading the checkout: %w", err)
 	}
 
-	if head != want {
-		return fmt.Errorf("%w: at %s, #%d is at %s; run gh pr checkout %d",
-			ErrNotOnHead, short(head), number, short(want), number)
-	}
-
-	return nil
+	return head == want, nil
 }
 
 // load reads the prepared review, writing a new one only when there is none.
 // An existing review keeps the head it was staged against, so what its anchors
 // were quoted from stays a fact rather than being restamped on every open.
-func load(root string, id repo, number int, headSHA string) (*artifact.Review, string, error) {
-	path := artifact.Path(root, number)
+func load(t Target, headSHA string) (*artifact.Review, string, error) {
+	path := artifact.Path(t.Store, t.Number)
 
 	review, err := artifact.Load(path)
 	if err == nil {
@@ -154,8 +155,8 @@ func load(root string, id repo, number int, headSHA string) (*artifact.Review, s
 	}
 
 	review = &artifact.Review{
-		Version: artifact.SchemaVersion, Host: "github.com",
-		Owner: id.owner, Repo: id.name, Number: number, HeadSHA: headSHA,
+		Version: artifact.SchemaVersion, Host: Host,
+		Owner: t.Owner, Repo: t.Repo, Number: t.Number, HeadSHA: headSHA,
 	}
 
 	if err := artifact.Save(path, review); err != nil {
@@ -169,17 +170,17 @@ func load(root string, id repo, number int, headSHA string) (*artifact.Review, s
 // it only when the cache has none. Callers reach it having already established
 // that the sha is the pull request's current head, so a fetch answers for the
 // same document the cache would have held.
-func patchFor(ctx context.Context, root string, number int, want string) ([]byte, error) {
-	if patch, err := artifact.LoadDiff(root, want); err == nil {
+func patchFor(ctx context.Context, t Target, want string) ([]byte, error) {
+	if patch, err := artifact.LoadDiff(t.Store, want); err == nil {
 		return patch, nil
 	}
 
-	patch, err := github.PRDiff(ctx, root, number)
+	patch, err := github.PRDiff(ctx, t.Dir(), t.Remote(), t.Number)
 	if err != nil {
 		return nil, fmt.Errorf("reading the diff: %w", err)
 	}
 
-	if err := artifact.SaveDiff(root, want, patch); err != nil {
+	if err := artifact.SaveDiff(t.Store, want, patch); err != nil {
 		return nil, fmt.Errorf("caching the diff: %w", err)
 	}
 

@@ -51,8 +51,12 @@ func (ghPoster) Post(ctx context.Context, endpoint string, body []byte) error {
 // Guard compares every comment against the pull request's current diff before
 // anything is sent. A comment whose line moved would land on whatever now
 // sits there, which is worse than not posting it.
-func Guard(ctx context.Context, root string, r *artifact.Review) error {
-	pr, err := github.GetPR(ctx, root, r.Number)
+//
+// The directory gh runs in is dir, and remoteRepo names the repository when that
+// directory does not, which is how a review prepared with no checkout is
+// guarded from anywhere.
+func Guard(ctx context.Context, dir, remoteRepo string, r *artifact.Review) error {
+	pr, err := github.GetPR(ctx, dir, remoteRepo, r.Number)
 	if err != nil {
 		return fmt.Errorf("checking the pull request head: %w", err)
 	}
@@ -61,7 +65,7 @@ func Guard(ctx context.Context, root string, r *artifact.Review) error {
 			ErrHeadMoved, r.HeadSHA, pr.HeadSHA, r.Number)
 	}
 
-	patch, err := github.PRDiff(ctx, root, r.Number)
+	patch, err := github.PRDiff(ctx, dir, remoteRepo, r.Number)
 	if err != nil {
 		return fmt.Errorf("reading the current diff: %w", err)
 	}
