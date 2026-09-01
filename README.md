@@ -6,6 +6,9 @@ post it to GitHub in one deterministic call.
 Fetching a pull request, staging comments, reading the diff on screen, and posting all
 work.
 
+![Reading a prepared review, ruling on a comment, editing it in place, and the same
+review as the code that results](demo/second-look.gif)
+
 ```bash
 second-look get 42        # fetch the PR, cache the diff, check it out
 # an agent drafts comments through the skill the binary prints

@@ -1,4 +1,4 @@
- second-look conversations  new since you looked (2)                                         3 conversations · 2 unread 
+ second-look conversations                                                                   3 conversations · 2 unread 
   new since you looked (2)
 ▌ ● kyleking/tlr#118                    internal/pool/pool.go:42   2h     alice  2 replies  add TTL to the pool
        good catch, pushed a defer

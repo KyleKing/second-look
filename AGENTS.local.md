@@ -112,6 +112,18 @@ that variable in the test process. `mise run test:coverage-min` collects both ha
 covdata directories and merges them, which is the only format `go tool covdata merge`
 takes. It runs in CI through `ci:project`.
 
+## The README recording
+
+`mise run demo` builds the binary and runs `demo/demo.tape` through VHS. The tape drives
+`demo/run.sh`, which copies `demo/fixture/.second-look` into a throwaway checkout and puts
+`demo/bin/gh` ahead of the real one. That stand-in answers the single `pr view` the screen
+makes to open a cached review and refuses everything else, so a recording reaches no
+network, needs no auth, and cannot touch a real review. A demo that failed because the
+fixture's head moved would be a fixture problem, not a network one.
+
+The gif is committed, so regenerate it whenever the screen changes shape. Keep the tape's
+sleeps: a frame nobody can read is not a demo.
+
 ## Driving the review screen
 
 `tmux` for looking at it, the pty tests in `cmd/second-look/tui_e2e_test.go` for pinning

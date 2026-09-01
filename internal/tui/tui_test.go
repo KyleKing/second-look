@@ -993,6 +993,19 @@ func TestSkippingFillsInAReason(t *testing.T) {
 	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "on the add"))
 
 	go2(m, ']', 'c')
+
+	// The three state keys sit behind m, and a bare press says so rather than
+	// doing nothing, because the hand that learned them keeps reaching.
+	press(m, tea.KeyPressMsg{Code: 'x', Text: "x"})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "m first") {
+		t.Errorf("a bare x said nothing:\n%s", got)
+	}
+
+	if got := m.CommentStatus(0); got != artifact.StatusReady {
+		t.Errorf("a bare x restamped the comment to %q", got)
+	}
+
 	state(m, 'x')
 
 	saved, err := artifact.Load(path)
@@ -1210,14 +1223,10 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 	if got := saved.Comments[0].Body; got != "check err, it can fail" {
 		t.Errorf("body = %q", got)
 	}
-}
 
-// The review's own body had nowhere to be written from: the rows carried no
-// comment, so tab walked past them and e said there was no comment here.
-func TestTheReviewBodyIsWrittenFromTheScreen(t *testing.T) {
-	t.Parallel()
-
-	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+	// The review's own body had nowhere to be written from: its rows carried no
+	// comment, so tab walked past them and e said there was no comment here.
+	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 
 	if got := m.CursorText(); !strings.Contains(got, "no body, no note") {
 		t.Fatalf("the screen does not open on the review's own prose: %q", got)
@@ -1227,13 +1236,8 @@ func TestTheReviewBodyIsWrittenFromTheScreen(t *testing.T) {
 	typeIn(m, "Read it twice.")
 	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
-	saved, err := artifact.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if saved.Body != "Read it twice." {
-		t.Errorf("body = %q", saved.Body)
+	if saved = reviewAt(t, path); saved.Body != "Read it twice." {
+		t.Errorf("review body = %q", saved.Body)
 	}
 
 	// The one row is two the moment either is written, so the note it now
@@ -1242,54 +1246,6 @@ func TestTheReviewBodyIsWrittenFromTheScreen(t *testing.T) {
 
 	if got := m.CursorText(); !strings.Contains(got, "REVIEW NOTE") {
 		t.Errorf("tab off the body landed on %q, want the review note", got)
-	}
-}
-
-// A note over two lines starts folded, because it is the evidence for the
-// comment rather than the comment, and unfolded it buries what it supports.
-func TestALongNoteStartsFoldedAndZaOpensIt(t *testing.T) {
-	t.Parallel()
-
-	long := comment("c1", parsed, artifact.SideRight, 15, "check err")
-	long.Note = "ran the tests\nthey pass\nagainst the fixture\nand the real thing"
-
-	m, _ := fixture(t, long)
-
-	go2(m, ']', 'c')
-
-	if got := plain(m.Frame()); !strings.Contains(got, "NOTE  4 lines · za to read") {
-		t.Fatalf("the note is not folded:\n%s", got)
-	}
-
-	go2(m, 'z', 'a')
-
-	if got := plain(m.Frame()); !strings.Contains(got, "against the fixture") {
-		t.Fatalf("za did not open the note:\n%s", got)
-	}
-
-	go2(m, 'z', 'a')
-
-	if got := plain(m.Frame()); strings.Contains(got, "against the fixture") {
-		t.Errorf("za did not close it again:\n%s", got)
-	}
-}
-
-// The three state keys sit behind m now. A bare press says so rather than
-// doing nothing, because the hand that learned them keeps reaching for them.
-func TestABareStateKeyNamesTheChord(t *testing.T) {
-	t.Parallel()
-
-	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
-
-	go2(m, ']', 'c')
-	press(m, tea.KeyPressMsg{Code: 'x', Text: "x"})
-
-	if got := plain(m.Frame()); !strings.Contains(got, "m first") {
-		t.Errorf("a bare x said nothing:\n%s", got)
-	}
-
-	if got := m.CommentStatus(0); got != artifact.StatusReady {
-		t.Errorf("a bare x restamped the comment to %q", got)
 	}
 }
 
@@ -1352,11 +1308,35 @@ func reviewAt(t *testing.T, path string) *artifact.Review {
 
 // z acts on what the cursor is standing on, so the same two keys give an
 // outline of a long review, one file at a time or all of it.
-func TestZFoldsAFileAHunkAndTheWholeReview(t *testing.T) {
+func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 	t.Parallel()
 
-	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+	long := comment("c1", parsed, artifact.SideRight, 15, "check err")
+	long.Note = "ran the tests\nthey pass\nagainst the fixture\nand the real thing"
 
+	m, _ := fixture(t, long)
+
+	// A note carries the evidence for a comment rather than the comment, so it
+	// starts folded once it runs long enough to bury what it supports.
+	go2(m, ']', 'c')
+
+	if got := plain(m.Frame()); !strings.Contains(got, "NOTE  4 lines · za to read") {
+		t.Fatalf("the note is not folded:\n%s", got)
+	}
+
+	go2(m, 'z', 'a')
+
+	if got := plain(m.Frame()); !strings.Contains(got, "against the fixture") {
+		t.Fatalf("za did not open the note:\n%s", got)
+	}
+
+	go2(m, 'z', 'a')
+
+	if got := plain(m.Frame()); strings.Contains(got, "against the fixture") {
+		t.Fatalf("za did not close it again:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 	go2(m, ']', 'f')
 	go2(m, 'z', 'a')
 

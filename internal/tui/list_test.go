@@ -206,3 +206,39 @@ func TestListRefusesATinyTerminal(t *testing.T) {
 		t.Errorf("a tiny frame drew rows anyway:\n%s", l.ListFrame())
 	}
 }
+
+// The heading a row sits under is the one thing a bucket is for, and it scrolls
+// away exactly when the list is long enough to need it, so the header carries it
+// from then on and not before.
+func TestTheHeaderCarriesTheSectionOnceItScrollsOff(t *testing.T) {
+	t.Parallel()
+
+	long := func() []tui.Section {
+		rows := make([]tui.Row, 0, 40)
+		for i := range 40 {
+			rows = append(rows, tui.Row{
+				Key: fmt.Sprintf("T%d", i), Left: fmt.Sprintf("kyleking/tlr#%d", i), Age: "2h",
+			})
+		}
+
+		return []tui.Section{{Name: "pending your review", Rows: rows}}
+	}
+
+	l := tui.NewList("second-look inbox", long, func(tui.Action, *tui.Row) (string, bool, error) {
+		return "", false, nil
+	})
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+
+	if got := plain(l.ListFrame()); strings.Count(got, "pending your review") != 1 {
+		t.Fatalf("the visible heading is named twice:\n%s", got)
+	}
+
+	for range 30 {
+		l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	}
+
+	lines := strings.Split(plain(l.ListFrame()), "\n")
+	if !strings.Contains(lines[0], "pending your review") {
+		t.Errorf("the header does not name the section the cursor is in:\n%s", lines[0])
+	}
+}

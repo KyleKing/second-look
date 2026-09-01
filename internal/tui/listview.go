@@ -41,11 +41,10 @@ func (l *List) render() string {
 func (l *List) header() string {
 	left := l.styles.title.Render(" " + l.title)
 
-	if l.subtitle == nil {
-		return left
+	right := ""
+	if l.subtitle != nil {
+		right = l.styles.subtitle.Render(l.subtitle() + " ")
 	}
-
-	right := l.styles.subtitle.Render(l.subtitle() + " ")
 
 	// The section yields to the counts and the title, since it is the one part
 	// of the line a reader can recover by looking at the rows under it.
@@ -57,19 +56,23 @@ func (l *List) header() string {
 	}
 
 	gap := l.width - textWidth(left) - textWidth(right)
-	if gap < 1 {
+	if right == "" || gap < 1 {
 		return cut(left, l.width)
 	}
 
 	return left + strings.Repeat(" ", gap) + right
 }
 
-// section is the heading the cursor sits under, which the header carries
-// because the heading itself scrolls away exactly when the list is long enough
-// to need it.
+// section is the heading the cursor sits under, and only once that heading has
+// scrolled off the top: a list long enough to lose it is the one that needs it,
+// and naming a heading the reader can already see wastes the line.
 func (l *List) section() string {
 	for i := min(l.cursor, len(l.lines)-1); i >= 0; i-- {
 		if h := l.lines[i].heading; h != "" {
+			if i >= l.offset {
+				return ""
+			}
+
 			return h
 		}
 	}
