@@ -349,7 +349,7 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return s.approve(row.Key, at)
 	case tui.ActBrowse:
 		if err := ghrun.GH().Run(s.ctx, ".",
-			"browse", "--repo", at.owner+"/"+at.repo, "-n", strconv.Itoa(at.number)); err != nil {
+			"browse", "--repo", at.owner+"/"+at.repo, strconv.Itoa(at.number)); err != nil {
 			return "", false, fmt.Errorf("opening %s: %w", row.Key, err)
 		}
 

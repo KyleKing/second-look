@@ -317,7 +317,7 @@ func merger(t get.Target) tui.Merger {
 // carries it any more.
 func opener(t get.Target) tui.Opener {
 	return func(ctx context.Context, r *artifact.Review) error {
-		args := []string{"browse", "-n", strconv.Itoa(r.Number)}
+		args := []string{"browse", strconv.Itoa(r.Number)}
 		if t.Remote() != "" {
 			args = append(args, "--repo", t.Remote())
 		}

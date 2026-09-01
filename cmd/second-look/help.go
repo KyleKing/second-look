@@ -67,10 +67,13 @@ NAMING A PULL REQUEST
       last change. So triaging a review reads "]c" then "n . n . n .", and
       reading one through reads "]u" then "n" until nothing answers.
 
-      S then S, a, r, or c submits the review: as it already stands, approving,
-      requesting changes, or commenting. The second key both confirms the post
-      and says what kind of review it is, and what it says is written back, so a
-      review posted as an approval does not read afterwards as a comment.
+      S then a, r, or c submits the review: approving, requesting changes, or
+      commenting. The second key both confirms the post and says what kind of
+      review it is, and what it says is written back, so a review posted as an
+      approval does not read afterwards as a comment. There is no key for
+      sending it as whatever the file already says, because that is the decision
+      the confirmation exists to take. o opens the pull request in a browser,
+      which is where to go the moment it posts.
 
       M squash-merges the pull request and deletes its head branch, M again to
       confirm. It refuses while anything is still staged, since a review left
@@ -211,8 +214,14 @@ NAMING A PULL REQUEST
       The sections are independent searches, so they run at once and the screen
       draws each as it lands, with the headings saying which are still out. / on
       any of these screens narrows the rows to those carrying a word, matching
-      the repository, the author, the title, and the line last said; esc puts
+      the repository, the author, the title, and the line last said. esc puts
       them back and q leaves.
+
+      This screen, the conversations, and the staged reviews are three tabs of
+      one screen. Each command opens on its own tab, 1, 2, and 3 pick one, and ]
+      and [ step through them. Every tab keeps its own cursor and filter, and a
+      tab loads when it is first looked at, so opening on one costs what that
+      one costs.
 
       Each bucket is ordered for triage rather than by recency: what you have
       already started here, then the smallest of what an earlier read rated,
@@ -292,6 +301,9 @@ NAMING A PULL REQUEST
       state it is in -- blocked when a comment is still a draft, which stops the
       submit -- and a file that no longer parses is listed with the reason
       rather than skipped.
+
+      A pull request based on another one staged here is a stack, and the chain
+      is grouped with the bottom first, which is the order the diffs read in.
 
   second-look skill
       Print the instructions for an agent driving this binary, as a skill file

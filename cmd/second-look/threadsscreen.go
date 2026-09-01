@@ -276,7 +276,7 @@ func (s *threadsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 }
 
 func (s *threadsScreen) browse(c *conversations.Conversation) (string, bool, error) {
-	if err := ghrun.GH().Run(s.ctx, ".", "browse", "--repo", c.Repository, "-n", strconv.Itoa(c.Number)); err != nil {
+	if err := ghrun.GH().Run(s.ctx, ".", "browse", "--repo", c.Repository, strconv.Itoa(c.Number)); err != nil {
 		return "", false, fmt.Errorf("opening %s: %w", c.Where(), err)
 	}
 
