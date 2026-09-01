@@ -122,9 +122,6 @@ func (s *inboxScreen) sections() []tui.Section {
 				Mid:  humanize.Clip(p.Author, authorCap),
 				Age:  humanize.Ago(p.Updated, now),
 				Tail: waiting(p),
-				// Nothing has been read in a queue that reads GitHub and no
-				// local state, so the mark means what is still open and unmerged.
-				Unread: i == 0,
 			})
 		}
 
