@@ -63,6 +63,10 @@ func build(r *artifact.Review, d *diff.Diff, width int) screen {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
 			row{kind: rowFile, text: path, path: path, comment: -1})
 
+		if f.Note != "" {
+			s.rows = append(s.rows, row{kind: rowHunk, text: f.Note, path: path, comment: -1})
+		}
+
 		hunk := 0
 
 		for _, l := range f.Lines {

@@ -113,6 +113,44 @@ index 1111111..2222222 100644
  select 1;
 `
 
+// A rename, a binary payload, and a mode change carry no line anyone can
+// comment on, and dropping them leaves a reviewer unaware the change happened.
+func TestParse_KeepsFilesWithNoCommentableLine(t *testing.T) {
+	t.Parallel()
+
+	patch := `diff --git a/old/name.go b/new/name.go
+similarity index 92%
+rename from old/name.go
+rename to new/name.go
+diff --git a/assets/logo.png b/assets/logo.png
+new file mode 100644
+Binary files /dev/null and b/assets/logo.png differ
+diff --git a/script.sh b/script.sh
+old mode 100644
+new mode 100755
+`
+
+	want := []struct {
+		path string
+		note string
+	}{
+		{"new/name.go", "renamed from old/name.go"},
+		{"assets/logo.png", "binary"},
+		{"script.sh", "mode 100755"},
+	}
+
+	files := diff.Parse([]byte(patch)).Files
+	if len(files) != len(want) {
+		t.Fatalf("parsed %d files, want %d", len(files), len(want))
+	}
+
+	for i, w := range want {
+		if files[i].NewPath != w.path || files[i].Note != w.note {
+			t.Errorf("file %d = %q %q, want %q %q", i, files[i].NewPath, files[i].Note, w.path, w.note)
+		}
+	}
+}
+
 func TestParse_HunkContentIsNotAFileHeader(t *testing.T) {
 	t.Parallel()
 

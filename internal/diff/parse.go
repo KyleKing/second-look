@@ -2,8 +2,10 @@
 // anchors to.
 //
 // It reads only what an anchor needs: which file a hunk belongs to, and which
-// pre-image and post-image line each of its lines carries. Rename detection,
-// binary payloads, and mode changes are skipped rather than modeled.
+// pre-image and post-image line each of its lines carries. A file that carries
+// no commentable line -- a rename, a binary payload, a mode change -- is kept
+// with a note saying which, because a reader has to know the change happened
+// even though nothing in it can be commented on.
 package diff
 
 import (
@@ -34,7 +36,10 @@ type Line struct {
 type File struct {
 	OldPath string
 	NewPath string
-	Lines   []Line
+	// Note says why a file carries no lines: renamed, binary, or mode changed.
+	// It is empty for a file whose content the patch spells out.
+	Note  string
+	Lines []Line
 }
 
 // Diff is a parsed unified diff.
@@ -89,17 +94,14 @@ func Parse(patch []byte) *Diff {
 	for _, raw := range strings.Split(string(patch), "\n") {
 		switch {
 		case strings.HasPrefix(raw, "diff --git "):
-			out.Files = append(out.Files, File{})
+			out.Files = append(out.Files, gitHeader(raw[len("diff --git "):]))
 			current = &out.Files[len(out.Files)-1]
 			old, newLine = 0, 0
 		case current == nil:
 			continue
 		// A file header only precedes the first hunk. Inside one, "--- " is a
 		// removed line whose text starts with "-- ", which is every SQL comment.
-		case old == 0 && newLine == 0 && strings.HasPrefix(raw, "--- "):
-			current.OldPath = headerPath(raw[len("--- "):])
-		case old == 0 && newLine == 0 && strings.HasPrefix(raw, "+++ "):
-			current.NewPath = headerPath(raw[len("+++ "):])
+		case old == 0 && newLine == 0 && fileHeader(current, raw):
 		case strings.HasPrefix(raw, "@@"):
 			start := hunkStart(raw)
 			old, newLine = start.old, start.new
@@ -134,6 +136,41 @@ func appendLine(f *File, raw string, hunk int, old, newLine *int) {
 		f.Lines = append(f.Lines, Line{Kind: KindRemove, Old: *old, Hunk: hunk, Text: text})
 		*old++
 	}
+}
+
+// fileHeader reads one line of a file's preamble into current and reports
+// whether it was one, so the caller can leave everything else alone.
+func fileHeader(current *File, raw string) bool {
+	switch {
+	case strings.HasPrefix(raw, "--- "):
+		current.OldPath = headerPath(raw[len("--- "):])
+	case strings.HasPrefix(raw, "+++ "):
+		current.NewPath = headerPath(raw[len("+++ "):])
+	case strings.HasPrefix(raw, "rename from "):
+		current.Note = "renamed from " + headerPath(raw[len("rename from "):])
+	case strings.HasPrefix(raw, "Binary files "):
+		current.Note = "binary"
+	case strings.HasPrefix(raw, "new mode "):
+		current.Note = "mode " + raw[len("new mode "):]
+	default:
+		return false
+	}
+
+	return true
+}
+
+// gitHeader reads the two paths off a "diff --git a/x b/y" line, which is the
+// only place a rename or a binary payload names the file it changed. A path
+// carrying a space is left to the --- and +++ lines, which quote it properly.
+func gitHeader(s string) File {
+	fields := strings.Fields(s)
+
+	const wantPaths = 2
+	if len(fields) != wantPaths {
+		return File{}
+	}
+
+	return File{OldPath: headerPath(fields[0]), NewPath: headerPath(fields[1])}
 }
 
 // headerPath strips the a/ or b/ prefix git writes and the trailing tab some
