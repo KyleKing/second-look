@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+	"github.com/kyleking/aragonite/ghcassette"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
-	"github.com/kyleking/second-look/internal/ghcassette"
 	"github.com/kyleking/second-look/internal/seen"
 )
 

@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/aragonite/ghcassette"
+
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/ghcassette"
 )
 
 // TestReviewWithNoCheckout is the whole point of naming a repository: a pull

@@ -409,7 +409,7 @@ keeps the "nothing local outlives the post" rule intact.
 The GraphQL read is the one recording that lives beside the code that makes it, in
 `internal/threads/testdata/cassettes/threads.golden`, because no scratch repository can
 record the rest of a `get`. It reads and posts nothing, so re-recording it is safe:
-`SECOND_LOOK_RECORD=1 go test ./internal/threads/`.
+`GHCASSETTE_RECORD=1 go test ./internal/threads/`.
 
 ## 1. Scaffold from my_go_template — done
 

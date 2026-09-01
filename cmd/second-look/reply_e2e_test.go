@@ -5,8 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/exp/golden"
-
-	"github.com/kyleking/second-look/internal/ghcassette"
+	"github.com/kyleking/aragonite/ghcassette"
 )
 
 // TestPostReply replays the review that answers a thread the earlier recording

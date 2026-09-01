@@ -4,7 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kyleking/second-look/internal/ghcassette"
+	"github.com/kyleking/aragonite/ghcassette"
+
 	"github.com/kyleking/second-look/internal/skill"
 )
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kyleking/second-look/internal/ghcassette"
+	"github.com/kyleking/aragonite/ghcassette"
 )
 
 // `reviews` reads the directory and nothing else, so its cassette is empty and

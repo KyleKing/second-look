@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/exp/golden"
+	"github.com/kyleking/aragonite/ghcassette"
 
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/ghcassette"
 )
 
 // TestPostReview replays the review that was actually posted to

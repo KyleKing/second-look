@@ -11,8 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/aragonite/ghcassette"
+
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/ghcassette"
 	"github.com/kyleking/second-look/internal/threads"
 )
 

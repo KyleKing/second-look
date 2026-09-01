@@ -6,10 +6,14 @@ What [AGENTS.md](AGENTS.md) does not cover because it is template-owned and this
 
 Everything that reaches GitHub goes through the `gh` binary: aragonite's pull request
 reads and second-look's own `gh api` posts alike. So the recording seam is `PATH`, not an
-HTTP transport. `internal/ghcassette` builds a stand-in `gh`, puts it ahead of the real
+HTTP transport. `aragonite/ghcassette` builds a stand-in `gh`, puts it ahead of the real
 one, and either records what the real binary did or answers from a cassette. The tests in
 `cmd/second-look` drive the built binary against it, which is the same code path a person
 runs, subprocess included.
+
+It lives in aragonite because gh-sweep and gh-repo-dashboard shell out to `gh` the same
+way. `GHCASSETTE_RECORD=1` is its variable, not this repository's, and its `Apply` replays
+gh for an in-process test that drives the packages rather than the built binary.
 
 A cassette is TOML named `.golden`, because `hk.pkl` excludes that suffix from the
 whitespace fixers and nothing else. A recorded diff whose trailing spaces were stripped on
@@ -24,7 +28,7 @@ copies of the same 60-line diff would drift.
 ### Re-recording
 
 ```sh
-SECOND_LOOK_RECORD=1 go test ./cmd/second-look/ -run 'TestPostReview$'
+GHCASSETTE_RECORD=1 go test ./cmd/second-look/ -run 'TestPostReview$'
 go test ./cmd/second-look/ -update       # then regenerate the goldens
 ```
 
@@ -44,14 +48,14 @@ on GitHub is what would break it.
 open review threads. It lives there rather than under `cmd/second-look/testdata/` because
 the scratch repository cannot record a whole `get`: the recorded head and the scratch head
 differ, so `get` tries to pull from an unreachable origin. Re-record it with
-`SECOND_LOOK_RECORD=1 go test ./internal/threads/`, which reads and posts nothing.
+`GHCASSETTE_RECORD=1 go test ./internal/threads/`, which reads and posts nothing.
 `cmd/second-look` splices that interaction onto the `post-review` reads in `getCassette`.
 
 `cmd/second-look/testdata/cassettes/inbox.golden` is the exception to all of this: it is
 written, not recorded. A real recording of `second-look inbox` carries the private
 repository names, usernames, and pull request titles of whatever is in the reviewer's
 queue, and this repository is public. The arguments in it are the ones a real run made and
-the answers are gh's own shape with invented content. `SECOND_LOOK_RECORD=1` would
+the answers are gh's own shape with invented content. `GHCASSETTE_RECORD=1` would
 overwrite it with real data, so the test uses `Replay` rather than `Start`.
 
 The conversation queue's cassette is not checked in at all. `queueCassette` in

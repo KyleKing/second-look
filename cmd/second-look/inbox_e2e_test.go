@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kyleking/second-look/internal/ghcassette"
+	"github.com/kyleking/aragonite/ghcassette"
 )
 
 // The inbox is three gh searches and nothing local, so this is the one test in
@@ -18,7 +18,7 @@ import (
 // real run made and the answers are gh's own shape with invented content, which
 // is what this test needs and nothing more.
 //
-// SECOND_LOOK_RECORD=1 would overwrite it with real data. Do not.
+// GHCASSETTE_RECORD=1 would overwrite it with real data. Do not.
 func TestInbox(t *testing.T) {
 	t.Parallel()
 

@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kyleking/second-look/internal/ghcassette"
+	"github.com/kyleking/aragonite/ghcassette"
+
 	"github.com/kyleking/second-look/internal/threads"
 )
 
@@ -14,7 +15,7 @@ import (
 // for a pull request's open review threads. It reads and posts nothing, so
 // re-recording it is safe in a way re-recording the review that posted is not:
 //
-//	SECOND_LOOK_RECORD=1 go test ./internal/threads/
+//	GHCASSETTE_RECORD=1 go test ./internal/threads/
 //
 // cmd/second-look replays the same file, because `second-look get` makes this
 // call and no scratch repository can record the rest of a get.

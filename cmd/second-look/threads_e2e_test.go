@@ -9,8 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/aragonite/ghcassette"
+
 	"github.com/kyleking/second-look/internal/conversations"
-	"github.com/kyleking/second-look/internal/ghcassette"
 )
 
 // The conversation queue is one GraphQL call and nothing local, so these run
