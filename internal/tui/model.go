@@ -375,6 +375,12 @@ func (m *Model) askSubmit() {
 		return
 	}
 
+	if m.review.Empty() {
+		m.say(artifact.ErrNothingToPost.Error(), true)
+
+		return
+	}
+
 	c := m.counts()
 	if c.draft > 0 {
 		m.focus(m.firstDraft())

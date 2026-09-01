@@ -92,6 +92,50 @@ func TestADraftBlocksPosting(t *testing.T) {
 	}
 }
 
+// A review with nothing in it is a keystroke nobody meant, and skipping every
+// comment is the way to get one without noticing. An approval is the exception:
+// it says something on its own.
+func TestAnEmptyReviewIsRefusedUnlessItApproves(t *testing.T) {
+	t.Parallel()
+
+	skipped := artifact.Comment{
+		ID: "c1", Path: "internal/vcs/diff.go", Line: 16, Side: artifact.SideRight,
+		Body: "held back", Status: artifact.StatusSkip, SkipReason: "unverified",
+	}
+
+	tests := []struct {
+		name  string
+		build func() *artifact.Review
+		want  bool
+	}{
+		{"no comments at all", func() *artifact.Review { return review() }, true},
+		{"every comment skipped", func() *artifact.Review { return review(skipped) }, true},
+		{"a body and nothing else", func() *artifact.Review {
+			r := review(skipped)
+			r.Body = "looks fine"
+
+			return r
+		}, false},
+		{"an approval", func() *artifact.Review {
+			r := review(skipped)
+			r.Event = artifact.EventApprove
+
+			return r
+		}, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, err := tc.build().Payload()
+			if got := errors.Is(err, artifact.ErrNothingToPost); got != tc.want {
+				t.Errorf("refused = %v, want %v (err = %v)", got, tc.want, err)
+			}
+		})
+	}
+}
+
 func TestRepliesGoToTheirOwnEndpoint(t *testing.T) {
 	t.Parallel()
 

@@ -135,6 +135,10 @@ WHAT IS REFUSED
 
   A draft at post time. Mark it ready or skip it; second-look will not guess.
 
+  A review with no body and no comments left to post, which is what skipping
+  every comment leaves behind. An APPROVE says something on its own and is
+  allowed to be empty; a COMMENT carrying nothing is a keystroke nobody meant.
+
   A comment with no path, no positive line, or a side that is not RIGHT or LEFT,
   unless it is a reply. Every problem is reported at once, not just the first.
 

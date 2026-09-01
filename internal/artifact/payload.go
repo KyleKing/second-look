@@ -1,6 +1,9 @@
 package artifact
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // reviewPayload is the body of POST /repos/{owner}/{repo}/pulls/{number}/reviews.
 // Its fields are exactly the schema's `post` fields, spelled the way GitHub spells
@@ -35,12 +38,42 @@ func (e *DraftError) Error() string {
 	return fmt.Sprintf("%d comment(s) are still drafts; mark them ready or skip them", len(e.Comments))
 }
 
+// ErrNothingToPost is a review that would reach GitHub carrying nothing: no
+// body, no comment, and no reply. An approval says something on its own, so
+// only a COMMENT review is refused this way.
+var ErrNothingToPost = errors.New("this review has no body and no comments, so there is nothing to post")
+
+// Empty reports whether posting would send an empty COMMENT review. The screen
+// asks before it confirms, so the refusal arrives before the keystroke that
+// would have sent it rather than after.
+func (r *Review) Empty() bool {
+	if r.Event != "" && r.Event != EventComment {
+		return false
+	}
+
+	if r.Body != "" {
+		return false
+	}
+
+	for i := range r.Comments {
+		if r.Comments[i].Status != StatusSkip {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Payload builds what gets posted: the review itself, and the replies that have
 // to go to their own endpoint. Skipped comments and every local field are absent
 // by construction, since nothing here reads them.
 func (r *Review) Payload() (any, []ReplyPayload, error) {
 	if drafts := r.Drafts(); len(drafts) > 0 {
 		return nil, nil, &DraftError{Comments: drafts}
+	}
+
+	if r.Empty() {
+		return nil, nil, ErrNothingToPost
 	}
 
 	event := r.Event
