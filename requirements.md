@@ -27,7 +27,8 @@ A second look is what the review is supposed to be and usually is not. Binary
 
 Review targets, in priority order:
 
-1. A GitHub pull request, ending in a posted review
+1. A GitHub pull request, ending in a posted review, whether or not it is cloned on this
+   laptop
 2. Local uncommitted or branch changes, with no posting endpoint, where comments either
    stay local or land as `[TODO:` markers in the source
 3. jj revisions and arbitrary git ranges
@@ -144,6 +145,14 @@ Both tools keep their own inbox and share everything underneath it. gh-repo-dash
 answers "what is the state of my repositories" and second-look answers "what do I owe a
 review", which are different questions that happen to read the same data.
 
+That boundary is also the division of labour. gh-repo-dashboard owns what is on disk:
+which clones exist, which worktree holds which branch, what is dirty, what is behind. It
+already finds the peer checkouts of one remote, which is the hard half. second-look owns
+the review and the conversations, and asks gh-repo-dashboard for the disk rather than
+growing a second directory scanner. What both read (pull requests, CI, the diff) is
+cached once in aragonite, so neither is the other's server and neither warms a cache the
+other cannot use.
+
 Shared, in aragonite: one per-laptop cache, so opening either tool warms the other, and
 the filter, search, and sort engine, which gh-repo-dashboard's `internal/filters` already
 implements as a generic `Predicate[T]` over a query language. Generic TUI helpers go
@@ -159,11 +168,43 @@ want to find later, so the artifact and the cached diff have separate lifetimes.
 
 ### Branch and working tree
 
-A dirty tree never blocks a review. Being on the wrong commit does.
+A dirty tree never blocks a review. Being on the wrong commit blocks only what actually
+reads the tree.
 
 When HEAD does not match the PR head, show the mismatch, the specific resolution as a
 keybinding, and how many in-progress comments survive it. Never act silently. Comments
 that cannot be re-anchored after a move are surfaced rather than dropped.
+
+### Reviewing needs no checkout
+
+Reading a diff, writing comments on it, answering a conversation, and posting all of it
+need GitHub and a place to keep a file. None of them need a working tree: the diff the
+anchors are quoted from is the pull request's own diff, which comes from the API, and a
+threaded reply carries a comment id rather than a line. So a checkout is what the tool
+asks for when the reader wants to read around the change or run it, and nothing else.
+
+Two consequences. The queue spans repositories, so the artifact for a pull request with
+no clone on this laptop lives in the user state directory, keyed by owner, repository, and
+number, and `post` finds it from anywhere. An artifact keeps living in the checkout's
+`.second-look/` when there is one, because that is where an agent looks for it and where
+the diff cache and the read marks already are.
+
+Checking out is then a verb rather than a precondition, and it is lazy: offered from the
+review screen when reading the tree is the thing being asked for, and never done to open
+a screen. A checkout that has to move is a checkout that asks first.
+
+### Which clone, when there are several
+
+One remote can be cloned several times on one laptop, plus its worktrees, and asking a
+person to remember which directory holds which branch is the thing gh-repo-dashboard
+already answers. So second-look asks it rather than scanning directories itself:
+`gh repo-dashboard --cli` prints every checkout it knows with its remote identity, branch,
+worktrees, and working-tree state, from cache, so the answer costs no network.
+
+Ranking, when more than one clone answers: the one already standing on the pull request
+head, then a clean one, then the one whose worktree can take a new branch, and the reader
+picks when the ranking is a guess. A dirty tree is offered the stash question rather than
+being ruled out.
 
 ### Images
 
@@ -223,6 +264,15 @@ Navigation, only as far as the pipeline needs:
   open, then reviewed and merged, with per-PR metadata that makes triage possible without
   opening it. Searchable and sortable, and available from the CLI as well as the TUI
 - Stacked reviews shown as a stack, with the ability to move between them from the inbox
+- Replace [gh-dash](https://github.com/dlvhdr/gh-dash), which is the tool this one has to
+  be better than to be worth opening. What it does that second-look does not yet: sections
+  driven by arbitrary search queries rather than three fixed buckets, issues beside pull
+  requests, and the verbs (checkout, comment, approve, merge, close) reachable from the
+  list. What second-look does that it cannot: read the diff properly, keep what was read,
+  hold a review while it is written, and answer conversations
+- Move between reviews without a checkout and without leaving the screen, which is the
+  whole reason a dashboard is faster than a browser tab. Opening a pull request from any
+  list costs one API read, not a clone and a branch switch
 - A review-cost rating, deterministic, described below
 - Toggle whitespace and syntax-aware diffs inside a session, which no reviewed tool
   offers as a toggle

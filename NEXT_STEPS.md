@@ -28,6 +28,48 @@ has run against live GitHub from inside the screen rather than from the shell. W
 still leaves out: seen-state, the inbox, the rating, and writing a new comment (rather
 than a reply) without an agent.
 
+## Beyond alpha: replace gh-dash
+
+The bar is [gh-dash](https://github.com/dlvhdr/gh-dash). It is the tool I would otherwise
+open, and everything second-look does better is wasted if getting to a pull request costs
+a clone and a branch switch. So the goal is one screen I can live in: read the queue,
+open any pull request in it, review it properly, answer the conversations, post, and move
+to the next one, without touching the working tree unless I mean to.
+
+Four things stand between here and that, in the order they want doing.
+
+**A review needs no checkout.** The diff comes from the API, an anchor is quoted from that
+diff, and a threaded reply carries a comment id, so nothing in the path needs git. What
+needs the tree is reading around the change and running it. So the artifact for a pull
+request with no clone here lives in the user state directory keyed by owner, repository,
+and number, `post` finds it from anywhere, and a checkout keeps its own `.second-look/`
+because that is where an agent looks and where the diff cache and read marks already are.
+`requirements.md` carries the rule.
+
+**Checking out becomes a lazy verb.** A key in the review screen, offered when reading the
+tree is what is being asked for, never a precondition for opening a screen. It reuses the
+stash question already built for `get`.
+
+**gh-repo-dashboard answers which clone.** One remote is cloned several times here, plus
+worktrees, and it already finds the peer checkouts of a remote. second-look shells out to
+`gh repo-dashboard --cli` (cached, so no network) and ranks what comes back: already on
+the head, then clean, then whichever can take a new branch, and it asks when the ranking
+is a guess. That needs one change upstream, since `--cli` prints no remote identity today
+and a path with no `owner/name` beside it cannot be matched to a pull request.
+
+**Then the list itself.** Sections driven by search queries rather than three fixed
+buckets, and the verbs gh-dash puts on a list row (checkout, comment, approve, merge)
+reachable from the queue. Issues beside pull requests is the one part of gh-dash I am not
+sure I want, so it waits for a real gap rather than parity for its own sake.
+
+The division of labour with gh-repo-dashboard is worth stating, because two tools reading
+the same data is the failure mode to avoid. gh-repo-dashboard owns disk: clones,
+worktrees, branches, dirty state. second-look owns the review and the conversations.
+aragonite owns the data both read and the views both draw, so neither is the other's
+server. `filter/` and `tui/table` are already named for extraction there, and the pull
+request cache is the next thing that wants to move, since both tools now ask GitHub the
+same questions.
+
 ## Decided since
 
 The artifact is deleted on a successful post, and GitHub becomes the source of truth from
@@ -117,6 +159,46 @@ cursor was a background color with no glyph or attribute, so under `NO_COLOR` th
 thing a reader needs most, where they are, was the one thing that vanished; it carries
 `Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
 keys while the cursor is inside a comment, since both sets do not fit 80 columns.
+
+## The conversation queue — done
+
+`second-look threads` is the queue of open discussions across every pull request I am
+involved in, in three buckets: what moved since I last looked, what is still waiting on
+me, then what is waiting on somebody else. One GraphQL call reads the viewer, the pull
+requests, and all three conversation surfaces (inline review threads, the pull request's
+own comments, and the bodies submitted reviews carry). A terminal gets the screen and a
+pipe or `--json` gets the text.
+
+Four rules keep it readable, each measured against my own 82 open pull requests rather
+than guessed. A machine account reaches the queue only through an inline review thread,
+which is the one surface where what a bot says is anchored to code and can be resolved;
+without that rule the queue held 77 rows and 13 were real. My own comment with nothing
+under it is something I said rather than a discussion. A resolved thread is gone, and so
+is anything I have thumbs-upped. An outdated thread stays, because a reply to it is still
+owed.
+
+`R` resolves a thread and thumbs-ups it as well, since the thumbs-up is the marker I use
+everywhere and GitHub gives a pull request comment and a review body no resolve at all.
+What I have read is kept per conversation under the user config directory rather than in a
+repository, because the queue spans repositories. Which bucket a row is in is fixed while
+the screen is open: recomputing it after a mark moved the row out from under the cursor
+the moment I opened it.
+
+## Staged reviews, and the stash question — done
+
+`second-look reviews` lists what is on disk under `.second-look/` in this checkout,
+newest first, with what each review holds and whether a draft is blocking its submit. A
+file that no longer parses is listed with the reason rather than skipped. Both it and the
+conversation queue are the same `tui.List`, because two list screens would drift apart.
+
+Choosing a row off either list moves the checkout onto that pull request when standing
+somewhere else is what stops it opening. `get` asks before it moves a dirty tree now
+rather than sending me away to stash by hand: it names how many files are uncommitted,
+parks them with `git stash push --include-untracked` on a yes, and says that `git stash
+pop` brings them back. Nothing is popped for me, because the work rarely belongs on the
+head I just landed on. Only a terminal is asked, so an agent's run never has its tree
+moved. The move that fails after the stash still prints the hint, which is the case the
+pty test pins.
 
 ## The inbox — done, as a CLI
 
@@ -494,6 +576,16 @@ takes a `copier update`, the `test:coverage-min` override in
 `ci:project` stays, since it is what runs the floor in CI.
 
 ## Open questions
+
+**Whether `enter` on the staged-review list should move the working tree at all.** It
+moves the checkout only when standing somewhere else is what stops the review opening,
+which is defensible and still surprising for a list of local files. Once a review opens
+with no checkout, the question answers itself: the move stops being needed and becomes the
+lazy verb.
+
+**What the queue sorts by past about forty rows.** Recency is right for thirteen and
+arbitrary for eighty, and the review-cost rating is the obvious candidate, which makes
+this the first real consumer of it.
 
 **Whether the review-cost rating moves to aragonite.** It reads the diff, the symbol
 graph, and the changed symbols, so it may belong next to `codeintel` rather than here.

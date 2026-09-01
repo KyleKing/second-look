@@ -131,9 +131,10 @@ Four rules keep the queue short enough to read, and each one was measured agains
 - My own comment with nothing under it is something I said rather than a discussion.
   Nobody owes an answer and I will not thumbs-up myself, so it would be a row that never
   leaves
-- A resolved thread is gone, and so is a comment I have thumbs-upped. GitHub gives a pull
-  request comment and a review body no resolve, so the reaction is the resolve, which is
-  why `R` resolves a thread and thumbs-ups what cannot be resolved
+- A resolved thread is gone, and so is anything I have thumbs-upped. The thumbs-up is my
+  marker for dealt-with and it is the only one a pull request comment or a review body can
+  carry, so `R` always leaves it and resolves the thread as well when there is one to
+  resolve. It goes on the comment that raised the point rather than the last reply
 - An outdated thread stays. A reply to it is still owed even though the review screen has
   nowhere to draw it
 

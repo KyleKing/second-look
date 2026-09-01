@@ -157,6 +157,13 @@ func (p *pullRequest) thread(t *thread, me string, yours bool) (Conversation, bo
 	c.Line = t.Line
 	c.Side = t.DiffSide
 	c.Outdated = t.IsOutdated
+	// A thumbs-up on the comment that raised the point is the same statement as a
+	// resolve, and it is the marker that survives when the resolve is not mine to
+	// make.
+	c.Handled = t.Comments.Nodes[0].reacted()
+	if c.Handled {
+		return Conversation{}, false
+	}
 
 	for i := range t.Comments.Nodes {
 		c.Notes = append(c.Notes, t.Comments.Nodes[i].note())

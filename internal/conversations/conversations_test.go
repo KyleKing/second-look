@@ -101,6 +101,7 @@ func TestDecodeKeepsOnlyTheConversationsThatAreYours(t *testing.T) {
 		{"a review nobody has submitted", row{conversations.KindReview, "o/mine#1:review:33"}},
 		{"an approval with no body", row{conversations.KindReview, "o/mine#1:review:34"}},
 		{"a comment you already thumbs-upped", row{conversations.KindComment, "o/theirs#2:comment:52"}},
+		{"a thread you thumbs-upped without resolving", row{conversations.KindThread, "T-thumbed"}},
 	}
 
 	for _, unwanted := range dropped {

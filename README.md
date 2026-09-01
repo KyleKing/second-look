@@ -36,9 +36,13 @@ reviews carry.
 "New" means new to you. What you have read is kept per conversation under your config
 directory rather than in a repository, because the queue spans repositories, so a reply
 that arrived while you were away shows up whether or not a notification did. `enter`
-reads a conversation and marks it, `R` resolves the thread (or thumbs-ups what GitHub
-gives no resolve, which means the same thing), and `r` opens the review screen to stage
-an answer.
+reads a conversation and marks it, `R` marks one dealt with, and `r` opens the review
+screen to stage an answer.
+
+A thumbs-up is what `R` always leaves, because that is the marker a person recognizes and
+the only one a pull request comment or a review body can carry. A thread gets the resolve
+as well. So anything you have already thumbs-upped is gone from the queue whether or not
+GitHub let you resolve it.
 
 A bot reaches that queue only through an inline review thread, which is the one surface
 where what it says is anchored to code and can be resolved. Its pull request comments are

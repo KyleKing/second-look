@@ -72,9 +72,10 @@ type Conversation struct {
 	// review screen has nowhere to draw it.
 	Outdated bool `json:"outdated,omitempty"`
 
-	// Handled is set when you have already thumbs-upped the conversation. On the
-	// two surfaces that cannot be resolved, that reaction is the resolve, so a
-	// handled conversation leaves the queue the same way a resolved thread does.
+	// Handled is set when you have already thumbs-upped the conversation. The
+	// reaction is the standing marker for dealt-with on all three surfaces, and
+	// it is the only one the two GitHub gives no resolve can carry, so a handled
+	// conversation leaves the queue the same way a resolved thread does.
 	Handled bool `json:"handled,omitempty"`
 
 	// Why is what qualified this conversation, kept so the screen can say why a
@@ -107,10 +108,10 @@ func (c *Conversation) Key() string {
 		return c.ThreadID
 	}
 
-	return fmt.Sprintf("%s#%d:%s:%d", c.Repository, c.Number, c.Kind, c.first())
+	return fmt.Sprintf("%s#%d:%s:%d", c.Repository, c.Number, c.Kind, c.firstID())
 }
 
-func (c *Conversation) first() int64 {
+func (c *Conversation) firstID() int64 {
 	if len(c.Notes) == 0 {
 		return 0
 	}
@@ -126,7 +127,18 @@ func (c *Conversation) ReplyTo() int64 {
 		return 0
 	}
 
-	return c.first()
+	return c.firstID()
+}
+
+// First is the comment that opened the conversation, which is the one a
+// thumbs-up marks: the point being acknowledged rather than the last word about
+// it.
+func (c *Conversation) First() Note {
+	if len(c.Notes) == 0 {
+		return Note{}
+	}
+
+	return c.Notes[0]
 }
 
 // Last is the most recent comment, which is the one that decides whose turn it

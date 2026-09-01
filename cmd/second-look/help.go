@@ -158,10 +158,14 @@ COMMANDS
       review threads, the pull request's own comments, and the bodies submitted
       reviews carry.
 
-      A resolved thread is gone, and so is a comment you have thumbs-upped,
-      because GitHub gives a pull request comment and a review body no resolve
-      and a reaction is how a person marks one dealt with. R does whichever
-      applies: it resolves a thread, and thumbs-ups what cannot be resolved.
+      R marks a conversation dealt with, which always means a thumbs-up and,
+      on a thread, the resolve as well. The reaction is the marker a person
+      recognizes and the only one a pull request comment or a review body can
+      carry, since GitHub gives neither a resolve. It goes on the comment that
+      opened the conversation rather than on the last reply to it.
+
+      So a resolved thread is gone from the queue, and so is anything you have
+      already thumbs-upped.
 
       A machine account reaches the queue only through an inline review thread.
       That is the one surface where what a bot says is anchored to code and can

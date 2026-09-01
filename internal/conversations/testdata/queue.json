@@ -34,7 +34,9 @@
                       "author": {
                         "login": "coderabbitai",
                         "__typename": "Bot"
-                      }
+                      },
+                      "id": "PRRC_11",
+                      "reactionGroups": []
                     }
                   ]
                 }
@@ -55,7 +57,37 @@
                       "author": {
                         "login": "alice",
                         "__typename": "User"
-                      }
+                      },
+                      "id": "PRRC_12",
+                      "reactionGroups": []
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "T-thumbed",
+                "isResolved": false,
+                "isOutdated": false,
+                "path": "a.go",
+                "line": 31,
+                "diffSide": "RIGHT",
+                "comments": {
+                  "nodes": [
+                    {
+                      "id": "PRRC_19",
+                      "databaseId": 19,
+                      "body": "rename this while you are here",
+                      "createdAt": "2026-08-31T10:30:00Z",
+                      "author": {
+                        "login": "alice",
+                        "__typename": "User"
+                      },
+                      "reactionGroups": [
+                        {
+                          "content": "THUMBS_UP",
+                          "viewerHasReacted": true
+                        }
+                      ]
                     }
                   ]
                 }

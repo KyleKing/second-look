@@ -7,11 +7,9 @@ package conversations
 // GitHub answers "Bot" for an App, which is exact where matching a login
 // against a list of known bot names is a guess that goes stale.
 //
-// The reaction groups are only asked for where they mean something: a review
-// thread is resolved through resolveReviewThread, while a conversation comment
-// and a review body can only be marked handled by reacting to them. Those two
-// carry a node id as well as a database id, because addReaction takes the node
-// id and no REST endpoint reacts to a review body at all.
+// Every comment carries a node id and its reaction groups, because a thumbs-up
+// is the standing marker for handled on all three surfaces. The node id is what
+// addReaction takes, and no REST endpoint reacts to a review body at all.
 const query = `query($q:String!,$n:Int!){
   viewer{login}
   search(query:$q,type:ISSUE,first:$n){
@@ -31,7 +29,16 @@ const query = `query($q:String!,$n:Int!){
             path
             line
             diffSide
-            comments(first:50){nodes{databaseId body createdAt author{login __typename}}}
+            comments(first:50){
+              nodes{
+                id
+                databaseId
+                body
+                createdAt
+                author{login __typename}
+                reactionGroups{content viewerHasReacted}
+              }
+            }
           }
         }
         comments(first:50){

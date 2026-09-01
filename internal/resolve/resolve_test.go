@@ -14,42 +14,54 @@ import (
 // carry through with the conversation named.
 var errRefused = errors.New("403")
 
-// recorder keeps the arguments rather than running gh, because what matters is
-// which of the two mutations was chosen for each surface.
+// recorder keeps every call rather than running gh, because what matters is
+// which mutations a surface gets and in which order.
 type recorder struct {
-	args []string
-	err  error
+	calls []string
+	err   error
 }
 
 func (r *recorder) Run(_ context.Context, _ string, args ...string) error {
-	r.args = args
+	r.calls = append(r.calls, strings.Join(args, " "))
 
 	return r.err
 }
 
-func (r *recorder) joined() string { return strings.Join(r.args, " ") }
+func (r *recorder) joined() string { return strings.Join(r.calls, "\n") }
 
-// One key marks a conversation dealt with, and what that means depends on the
-// surface: a thread resolves, and the two GitHub gives no resolve are
-// thumbs-upped, which is the same thing by convention.
-func TestRunResolvesAThreadAndReactsToWhatCannotBe(t *testing.T) {
+// One key marks a conversation dealt with. The thumbs-up is the standing marker
+// on every surface, and a thread carries the resolve as well.
+func TestRunResolvesAThreadAndReactsToEverything(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name   string
 		conv   conversations.Conversation
-		want   string
+		want   []string
 		unwant string
 		says   string
 	}{
 		{
-			name: "an inline thread resolves",
+			name: "an inline thread resolves and is thumbs-upped",
 			conv: conversations.Conversation{
 				Kind: conversations.KindThread, ThreadID: "PRRT_1",
 				Repository: "o/r", Number: 3, Path: "a.go", Line: 9,
+				Notes: []conversations.Note{{ID: 11, NodeID: "PRRC_11"}, {ID: 12, NodeID: "PRRC_12"}},
+			},
+			want: []string{"resolveReviewThread", "addReaction", "id=PRRC_11"},
+			// The reaction goes on the comment that raised the point, not on the
+			// last reply to it.
+			unwant: "id=PRRC_12",
+			says:   "resolved and thumbs-upped",
+		},
+		{
+			name: "a thread already carrying my thumbs-up only resolves",
+			conv: conversations.Conversation{
+				Kind: conversations.KindThread, ThreadID: "PRRT_2", Handled: true,
+				Repository: "o/r", Number: 3, Path: "a.go", Line: 9,
 				Notes: []conversations.Note{{ID: 11, NodeID: "PRRC_11"}},
 			},
-			want:   "resolveReviewThread",
+			want:   []string{"resolveReviewThread"},
 			unwant: "addReaction",
 			says:   "resolved",
 		},
@@ -59,7 +71,7 @@ func TestRunResolvesAThreadAndReactsToWhatCannotBe(t *testing.T) {
 				Kind: conversations.KindComment, Repository: "o/r", Number: 3,
 				Notes: []conversations.Note{{ID: 21, NodeID: "IC_21"}},
 			},
-			want:   "addReaction",
+			want:   []string{"addReaction"},
 			unwant: "resolveReviewThread",
 			says:   "thumbs-upped",
 		},
@@ -69,7 +81,7 @@ func TestRunResolvesAThreadAndReactsToWhatCannotBe(t *testing.T) {
 				Kind: conversations.KindReview, Repository: "o/r", Number: 3,
 				Notes: []conversations.Note{{ID: 31, NodeID: "PRR_31"}},
 			},
-			want:   "addReaction",
+			want:   []string{"addReaction"},
 			unwant: "reactions",
 			says:   "thumbs-upped",
 		},
@@ -86,8 +98,10 @@ func TestRunResolvesAThreadAndReactsToWhatCannotBe(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if got := r.joined(); !strings.Contains(got, c.want) {
-				t.Errorf("called %q, want it to carry %q", got, c.want)
+			for _, want := range c.want {
+				if got := r.joined(); !strings.Contains(got, want) {
+					t.Errorf("called %q, want it to carry %q", got, want)
+				}
 			}
 
 			if got := r.joined(); strings.Contains(got, c.unwant) {

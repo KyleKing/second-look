@@ -109,7 +109,7 @@ var threadsHelp = []string{
 	"  enter                read the whole conversation, and mark it read",
 	"  space                mark read without opening it",
 	"  r                    leave and open the review screen to stage a reply",
-	"  R                    resolve the thread, or thumbs-up what GitHub cannot resolve",
+	"  R                    thumbs-up it, and resolve the thread when there is one",
 	"  o                    open it on GitHub",
 	"  ctrl+r               read the queue again",
 	"  q, esc               leave",
