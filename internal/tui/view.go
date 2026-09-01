@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -51,8 +52,8 @@ func (m *Model) title() string {
 
 	// The counts and the position are fixed width, so the path yields to them
 	// rather than pushing the line past the frame.
-	left = cut(left, max(1, m.width-runeLen(right)-1))
-	gap := max(1, m.width-runeLen(left)-runeLen(right))
+	left = cut(left, max(1, m.width-textWidth(right)-1))
+	gap := max(1, m.width-textWidth(left)-textWidth(right))
 
 	return m.styles.title.Render(left) +
 		strings.Repeat(" ", gap) + m.styles.subtitle.Render(right)
@@ -271,25 +272,23 @@ func expand(s string) string {
 	return b.String()
 }
 
+// cut, pad, and textWidth all measure the cells a terminal spends, not runes
+// and not bytes. A CJK glyph is two cells wide and a combining mark is none, so
+// counting runes overruns the frame on one and stops short on the other.
 func cut(s string, width int) string {
-	runes := []rune(s)
-	if len(runes) <= width {
-		return s
-	}
-
 	if width < 1 {
 		return ""
 	}
 
-	return string(runes[:width-1]) + "…"
+	return ansi.Truncate(s, width, "…")
 }
 
 func pad(s string, width int) string {
-	if n := width - runeLen(s); n > 0 {
+	if n := width - textWidth(s); n > 0 {
 		return s + strings.Repeat(" ", n)
 	}
 
 	return s
 }
 
-func runeLen(s string) int { return len([]rune(s)) }
+func textWidth(s string) int { return ansi.StringWidth(s) }

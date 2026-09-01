@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -84,6 +85,44 @@ func press(m *tui.Model, k tea.KeyPressMsg) {
 	_, cmd := m.Update(k)
 	if cmd != nil {
 		m.Update(cmd())
+	}
+}
+
+// A terminal spends cells, not runes and not bytes: a CJK glyph takes two and
+// an accent takes one while costing two bytes. Every frame has to land inside
+// the width whatever the comment is written in.
+func TestFramesFitTheirWidthInEveryScript(t *testing.T) {
+	t.Parallel()
+
+	bodies := map[string]string{
+		"accented": strings.Repeat("naïve café façade résumé étude déjà vu ", 4),
+		//nolint:gosmopolitan // the Han script is the test: it is what costs two cells
+		"cjk":   strings.Repeat("日本語のコメントはここに書かれる。", 6),
+		"emoji": strings.Repeat("shipping 🚀 this one 🎉 ", 6),
+	}
+
+	for name, body := range bodies {
+		for _, width := range []int{80, 120} {
+			t.Run(fmt.Sprintf("%s/%d", name, width), func(t *testing.T) {
+				t.Parallel()
+
+				m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, body))
+				m.Update(tea.WindowSizeMsg{Width: width, Height: 24})
+
+				frame := plain(m.Frame())
+				for i, line := range strings.Split(frame, "\n") {
+					if got := xansi.StringWidth(line); got > width {
+						t.Errorf("line %d is %d cells wide in a %d-column frame: %q", i, got, width, line)
+					}
+				}
+
+				// A script that puts no spaces between words is one long word,
+				// and truncating it would show the comment's first line only.
+				if strings.Contains(frame, "…") {
+					t.Errorf("the comment was truncated rather than wrapped:\n%s", frame)
+				}
+			})
+		}
 	}
 }
 

@@ -220,9 +220,11 @@ func numberWidth(d *diff.Diff) int {
 	return max(narrowest, len(strconv.Itoa(widest)))
 }
 
-// wrap breaks text at word boundaries, keeping any line breaks the author
-// wrote. A word longer than the width is left long rather than split, since
-// splitting an identifier or a URL makes it unsearchable.
+// wrap breaks text at word boundaries in terminal cells, keeping any line
+// breaks the author wrote. A word wider than the frame is broken rather than
+// left to be truncated: a sentence in a script that puts no spaces between its
+// words is one word, and dropping all but the first line of it loses the
+// comment.
 func wrap(text string, width int) []string {
 	if text == "" {
 		return nil
@@ -241,11 +243,19 @@ func wrap(text string, width int) []string {
 			switch {
 			case line == "":
 				line = word
-			case len(line)+1+len(word) <= width:
+			case textWidth(line)+1+textWidth(word) <= width:
 				line += " " + word
+
+				continue
 			default:
 				out = append(out, line)
 				line = word
+			}
+
+			if textWidth(line) > width {
+				chunks := split(line, width)
+				out = append(out, chunks[:len(chunks)-1]...)
+				line = chunks[len(chunks)-1]
 			}
 		}
 
@@ -253,4 +263,24 @@ func wrap(text string, width int) []string {
 	}
 
 	return out
+}
+
+// split breaks one over-wide word into frame-sized pieces, measured in cells so
+// a double-width glyph is never left straddling the edge.
+func split(word string, width int) []string {
+	var (
+		out  []string
+		line string
+	)
+
+	for _, r := range word {
+		if textWidth(line)+textWidth(string(r)) > width {
+			out = append(out, line)
+			line = ""
+		}
+
+		line += string(r)
+	}
+
+	return append(out, line)
 }
