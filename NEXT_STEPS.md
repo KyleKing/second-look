@@ -110,6 +110,11 @@ approving is a single gh call and happens in place. Merging is `M` in the review
 instead, where the key is only reachable after the diff has been read, and it refuses while
 anything is still staged.
 
+One thing here has never reached GitHub: the merge. Recording it would merge a pull
+request, and [#2](https://github.com/KyleKing/second-look/pull/2) exists precisely because
+it never merges, so the request shape is covered by a fake and by nothing else. Proving it
+needs a throwaway pull request opened for the purpose.
+
 `internal/ghrun` is the seam all of these share, lifted out of `internal/resolve` because
 resolving, reacting, browsing, approving, commenting, and merging are one shape: run a gh
 call, report its own stderr in the error. Writing that stderr to the terminal, which is

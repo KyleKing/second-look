@@ -489,8 +489,12 @@ func queue(ctx context.Context, out io.Writer) []inbox.Bucket {
 
 // configured reads the config, reporting a file that cannot be read and falling
 // back to the built-in buckets: a typo in a file should leave a working queue
-// rather than no queue. It is read before the screen opens, because nothing can
-// be written to a terminal the alternate screen owns.
+// rather than no queue.
+//
+// The report goes to stderr, because --json puts a document on stdout and a
+// warning in front of it is a document nothing can parse. It is read before the
+// screen opens, since nothing can be written to a terminal the alternate screen
+// owns.
 func configured(out io.Writer) (*config.Config, error) {
 	cfg, err := loadConfig()
 	if err == nil {
@@ -649,7 +653,7 @@ func inboxCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 		return openInbox(ctx, stdin, stdout)
 	}
 
-	buckets := queue(ctx, stdout)
+	buckets := queue(ctx, os.Stderr)
 
 	if asJSON == jsonArg {
 		return writeJSON(stdout, buckets)

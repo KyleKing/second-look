@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -82,7 +83,7 @@ var inboxHelp = []string{
 // re-run three searches nobody asked for.
 func openInbox(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 	for {
-		cfg, err := configured(stdout)
+		cfg, err := configured(os.Stderr)
 		if err != nil {
 			return err
 		}

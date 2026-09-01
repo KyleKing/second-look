@@ -222,3 +222,44 @@ func withComment(t *testing.T, body string) string {
 
 	return path
 }
+
+// A config that will not parse leaves a working queue, and its complaint goes to
+// stderr: --json puts a document on stdout and a warning in front of it is a
+// document nothing can parse.
+func TestInboxWithABrokenConfig(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+
+	dir := filepath.Join(home, ".config", "second-look")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "config.toml"),
+		[]byte("[[section]]\nname = \"mine\"\nfilters = \"is:open\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := ghcassette.Replay(t, cassettePath(t, "inbox"))
+
+	res := runCLIEnv(t, s, t.TempDir(), homeEnv(home), "inbox", "--json")
+	if res.code != 0 {
+		t.Fatalf("inbox --json failed: %s%s", res.stdout, res.stderr)
+	}
+
+	if !strings.HasPrefix(strings.TrimSpace(res.stdout), "[") {
+		t.Errorf("the warning landed in the JSON:\n%s", res.stdout)
+	}
+
+	if !strings.Contains(res.stderr, "filters") {
+		t.Errorf("the broken key was never named:\n%s", res.stderr)
+	}
+
+	// The built-in buckets are what a broken config falls back to.
+	if !strings.Contains(res.stdout, "pending your review") {
+		t.Errorf("the queue is empty rather than built-in:\n%s", res.stdout)
+	}
+
+	s.RequireAllPlayed(t)
+}
