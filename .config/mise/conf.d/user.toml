@@ -16,7 +16,9 @@ mkdir -p "$dir/unit" "$dir/subprocess" "$dir/merged"
 COVERDIR_SUBPROCESS="$dir/subprocess" go test -count=1 -cover -coverpkg=./... ./... -args -test.gocoverdir="$dir/unit"
 go tool covdata merge -i="$dir/unit,$dir/subprocess" -o="$dir/merged"
 go tool covdata textfmt -i="$dir/merged" -o=coverage.out
-coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+# Anchored: the profile's last line is "total:", and a plain grep also matches
+# every covered function whose name contains it.
+coverage=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $3}' | sed 's/%//')
 echo "Current coverage: ${coverage}%"
 if (( $(awk "BEGIN {print ($coverage < 70)}") )); then
     echo "Coverage ${coverage}% is below 70% minimum threshold"

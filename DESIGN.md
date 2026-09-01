@@ -30,6 +30,7 @@ flowchart TB
         artifact[("artifact: .second-look/")]
         anchor["anchor: hunk identity, seen-state"]
         rate["rate: changed symbols, capability delta"]
+        structure["structure: ast-grep, one pass per hunk"]
     end
 
     review --> ara
@@ -45,7 +46,8 @@ flowchart TB
 | --- | --- |
 | `review/artifact` | Read, write, and validate the versioned review JSON |
 | `review/anchor` | Hunk identity, seen-state, re-anchoring across a force-push |
-| `review/rate` | Deterministic review-cost rating |
+| `rate` | Deterministic review-cost rating, from the structural pass |
+| `structure` | What a parser sees in a hunk's two sides, through ast-grep |
 | `conversations` | The cross-repository conversation queue and what has been read |
 | `resolve` | Resolve a thread, or thumbs-up what GitHub gives no resolve |
 | `config` | The sections the inbox shows, read from the user's own file |

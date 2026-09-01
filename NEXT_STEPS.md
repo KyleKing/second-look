@@ -25,8 +25,8 @@ Reached. The submit from inside the screen is driven on a real pty against the r
 gh, and the requests it makes are the ones that posted the review on
 [#2](https://github.com/KyleKing/second-look/pull/2) for real; it is the one step nobody
 has run against live GitHub from inside the screen rather than from the shell. What alpha
-still leaves out: seen-state, the inbox, the rating, and writing a new comment (rather
-than a reply) without an agent.
+still leaves out: writing a new comment (rather than a reply) without an agent. Seen-state,
+the inbox, and the rating all landed.
 
 ## Beyond alpha: replace gh-dash
 
@@ -43,7 +43,8 @@ merge deliberately elsewhere: `M` in the review screen, after the diff has been 
 What gh-dash still has that this does not: issues beside pull requests, which waits for a
 real gap rather than parity for its own sake, and its preview pane, which the review screen
 replaces with something better. What is left of the goal is the queue's own order past
-about forty rows, which is the review-cost rating's first real job.
+about forty rows. The rating that answers it exists and rates one open pull request; what
+it does not yet do is order a list of them.
 
 The division of labour with gh-repo-dashboard is worth stating, because two tools reading
 the same data is the failure mode to avoid. gh-repo-dashboard owns disk: clones,
@@ -52,6 +53,74 @@ aragonite owns the data both read and the views both draw, so neither is the oth
 server. `filter/` and `tui/table` are already named for extraction there, and the pull
 request cache is the next thing that wants to move, since both tools now ask GitHub the
 same questions.
+
+## Next, and first: the screens are hard to read
+
+Highest priority, ahead of everything below. All of it came out of driving the built
+binary rather than reading the code, which is why none of it showed up in a test.
+
+### The review screen
+
+**A comment is hard to read where it sits.** The body renders in the diff's own rail at
+lower contrast than the code around it, so the thing being written is quieter than the
+thing being written about. A note is worse, because it carries a shell transcript and
+reads as more grey lines. The fix is not more contrast on the same shape: give a comment
+a shape of its own, so a reader's eye finds it without reading the rail. What that shape
+is has to be tried on a real review with several comments on one hunk, since that is
+where the current one breaks down.
+
+**Editing means leaving.** Every write goes out to `$EDITOR` and comes back, which is
+right for a paragraph and wrong for fixing a word, changing a severity, or answering
+"looks good". An inline editor for the one-line cases, with `$EDITOR` still there for the
+long ones, is what the screen wants. `bubbles/textarea` is already in the module graph.
+
+**The review body and the review note cannot be reached at all.** They render as
+decoration: their rows carry no comment index, `tab` walks past them, and `e` on one says
+"no comment here". So the review's own prose is readable in the screen and editable only
+by hand in the TOML, which is the editor this tool exists to replace. They need to be
+rows a cursor can land on and a key can edit, and they should be the first thing `tab`
+offers on a review that has neither, since a review with no body is the common way to
+post something unsigned.
+
+**`r`, `d`, and `x` are three keys for one decision.** Three unmodified letters, next to
+each other, each irreversibly restamping whatever the cursor is on, with `.` to repeat.
+Nothing asks and nothing says what changed except a footer. A chord (`m` then `r`, or
+`space` then the letter) would make the decision deliberate and free three letters, one
+of which is worth more elsewhere. Worth pinning the alternatives before picking: a chord,
+a single cycling key, or a confirm on the destructive one only.
+
+**Nothing says where the checkout is.** `C`, `!`, and `M` all behave differently
+depending on whether this laptop has a clone, whether it is on the pull request head, and
+whether the tree is dirty. The screen knows all three (`Tree`, `OnHead`) and shows none of
+it, so the way to find out is to press a key and read the refusal. One field in the title
+bar covers it.
+
+### Both list screens
+
+**The section heading scrolls away.** With four configured sections and 78 rows, row 40
+sits under no visible heading, so the one thing a bucket is for is gone exactly when the
+list is long enough to need it. A sticky heading, or the current section in the subtitle.
+
+**Truncation cuts the identifying end off.** `executablebooks/mdit-py-plugins#1…` drops
+the pull request number, and a thread's path drops its `:LINE`, so two threads on one
+file render as the same row twice. Both columns should truncate from the left and keep
+the tail, since the tail is what names the thing.
+
+**There is no way to narrow 78 rows.** No `/`, no filter, no jump-to-repository. gh-dash
+has one and it is the reason a long queue stays usable.
+
+**Both queues draw nothing for four to six seconds.** No spinner, no partial list, an
+empty terminal. The inbox also runs its sections one after another when they are
+independent searches: four of them cost 6.3 seconds where the slowest alone is under two.
+Run them concurrently and draw each bucket as it lands.
+
+**A bot's preview line is its own metadata.** A coderabbit thread previews as
+`_🎯 Functional Correctness_ | _🟡 Minor_ | _⚡ Quick win_` rather than as what it said,
+which was four of eight rows in the new bucket on a real queue. Skip a leading line that
+is only emphasis and punctuation.
+
+**`(s)`.** "4 section(s)", "2 comment(s)", "2 open review thread(s)". `plural` already
+exists in `internal/tui` and these three call sites do not use it.
 
 ## Reviewing with no checkout — done
 
@@ -305,8 +374,67 @@ pass, a reordering that changes no text, and a trailing-whitespace strip all ans
 a line that gained a character does not. It lives in `internal/diff` because it is a fact
 about a diff rather than about a screen.
 
-The syntax-aware half of that requirement is not built. It needs tree-sitter, which is the
-same dependency the review-cost rating waits on, and neither should arrive on its own.
+The syntax-aware half is `t`, which hides more: every hunk a parser says changed no code,
+so a re-wrap across line boundaries and a reworded comment go too. It shares its pass with
+the review-cost rating, which is why the two arrived together. The section below has the
+whole of it.
+
+## The review-cost rating — in the review screen, not yet in the queue
+
+The number is in the title bar as `cost`, and `t` hides every hunk a parser says changed
+no code. Both come from one pass, which is why they arrived together: they read the same
+tree and neither was worth a dependency on its own.
+
+The dependency is `ast-grep` on the path, not a linked library. Every tree-sitter binding
+for Go needs cgo, `.goreleaser.yml` builds ten platforms with `CGO_ENABLED=0`, and its own
+comment says a cgo-only dependency "makes this matrix build cleanly and emit nothing
+usable". Shelling out is what the tool already does with gh, git, `$EDITOR`, and `$SHELL`,
+so it keeps the release matrix and loses nothing but the feature where the binary is
+missing, which `t` says out loud. It is pinned in `.config/mise/conf.d/user.toml` so CI
+runs `internal/structure`'s tests rather than skipping them.
+
+difftastic was the other candidate and was dropped after measuring it. `difft --exit-code`
+answers 0 for a pure reformat and 1 for a reworded comment, which is correct for a diff
+viewer and wrong here: telling a comment change from a code change is the distinction the
+whole pass exists to make. What replaced it costs nothing: comparing every non-whitespace
+byte of a hunk's two sides settles layout exactly, in process, and only what survives that
+needs a grammar.
+
+Both sides of a hunk come from the patch, context lines included, so nothing here reads a
+working copy or fetches a blob. That is what makes it work on a review prepared with no
+checkout, and it is also the limit: a hunk is a fragment, so the enclosing symbol of a
+change deep inside a body is not always knowable. What is knowable from the fragment is
+the four classes the spec asks for, because a declaration that changed is in the changed
+lines by definition.
+
+What the score reads, in weight order: a signature changed (40, once however many hunks
+carry one, since the second is the same risk again rather than more of it), a capability
+class the after side reaches and the before side did not (25 each), a symbol added (12), a
+symbol deleted (8), and the hunk count as a tiebreaker (1 each), capped at 99. A hunk the
+parser could not read counts toward size and nothing else, and `Score.Rated` reports that,
+so the title shows no number rather than a number meaning less than it looks.
+
+Capability classes are read off the callee's name rather than resolved, so a local named
+`exec` counts and an aliased call does not. Its honest meaning is "a new capability visible
+to syntax", which requirements.md already states and which still separates the changes
+carrying one from the ones carrying none.
+
+### What is left
+
+**Ordering the queue by it, which is the job it exists for.** Rating a row needs that pull
+request's diff, so 78 rows is 78 reads. It wants: draw the queue in query order at once,
+rate in a bounded background pool, re-sort as answers arrive, and cache by head SHA so the
+second run is instant. That is the same progressive draw the queue needs anyway for the
+blank four seconds above, so the two should be built together.
+
+**Blast radius.** requirements.md already calls it "a later addition rather than a
+first-cut input": import graphs overcount, dynamic imports undercount, and it needs a
+whole-repo scan, which the checkout-less path cannot promise. Cache it by base SHA if it
+lands.
+
+**The weights are guesses.** They order the cases I could think of, and `internal/rate`'s
+test pins the order rather than the numbers for that reason. They want a pass over a real
+week of the queue before anyone trusts the gap between 38 and 51.
 
 ## Files grouped by directory — done
 
@@ -627,6 +755,13 @@ takes a `copier update`, the `test:coverage-min` override in
 `.config/mise/conf.d/user.toml` can be deleted: the two now agree on
 `COVERDIR_SUBPROCESS`, so the rendered task drives this project's `TestMain` unchanged.
 `ci:project` stays, since it is what runs the floor in CI.
+
+A third backport is owed and not yet written. Both copies of `test:coverage-min` read the
+coverage number with `grep total`, which also matches every covered function whose name
+contains "total", so `awk` is handed two numbers and the gate fails with a syntax error
+rather than a verdict. `internal/rate` has such a function, which is how it surfaced. The
+local task is anchored to `grep '^total:'` now, and the template renders the loose version
+into every project it has made.
 
 ## Open questions
 
