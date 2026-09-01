@@ -1,0 +1,49 @@
+{
+  "generated_at": "2026-09-01T16:38:38.517307Z",
+  "scan_paths": [
+    "/home/me/Developer"
+  ],
+  "repos": [
+    {
+      "path": "/home/me/Developer/acme/app",
+      "name": "app",
+      "vcs": "git",
+      "branch": "main",
+      "upstream": "origin/main",
+      "remote": "Acme/App",
+      "remote_id": "github.com/acme/app",
+      "dirty": true,
+      "status": "dirty",
+      "worktree_count": 2,
+      "worktrees": [
+        {"path": "/home/me/Developer/acme/app", "branch": "main"},
+        {"path": "/home/me/Developer/acme/app-wt", "branch": "fix/the-thing"}
+      ]
+    },
+    {
+      "path": "/home/me/Developer/acme/app-clone",
+      "name": "app-clone",
+      "vcs": "git",
+      "branch": "chore/deps",
+      "remote": "acme/app",
+      "remote_id": "github.com/acme/app",
+      "dirty": false,
+      "status": "clean",
+      "worktree_count": 1,
+      "worktrees": [
+        {"path": "/home/me/Developer/acme/app-clone", "branch": "chore/deps"}
+      ]
+    },
+    {
+      "path": "/home/me/Developer/acme/other",
+      "name": "other",
+      "vcs": "git",
+      "branch": "main",
+      "remote": "acme/other",
+      "remote_id": "github.com/acme/other",
+      "dirty": false,
+      "status": "clean",
+      "worktree_count": 1
+    }
+  ]
+}

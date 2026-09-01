@@ -55,6 +55,9 @@ type Conversation struct {
 	Number     int    `json:"number"`
 	Title      string `json:"title"`
 	URL        string `json:"url"`
+	// HeadRef is the branch the pull request is on, which is what says whether a
+	// local checkout is already standing on it.
+	HeadRef string `json:"head_ref,omitempty"`
 
 	// ThreadID is the GraphQL node id resolveReviewThread takes. Only a thread
 	// has one, which is why only a thread can be resolved.

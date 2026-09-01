@@ -28,12 +28,16 @@ func declined(string) (bool, error) { return false, nil }
 // because the question is only ever asked before something that moves the
 // working tree.
 func asking(stdin io.Reader, stdout io.Writer) get.Confirm {
+	// One reader for every question, because a fresh one per call would discard
+	// whatever the last read buffered past its newline.
+	in := bufio.NewReader(stdin)
+
 	return func(question string) (bool, error) {
 		if err := write(stdout, question+" [y/N] "); err != nil {
 			return false, err
 		}
 
-		line, err := bufio.NewReader(stdin).ReadString('\n')
+		line, err := in.ReadString('\n')
 		if err != nil && line == "" {
 			return false, fmt.Errorf("reading your answer: %w", err)
 		}

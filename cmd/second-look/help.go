@@ -182,9 +182,16 @@ COMMANDS
 
       r stages a reply. The answer is written in the review screen, which is
       where a threaded reply already lives, so r leaves this screen and opens
-      that one; it needs the checkout the pull request belongs to. Standing on
-      another branch of it is fine: the checkout moves onto the pull request on
-      the way, asking before it stashes anything.
+      that one. Standing somewhere else is fine, whichever repository the
+      conversation is on: the checkout moves onto the pull request on the way,
+      asking before it stashes anything.
+
+      A pull request in another repository is found by asking gh-repo-dashboard
+      which clones of it are on this laptop ("gh repo-dashboard --cli", read
+      from its cache, so no network). One answer is used, several are offered
+      best first (already on the branch, then clean, then one that would need a
+      stash), and none means the reply has nowhere to be staged, since the
+      prepared review lives in the repository it belongs to.
 
   second-look reviews [--json]
       List the reviews staged under .second-look/ in this checkout, newest

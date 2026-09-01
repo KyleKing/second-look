@@ -37,7 +37,7 @@ reviews carry.
 directory rather than in a repository, because the queue spans repositories, so a reply
 that arrived while you were away shows up whether or not a notification did. `enter`
 reads a conversation and marks it, `R` marks one dealt with, and `r` opens the review
-screen to stage an answer.
+screen to stage an answer, in whichever clone of that repository this laptop has.
 
 A thumbs-up is what `R` always leaves, because that is the marker a person recognizes and
 the only one a pull request comment or a review body can carry. A thread gets the resolve
@@ -52,6 +52,14 @@ with 77 rows where 13 were real.
 `second-look reviews` lists what is staged under `.second-look/` in this checkout,
 newest first, and `enter` opens one. Everything it lists is unfinished, because the
 artifact is deleted the moment a review posts.
+
+Answering a conversation on a repository you are not standing in works too. second-look
+asks `gh repo-dashboard --cli` (from its cache, so no network) which clones of that
+repository are on this laptop, uses the one that answers, and offers the choice best first
+when several do: already on the branch, then clean, then one that would need a stash. It
+needs
+[gh-repo-dashboard](https://github.com/kyleking/gh-repo-dashboard) new enough to print a
+`remote` field, and says so when it is not.
 
 Choosing a row off either list moves the checkout onto that pull request when standing
 somewhere else is what stops it opening. Uncommitted work is the case it asks about: it

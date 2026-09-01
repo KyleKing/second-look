@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -14,11 +13,6 @@ import (
 	"github.com/kyleking/second-look/internal/resolve"
 	"github.com/kyleking/second-look/internal/tui"
 )
-
-// errNotThisCheckout reports a reply to a conversation on a pull request this
-// checkout is not standing on. The reply is staged into that pull request's own
-// prepared review, which only exists in its own repository.
-var errNotThisCheckout = errors.New("that pull request belongs to another repository")
 
 // threadsScreen is the conversation queue on screen: read one, mark it read,
 // resolve it, or hand off to the review screen to answer it.
@@ -33,10 +27,10 @@ type threadsScreen struct {
 	// read, so recomputing it after every mark would move the row out from
 	// under the cursor the moment you opened it.
 	buckets []conversations.Bucket
-	// reply is the pull request a reply was asked for, read back once the screen
+	// reply is the conversation a reply was asked for, read back once the screen
 	// closes. Staging an answer means opening the review screen, which cannot
 	// happen while this one owns the terminal.
-	reply int
+	reply *conversations.Conversation
 }
 
 // openThreads reads the queue, shows it, and writes the read marks back on the
@@ -81,12 +75,8 @@ func openThreads(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 		return fmt.Errorf("reading your conversations: %w", runErr)
 	}
 
-	if s.reply > 0 {
-		if err := write(stdout, fmt.Sprintf("opening #%d to stage the reply\n", s.reply)); err != nil {
-			return err
-		}
-
-		return openStaged(ctx, s.reply, stdin, stdout)
+	if s.reply != nil {
+		return answer(ctx, s.reply, s.repo, stdin, stdout)
 	}
 
 	return nil
@@ -116,9 +106,9 @@ var threadsHelp = []string{
 	"",
 	"  ● marks a conversation that moved since you last read it.",
 	"  A reply is staged into that pull request's prepared review and posts with it,",
-	"  so r only works in the checkout the pull request belongs to. Standing on",
-	"  another branch of it is fine: r moves the checkout, and asks first if that",
-	"  would strand uncommitted work.",
+	"  so r leaves the queue and opens the review screen for it. Any repository will",
+	"  do: gh-repo-dashboard says which clones are on this laptop, and r moves that",
+	"  checkout onto the pull request, asking first if that would strand work.",
 }
 
 // counts is the header's right-hand corner: how much is in the queue, and how
@@ -295,24 +285,20 @@ func (s *threadsScreen) drop(key string) {
 // and staged into the prepared review. Doing it here would mean a second editor
 // flow and a second copy of the anchor rules, and the review screen already
 // answers a thread with e.
+//
+// Which directory the review opens in is decided outside the screen, because
+// finding a checkout of another repository can ask a question and this screen
+// owns the terminal.
 func (s *threadsScreen) stageReply(c *conversations.Conversation) (string, bool, error) {
 	if c.Kind != conversations.KindThread {
 		return "", false, fmt.Errorf("%s: %w", c.Anchor(), errNotAThread)
 	}
 
-	if s.repo == "" || !strings.EqualFold(s.repo, c.Repository) {
-		return "", false, fmt.Errorf("%s: %w; run second-look get %d there",
-			c.Where(), errNotThisCheckout, c.Number)
-	}
-
-	s.reply = c.Number
+	s.reply = c
 	s.looked.Mark(c, time.Now())
 
-	return "opening #" + strconv.Itoa(c.Number), true, nil
+	return "opening " + c.Where(), true, nil
 }
-
-var errNotAThread = errors.New("only an inline thread takes a threaded reply; " +
-	"answer a comment or a review body on GitHub, or resolve it with R")
 
 func (s *threadsScreen) refresh() (string, bool, error) {
 	queue, err := conversations.Fetch(s.ctx, ".", conversations.DefaultLimit)

@@ -20,11 +20,12 @@ type response struct {
 
 //nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 type pullRequest struct {
-	Number     int    `json:"number"`
-	Title      string `json:"title"`
-	URL        string `json:"url"`
-	IsDraft    bool   `json:"isDraft"`
-	Repository struct {
+	Number      int    `json:"number"`
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	IsDraft     bool   `json:"isDraft"`
+	HeadRefName string `json:"headRefName"`
+	Repository  struct {
 		NameWithOwner string `json:"nameWithOwner"`
 	} `json:"repository"`
 	Author        author `json:"author"`
@@ -210,6 +211,7 @@ func (p *pullRequest) base(k Kind, yours bool) Conversation {
 		Number:     p.Number,
 		Title:      p.Title,
 		URL:        p.URL,
+		HeadRef:    p.HeadRefName,
 		Why:        Why{Yours: yours},
 	}
 }

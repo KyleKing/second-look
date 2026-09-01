@@ -50,6 +50,7 @@ flowchart TB
 | `resolve` | Resolve a thread, or thumbs-up what GitHub gives no resolve |
 | `prepared` | What is staged under `.second-look/` in a checkout |
 | `stash` | Park uncommitted work so the checkout can move onto a pull request |
+| `checkouts` | Which local clones hold a repository, asked of gh-repo-dashboard |
 | `aragonite/forge` | Fetch a pull request, post a review atomically |
 | `aragonite/vcs` | Diff, branch identity, and working-tree state for git and jj |
 | `aragonite/cache` | Everything network-derived and everything expensive to compute |
@@ -159,6 +160,21 @@ committing by hand and asking again is the other way through.
 
 The question is only ever asked on a terminal. A piped or `--json` run answers no and
 fails with the reason, which keeps an agent from moving a working tree nobody is watching.
+
+A conversation on a repository I am not standing in is the case the queue creates, because
+the queue spans repositories and I read it from wherever I happen to be. Finding the clone
+is gh-repo-dashboard's job: it already scans the fleet, knows which worktree holds which
+branch, and caches it, so second-look runs `gh repo-dashboard --cli` and matches on the
+`remote` field rather than growing a second directory scanner. Candidates are ranked by
+what using one costs (standing on the branch already, a switch, or the stash question),
+one is used without asking, and several are offered in that order. I have more than one
+clone of some repositories, which is exactly the case a ranking has to handle rather than
+pick for me.
+
+The chosen directory becomes the process's own with one `os.Chdir`, because the prepared
+review, the diff cache, the anchor guard, and the shell `!` hands the terminal to all read
+`.`. Threading a root through every one of them would eventually miss one and write a
+review's state into the wrong repository.
 
 The move is offered rather than automatic: a review that opens where I already stand has
 no business touching the tree, so the checkout only moves when standing elsewhere is what

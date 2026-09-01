@@ -19,6 +19,7 @@ const query = `query($q:String!,$n:Int!){
         title
         url
         isDraft
+        headRefName
         repository{nameWithOwner}
         author{login __typename}
         reviewThreads(first:50){
