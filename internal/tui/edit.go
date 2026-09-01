@@ -107,7 +107,7 @@ func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		m.say("kept where you left it; e brings it back", false)
+		m.say("kept where you left it; "+reopens(done.msg)+" brings it back", false)
 
 		return m, nil
 	case "ctrl+r":
@@ -136,6 +136,16 @@ func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.keep()
 
 	return m, cmd
+}
+
+// reopens names the key that offers a kept buffer back, since a comment that
+// does not exist yet is reached by a rather than by e.
+func reopens(msg editedMsg) string {
+	if msg.fresh != nil {
+		return "a"
+	}
+
+	return "e"
 }
 
 // putBack answers ctrl+r: it drops what was restored and starts from what the

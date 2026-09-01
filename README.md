@@ -165,8 +165,8 @@ stands as one line saying how much came out and a comment stands as one row, bot
 the reader and four comments on one hunk bury it. The comments are what will post, by file. The cursor keeps
 its comment across the change.
 
-`a` then `b`, `m`, `n`, `t`, or `q` writes a comment on the line under the cursor, ranked
-blocker to question. The editor opens under the line, and `ctrl+s` stages the comment
+`a` then `b`, `m`, `n`, `t`, or `?` writes a comment on the line under the cursor, ranked
+blocker to question (`q` is every chord's cancel, so a question is `?`). The editor opens under the line, and `ctrl+s` stages the comment
 ready with the line it anchors to already quoted, so nothing has to be restamped and the
 post guard has what it needs.
 

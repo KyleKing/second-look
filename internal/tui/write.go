@@ -12,13 +12,17 @@ import (
 // severities are what the second key of the a chord can say a new comment is.
 // A comment written here is ranked the way an agent's is, because the ranking
 // is what orders which findings get read first.
+//
+// A question is the one severity not keyed by its own first letter, because
+// every chord takes q as its cancel and a second key that quietly means two
+// things is worse than an odd one.
 func severities() [][2]string {
 	return [][2]string{
 		{"b", "blocker"},
 		{"m", "major"},
 		{"n", "minor"},
 		{"t", "nit"},
-		{"q", question},
+		{"?", question},
 	}
 }
 

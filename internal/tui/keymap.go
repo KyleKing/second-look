@@ -162,7 +162,7 @@ func helpLines() [][2]string {
 		{spaceKey, "mark the hunk read, or the whole file from a file line"},
 		{"m then r / d / x", "mark the comment ready, draft, or skipped"},
 		{"z then a / i / R / M", "fold what is here, or all of it; invert; open all; fold to the file names"},
-		{"a then b / m / n / t / q", "write a comment on this line, ranked blocker to question"},
+		{"a then b / m / n / t / ?", "write a comment on this line, ranked blocker to question"},
 		{"e", "write here: a comment, an answer to a thread, the review's body or note"},
 		{"E", "edit the comment's local note, which never posts"},
 		{"!", "run a shell here and attach what it printed to the note"},
