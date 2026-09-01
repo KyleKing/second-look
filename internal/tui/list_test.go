@@ -242,3 +242,52 @@ func TestTheHeaderCarriesTheSectionOnceItScrollsOff(t *testing.T) {
 		t.Errorf("the header does not name the section the cursor is in:\n%s", lines[0])
 	}
 }
+
+// A configured inbox runs to eighty rows across four sections, which no layout
+// makes scannable. The row you want is nearly always named by a word you know.
+func TestTheFilterNarrowsAQueueAndPutsItBack(t *testing.T) {
+	t.Parallel()
+
+	l := list(t, func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil })
+
+	typeList(l, "/pool")
+	shows(t, l, []string{"kyleking/tlr#118", "showing 1 of 3"},
+		[]string{"kyleking/wavez#7", "awaiting others"})
+
+	l.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	shows(t, l, []string{"kyleking/wavez#7", "awaiting others"}, nil)
+
+	// An author narrows it as readily as a title, and the heading the match sits
+	// under survives so the row is not left standing on its own.
+	typeList(l, "/bob")
+	shows(t, l, []string{"a-much-longer-repository-name#7", "new since you looked"},
+		[]string{"kyleking/tlr#118"})
+
+	// Escape from the prompt, rather than from a committed filter, does the same.
+	l.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	shows(t, l, []string{"kyleking/tlr#118"}, nil)
+}
+
+func typeList(l *tui.List, keys string) {
+	for _, r := range keys {
+		l.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+}
+
+func shows(t *testing.T, l *tui.List, want, gone []string) {
+	t.Helper()
+
+	frame := plain(l.ListFrame())
+
+	for _, w := range want {
+		if !strings.Contains(frame, w) {
+			t.Errorf("%q is missing:\n%s", w, frame)
+		}
+	}
+
+	for _, g := range gone {
+		if strings.Contains(frame, g) {
+			t.Errorf("%q survived the filter:\n%s", g, frame)
+		}
+	}
+}

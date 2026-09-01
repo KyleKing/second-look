@@ -129,6 +129,7 @@ type List struct {
 	height int
 
 	expanded map[string]bool
+	filter   filter
 
 	keys   keyMap
 	list   listKeys
@@ -161,7 +162,7 @@ func NewList(title string, sections func() []Section, act Act) *List {
 	l := &List{
 		title: title, sections: sections, act: act,
 		keys: defaultKeyMap(), list: defaultListKeys(), styles: newStyles(),
-		width: minWidth, height: startHeight, expanded: map[string]bool{},
+		width: minWidth, height: startHeight, expanded: map[string]bool{}, filter: newFilter(),
 	}
 	l.rebuild()
 
@@ -247,36 +248,30 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return l, nil
 	}
 
+	if l.filter.typing {
+		return l.typeFilter(msg)
+	}
+
 	switch {
 	case key.Matches(msg, l.keys.Quit):
-		return l, tea.Quit
+		cmd := l.leave()
+
+		return l, cmd
+	case key.Matches(msg, l.keys.Search):
+		cmd := l.beginFilter()
+
+		return l, cmd
 	case key.Matches(msg, l.keys.Help):
 		l.help = true
 
 		return l, nil
-	case key.Matches(msg, l.keys.PeekDown):
-		l.peek(1)
-	case key.Matches(msg, l.keys.PeekUp):
-		l.peek(-1)
-	case key.Matches(msg, l.keys.Down):
-		l.move(1)
-	case key.Matches(msg, l.keys.Up):
-		l.move(-1)
-	case key.Matches(msg, l.keys.HalfDown):
-		l.move(l.half())
-	case key.Matches(msg, l.keys.HalfUp):
-		l.move(-l.half())
-	case key.Matches(msg, l.keys.Top):
-		l.to(0)
-	case key.Matches(msg, l.keys.Bottom):
-		l.to(len(l.lines) - 1)
-	case key.Matches(msg, l.list.Section):
-		l.nextSection()
-	default:
-		return l.perform(msg)
 	}
 
-	return l, nil
+	if l.moved(msg) {
+		return l, nil
+	}
+
+	return l.perform(msg)
 }
 
 // perform runs an action on the row under the cursor. A key pressed on a
@@ -518,7 +513,7 @@ func (l *List) rebuild() {
 	was := l.current()
 
 	l.lines = l.lines[:0]
-	l.shown = l.sections()
+	l.shown = l.filter.narrow(l.sections())
 
 	for i := range l.shown {
 		s := &l.shown[i]
@@ -560,6 +555,47 @@ func (l *List) rebuild() {
 	}
 
 	l.to(l.cursor)
+}
+
+// moved handles every key that only changes where the frame is looking, so the
+// keys that do something to a row stay a short list.
+func (l *List) moved(msg tea.KeyPressMsg) bool {
+	switch {
+	case key.Matches(msg, l.keys.PeekDown):
+		l.peek(1)
+	case key.Matches(msg, l.keys.PeekUp):
+		l.peek(-1)
+	case key.Matches(msg, l.keys.Down):
+		l.move(1)
+	case key.Matches(msg, l.keys.Up):
+		l.move(-1)
+	case key.Matches(msg, l.keys.HalfDown):
+		l.move(l.half())
+	case key.Matches(msg, l.keys.HalfUp):
+		l.move(-l.half())
+	case key.Matches(msg, l.keys.Top):
+		l.to(0)
+	case key.Matches(msg, l.keys.Bottom):
+		l.to(len(l.lines) - 1)
+	case key.Matches(msg, l.list.Section):
+		l.nextSection()
+	default:
+		return false
+	}
+
+	return true
+}
+
+// leave puts a narrowed queue back before it leaves the screen, since a filter
+// is a state to get out of and quitting to get out of it loses the queue.
+func (l *List) leave() tea.Cmd {
+	if l.filter.on() {
+		l.clearFilter()
+
+		return nil
+	}
+
+	return tea.Quit
 }
 
 func heading(s *Section) string {

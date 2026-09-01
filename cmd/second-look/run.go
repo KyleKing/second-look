@@ -61,7 +61,8 @@ const (
 	enterKey = "enter"
 	helpMove = "  j/k, ctrl+u/d, g/G   move, half page, top and bottom\n" +
 		"  ctrl+e/ctrl+y        scroll without moving the cursor"
-	helpGroup = "  tab                  the next group"
+	helpGroup = "  tab                  the next group\n" +
+		"  /                    narrow to the rows carrying a word; esc puts them back"
 	helpLeave = "  q, esc               leave"
 )
 

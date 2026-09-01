@@ -46,6 +46,12 @@ func (l *List) header() string {
 		right = l.styles.subtitle.Render(l.subtitle() + " ")
 	}
 
+	// What the filter is holding back outranks the counts, since a queue that
+	// is quiet for the wrong reason is the worst thing a filter can do.
+	if l.filter.on() {
+		right = l.styles.subtitle.Render("/" + l.filter.query + "  " + l.counted() + " ")
+	}
+
 	// The section yields to the counts and the title, since it is the one part
 	// of the line a reader can recover by looking at the rows under it.
 	const shortest = 8
@@ -162,6 +168,10 @@ func (l *List) row(r *Row, left, mid int) string {
 }
 
 func (l *List) footer() string {
+	if l.filter.typing {
+		return l.prompt()
+	}
+
 	if l.status != "" {
 		style := l.styles.ok
 		if l.failed {
@@ -180,6 +190,7 @@ func (l *List) footer() string {
 			{"R", "resolve"},
 			{"o", "GitHub"},
 			{"tab", "group"},
+			{"/", "filter"},
 			{"?", "help"},
 			{"q", quitWord},
 		}
@@ -198,6 +209,7 @@ func (l *List) helpView() string {
 		"",
 		"  j/k, ctrl+u/d, g/G   move, half page, top and bottom",
 		"  ctrl+e/ctrl+y        scroll without moving the cursor",
+		"  /                    narrow to the rows carrying a word; esc puts them back",
 		"  tab                  the next group",
 		"  enter                read the whole conversation, and mark it read",
 		"  space                mark read without opening it",

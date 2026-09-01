@@ -22,6 +22,10 @@ answering a conversation, and posting all come off the API, so a review is prepa
 finished from an empty directory, with its state under your config directory rather than
 in a working copy. `second-look reviews` lists those beside the checkout's own.
 
+`/` narrows any of the queues to the rows carrying a word, matching the repository, the
+author, the title, and the line last said, with the header saying how many are held back.
+`esc` puts them back before it leaves the screen.
+
 `C` in the review screen is what gets a working copy when you want one: it moves the
 checkout onto the pull request, asks before it stashes anything, and draws the screen
 again. Cloning stays manual, so `C` moves a clone that is already on this laptop and says

@@ -62,10 +62,6 @@ need more than a rendering change.
 
 ### Still open
 
-**Neither queue can be narrowed.** No `/`, no filter, no jump-to-repository, on a
-list that runs to 78 rows. gh-dash has one and it is the reason a long queue stays
-usable.
-
 **Both queues draw nothing for four to six seconds.** No spinner, no partial list,
 an empty terminal. The inbox also runs its sections one after another when they are
 independent searches: four of them cost 6.3 seconds where the slowest alone is under
@@ -80,6 +76,11 @@ split at wide widths, or a modal over the frame) is deliberately unsettled: it w
 driving on a real review before it is built.
 
 ### Done
+
+**`/` narrows a queue.** It matches the repository, the author, the title, and the
+line last said, narrows as it is typed, and says how many rows it is holding back,
+because a queue that is quiet for the wrong reason is the worst thing a filter can
+do. `esc` puts the rows back before it leaves the screen.
 
 **A third view: the code alone.** `c` walks both, the code, the comments. The code
 view is the file as it reads after the change, where a removal stands as one line

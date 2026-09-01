@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/threads"
@@ -88,21 +90,31 @@ func (s screen) codeRows(
 		return rows
 	}
 
-	hunk, gone, hide := 0, 0, false
+	hunk, gone, folded, hide := 0, 0, 0, false
 
 	for _, ln := range f.Lines {
 		if ln.Hunk != hunk {
 			rows = append(rows, dropped(gone, p, hunk)...)
 			gone = 0
 			hunk = ln.Hunk
-			hide = lay.hide.skip != nil && lay.hide.skip(p, hunk) ||
-				lay.fold.hunks[hunkAt{p, hunk}]
+			hide = lay.hide.skip != nil && lay.hide.skip(p, hunk)
+			shut := lay.fold.hunks[hunkAt{p, hunk}]
 
-			if !hide {
+			switch {
+			case hide:
+				folded++
+			case shut:
 				rows = append(rows, row{
-					kind: rowHunk, text: hunkHeader(d, hunk), path: p, comment: -1, hunk: hunk,
+					kind: rowHunk, text: codeHeader(d, hunk) + "  folded · za to open",
+					path: p, comment: -1, hunk: hunk, folded: true,
+				})
+			default:
+				rows = append(rows, row{
+					kind: rowHunk, text: codeHeader(d, hunk), path: p, comment: -1, hunk: hunk,
 				})
 			}
+
+			hide = hide || shut
 		}
 
 		if hide {
@@ -136,7 +148,42 @@ func (s screen) codeRows(
 		}
 	}
 
-	return append(rows, dropped(gone, p, hunk)...)
+	rows = append(rows, dropped(gone, p, hunk)...)
+
+	if folded > 0 {
+		rows = append(rows, row{
+			kind: rowHunk, path: p, comment: -1,
+			text: plural(folded, "hunk") + " hidden: " + lay.hide.why,
+		})
+	}
+
+	return rows
+}
+
+// codeHeader says where in the file that resulted the lines below it start, and
+// whatever the forge named as the region they sit in. A @@ pair counts lines on
+// both sides of a change, which is vocabulary the code view has no use for.
+func codeHeader(d *diff.Diff, hunk int) string {
+	raw := hunkHeader(d, hunk)
+
+	span, tail, ok := strings.Cut(strings.TrimPrefix(raw, "@@ "), " @@")
+	if !ok {
+		return raw
+	}
+
+	at := ""
+
+	for _, field := range strings.Fields(span) {
+		if after, found := strings.CutPrefix(field, "+"); found {
+			at, _, _ = strings.Cut(after, ",")
+		}
+	}
+
+	if at == "" {
+		return raw
+	}
+
+	return "line " + at + "  " + strings.TrimSpace(tail)
 }
 
 // dropped is the run of removed lines as one row.
