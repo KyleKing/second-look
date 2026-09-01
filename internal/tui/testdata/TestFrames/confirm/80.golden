@@ -1,24 +1,24 @@
-kyleking/jj-diff #42  internal/v…  31% · on head · 1 ready · 1 draft · 1 skipped
- 
- internal/vcs  2 files · 2 hunks
-   internal/vcs/diff.go
-   @@ -14,6 +14,7 @@ func Parse(r io.Reader) ([]Hunk, error) {
-  14       first := 1
- 
-▌     ┃ ◐ QUESTION  draft
-      ┃ Is first still 1 after the change?
-      ┃ NOTE  Unverified: I have not read the caller.
-  15 -     lines := split(r)
-  15 +     lines, err := split(r)
- 
-      ┃ ● MAJOR  ready
-      ┃ split can fail now, so this has to check err.
-  16 +     if err != nil {
-  17       last := 4
-   internal/vcs/git.go
-   @@ -200,3 +201,3 @@ func Head() string {
- 201       return head
- 
-      ┃ ○ NIT  skip  Out of scope for this change.
-      ┃ Rename this to headSHA.
+kyleking/jj-diff #42  int… comment 2/3 · on head · 1 ready · 1 draft · 1 skipped
+                                                                               │
+ internal/vcs  2 files · 2 hunks                                               ┃
+   internal/vcs/diff.go                                                        ┃
+   @@ -14,6 +14,7 @@ func Parse(r io.Reader) ([]Hunk, error) {                 ┃
+  14       first := 1                                                          ┃
+                                                                               ┃
+▌     ┃ ◐ QUESTION  draft                                                      ┃
+      ┃ Is first still 1 after the change?                                     ┃
+      ┃ NOTE  Unverified: I have not read the caller.                          ┃
+  15 -     lines := split(r)                                                   ┃
+  15 +     lines, err := split(r)                                              ┃
+                                                                               ┃
+      ┃ ● MAJOR  ready                                                         ┃
+      ┃ split can fail now, so this has to check err.                          ┃
+  16 +     if err != nil {                                                     ┃
+  17       last := 4                                                           ┃
+   internal/vcs/git.go                                                         ┃
+   @@ -200,3 +201,3 @@ func Head() string {                                    ┃
+ 201       return head                                                         ┃
+                                                                               ┃
+      ┃ ○ NIT  skip  Out of scope for this change.                             ┃
+      ┃ Rename this to headSHA.                                                ┃
 1 comment still draft, m r posts it or m x skips it

@@ -42,7 +42,7 @@ func (m *Model) title() string {
 	c := m.counts()
 	left := fmt.Sprintf("%s/%s #%d", m.review.Owner, m.review.Repo, m.review.Number)
 	right := cut(fmt.Sprintf("%s · %s · %s%s%d ready · %d draft · %d skipped",
-		m.progress(), m.treeWord(), m.costCount(), m.readCount(), c.ready, c.draft, c.skip), m.width)
+		m.position(), m.treeWord(), m.costCount(), m.readCount(), c.ready, c.draft, c.skip), m.width)
 
 	if word := m.view.String(); word != "" {
 		left += "  " + word
@@ -105,16 +105,32 @@ func (m *Model) readCount() string {
 	return fmt.Sprintf("%d/%d read · ", m.read.Count(refs), len(refs))
 }
 
-// progress is how far through the review the cursor is, which a frame with no
-// scrollbar otherwise cannot say. It is fixed width so the title does not
-// shift under the eye on every keystroke.
-func (m *Model) progress() string {
+// position is where the cursor is. On a comment it counts them, since "which
+// of these am I on" is the question a review asks and the scrollbar answers in
+// lines rather than in comments. Everywhere else it is how far down the screen
+// is, fixed width so the title does not shift under the eye on every keystroke.
+func (m *Model) position() string {
+	if at := m.commentAt(); at > 0 {
+		return fmt.Sprintf("comment %d/%d", at, len(m.review.Comments))
+	}
+
 	last := len(m.screen.rows) - 1
 	if last < 1 {
 		return "100%"
 	}
 
 	return fmt.Sprintf("%3d%%", m.cursor*100/last)
+}
+
+// commentAt is which comment the cursor is inside, counted from one, or zero on
+// anything else.
+func (m *Model) commentAt() int {
+	i := m.current()
+	if i < 0 || i >= len(m.review.Comments) {
+		return 0
+	}
+
+	return i + 1
 }
 
 // tally is how many comments will post, how many block the post, and how many
@@ -244,6 +260,9 @@ func (m *Model) helpLines() []string {
 // is writing so what is being answered stays where it was on the screen.
 func (m *Model) rowLines() []string {
 	h := m.viewHeight()
+	bar := scrollbar(h, len(m.screen.rows), m.offset)
+	width := bodyWidth(m.width, bar)
+
 	out := make([]string, 0, h)
 
 	for i := m.offset; i < len(m.screen.rows) && len(out) < h; i++ {
@@ -254,14 +273,14 @@ func (m *Model) rowLines() []string {
 			continue
 		}
 
-		out = append(out, m.renderRow(i))
+		out = append(out, m.renderRow(i, width))
 	}
 
 	for len(out) < h {
 		out = append(out, "")
 	}
 
-	return out[:h]
+	return alongside(out[:h], bar, m.styles, m.width)
 }
 
 // cursorBar is the column every row spends on saying whether the cursor is on
@@ -269,10 +288,10 @@ func (m *Model) rowLines() []string {
 // answer a keystroke with a bar of inverted text across it.
 const cursorBar = "▌"
 
-func (m *Model) renderRow(i int) string {
+func (m *Model) renderRow(i, width int) string {
 	r := m.screen.rows[i]
 	text, style := m.rowContent(r)
-	text = cut(text, m.width-1)
+	text = cut(text, width)
 
 	if i == m.cursor {
 		return m.styles.cursor.Render(cursorBar) + style.Render(text)

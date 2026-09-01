@@ -93,33 +93,35 @@ func (l *List) bodyView() string {
 	}
 
 	left, mid := l.widest()
+	bar := scrollbar(rows, len(l.lines), l.offset)
+	width := bodyWidth(l.width, bar)
 
 	out := make([]string, 0, rows)
 
 	for i := l.offset; i < len(l.lines) && len(out) < rows; i++ {
-		out = append(out, l.line(i, left, mid))
+		out = append(out, l.line(i, left, mid, width))
 	}
 
 	for len(out) < rows {
 		out = append(out, "")
 	}
 
-	return strings.Join(out, "\n")
+	return strings.Join(alongside(out, bar, l.styles, l.width), "\n")
 }
 
-func (l *List) line(i, left, mid int) string {
+func (l *List) line(i, left, mid, width int) string {
 	line := l.lines[i]
 
 	switch {
 	case line.heading != "":
 		return " " + l.styles.file.Render(" "+line.heading)
 	case line.detail != "":
-		return " " + l.styles.body.Render(cut("        "+line.detail, l.width-1))
+		return " " + l.styles.body.Render(cut("        "+line.detail, width))
 	case line.under:
-		return " " + l.styles.note.Render(cut("      "+line.Under(), l.width-1))
+		return " " + l.styles.note.Render(cut("      "+line.Under(), width))
 	}
 
-	text := cut(l.row(line.row, left, mid), l.width-1)
+	text := cut(l.row(line.row, left, mid), width)
 
 	if i == l.cursor {
 		return l.styles.cursor.Render(cursorBar) + text
