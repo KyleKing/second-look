@@ -75,6 +75,7 @@ func defaultKeyMap() keyMap {
 func objects() [][2]string {
 	return [][2]string{
 		{"h", "hunk"},
+		{"d", "directory"},
 		{"f", "file"},
 		{"c", "comment"},
 		{"t", "thread"},
@@ -89,7 +90,7 @@ func helpLines() [][2]string {
 		{"j / k", "move a line"},
 		{"ctrl+d / ctrl+u", "move half a page"},
 		{"g / G", "top, bottom"},
-		{"] / [", "go to the next, previous: h hunk, f file, c comment, t thread, u unread hunk"},
+		{"] / [", "go to the next, previous: d directory, f file, h hunk, c comment, t thread, u unread"},
 		{"n / N", "repeat that motion forward, backward"},
 		{"/", "search; tab in the prompt restricts it to hunks not yet read"},
 		{"tab / shift+tab", "next, previous thing wanting a decision"},

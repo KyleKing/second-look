@@ -23,7 +23,8 @@ const (
 type rowKind int
 
 const (
-	rowFile rowKind = iota
+	rowGroup rowKind = iota
+	rowFile
 	rowHunk
 	rowCode
 	rowComment
@@ -69,42 +70,56 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, width int) scr
 
 	s.rows = append(s.rows, header(r, width-s.numWidth-rail)...)
 
-	for i := range d.Files {
-		f := &d.Files[i]
-		path := filePath(f)
+	for _, g := range group(d) {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
-			row{kind: rowFile, text: path, path: path, comment: -1})
+			row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
 
-		if f.Note != "" {
-			s.rows = append(s.rows, row{kind: rowHunk, text: f.Note, path: path, comment: -1})
-		}
-
-		hunk := 0
-
-		for _, l := range f.Lines {
-			if l.Hunk != hunk {
-				hunk = l.Hunk
-				s.rows = append(s.rows, row{
-					kind: rowHunk, text: hunkHeader(d, hunk), path: path, comment: -1, hunk: hunk,
-				})
-			}
-
-			s.rows = append(s.rows, row{kind: rowCode, line: l, path: path, comment: -1, hunk: hunk})
-
-			// What is already on GitHub comes before what this pass is adding,
-			// so a comment reads as an answer to the conversation above it.
-			for _, t := range byThread[anchorOf(path, l)] {
-				s.rows = append(s.rows, threadRows(&ts[t], t, path, width, s.numWidth)...)
-			}
-
-			for _, c := range byLine[anchorOf(path, l)] {
-				placed[c] = true
-				s.rows = append(s.rows, comment(&r.Comments[c], c, path, width, s.numWidth)...)
-			}
+		for _, i := range g.files {
+			s.rows = append(s.rows, s.fileRows(&d.Files[i], d, r, ts, byLine, byThread, placed, width)...)
 		}
 	}
 
 	return s.appendUnanchored(r, placed, width)
+}
+
+// fileRows is one file: its name, whatever it says about itself, and every hunk
+// with the threads and comments that hang off each line.
+func (s screen) fileRows(
+	f *diff.File, d *diff.Diff, r *artifact.Review, ts []threads.Thread,
+	byLine, byThread map[anchor][]int, placed []bool, width int,
+) []row {
+	p := filePath(f)
+	rows := []row{{kind: rowFile, text: p, path: p, comment: -1}}
+
+	if f.Note != "" {
+		rows = append(rows, row{kind: rowHunk, text: f.Note, path: p, comment: -1})
+	}
+
+	hunk := 0
+
+	for _, l := range f.Lines {
+		if l.Hunk != hunk {
+			hunk = l.Hunk
+			rows = append(rows, row{
+				kind: rowHunk, text: hunkHeader(d, hunk), path: p, comment: -1, hunk: hunk,
+			})
+		}
+
+		rows = append(rows, row{kind: rowCode, line: l, path: p, comment: -1, hunk: hunk})
+
+		// What is already on GitHub comes before what this pass is adding, so a
+		// comment reads as an answer to the conversation above it.
+		for _, t := range byThread[anchorOf(p, l)] {
+			rows = append(rows, threadRows(&ts[t], t, p, width, s.numWidth)...)
+		}
+
+		for _, c := range byLine[anchorOf(p, l)] {
+			placed[c] = true
+			rows = append(rows, comment(&r.Comments[c], c, p, width, s.numWidth)...)
+		}
+	}
+
+	return rows
 }
 
 // appendUnanchored lists comments no diff line claimed. Staging refuses those,
@@ -326,6 +341,80 @@ func threadRows(t *threads.Thread, index int, path string, width, numWidth int) 
 	}
 
 	return rows
+}
+
+// dirGroup is the files of one directory, which in a Go tree is one package
+// and in any tree is the unit people actually review together.
+type dirGroup struct {
+	dir   string
+	files []int
+	hunks int
+}
+
+func (g dirGroup) heading() string {
+	return fmt.Sprintf("%s  %s · %s", g.dir, plural(len(g.files), "file"), plural(g.hunks, "hunk"))
+}
+
+func plural(n int, what string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, what)
+	}
+
+	return fmt.Sprintf("%d %ss", n, what)
+}
+
+// group collects the diff's files by the directory they sit in, keeping each
+// directory in the order it first appears.
+//
+// Reading a change is reading one package at a time, and a flat list of paths
+// makes the reader do that grouping in their head on every scroll. Sorting
+// would be a different decision: the diff's own order carries the forge's
+// judgment about what to show first, and this keeps it while making the
+// boundaries visible.
+func group(d *diff.Diff) []dirGroup {
+	var (
+		out   []dirGroup
+		index = map[string]int{}
+	)
+
+	for i := range d.Files {
+		dir := dirOf(filePath(&d.Files[i]))
+
+		at, ok := index[dir]
+		if !ok {
+			at = len(out)
+			index[dir] = at
+			out = append(out, dirGroup{dir: dir})
+		}
+
+		out[at].files = append(out[at].files, i)
+		out[at].hunks += hunkCount(&d.Files[i])
+	}
+
+	return out
+}
+
+// dirOf is the directory part of a diff path. A diff always spells paths with
+// forward slashes whatever the platform, so this does not go through path/filepath.
+func dirOf(p string) string {
+	if at := strings.LastIndexByte(p, '/'); at > 0 {
+		return p[:at]
+	}
+
+	return "."
+}
+
+func hunkCount(f *diff.File) int {
+	last, n := 0, 0
+
+	for _, l := range f.Lines {
+		if l.Hunk != last {
+			last = l.Hunk
+			n++
+		}
+	}
+
+	return n
 }
 
 func filePath(f *diff.File) string {

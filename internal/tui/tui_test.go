@@ -314,6 +314,73 @@ func TestSearchIsCaseInsensitiveUntilItIsNot(t *testing.T) {
 	}
 }
 
+// Reading a change is reading one package at a time, and a flat list of paths
+// makes the reader do that grouping in their head on every scroll. The heading
+// carries the counts so a directory can be taken or left as a unit, and ]d
+// walks them.
+func TestFilesAreGroupedByDirectory(t *testing.T) {
+	t.Parallel()
+
+	patch := `diff --git a/internal/tui/view.go b/internal/tui/view.go
+--- a/internal/tui/view.go
++++ b/internal/tui/view.go
+@@ -1,2 +1,3 @@
+ package tui
++// one
+diff --git a/docs/guide.md b/docs/guide.md
+--- a/docs/guide.md
++++ b/docs/guide.md
+@@ -1,2 +1,3 @@
+ # guide
++more
+diff --git a/internal/tui/model.go b/internal/tui/model.go
+--- a/internal/tui/model.go
++++ b/internal/tui/model.go
+@@ -1,2 +1,3 @@
+ package tui
++// two
+@@ -20,2 +21,3 @@
+ func f() {}
++// three
+`
+
+	m, _, _ := fixtureWith(t, patch)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+
+	frame := plain(m.Frame())
+	for _, want := range []string{"internal/tui  2 files · 3 hunks", "docs  1 file · 1 hunk"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("want %q in the frame:\n%s", want, frame)
+		}
+	}
+
+	// A directory the diff interleaves is still shown as one block, so the
+	// reader never has to hold two places in one package at once.
+	lines := strings.Split(frame, "\n")
+	at := func(want string) int {
+		for i, l := range lines {
+			if strings.Contains(l, want) {
+				return i
+			}
+		}
+
+		return -1
+	}
+
+	a, b, docs := at("internal/tui/view.go"), at("internal/tui/model.go"), at("docs/guide.md")
+	if docs > a && docs < b {
+		t.Errorf("docs/guide.md was rendered between two internal/tui files:\n%s", frame)
+	}
+
+	go2(m, ']', 'd')
+	first := m.CursorText()
+	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+
+	if m.CursorText() == first {
+		t.Error("n did not repeat the directory motion")
+	}
+}
+
 // The comment view is the review without the diff. What makes it worth having
 // is that it is the same rows, so every motion and action still works, and that
 // coming back lands on the comment you were reading rather than at the top.

@@ -2,7 +2,7 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
   j / k             move a line
   ctrl+d / ctrl+u   move half a page
   g / G             top, bottom
-  ] / [             go to the next, previous: h hunk, f file, c comment, t thre…
+  ] / [             go to the next, previous: d directory, f file, h hunk, c co…
   n / N             repeat that motion forward, backward
   /                 search; tab in the prompt restricts it to hunks not yet read
   tab / shift+tab   next, previous thing wanting a decision

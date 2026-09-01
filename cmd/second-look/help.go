@@ -39,6 +39,10 @@ COMMANDS
       last change. So triaging a review reads "]c" then "n . n . n .", and
       reading one through reads "]u" then "n" until nothing answers.
 
+      Files are grouped by the directory they sit in, which in a Go tree is one
+      package, with the file and hunk counts on each heading so a directory can
+      be taken or left as a unit. ]d walks the groups.
+
       c shows the comments alone, grouped by file with the counts on each
       heading and skipped ones counted rather than listed, and c again goes
       back to the same comment in the diff. It is the same rows either way, so

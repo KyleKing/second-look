@@ -293,6 +293,8 @@ func (m *Model) object(msg tea.KeyPressMsg) {
 		m.repeatable(motion{step, "hunk", isHunk})
 	case "f":
 		m.repeatable(motion{step, "file", isKind(rowFile)})
+	case "d":
+		m.repeatable(motion{step, "directory", isKind(rowGroup)})
 	case "c":
 		m.repeatable(motion{step, "comment", isComment})
 	case "t":

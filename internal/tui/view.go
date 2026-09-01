@@ -251,8 +251,10 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 	switch r.kind {
 	case rowBlank:
 		return "", m.styles.footer
+	case rowGroup:
+		return r.text, m.styles.title
 	case rowFile:
-		return r.text, m.styles.file
+		return "  " + r.text, m.styles.file
 	case rowHunk:
 		return "  " + m.readGlyph(r) + r.text, m.styles.hunk
 	case rowComment:

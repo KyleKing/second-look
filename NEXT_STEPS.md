@@ -118,6 +118,17 @@ thing a reader needs most, where they are, was the one thing that vanished; it c
 `Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
 keys while the cursor is inside a comment, since both sets do not fit 80 columns.
 
+## Files grouped by directory — done
+
+Files render under the directory they sit in, which in a Go tree is one package, with the
+file and hunk counts on the heading so a directory can be taken or left as a unit. `]d`
+walks the groups and `n` repeats it.
+
+The diff's own order is kept inside a group rather than re-sorted, because that order
+carries the forge's judgment about what to show first. What changes is that a directory
+the diff interleaves is now shown as one block, so a reader never holds two places in one
+package at once, and the boundaries are visible instead of being inferred from the paths.
+
 ## The comment view — done
 
 `c` shows the comments alone, grouped by the file they sit on, with each heading carrying
