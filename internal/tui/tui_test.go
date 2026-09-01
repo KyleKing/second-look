@@ -3,6 +3,7 @@ package tui_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -336,4 +337,39 @@ func longPatch(t *testing.T) string {
 	}
 
 	return b.String()
+}
+
+// Posting removes the prepared review, and that removal is what stops
+// `second-look post` from publishing the same review twice. A keystroke that
+// wrote the file back would undo it, so after a post the screen refuses every
+// key that changes a comment.
+func TestNothingIsWrittenBackAfterAPost(t *testing.T) {
+	t.Parallel()
+
+	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "on the add"))
+
+	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("standing in for the removal a post does: %v", err)
+	}
+
+	for _, k := range []tea.KeyPressMsg{
+		{Code: tea.KeyTab},
+		{Code: 'x', Text: "x"},
+		{Code: 'd', Text: "d"},
+		{Code: 'r', Text: "r"},
+		{Code: 'e', Text: "e"},
+	} {
+		press(m, k)
+	}
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("the prepared review came back, so posting again would post it twice")
+	}
+
+	if got := plain(m.Frame()); !strings.Contains(got, "already posted") {
+		t.Errorf("the refusal is not shown:\n%s", got)
+	}
 }

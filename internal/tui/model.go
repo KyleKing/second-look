@@ -195,6 +195,15 @@ func isKind(k rowKind) func(row) bool {
 func isHead(r row) bool { return r.head }
 
 func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// Posting removes the prepared review, and every action below writes it
+	// back. One keystroke after a successful post would recreate the file that
+	// was deleted to stop `second-look post` from publishing a second copy.
+	if m.posted && m.changes(msg) {
+		m.say("already posted; GitHub has this review now", false)
+
+		return m, nil
+	}
+
 	switch {
 	case key.Matches(msg, m.keys.Ready):
 		m.setStatus(artifact.StatusReady)
@@ -211,6 +220,14 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// changes reports whether a key writes to the prepared review.
+func (m *Model) changes(msg tea.KeyPressMsg) bool {
+	return key.Matches(msg, m.keys.Ready) ||
+		key.Matches(msg, m.keys.Draft) ||
+		key.Matches(msg, m.keys.Skip) ||
+		key.Matches(msg, m.keys.Edit)
 }
 
 // current is the comment the cursor is inside, or -1 when it is on code.
