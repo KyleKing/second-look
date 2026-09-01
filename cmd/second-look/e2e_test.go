@@ -248,11 +248,11 @@ func scratchRepo(t *testing.T, branch string) (string, string) {
 
 // seedReview writes a fixture review re-stamped onto the scratch repository's
 // head, since the screen refuses a review staged against a different commit.
-func seedReview(t *testing.T, dir, fixture, sha string) {
+func seedReview(t *testing.T, dir, sha string) {
 	t.Helper()
 
 	// #nosec G304,G703 -- a fixture in this package
-	raw, err := os.ReadFile(filepath.Join("testdata", "review", fixture))
+	raw, err := os.ReadFile(filepath.Join("testdata", "review", "staged.toml"))
 	if err != nil {
 		t.Fatalf("reading the fixture review: %v", err)
 	}

@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
+
+	"github.com/charmbracelet/x/term"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -18,6 +21,11 @@ import (
 )
 
 var (
+	// An agent that runs the one command the skill tells it not to lands here.
+	// Bubble Tea's own refusal names a missing device, which says nothing about
+	// what to run instead.
+	errNoTerminal = errors.New("the review screen needs a terminal and there is none here; " +
+		"read the prepared review with second-look show <pr>, or open the screen from a terminal")
 	errNotAPRNumber   = errors.New("not a pull request number")
 	errUnknownCommand = errors.New("unknown command; try second-look -h")
 	errUsageComment   = errors.New("usage: second-look comment add <pr>")
@@ -79,6 +87,10 @@ func reviewCmd(ctx context.Context, args []string, stdout io.Writer) error {
 }
 
 func openReview(ctx context.Context, number int, stdout io.Writer) error {
+	if !term.IsTerminal(os.Stdin.Fd()) && !term.IsTerminal(os.Stdout.Fd()) {
+		return errNoTerminal
+	}
+
 	opened, err := get.Open(ctx, ".", number)
 	if err != nil {
 		return fmt.Errorf("opening #%d: %w", number, err)

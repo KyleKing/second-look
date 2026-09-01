@@ -60,7 +60,7 @@ func TestGetCarriesStagedCommentsOntoANewHead(t *testing.T) {
 
 	// The fixture is staged against the recorded head; the pull request now
 	// reports the scratch repository's.
-	seedReview(t, dir, "staged.toml", fixtureHeadSHA)
+	seedReview(t, dir, fixtureHeadSHA)
 
 	res := runCLI(t, s, dir, "get", "2")
 	if res.code != 0 {

@@ -132,7 +132,7 @@ func TestReviewScreenSubmits(t *testing.T) {
 
 	dir, sha := scratchRepo(t, headBranch)
 	s := ghcassette.Replay(t, reviewCassette(t, sha))
-	seedReview(t, dir, "staged.toml", sha)
+	seedReview(t, dir, sha)
 
 	sc := openReview(t, s, dir, "2")
 	sc.await("testdata/fixture/sample.go")
@@ -175,6 +175,26 @@ func TestReviewScreenSubmits(t *testing.T) {
 	s.RequireAllPlayed(t)
 }
 
+// The skill tells an agent not to open the review screen, and an agent that
+// does has no terminal. What it gets back has to name the command to run
+// instead, since Bubble Tea's own refusal reports a missing device.
+func TestReviewScreenRefusesWithoutATerminal(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+	seedReview(t, dir, sha)
+
+	res := runCLI(t, s, dir, "2")
+	if res.code == 0 {
+		t.Errorf("the screen exited 0 with no terminal:\n%s", res.stdout)
+	}
+
+	if !strings.Contains(res.stderr, "second-look show <pr>") {
+		t.Errorf("the refusal does not say what to run instead:\n%s", res.stderr)
+	}
+}
+
 // TestReviewScreenQuitsWithoutPosting covers the other way out. Quitting is not
 // a submit, so nothing may be sent and the prepared review has to survive.
 func TestReviewScreenQuitsWithoutPosting(t *testing.T) {
@@ -193,7 +213,7 @@ func TestReviewScreenQuitsWithoutPosting(t *testing.T) {
 
 			dir, sha := scratchRepo(t, headBranch)
 			s := ghcassette.Replay(t, openOnlyCassette(t, sha))
-			seedReview(t, dir, "staged.toml", sha)
+			seedReview(t, dir, sha)
 
 			sc := openReview(t, s, dir, "2")
 			sc.await("testdata/fixture/sample.go")
