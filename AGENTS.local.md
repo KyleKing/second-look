@@ -54,6 +54,12 @@ queue, and this repository is public. The arguments in it are the ones a real ru
 the answers are gh's own shape with invented content. `SECOND_LOOK_RECORD=1` would
 overwrite it with real data, so the test uses `Replay` rather than `Start`.
 
+The conversation queue's cassette is not checked in at all. `queueCassette` in
+`threads_e2e_test.go` builds it from `conversations.Args` and
+`internal/conversations/testdata/queue.json`, so the call it answers is the call the
+fetcher makes. A hand-written copy of that 60-line GraphQL query would stop matching on
+the first edit to it, and there is only one fixture of the queue's shape to keep current.
+
 `internal/conversations/testdata/queue.json` is written for the same reason
 `inbox.golden` is. A real reply carries the private repository names, logins, and titles
 of whatever is open, and this repository is public, so the shapes in it are GitHub's own

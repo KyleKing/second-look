@@ -170,13 +170,29 @@ func runCLI(t *testing.T, s *ghcassette.Session, dir string, args ...string) res
 	return runCLIStdin(t, s, dir, "", args...)
 }
 
+// runCLIEnv runs with extra environment, which is how a test points state that
+// lives outside the checkout somewhere it can inspect.
+func runCLIEnv(t *testing.T, s *ghcassette.Session, dir string, env []string, args ...string) result {
+	t.Helper()
+
+	return runCLIStdinEnv(t, s, dir, "", env, args...)
+}
+
 func runCLIStdin(t *testing.T, s *ghcassette.Session, dir, stdin string, args ...string) result {
+	t.Helper()
+
+	return runCLIStdinEnv(t, s, dir, stdin, nil, args...)
+}
+
+func runCLIStdinEnv(
+	t *testing.T, s *ghcassette.Session, dir, stdin string, env []string, args ...string,
+) result {
 	t.Helper()
 
 	cmd := exec.CommandContext(t.Context(), binary, args...) // #nosec G204 -- the binary TestMain built
 	cmd.Stdin = strings.NewReader(stdin)
 	cmd.Dir = dir
-	cmd.Env = childEnv(t, s)
+	cmd.Env = append(childEnv(t, s), env...)
 
 	var out, errOut strings.Builder
 

@@ -197,6 +197,24 @@ type Queue struct {
 	Conversations []Conversation `json:"conversations"`
 }
 
+// Args is the gh call one fetch makes.
+//
+// It is exported for the same reason Decode is: a test that replays the fetch
+// builds the interaction from this rather than from a copy of the query, and a
+// cassette keyed on a copy would answer nothing the moment the query changed.
+func Args(limit int) []string {
+	if limit <= 0 {
+		limit = DefaultLimit
+	}
+
+	return []string{
+		"api", "graphql",
+		"-F", "q=" + Query,
+		"-F", "n=" + strconv.Itoa(limit),
+		"-f", "query=" + query,
+	}
+}
+
 // Fetch reads every qualifying conversation in one request.
 //
 // Viewer, search, threads, comments, and reviews arrive together because the
@@ -204,13 +222,8 @@ type Queue struct {
 // without knowing who you are, and a per-pull-request round trip would spend a
 // second each on pull requests with nothing in them.
 func Fetch(ctx context.Context, root string, limit int) (*Queue, error) {
-	if limit <= 0 {
-		limit = DefaultLimit
-	}
-
 	//nolint:gosec // the query is a constant and the limit is an integer
-	cmd := exec.CommandContext(ctx, "gh", "api", "graphql",
-		"-F", "q="+Query, "-F", "n="+strconv.Itoa(limit), "-f", "query="+query)
+	cmd := exec.CommandContext(ctx, "gh", Args(limit)...)
 	cmd.Dir = root
 
 	out, err := cmd.Output()
