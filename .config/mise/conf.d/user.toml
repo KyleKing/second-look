@@ -31,3 +31,11 @@ rm -rf "$dir"
 description = "Project-specific CI gates"
 depends = ["test:coverage-min"]
 run = "echo 'project checks passed'"
+
+# The structural pass shells out to this rather than linking tree-sitter, whose
+# every Go binding needs cgo, which the ten-platform release matrix builds with
+# CGO_ENABLED=0. Pinned here rather than in template.toml because it is this
+# project's dependency, and installed in CI so internal/structure's tests run
+# there instead of skipping.
+[tools]
+"aqua:ast-grep/ast-grep" = "0.45.3"

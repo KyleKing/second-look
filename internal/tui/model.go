@@ -14,6 +14,7 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/shellrun"
+	"github.com/kyleking/second-look/internal/structure"
 	"github.com/kyleking/second-look/internal/threads"
 )
 
@@ -81,8 +82,11 @@ type Model struct {
 	asking    confirmKind
 	searching bool
 	listing   bool
-	folding   bool
-	help      bool
+	fold      foldLevel
+	// cosmetic is the structural pass over every hunk, nil until t asks for it.
+	cosmetic map[hunkAt]bool
+	reading  bool
+	help     bool
 	// checkout is C, answered by the caller once the screen has closed.
 	checkout bool
 	// failure is the last submit that did not post, cleared by one that does.
@@ -189,6 +193,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applySent(msg)
 
 		return m, tea.ClearScreen
+	case structureMsg:
+		m.reading = false
+
+		if msg.err != nil {
+			m.say("reading the structure: "+msg.err.Error(), true)
+
+			return m, nil
+		}
+
+		m.cosmetic = msg.cosmetic
+		m.setFold(foldCosmetic)
+
+		return m, nil
 	case mergedMsg:
 		m.applyMerge(msg)
 
@@ -273,9 +290,11 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.List):
 		m.toggleList()
 	case key.Matches(msg, m.keys.Fold):
-		m.folding = !m.folding
-		m.rebuild()
-		m.say(foldWord(m.folding), false)
+		m.setFold(foldWhitespace)
+	case key.Matches(msg, m.keys.Structure):
+		cmd := m.askStructure()
+
+		return true, m, cmd
 	case key.Matches(msg, m.keys.Search):
 		cmd := m.begin()
 
@@ -482,7 +501,8 @@ func readWord(read bool) string {
 // shownHunks is every hunk the frame is currently showing, which is every hunk
 // unless whitespace-only ones are folded away.
 func (m *Model) shownHunks() []seen.Ref {
-	if !m.folding {
+	skip := m.skipper().skip
+	if skip == nil {
 		return seen.Hunks(m.diff)
 	}
 
@@ -490,12 +510,44 @@ func (m *Model) shownHunks() []seen.Ref {
 	out := make([]seen.Ref, 0, len(all))
 
 	for _, r := range all {
-		if !m.diff.WhitespaceOnly(r.Path, r.Hunk) {
+		if !skip(r.Path, r.Hunk) {
 			out = append(out, r)
 		}
 	}
 
 	return out
+}
+
+// setFold turns a level on, or off when it is the one already showing.
+func (m *Model) setFold(want foldLevel) {
+	if m.fold == want {
+		want = foldNone
+	}
+
+	m.fold = want
+	m.rebuild()
+	m.say(foldWord(m.fold), false)
+}
+
+// askStructure answers t: it reads the diff once, keeps the answer, and says so
+// where the tool that carries the grammars is missing.
+func (m *Model) askStructure() tea.Cmd {
+	if m.fold == foldCosmetic || m.cosmetic != nil {
+		m.setFold(foldCosmetic)
+
+		return nil
+	}
+
+	if !structure.Available() {
+		m.say(errNoParser.Error(), true)
+
+		return nil
+	}
+
+	m.reading = true
+	m.say("reading the structure of "+plural(len(seen.Hunks(m.diff)), "hunk")+"...", false)
+
+	return readStructure(m.diff)
 }
 
 func (m *Model) hunksOf(path string) []seen.Ref {
@@ -547,16 +599,6 @@ func (m *Model) isUnread(r row) bool {
 // line naming a rename or a binary payload, share the heading style without
 // being hunks, so a motion over hunks has to look past the style.
 func isHunk(r row) bool { return r.kind == rowHunk && r.hunk > 0 }
-
-// foldWord says which way the fold went, since a hunk that vanished with no
-// word for it reads as a bug rather than a filter.
-func foldWord(folding bool) string {
-	if folding {
-		return "whitespace-only hunks hidden"
-	}
-
-	return "showing every hunk"
-}
 
 func isComment(r row) bool { return r.head && r.kind == rowComment && r.comment >= 0 }
 
@@ -1181,7 +1223,7 @@ func (m *Model) rebuild() {
 		return
 	}
 
-	m.screen = build(m.review, m.diff, m.threads, m.width, m.folding)
+	m.screen = build(m.review, m.diff, m.threads, m.width, m.skipper())
 	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()
 }

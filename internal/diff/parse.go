@@ -90,6 +90,37 @@ func (d *Diff) WhitespaceOnly(path string, hunk int) bool {
 	return slices.Equal(added, removed)
 }
 
+// Sides is one hunk's two sides, context lines included. A side is what that
+// commit's file said in the region the hunk covers, which is what a parser
+// needs: the changed lines alone are a fragment of a statement.
+func (d *Diff) Sides(path string, hunk int) ([]string, []string) {
+	var before, after []string
+
+	for i := range d.Files {
+		if pathOf(&d.Files[i]) != path {
+			continue
+		}
+
+		for _, l := range d.Files[i].Lines {
+			if l.Hunk != hunk {
+				continue
+			}
+
+			switch l.Kind {
+			case KindAdd:
+				after = append(after, l.Text)
+			case KindRemove:
+				before = append(before, l.Text)
+			default:
+				before = append(before, l.Text)
+				after = append(after, l.Text)
+			}
+		}
+	}
+
+	return before, after
+}
+
 // withoutBlanks drops lines that are empty once whitespace is gone, so adding
 // or removing a blank line reads as whitespace rather than as content.
 func withoutBlanks(lines []string) []string {

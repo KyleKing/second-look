@@ -9,6 +9,7 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
   .                 repeat the last change
   c                 the comments alone, by file, and back
   w                 hide hunks that change nothing but whitespace, and show the…
+  t                 hide hunks that change no code at all, comments and re-wrap…
   space             mark the hunk read, or the whole file from a file line
   r / d / x         mark it ready, draft, or skipped
   e                 edit a comment, or answer an open thread, in $EDITOR
@@ -20,5 +21,4 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
   M                 squash-merge the pull request, M again to confirm
   ? / esc           this help, back
   q                 quit
-
  j/k line ] go c comments S submit ? help q quit

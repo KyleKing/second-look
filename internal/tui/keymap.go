@@ -11,70 +11,72 @@ import "charm.land/bubbles/v2/key"
 // and ctrl+z belong to the terminal and Meta chords do not survive tmux and ssh
 // intact, which makes a chord the one binding that cannot be relied on.
 type keyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	HalfUp   key.Binding
-	HalfDown key.Binding
-	Top      key.Binding
-	Bottom   key.Binding
-	Forward  key.Binding
-	Backward key.Binding
-	Again    key.Binding
-	Reverse  key.Binding
-	Repeat   key.Binding
-	NextNote key.Binding
-	PrevNote key.Binding
-	Edit     key.Binding
-	Note     key.Binding
-	Shell    key.Binding
-	Checkout key.Binding
-	Ready    key.Binding
-	Draft    key.Binding
-	Skip     key.Binding
-	Seen     key.Binding
-	Search   key.Binding
-	List     key.Binding
-	Fold     key.Binding
-	Accept   key.Binding
-	Send     key.Binding
-	Submit   key.Binding
-	Merge    key.Binding
-	Help     key.Binding
-	Quit     key.Binding
+	Up        key.Binding
+	Down      key.Binding
+	HalfUp    key.Binding
+	HalfDown  key.Binding
+	Top       key.Binding
+	Bottom    key.Binding
+	Forward   key.Binding
+	Backward  key.Binding
+	Again     key.Binding
+	Reverse   key.Binding
+	Repeat    key.Binding
+	NextNote  key.Binding
+	PrevNote  key.Binding
+	Edit      key.Binding
+	Note      key.Binding
+	Shell     key.Binding
+	Checkout  key.Binding
+	Ready     key.Binding
+	Draft     key.Binding
+	Skip      key.Binding
+	Seen      key.Binding
+	Search    key.Binding
+	List      key.Binding
+	Fold      key.Binding
+	Structure key.Binding
+	Accept    key.Binding
+	Send      key.Binding
+	Submit    key.Binding
+	Merge     key.Binding
+	Help      key.Binding
+	Quit      key.Binding
 }
 
 func defaultKeyMap() keyMap {
 	return keyMap{
-		Up:       key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("j/k", "line")),
-		Down:     key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "line")),
-		HalfUp:   key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
-		HalfDown: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
-		Top:      key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("g/G", "top, bottom")),
-		Bottom:   key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("g/G", "top, bottom")),
-		Forward:  key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "go")),
-		Backward: key.NewBinding(key.WithKeys("["), key.WithHelp("[", "go back")),
-		Again:    key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "again")),
-		Reverse:  key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "back")),
-		Repeat:   key.NewBinding(key.WithKeys("."), key.WithHelp(".", "repeat")),
-		NextNote: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next")),
-		PrevNote: key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous")),
-		Edit:     key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
-		Note:     key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "note")),
-		Shell:    key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
-		Checkout: key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
-		Ready:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
-		Draft:    key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
-		Skip:     key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
-		Seen:     key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "read")),
-		Search:   key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
-		List:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
-		Fold:     key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
-		Accept:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
-		Send:     key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
-		Submit:   key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
-		Merge:    key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
-		Help:     key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", "quit")),
+		Up:        key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("j/k", "line")),
+		Down:      key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "line")),
+		HalfUp:    key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
+		HalfDown:  key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
+		Top:       key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("g/G", "top, bottom")),
+		Bottom:    key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("g/G", "top, bottom")),
+		Forward:   key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "go")),
+		Backward:  key.NewBinding(key.WithKeys("["), key.WithHelp("[", "go back")),
+		Again:     key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "again")),
+		Reverse:   key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "back")),
+		Repeat:    key.NewBinding(key.WithKeys("."), key.WithHelp(".", "repeat")),
+		NextNote:  key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next")),
+		PrevNote:  key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous")),
+		Edit:      key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
+		Note:      key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "note")),
+		Shell:     key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
+		Checkout:  key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
+		Ready:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
+		Draft:     key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
+		Skip:      key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
+		Seen:      key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "read")),
+		Search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
+		List:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
+		Fold:      key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
+		Structure: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "no code changed")),
+		Accept:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
+		Send:      key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
+		Submit:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
+		Merge:     key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
+		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Quit:      key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", "quit")),
 	}
 }
 
@@ -105,6 +107,7 @@ func helpLines() [][2]string {
 		{".", "repeat the last change"},
 		{"c", "the comments alone, by file, and back"},
 		{"w", "hide hunks that change nothing but whitespace, and show them again"},
+		{"t", "hide hunks that change no code at all, comments and re-wraps included"},
 		{"space", "mark the hunk read, or the whole file from a file line"},
 		{"r / d / x", "mark it ready, draft, or skipped"},
 		{"e", "edit a comment, or answer an open thread, in $EDITOR"},

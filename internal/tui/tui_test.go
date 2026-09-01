@@ -16,6 +16,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/structure"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -482,6 +483,59 @@ func TestSearchIsCaseInsensitiveUntilItIsNot(t *testing.T) {
 
 	if !strings.Contains(plain(m.Frame()), "no match") {
 		t.Error("the second search should also find nothing")
+	}
+}
+
+// t is the syntax-aware half of the same filter. A reworded comment changes no
+// code, and comparing the two sides line by line cannot tell: the lines differ.
+func TestCosmeticHunksFoldAway(t *testing.T) {
+	t.Parallel()
+
+	if !structure.Available() {
+		t.Skip("ast-grep is not installed")
+	}
+
+	patch := `diff --git a/x.py b/x.py
+--- a/x.py
++++ b/x.py
+@@ -1,3 +1,3 @@
+ def total(rows):
+-    # old wording
++    # new wording
+     return sum(rows)
+@@ -20,2 +20,3 @@
+ def f():
++    return 1
+`
+
+	m, _, _ := fixtureWith(t, patch)
+
+	// The pass costs a subprocess per hunk side, which is more than the shared
+	// helper's patience, so the command is waited on here.
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	if cmd == nil {
+		t.Fatal("t started no structural pass")
+	}
+
+	m.Update(cmd())
+
+	frame := plain(m.Frame())
+	if strings.Contains(frame, "new wording") {
+		t.Errorf("the comment-only hunk is still shown:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "1 hunk hidden: no code changed") {
+		t.Errorf("nothing says a hunk was hidden:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "return 1") {
+		t.Errorf("t hid a hunk that changes something:\n%s", frame)
+	}
+
+	pressKey(m, 't')
+
+	if !strings.Contains(plain(m.Frame()), "new wording") {
+		t.Error("t did not bring the hunk back")
 	}
 }
 
