@@ -22,7 +22,10 @@ const fixtureHeadSHA = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
 const headBranch = "fixture/review-target"
 
 //nolint:gochecknoglobals // the binary under test, built once by TestMain
-var binary string
+var (
+	binary   string
+	coverDir string
+)
 
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "second-look-e2e")
@@ -32,8 +35,20 @@ func TestMain(m *testing.M) {
 
 	binary = filepath.Join(dir, "second-look")
 
+	// Passed through explicitly rather than inherited: `go test -test.gocoverdir`
+	// overwrites GOCOVERDIR in the test process, so a child that read it would
+	// write into the unit run's directory and be dropped.
+	coverDir = os.Getenv("SECOND_LOOK_COVERDIR")
+
+	// -cover makes the subprocess record what it ran, which is the only way
+	// these tests count: go test instruments the test binary, and everything
+	// they exercise happens in a child process. The binary writes nothing
+	// unless GOCOVERDIR is set, and it reaches the child through the
+	// environment the cassette session passes on.
 	//nolint:noctx,gosec // a build of this package, not a request, and every argument is a constant
-	if out, err := exec.Command("go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
+	out, err := exec.Command("go", "build", "-cover",
+		"-coverpkg=github.com/kyleking/second-look/...", "-o", binary, ".").CombinedOutput()
+	if err != nil {
 		panic(string(out))
 	}
 
@@ -159,7 +174,7 @@ func runCLIStdin(t *testing.T, s *ghcassette.Session, dir, stdin string, args ..
 	cmd := exec.CommandContext(t.Context(), binary, args...) // #nosec G204 -- the binary TestMain built
 	cmd.Stdin = strings.NewReader(stdin)
 	cmd.Dir = dir
-	cmd.Env = append(s.Env(t), "GH_REPO=KyleKing/second-look")
+	cmd.Env = childEnv(t, s)
 
 	var out, errOut strings.Builder
 
@@ -180,6 +195,19 @@ func runCLIStdin(t *testing.T, s *ghcassette.Session, dir, stdin string, args ..
 	res.stdout, res.stderr = out.String(), errOut.String()
 
 	return res
+}
+
+// childEnv is what the binary under test runs with: the cassette's gh, the
+// repository its recording names, and where to record what it ran.
+func childEnv(t *testing.T, s *ghcassette.Session) []string {
+	t.Helper()
+
+	env := append(s.Env(t), "GH_REPO=KyleKing/second-look")
+	if coverDir != "" {
+		env = append(env, "GOCOVERDIR="+coverDir)
+	}
+
+	return env
 }
 
 // scratchRepo is a git repository with one commit on branch, and a remote that

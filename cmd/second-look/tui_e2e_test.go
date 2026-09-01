@@ -45,7 +45,7 @@ func openReview(t *testing.T, s *ghcassette.Session, dir string, args ...string)
 
 	cmd := exec.CommandContext(t.Context(), binary, args...) // #nosec G204 -- the binary TestMain built
 	cmd.Dir = dir
-	cmd.Env = append(s.Env(t), "GH_REPO=KyleKing/second-look", "TERM=xterm-256color")
+	cmd.Env = append(childEnv(t, s), "TERM=xterm-256color")
 
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: ptyCols, Rows: ptyRows})
 	if err != nil {

@@ -1,0 +1,33 @@
+# Project tasks. Loaded after template.toml (mise reads conf.d/*.toml in
+# alphabetical order and the last definition wins), so a task named here
+# overrides the template's.
+
+# Overrides the template's task, which counts only what the test binaries run.
+# Everything cmd/second-look tests happens in a child process, so `go test
+# -cover` sees none of it and internal/get reads as 0%. The child is built with
+# `go build -cover` and writes into SECOND_LOOK_COVERDIR; both halves are
+# covdata directories, which is the only format `go tool covdata merge` takes.
+[tasks."test:coverage-min"]
+description = "Verify minimum coverage threshold (70%), subprocess tests included"
+run = '''
+set -euo pipefail
+dir=$(mktemp -d)
+mkdir -p "$dir/unit" "$dir/e2e" "$dir/merged"
+SECOND_LOOK_COVERDIR="$dir/e2e" go test -count=1 -cover -coverpkg=./... ./... -args -test.gocoverdir="$dir/unit"
+go tool covdata merge -i="$dir/unit,$dir/e2e" -o="$dir/merged"
+go tool covdata textfmt -i="$dir/merged" -o=coverage.out
+coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+echo "Current coverage: ${coverage}%"
+if (( $(awk "BEGIN {print ($coverage < 70)}") )); then
+    echo "Coverage ${coverage}% is below 70% minimum threshold"
+    exit 1
+fi
+rm -rf "$dir"
+'''
+
+# The workflow runs this if it exists, so the floor is enforced without editing
+# .github/workflows/, which copier overwrites.
+[tasks."ci:project"]
+description = "Project-specific CI gates"
+depends = ["test:coverage-min"]
+run = "echo 'project checks passed'"
