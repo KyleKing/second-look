@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/skill"
+	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -32,7 +34,7 @@ var (
 	errUsageGet       = errors.New("usage: second-look get <pr>")
 	errUsagePost      = errors.New("usage: second-look post <pr> [--dry-run]")
 	errUsageReview    = errors.New("usage: second-look <pr>")
-	errUsageShow      = errors.New("usage: second-look show <pr> [--payload]")
+	errUsageShow      = errors.New("usage: second-look show <pr> [--payload|--threads]")
 	errUsageSkill     = errors.New("usage: second-look skill")
 )
 
@@ -101,7 +103,8 @@ func openReview(ctx context.Context, number int, stdout io.Writer) error {
 	// as it happens draws over the frame.
 	var log strings.Builder
 
-	runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(opened.Path, &log))
+	runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(opened.Path, &log),
+		tui.WithThreads(opened.Threads))
 
 	// The log is written either way: a post that failed partway through still
 	// names the endpoints it reached, which is what says whether anything
@@ -228,7 +231,7 @@ func showCmd(args []string, stdout io.Writer) error {
 		return errUsageShow
 	}
 
-	payloadOnly, err := onlyFlag(args[1:], "--payload", errUsageShow)
+	flag, err := oneOf(args[1:], errUsageShow, "--payload", "--threads")
 	if err != nil {
 		return err
 	}
@@ -242,6 +245,20 @@ func showCmd(args []string, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("loading the prepared review: %w", err)
 	}
+
+	// --threads answers the one question a reply needs: which comment id does
+	// this conversation hang from. It reads what `get` cached rather than
+	// asking GitHub, so it costs nothing and matches what the screen shows.
+	if flag == "--threads" {
+		var open []threads.Thread
+		if err := artifact.LoadThreads(".", r.HeadSHA, &open); err != nil {
+			return fmt.Errorf("reading the cached review threads: %w", err)
+		}
+
+		return writeJSON(stdout, threads.Replyable(open))
+	}
+
+	payloadOnly := flag == "--payload"
 
 	// --payload prints exactly what would be sent, so what stays local is
 	// inspectable rather than promised.
@@ -347,13 +364,21 @@ func prNumber(pr string) (int, error) {
 // refused rather than ignored: a mistyped --dry-run that fell through would
 // post the review.
 func onlyFlag(args []string, want string, usage error) (bool, error) {
-	if len(args) == 1 && args[0] == want {
-		return true, nil
-	}
+	flag, err := oneOf(args, usage, want)
 
+	return flag == want, err
+}
+
+// oneOf reads at most one flag out of a set, and refuses two at once: a command
+// given both --payload and --threads was meant to do one of them.
+func oneOf(args []string, usage error, want ...string) (string, error) {
 	if len(args) == 0 {
-		return false, nil
+		return "", nil
 	}
 
-	return false, usage
+	if len(args) == 1 && slices.Contains(want, args[0]) {
+		return args[0], nil
+	}
+
+	return "", usage
 }

@@ -58,7 +58,7 @@ func helpLines() [][2]string {
 		{"n / p", "next, previous hunk"},
 		{"} / {", "next, previous file"},
 		{"tab / shift+tab", "next, previous comment"},
-		{"e", "edit the comment under the cursor in $EDITOR"},
+		{"e", "edit a comment, or answer an open thread, in $EDITOR"},
 		{"r / d / x", "mark it ready, draft, or skipped"},
 		{"S", "submit the review to GitHub, S again to confirm"},
 		{"? / esc", "this help, back"},

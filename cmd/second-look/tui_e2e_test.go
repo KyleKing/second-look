@@ -13,6 +13,7 @@ import (
 
 	"github.com/creack/pty"
 
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/ghcassette"
 )
 
@@ -40,12 +41,22 @@ type screen struct {
 	cmd *exec.Cmd
 }
 
+// openReview starts the screen on a pty. Anything before the first argument
+// that is not a flag or a number is an environment assignment, which is how a
+// test hands the screen its own $EDITOR.
 func openReview(t *testing.T, s *ghcassette.Session, dir string, args ...string) *screen {
 	t.Helper()
 
+	env := append(childEnv(t, s), "TERM=xterm-256color")
+
+	for len(args) > 1 && strings.Contains(args[0], "=") {
+		env = append(env, args[0])
+		args = args[1:]
+	}
+
 	cmd := exec.CommandContext(t.Context(), binary, args...) // #nosec G204 -- the binary TestMain built
 	cmd.Dir = dir
-	cmd.Env = append(childEnv(t, s), "TERM=xterm-256color")
+	cmd.Env = env
 
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: ptyCols, Rows: ptyRows})
 	if err != nil {
@@ -61,6 +72,19 @@ func openReview(t *testing.T, s *ghcassette.Session, dir string, args ...string)
 	return sc
 }
 
+// answers is what a terminal replies to the capabilities Bubble Tea asks
+// about. A bare pty answers none of them, so the program waits out a two-second
+// timeout on each before it draws anything, which is most of the time these
+// tests used to spend and the reason they timed out under load.
+//
+//nolint:gochecknoglobals // a table of constants, kept beside the loop that reads it
+var answers = []struct{ query, reply string }{
+	{"\x1b]11;?", "\x1b]11;rgb:1e1e/1e1e/1e1e\a"},
+	{"\x1b[c", "\x1b[?62;22c"},
+	{"\x1b[?2026$p", "\x1b[?2026;2$y"},
+	{"\x1b[?2027$p", "\x1b[?2027;2$y"},
+}
+
 func (s *screen) drain() {
 	chunk := make([]byte, 4096)
 
@@ -71,8 +95,19 @@ func (s *screen) drain() {
 		s.buf.Write(chunk[:n])
 		s.mu.Unlock()
 
+		s.answer(string(chunk[:n]))
+
 		if err != nil {
 			return
+		}
+	}
+}
+
+func (s *screen) answer(written string) {
+	for _, a := range answers {
+		if strings.Contains(written, a.query) {
+			//nolint:errcheck // the process is gone by the time this can fail
+			_, _ = s.pty.WriteString(a.reply)
 		}
 	}
 }
@@ -173,6 +208,63 @@ func TestReviewScreenSubmits(t *testing.T) {
 	}
 
 	s.RequireAllPlayed(t)
+}
+
+// Answering a conversation already on the pull request is the second pass this
+// tool exists for. The thread comes from the recording, the reply is written in
+// $EDITOR, and what lands is a comment addressed to a real GitHub comment id.
+func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+	seedReview(t, dir, sha)
+	seedThreads(t, dir, sha)
+
+	editor := filepath.Join(t.TempDir(), "editor")
+	script := "#!/bin/sh\nprintf 'Answered from the review screen.\\n' > \"$1\"\n"
+
+	if err := os.WriteFile(editor, []byte(script), 0o700); err != nil { //nolint:gosec // it has to run
+		t.Fatalf("writing the editor: %v", err)
+	}
+
+	sc := openReview(t, s, dir, "EDITOR="+editor, "2")
+	sc.await("open thread")
+
+	sc.press("\t")
+	sc.await("e reply")
+	sc.press("e")
+	sc.await("staged, ready to post")
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("the screen exited %d:\n%s", code, sc.text())
+	}
+
+	review, err := artifact.Load(filepath.Join(dir, ".second-look", "pr-2.toml"))
+	if err != nil {
+		t.Fatalf("the prepared review: %v", err)
+	}
+
+	var reply *artifact.Comment
+
+	for i := range review.Comments {
+		if review.Comments[i].InReplyTo != 0 {
+			reply = &review.Comments[i]
+		}
+	}
+
+	if reply == nil {
+		t.Fatal("no reply was staged")
+	}
+
+	if reply.Body != "Answered from the review screen." {
+		t.Errorf("the reply reads %q", reply.Body)
+	}
+
+	if reply.Status != artifact.StatusReady {
+		t.Errorf("the reply is %q; a reply the person just typed is ruled on", reply.Status)
+	}
 }
 
 // The skill tells an agent not to open the review screen, and an agent that

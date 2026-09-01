@@ -6,6 +6,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look comment add <pr>     stage comments from a JSON batch on stdin
   second-look show <pr>            print the prepared review
   second-look show <pr> --payload  print exactly what would be sent
+  second-look show <pr> --threads  print the open review threads and their ids
   second-look post <pr>            post the review
   second-look post <pr> --dry-run  print the request without sending it
   second-look skill                print the agent instructions this binary carries
@@ -32,6 +33,9 @@ COMMANDS
       inline, where they anchor. Navigate by hunk, mark a comment ready, draft,
       or skipped, edit one in $EDITOR, and submit the review with S.
 
+      Conversations already open on the pull request are shown where they
+      anchor, and e on one writes the answer in $EDITOR, staged as a reply.
+
       It creates the prepared review and caches the diff if they are missing,
       and never moves the working copy: the checkout has to already be on the
       pull request head, which "gh pr checkout <pr>" or "second-look get <pr>"
@@ -47,6 +51,11 @@ COMMANDS
       prepared review, and cache the diff under .second-look/diff/. Run this
       first: every later command reads the head commit and the diff it leaves.
 
+      It also caches the pull request's unresolved review threads under
+      .second-look/threads/, which is what the review screen shows and answers.
+      A resolved or outdated thread is skipped: an outdated one anchors to a
+      line the diff no longer carries.
+
       It never clones, and it never moves a dirty working tree. Already being on
       the pull request head is fine however dirty the tree, since refusing to
       review a branch you already have would be wrong.
@@ -61,6 +70,11 @@ COMMANDS
 
   second-look show <pr> --payload
       Print exactly what would be sent. Use this to confirm what stays local.
+
+  second-look show <pr> --threads
+      Print the pull request's unresolved review threads as second-look get last
+      read them, each with the comment id a reply addresses. Put that id in a
+      comment's in_reply_to to answer the thread.
 
   second-look post <pr> [--dry-run]
       Post the review in one request, then post any replies. Refuses while any

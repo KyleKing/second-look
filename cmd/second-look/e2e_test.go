@@ -11,7 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/ghcassette"
+	"github.com/kyleking/second-look/internal/threads"
 )
 
 // fixtureHeadSHA is the head of the recording-target pull request, KyleKing/second-look#2.
@@ -268,6 +270,28 @@ func seedReview(t *testing.T, dir, sha string) {
 	}
 }
 
+// seedThreads caches the recorded conversations onto the scratch head, which is
+// what `second-look get` leaves behind for the screen to read.
+func seedThreads(t *testing.T, dir, sha string) {
+	t.Helper()
+
+	c := ghcassette.Cassette{Interactions: threadInteraction(t)}
+
+	out, err := c.Response(c.Interactions[0].Args...)
+	if err != nil {
+		t.Fatalf("reading the recorded thread query: %v", err)
+	}
+
+	open, err := threads.Decode([]byte(out))
+	if err != nil {
+		t.Fatalf("reading the recorded thread query: %v", err)
+	}
+
+	if err := artifact.SaveThreads(dir, sha, open); err != nil {
+		t.Fatalf("caching the threads: %v", err)
+	}
+}
+
 // reviewCassette is the recording re-stamped onto the scratch head, with the
 // two reads repeated. Opening the screen and guarding the submit each make
 // them, and GitHub answers the same request the same way.
@@ -278,6 +302,32 @@ func reviewCassette(t *testing.T, sha string) string {
 		restamp(c, sha)
 		c.Interactions = append(c.Interactions[:reads:reads], c.Interactions...)
 	})
+}
+
+// getCassette is what `second-look get` costs: the two reads plus the GraphQL
+// query for the open threads, whose recording lives with the code that makes
+// it, in internal/threads. Splicing it in beats a second copy of the same
+// answer under this package's testdata.
+func getCassette(t *testing.T, sha string) string {
+	t.Helper()
+
+	return deriveFrom(t, "post-review", "get", func(c *ghcassette.Cassette) {
+		restamp(c, sha)
+		c.Interactions = append(c.Interactions[:reads:reads], threadInteraction(t)...)
+	})
+}
+
+func threadInteraction(t *testing.T) []ghcassette.Interaction {
+	t.Helper()
+
+	path := filepath.Join("..", "..", "internal", "threads", "testdata", "cassettes", "threads.golden")
+
+	c, err := ghcassette.Load(path)
+	if err != nil {
+		t.Fatalf("reading the recorded thread query: %v", err)
+	}
+
+	return c.Interactions
 }
 
 // openOnlyCassette is what opening the screen costs and nothing more, so a run

@@ -25,8 +25,8 @@ Reached. The submit from inside the screen is driven on a real pty against the r
 gh, and the requests it makes are the ones that posted the review on
 [#2](https://github.com/KyleKing/second-look/pull/2) for real; it is the one step nobody
 has run against live GitHub from inside the screen rather than from the shell. What alpha
-still leaves out: seen-state, the inbox, the rating, existing
-review threads fetched back from GitHub, and writing a new comment without an agent.
+still leaves out: seen-state, the inbox, the rating, and writing a new comment (rather
+than a reply) without an agent.
 
 ## Decided since
 
@@ -117,6 +117,30 @@ cursor was a background color with no glyph or attribute, so under `NO_COLOR` th
 thing a reader needs most, where they are, was the one thing that vanished; it carries
 `Reverse` now. The footer gained `q quit` and `j/k line` by dropping the hunk and file
 keys while the cursor is inside a comment, since both sets do not fit 80 columns.
+
+## Existing review threads — done
+
+`second-look get` reads the pull request's unresolved review threads through the GraphQL
+`reviewThreads` query and caches them under `.second-look/threads/`, keyed by head commit
+the way the diff is. The review screen shows each one under the line it anchors to, above
+the comments this pass is adding, so a comment reads as an answer to the conversation
+above it. `e` on a thread opens `$EDITOR` and stages the answer as a reply with
+`in_reply_to` already filled in, and `second-look show <pr> --threads` prints the same
+threads with the comment id a reply addresses, which is how an agent answers one without
+copying an id by hand.
+
+A resolved or outdated thread is dropped rather than shown. A second pass is about what
+is still open, and an outdated thread anchors to a line the diff no longer carries, so it
+has nowhere to render.
+
+Nothing here is posted from the thread cache. A reply is an ordinary comment in the
+prepared review and goes out through the same path as every other one, which is what
+keeps the "nothing local outlives the post" rule intact.
+
+The GraphQL read is the one recording that lives beside the code that makes it, in
+`internal/threads/testdata/cassettes/threads.golden`, because no scratch repository can
+record the rest of a `get`. It reads and posts nothing, so re-recording it is safe:
+`SECOND_LOOK_RECORD=1 go test ./internal/threads/`.
 
 ## 1. Scaffold from my_go_template — done
 

@@ -40,6 +40,13 @@ and a recording session writes one cassette.
 leaves that id pointing at a thread that still exists, which is fine; deleting the thread
 on GitHub is what would break it.
 
+`internal/threads` carries the third recording, of the GraphQL query for a pull request's
+open review threads. It lives there rather than under `cmd/second-look/testdata/` because
+the scratch repository cannot record a whole `get`: the recorded head and the scratch head
+differ, so `get` tries to pull from an unreachable origin. Re-record it with
+`SECOND_LOOK_RECORD=1 go test ./internal/threads/`, which reads and posts nothing.
+`cmd/second-look` splices that interaction onto the `post-review` reads in `getCassette`.
+
 ### The suite reaches nothing
 
 Only `gh` is replayed. `git` runs for real, so a code path that shells out to the network
@@ -61,6 +68,13 @@ takes. It runs in CI through `ci:project`.
 ## Driving the review screen
 
 `tmux` for looking at it, the pty tests in `cmd/second-look/tui_e2e_test.go` for pinning
-it, and `internal/tui/testdata/TestFrames/` for the frames themselves. A bare pty answers
-no terminal capability queries, so the first frame takes about 4.5 seconds there against
-0.5 under tmux. That is the harness, not the program.
+it, and `internal/tui/testdata/TestFrames/` for the frames themselves.
+
+A bare pty answers no terminal capability queries, so the program waits out a two-second
+timeout on each of OSC 11 and DA1 before drawing anything, and the first frame used to
+take about 4.5 seconds there against 0.5 under tmux. The harness answers those queries
+now, which brings a pty test back under 1.5 seconds and is what stopped them timing out
+when two suites run at once (`hk check --all` runs `ci` and `verify-released`
+concurrently, each running the whole suite). A new capability query that nothing answers
+will put the 2-second stall back: add it to `answers` in that file rather than widening
+the deadline.

@@ -63,10 +63,12 @@ first.
 
 ## Replies
 
-Set `in_reply_to` to the review comment's id and second-look sends the reply to its own
-endpoint. Before replying to a bot thread, check whether a later commit already resolved
-it; close a stale thread with a one-line pointer to the fixing commit instead of raising
-it again.
+`second-look get <pr>` caches the pull request's unresolved review threads, and
+`second-look show <pr> --threads` prints them with the comment id each one answers. Set
+`in_reply_to` to that id and second-look sends the reply to its own endpoint.
+
+Before replying to a bot thread, check whether a later commit already resolved it; close
+a stale thread with a one-line pointer to the fixing commit instead of raising it again.
 
 ## Editing on a later pass
 

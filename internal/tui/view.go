@@ -146,7 +146,11 @@ func (m *Model) footerLines() []string {
 // frame and quitting has to be visible in either.
 func (m *Model) hints() [][2]string {
 	middle := [][2]string{{"n/p", "hunk"}, {"}/{", "file"}}
-	if m.current() >= 0 {
+
+	switch {
+	case m.currentThread() >= 0:
+		middle = [][2]string{{"e", "reply"}}
+	case m.current() >= 0:
 		middle = [][2]string{{"r/d/x", "state"}, {"e", "edit"}}
 	}
 
@@ -161,7 +165,8 @@ func (m *Model) helpLines() []string {
 	out := make([]string, 0, m.viewHeight())
 
 	for _, h := range helpLines() {
-		out = append(out, "  "+m.styles.key.Render(pad(h[0], helpKeyWidth))+m.styles.footer.Render(h[1]))
+		out = append(out, "  "+m.styles.key.Render(pad(h[0], helpKeyWidth))+
+			m.styles.footer.Render(cut(h[1], m.width-helpKeyWidth-indent)))
 	}
 
 	for len(out) < m.viewHeight() {
@@ -210,6 +215,8 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 		return "  " + r.text, m.styles.hunk
 	case rowComment:
 		return m.commentRow(r)
+	case rowThread:
+		return m.threadRow(r)
 	case rowCode:
 		return m.codeRow(r)
 	}
@@ -228,6 +235,18 @@ func (m *Model) commentRow(r row) (string, lipgloss.Style) {
 	}
 
 	return text, m.styles.forSeverity(m.review.Comments[r.comment].Severity)
+}
+
+// threadRow renders a conversation already on GitHub. It shares the comment
+// rail so it sits under its line the same way, and it is dimmer than a prepared
+// comment, because nothing about it will change when this review posts.
+func (m *Model) threadRow(r row) (string, lipgloss.Style) {
+	text := strings.Repeat(" ", m.screen.numWidth+indent) + "│ " + r.text
+	if r.head {
+		return text, m.styles.rail
+	}
+
+	return text, m.styles.note
 }
 
 func (m *Model) codeRow(r row) (string, lipgloss.Style) {

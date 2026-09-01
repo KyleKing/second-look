@@ -109,12 +109,14 @@ func TestFramesFitTheirWidthInEveryScript(t *testing.T) {
 				m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, body))
 				m.Update(tea.WindowSizeMsg{Width: width, Height: 24})
 
+				// The help overlay is measured too: it is the widest fixed text
+				// the screen draws and nothing else pins it to the frame.
+				press(m, tea.KeyPressMsg{Code: '?', Text: "?"})
+				fitsWidth(t, "help", plain(m.Frame()), width)
+				press(m, tea.KeyPressMsg{Code: '?', Text: "?"})
+
 				frame := plain(m.Frame())
-				for i, line := range strings.Split(frame, "\n") {
-					if got := xansi.StringWidth(line); got > width {
-						t.Errorf("line %d is %d cells wide in a %d-column frame: %q", i, got, width, line)
-					}
-				}
+				fitsWidth(t, "review", frame, width)
 
 				// A script that puts no spaces between words is one long word,
 				// and truncating it would show the comment's first line only.
@@ -122,6 +124,16 @@ func TestFramesFitTheirWidthInEveryScript(t *testing.T) {
 					t.Errorf("the comment was truncated rather than wrapped:\n%s", frame)
 				}
 			})
+		}
+	}
+}
+
+func fitsWidth(t *testing.T, what, frame string, width int) {
+	t.Helper()
+
+	for i, line := range strings.Split(frame, "\n") {
+		if got := xansi.StringWidth(line); got > width {
+			t.Errorf("%s line %d is %d cells wide in a %d-column frame: %q", what, i, got, width, line)
 		}
 	}
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/threads"
 )
 
 // Reasons a review cannot be opened where the caller is standing.
@@ -23,8 +24,12 @@ var (
 // Review is everything the review screen reads: the prepared review, the diff
 // its comments anchor to, and where the review is written back.
 type Review struct {
-	Review  *artifact.Review
-	Diff    *diff.Diff
+	Review *artifact.Review
+	Diff   *diff.Diff
+	// Threads is what is already open on the pull request, as `get` last read
+	// it. It is empty for a review prepared before threads were cached, which
+	// changes what the screen shows and nothing about what it posts.
+	Threads []threads.Thread
 	Path    string
 	HeadSHA string
 }
@@ -69,7 +74,14 @@ func Open(ctx context.Context, root string, number int) (*Review, error) {
 		return nil, err
 	}
 
-	return &Review{Review: review, Diff: diff.Parse(patch), Path: path, HeadSHA: pr.HeadSHA}, nil
+	var open []threads.Thread
+	if err := artifact.LoadThreads(root, review.HeadSHA, &open); err != nil {
+		return nil, fmt.Errorf("reading the cached review threads: %w", err)
+	}
+
+	return &Review{
+		Review: review, Diff: diff.Parse(patch), Threads: open, Path: path, HeadSHA: pr.HeadSHA,
+	}, nil
 }
 
 // Current reports the pull request for the branch the checkout is on. Being on

@@ -7,6 +7,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/threads"
 )
 
 // Gutter widths: indent is the two columns a header block is inset by, and
@@ -14,6 +15,9 @@ import (
 const (
 	indent = 2
 	rail   = 4
+	// A continuation line is inset by bodyIndent under the name or the marker
+	// that introduces it.
+	bodyIndent = 2
 )
 
 type rowKind int
@@ -23,6 +27,7 @@ const (
 	rowHunk
 	rowCode
 	rowComment
+	rowThread
 	rowBlank
 )
 
@@ -36,12 +41,15 @@ type row struct {
 	// comment indexes Review.Comments for every row of a comment block, so an
 	// action taken anywhere inside the block finds it.
 	comment int
+	// thread indexes the open threads for every row of a thread block. It is
+	// only read where kind is rowThread, so its zero elsewhere means nothing.
+	thread int
 	// head marks the first row of a comment block, which is where a jump lands.
 	head bool
 }
 
-// screen is the flattened review: the diff with each comment inserted under the
-// line it anchors to.
+// screen is the flattened review: the diff with each open thread and each
+// prepared comment inserted under the line it anchors to.
 type screen struct {
 	rows     []row
 	numWidth int
@@ -50,9 +58,10 @@ type screen struct {
 // build flattens the diff and the prepared review into rows at the given width.
 // A comment whose path is absent from the diff is listed at the end rather than
 // dropped, because a comment nobody can see is a comment nobody can retract.
-func build(r *artifact.Review, d *diff.Diff, width int) screen {
+func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, width int) screen {
 	s := screen{numWidth: numberWidth(d)}
 	byLine := indexComments(r)
+	byThread := indexThreads(ts)
 	placed := make([]bool, len(r.Comments))
 
 	s.rows = append(s.rows, header(r, width-s.numWidth-rail)...)
@@ -76,6 +85,12 @@ func build(r *artifact.Review, d *diff.Diff, width int) screen {
 			}
 
 			s.rows = append(s.rows, row{kind: rowCode, line: l, path: path, comment: -1})
+
+			// What is already on GitHub comes before what this pass is adding,
+			// so a comment reads as an answer to the conversation above it.
+			for _, t := range byThread[anchorOf(path, l)] {
+				s.rows = append(s.rows, threadRows(&ts[t], t, path, width, s.numWidth)...)
+			}
 
 			for _, c := range byLine[anchorOf(path, l)] {
 				placed[c] = true
@@ -177,7 +192,7 @@ func comment(c *artifact.Comment, index int, path string, width, numWidth int) [
 		head += " — " + c.SkipReason
 	}
 
-	body, note := wrap(c.Body, avail), wrap(c.Note, avail)
+	body, note := wrap(c.Body, avail), wrap(c.Note, avail-bodyIndent)
 	rows := make([]row, 0, 1+len(body)+len(note))
 	rows = append(rows, row{kind: rowComment, text: head, path: path, comment: index, head: true})
 
@@ -187,6 +202,48 @@ func comment(c *artifact.Comment, index int, path string, width, numWidth int) [
 
 	for _, l := range note {
 		rows = append(rows, row{kind: rowComment, text: "· " + l, path: path, comment: index})
+	}
+
+	return rows
+}
+
+// indexThreads groups the open threads by the diff line they anchor to, the
+// same way staged comments are grouped, so both render under the same line.
+func indexThreads(ts []threads.Thread) map[anchor][]int {
+	out := make(map[anchor][]int, len(ts))
+
+	for i := range ts {
+		t := &ts[i]
+		out[anchor{path: t.Path, side: t.Side, line: t.Line}] = append(
+			out[anchor{path: t.Path, side: t.Side, line: t.Line}], i,
+		)
+	}
+
+	return out
+}
+
+// threadRows renders one conversation already on GitHub: who said what, in
+// order, under the line it hangs from. It is read-only, and answering it stages
+// a comment in the prepared review like any other.
+func threadRows(t *threads.Thread, index int, path string, width, numWidth int) []row {
+	// bodyIndent is applied after wrapping, so it comes off the width first.
+	avail := width - numWidth - rail - bodyIndent
+	rows := []row{{
+		kind: rowThread, text: fmt.Sprintf("⤷ open thread · %d comment(s)", len(t.Notes)),
+		path: path, comment: -1, thread: index, head: true,
+	}}
+
+	for i := range t.Notes {
+		n := &t.Notes[i]
+		rows = append(rows, row{
+			kind: rowThread, text: "@" + n.Author, path: path, comment: -1, thread: index,
+		})
+
+		for _, l := range wrap(n.Body, avail) {
+			rows = append(rows, row{
+				kind: rowThread, text: "  " + l, path: path, comment: -1, thread: index,
+			})
+		}
 	}
 
 	return rows

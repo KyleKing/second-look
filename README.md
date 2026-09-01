@@ -20,6 +20,9 @@ Every comment is anchored to the diff line it points at. A comment on a line the
 does not carry is refused while staging, and one whose line has moved since is refused
 before anything is sent.
 
+Conversations already open on the pull request are shown where they anchor, so a second
+pass answers what was said last time. `e` on one writes the reply in `$EDITOR`.
+
 - [Next steps](NEXT_STEPS.md) — what alpha needs, in order, and what is still open
 - [Requirements](requirements.md) — scope, decisions made, and what is still open
 - [Prior art, August 2026](research/prior-art-2026-08.md) — what already exists in this

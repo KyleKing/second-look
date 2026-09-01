@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,50 @@ import (
 	"github.com/kyleking/second-look/internal/ghcassette"
 )
 
+// An agent replies by putting a real comment id in in_reply_to, and this is
+// where it reads one. The ids are GitHub's, off the recording.
+func TestShowThreadsNamesTheIDAReplyAddresses(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+	seedReview(t, dir, sha)
+	seedThreads(t, dir, sha)
+
+	res := runCLI(t, s, dir, "show", "2", "--threads")
+	if res.code != 0 {
+		t.Fatalf("show --threads failed: %s%s", res.stdout, res.stderr)
+	}
+
+	var open []struct {
+		Path    string `json:"path"`
+		Line    int    `json:"line"`
+		ReplyTo int64  `json:"reply_to"`
+		Notes   []struct {
+			ID int64 `json:"id"`
+		} `json:"notes"`
+	}
+
+	if err := json.Unmarshal([]byte(res.stdout), &open); err != nil {
+		t.Fatalf("reading the threads: %v\n%s", err, res.stdout)
+	}
+
+	if len(open) == 0 {
+		t.Fatal("no threads were printed, so nothing here is exercised")
+	}
+
+	for i := range open {
+		if open[i].ReplyTo != open[i].Notes[0].ID {
+			t.Errorf("thread %d answers %d, but its first comment is %d",
+				i, open[i].ReplyTo, open[i].Notes[0].ID)
+		}
+
+		if open[i].Path == "" || open[i].Line == 0 {
+			t.Errorf("thread %d anchors nowhere: %+v", i, open[i])
+		}
+	}
+}
+
 // TestGetPreparesTheReview is get standing on the head already, which is what
 // `gh pr checkout` then `second-look get` looks like. Nothing moves; the
 // artifact and the cached diff are written and the diff is the recorded bytes.
@@ -19,7 +64,7 @@ func TestGetPreparesTheReview(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+	s := ghcassette.Replay(t, getCassette(t, sha))
 
 	res := runCLI(t, s, dir, "get", "2")
 	if res.code != 0 {
@@ -56,7 +101,7 @@ func TestGetCarriesStagedCommentsOntoANewHead(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+	s := ghcassette.Replay(t, getCassette(t, sha))
 
 	// The fixture is staged against the recorded head; the pull request now
 	// reports the scratch repository's.

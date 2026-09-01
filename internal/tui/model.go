@@ -12,6 +12,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/threads"
 )
 
 // Minimum usable frame. Below it the screen is a resize message rather than a
@@ -39,11 +40,12 @@ type Submitter func(ctx context.Context, r *artifact.Review) (string, error)
 
 // Model is the review screen.
 type Model struct {
-	ctx    context.Context //nolint:containedctx // it bounds the editor subprocess and the post
-	review *artifact.Review
-	diff   *diff.Diff
-	path   string
-	submit Submitter
+	ctx     context.Context //nolint:containedctx // it bounds the editor subprocess and the post
+	review  *artifact.Review
+	diff    *diff.Diff
+	threads []threads.Thread
+	path    string
+	submit  Submitter
 
 	screen screen
 	cursor int
@@ -66,14 +68,34 @@ type Model struct {
 	failure error
 }
 
+// Option configures the review screen.
+type Option func(*Model)
+
+// WithThreads shows the conversations already open on the pull request, which
+// `second-look get` cached. Without it the screen shows the diff and the
+// prepared review alone, which is what a review staged before threads were
+// fetched has.
+func WithThreads(ts []threads.Thread) Option {
+	return func(m *Model) { m.threads = ts }
+}
+
 // New builds the review screen for a prepared review and the diff it was
 // staged against.
-func New(ctx context.Context, r *artifact.Review, d *diff.Diff, path string, submit Submitter) *Model {
-	return &Model{
+func New(
+	ctx context.Context, r *artifact.Review, d *diff.Diff,
+	path string, submit Submitter, opts ...Option,
+) *Model {
+	m := &Model{
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
 		keys: defaultKeyMap(), styles: newStyles(),
 		width: minWidth, height: startHeight,
 	}
+
+	for _, opt := range opts {
+		opt(m)
+	}
+
+	return m
 }
 
 // Init lays out the first frame at the assumed size, which the terminal
@@ -85,9 +107,12 @@ func (m *Model) Init() tea.Cmd {
 }
 
 type editedMsg struct {
-	index int
-	body  string
-	err   error
+	// index is the comment the edit replaces, or -1 for a reply, which stages a
+	// comment that did not exist when the editor opened.
+	index   int
+	replyTo int
+	body    string
+	err     error
 }
 
 type submittedMsg struct {
@@ -282,9 +307,15 @@ func (m *Model) say(text string, failed bool) {
 	m.status, m.failed = text, failed
 }
 
-// edit opens the comment body in $EDITOR, which owns the terminal until it
-// exits, following the same rule as running the code under review.
+// edit opens $EDITOR on whatever the cursor is standing on, which owns the
+// terminal until it exits, following the same rule as running the code under
+// review. On a prepared comment it edits the body; on a thread already posted
+// it writes the reply to it, since a posted comment cannot be changed.
 func (m *Model) edit() tea.Cmd {
+	if t := m.currentThread(); t >= 0 {
+		return m.open("", editedMsg{index: -1, replyTo: t})
+	}
+
 	i := m.current()
 	if i < 0 {
 		m.say("no comment here", false)
@@ -292,6 +323,12 @@ func (m *Model) edit() tea.Cmd {
 		return nil
 	}
 
+	return m.open(m.review.Comments[i].Body, editedMsg{index: i, replyTo: -1})
+}
+
+// open puts start in a temporary file, hands the terminal to $EDITOR, and
+// returns what came back shaped as msg.
+func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 	file, err := os.CreateTemp("", "second-look-*.md")
 	if err != nil {
 		m.say(err.Error(), true)
@@ -300,7 +337,7 @@ func (m *Model) edit() tea.Cmd {
 	}
 
 	name := file.Name()
-	if _, err := file.WriteString(m.review.Comments[i].Body); err != nil {
+	if _, err := file.WriteString(start); err != nil {
 		m.say(err.Error(), true)
 
 		return nil
@@ -317,15 +354,21 @@ func (m *Model) edit() tea.Cmd {
 		defer os.Remove(name)
 
 		if err != nil {
-			return editedMsg{index: i, err: err}
+			msg.err = err
+
+			return msg
 		}
 
 		body, err := os.ReadFile(name) //nolint:gosec // our own temp file
 		if err != nil {
-			return editedMsg{index: i, err: err}
+			msg.err = err
+
+			return msg
 		}
 
-		return editedMsg{index: i, body: strings.TrimRight(string(body), "\n")}
+		msg.body = strings.TrimRight(string(body), "\n")
+
+		return msg
 	})
 }
 
@@ -352,8 +395,46 @@ func (m *Model) applyEdit(msg editedMsg) {
 		return
 	}
 
+	if msg.index < 0 {
+		m.stageReply(msg)
+
+		return
+	}
+
 	m.review.Comments[msg.index].Body = msg.body
 	m.save("edited " + m.review.Comments[msg.index].ID)
+}
+
+// stageReply puts an answer to an open thread into the prepared review. It is
+// staged ready rather than draft: a draft is a comment nobody has ruled on, and
+// this one was typed by the person the screen belongs to.
+func (m *Model) stageReply(msg editedMsg) {
+	if msg.replyTo < 0 || msg.replyTo >= len(m.threads) {
+		return
+	}
+
+	t := &m.threads[msg.replyTo]
+
+	m.review.Upsert(artifact.Comment{
+		ID: fmt.Sprintf("reply-%d", t.ReplyTo()), Path: t.Path, Side: t.Side, Line: t.Line,
+		InReplyTo: t.ReplyTo(), Body: msg.body, Severity: "question", Status: artifact.StatusReady,
+	})
+
+	m.save(fmt.Sprintf("reply to %d staged, ready to post", t.ReplyTo()))
+}
+
+// currentThread is the open thread the cursor is standing in, or -1.
+func (m *Model) currentThread() int {
+	if m.cursor < 0 || m.cursor >= len(m.screen.rows) {
+		return -1
+	}
+
+	r := m.screen.rows[m.cursor]
+	if r.kind != rowThread {
+		return -1
+	}
+
+	return r.thread
 }
 
 // askSubmit asks before it posts. Posting is the only thing the screen does
@@ -465,7 +546,7 @@ func (m *Model) applySubmit(msg submittedMsg) {
 }
 
 func (m *Model) rebuild() {
-	m.screen = build(m.review, m.diff, m.width)
+	m.screen = build(m.review, m.diff, m.threads, m.width)
 	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()
 }

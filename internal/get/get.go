@@ -14,6 +14,7 @@ import (
 	"github.com/kyleking/aragonite/vcs"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/threads"
 )
 
 // Reasons get stops. Each names something only the person at the keyboard can
@@ -57,7 +58,36 @@ func Run(ctx context.Context, out io.Writer, root string, number int) error {
 		return fmt.Errorf("caching the diff: %w", err)
 	}
 
+	if err := cacheThreads(ctx, out, root, repoID, pr.HeadSHA, number); err != nil {
+		return err
+	}
+
 	return writeReview(out, root, repoID, pr)
+}
+
+// cacheThreads reads the conversations already open on the pull request, so a
+// second pass can answer them. A repository whose threads cannot be read is
+// still worth reviewing, so the failure is reported and the run continues.
+func cacheThreads(ctx context.Context, out io.Writer, root string, id repo, sha string, number int) error {
+	open, err := threads.Fetch(ctx, root, id.owner, id.name, number)
+	if err != nil {
+		//nolint:wrapcheck // Fetch's own error already names the pull request
+		return err
+	}
+
+	if err := artifact.SaveThreads(root, sha, open); err != nil {
+		return fmt.Errorf("caching the review threads: %w", err)
+	}
+
+	if len(open) == 0 {
+		return nil
+	}
+
+	if _, err := fmt.Fprintf(out, "%d open review thread(s)\n", len(open)); err != nil {
+		return fmt.Errorf("writing output: %w", err)
+	}
+
+	return nil
 }
 
 // repo names the repository a review is filed against.
