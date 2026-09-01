@@ -25,8 +25,8 @@ const (
 	weightNew       = 12
 	weightDeleted   = 8
 	weightGained    = 25
-	// weightHunk is the tiebreaker. It is small on purpose: it separates two
-	// changes that carry the same signals and never outranks one that does not.
+	// The hunk count is the tiebreaker. It is small on purpose: it separates
+	// two changes carrying the same signals and never outranks one that does not.
 	weightHunk = 1
 	// Ceiling keeps the number readable at a glance and comparable between
 	// pull requests, which a raw sum of an unbounded diff is not.

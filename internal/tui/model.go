@@ -83,7 +83,9 @@ type Model struct {
 	asking    confirmKind
 	searching bool
 	listing   bool
-	fold      foldLevel
+	// editing is the in-place editor, nil when nothing is being written.
+	editing *editor
+	fold    foldLevel
 	// cosmetic is the structural pass over every hunk, nil until it answers.
 	cosmetic map[hunkAt]bool
 	// cost is what the same pass rates the change, shown in the title once it
@@ -259,6 +261,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// A prompt, a confirmation, and a half-typed motion each own the keyboard
 	// until they are finished, so they are answered before anything else.
 	switch {
+	case m.editing != nil:
+		return m.typeBody(msg)
 	case m.asking != askNothing:
 		return m.answer(msg)
 	case m.searching:
@@ -871,20 +875,24 @@ func (m *Model) say(text string, failed bool) {
 // thing on this screen that used to be editable only in the file.
 func (m *Model) edit() tea.Cmd {
 	if t := m.currentThread(); t >= 0 {
-		return m.open("", editedMsg{index: -1, replyTo: t})
+		return m.beginEdit("replying to @"+m.threads[t].Notes[0].Author,
+			"", editedMsg{index: -1, replyTo: t})
 	}
 
 	switch i := m.current(); i {
 	case reviewBody:
-		return m.open(m.review.Body, editedMsg{index: reviewBody, replyTo: -1, field: fieldBody})
+		return m.beginEdit("editing the review body", m.review.Body,
+			editedMsg{index: reviewBody, replyTo: -1, field: fieldBody})
 	case reviewNote:
-		return m.open(m.review.Note, editedMsg{index: reviewNote, replyTo: -1, field: fieldNote})
+		return m.beginEdit("editing the review note, which stays local", m.review.Note,
+			editedMsg{index: reviewNote, replyTo: -1, field: fieldNote})
 	case noComment:
 		m.say("no comment here", false)
 
 		return nil
 	default:
-		return m.open(m.review.Comments[i].Body, editedMsg{index: i, replyTo: -1, field: fieldBody})
+		return m.beginEdit("editing "+m.review.Comments[i].ID, m.review.Comments[i].Body,
+			editedMsg{index: i, replyTo: -1, field: fieldBody})
 	}
 }
 
@@ -899,7 +907,8 @@ func (m *Model) editNote() tea.Cmd {
 		return nil
 	}
 
-	return m.open(m.review.Comments[i].Note, editedMsg{index: i, replyTo: -1, field: fieldNote})
+	return m.beginEdit("editing the note on "+m.review.Comments[i].ID,
+		m.review.Comments[i].Note, editedMsg{index: i, replyTo: -1, field: fieldNote})
 }
 
 // shell hands the terminal to $SHELL in the repository and appends what the

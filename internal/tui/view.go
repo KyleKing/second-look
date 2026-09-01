@@ -233,13 +233,16 @@ func (m *Model) helpLines() []string {
 	return out[:m.viewHeight()]
 }
 
+// rowLines is the frame's body, with the editor standing in for the block it
+// is writing so what is being answered stays where it was on the screen.
 func (m *Model) rowLines() []string {
 	h := m.viewHeight()
 	out := make([]string, 0, h)
 
-	for i := m.offset; i < m.offset+h; i++ {
-		if i >= len(m.screen.rows) {
-			out = append(out, "")
+	for i := m.offset; i < len(m.screen.rows) && len(out) < h; i++ {
+		if m.editingHere(i) {
+			out = append(out, m.editorLines()...)
+			i = m.spanEnd(i)
 
 			continue
 		}
@@ -247,7 +250,11 @@ func (m *Model) rowLines() []string {
 		out = append(out, m.renderRow(i))
 	}
 
-	return out
+	for len(out) < h {
+		out = append(out, "")
+	}
+
+	return out[:h]
 }
 
 func (m *Model) renderRow(i int) string {

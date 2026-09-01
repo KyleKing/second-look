@@ -17,6 +17,7 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/structure"
+	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -88,7 +89,7 @@ func fixtureWith(t *testing.T, patch string, cs ...artifact.Comment) (*tui.Model
 // search prompt's cursor schedules a blink half a second out and reschedules
 // forever, and a test that waited for each one would spend its whole run
 // watching a cursor the program loop runs in the background anyway.
-// state presses the chord that restamps the comment under the cursor.
+// The state chord is m then a letter, which is how a comment is restamped.
 func state(m *tui.Model, letter rune) {
 	press(m, tea.KeyPressMsg{Code: 'm', Text: "m"})
 	press(m, tea.KeyPressMsg{Code: letter, Text: string(letter)})
@@ -1164,4 +1165,180 @@ func TestNothingIsWrittenBackAfterAPost(t *testing.T) {
 	if got := plain(m.Frame()); !strings.Contains(got, "already posted") {
 		t.Errorf("the refusal is not shown:\n%s", got)
 	}
+}
+
+// type writes into whatever prompt or editor owns the keyboard.
+func typeIn(m *tui.Model, text string) {
+	for _, r := range text {
+		press(m, tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+}
+
+// Editing in the frame is what makes fixing a word cheap. It has to leave the
+// line under review on screen, since a comment edited away from what it is
+// about is the reason $EDITOR was the wrong shape for this.
+func TestEditingHappensInTheFrame(t *testing.T) {
+	t.Parallel()
+
+	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+
+	go2(m, ']', 'c')
+	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "editing c1") || !strings.Contains(frame, "ctrl+s save") {
+		t.Fatalf("the editor is not in the frame:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "lines, err := split(r)") {
+		t.Errorf("the line being commented on left the frame:\n%s", frame)
+	}
+
+	typeIn(m, ", it can fail")
+	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	saved, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := saved.Comments[0].Body; got != "check err, it can fail" {
+		t.Errorf("body = %q", got)
+	}
+}
+
+// The review's own body had nowhere to be written from: the rows carried no
+// comment, so tab walked past them and e said there was no comment here.
+func TestTheReviewBodyIsWrittenFromTheScreen(t *testing.T) {
+	t.Parallel()
+
+	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+
+	if got := m.CursorText(); !strings.Contains(got, "review body") {
+		t.Fatalf("the screen does not open on the review body: %q", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	typeIn(m, "Read it twice.")
+	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	saved, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if saved.Body != "Read it twice." {
+		t.Errorf("body = %q", saved.Body)
+	}
+
+	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+
+	if got := m.CursorText(); !strings.Contains(got, "review note") {
+		t.Errorf("tab off the body landed on %q, want the review note", got)
+	}
+}
+
+// A note over two lines starts folded, because it is the evidence for the
+// comment rather than the comment, and unfolded it buries what it supports.
+func TestALongNoteStartsFoldedAndZaOpensIt(t *testing.T) {
+	t.Parallel()
+
+	long := comment("c1", parsed, artifact.SideRight, 15, "check err")
+	long.Note = "ran the tests\nthey pass\nagainst the fixture\nand the real thing"
+
+	m, _ := fixture(t, long)
+
+	go2(m, ']', 'c')
+
+	if got := plain(m.Frame()); !strings.Contains(got, "note  4 lines · za to read") {
+		t.Fatalf("the note is not folded:\n%s", got)
+	}
+
+	go2(m, 'z', 'a')
+
+	if got := plain(m.Frame()); !strings.Contains(got, "against the fixture") {
+		t.Fatalf("za did not open the note:\n%s", got)
+	}
+
+	go2(m, 'z', 'a')
+
+	if got := plain(m.Frame()); strings.Contains(got, "against the fixture") {
+		t.Errorf("za did not close it again:\n%s", got)
+	}
+}
+
+// The three state keys sit behind m now. A bare press says so rather than
+// doing nothing, because the hand that learned them keeps reaching for them.
+func TestABareStateKeyNamesTheChord(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+
+	go2(m, ']', 'c')
+	press(m, tea.KeyPressMsg{Code: 'x', Text: "x"})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "m first") {
+		t.Errorf("a bare x said nothing:\n%s", got)
+	}
+
+	if got := m.CommentStatus(0); got != artifact.StatusReady {
+		t.Errorf("a bare x restamped the comment to %q", got)
+	}
+}
+
+// Answering an open thread is the second pass's whole job, and the only cover
+// it had was a pty test, so a motion that stopped reaching a thread would only
+// have shown up as a ten-second timeout.
+func TestReplyingToAnOpenThread(t *testing.T) {
+	t.Parallel()
+
+	open := threads.Thread{
+		Path: parsed, Side: artifact.SideRight, Line: 15,
+		Notes: []threads.Note{{ID: 77, Author: "KyleKing", Body: "does this handle nil?"}},
+	}
+
+	_, path, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 14, "check err"))
+	m2 := tui.New(t.Context(), reviewAt(t, path), diff.Parse([]byte(patch)), path,
+		func(context.Context, *artifact.Review) (string, error) { return "", nil },
+		tui.WithThreads([]threads.Thread{open}))
+	m2.Init()
+	m2.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	go2(m2, ']', 't')
+
+	if got := m2.CursorText(); !strings.Contains(got, "open thread") {
+		t.Fatalf("]t landed on %q", got)
+	}
+
+	if got := plain(m2.Frame()); !strings.Contains(got, "e reply") {
+		t.Fatalf("the footer does not offer a reply:\n%s", got)
+	}
+
+	press(m2, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	typeIn(m2, "yes, os.ReadFile answers a nil-safe error")
+	press(m2, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	saved, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := range saved.Comments {
+		if saved.Comments[i].InReplyTo == 77 {
+			return
+		}
+	}
+
+	t.Errorf("no reply was staged: %+v", saved.Comments)
+}
+
+func reviewAt(t *testing.T, path string) *artifact.Review {
+	t.Helper()
+
+	r, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return r
 }

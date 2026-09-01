@@ -10,6 +10,11 @@ func (m *Model) Failure() error { return m.failure }
 // CommentUnderCursor is which comment the cursor is inside, or -1.
 func (m *Model) CommentUnderCursor() int { return m.current() }
 
+// CommentStatus is what a comment is stamped, read from the review the screen
+// holds rather than from the file, so a test can tell a refused keystroke from
+// one that changed nothing on disk.
+func (m *Model) CommentStatus(i int) string { return m.review.Comments[i].Status }
+
 // CursorRow is which row the cursor is on, so a test can check where a motion
 // landed rather than inferring it from the frame.
 func (m *Model) CursorRow() int { return m.cursor }

@@ -140,6 +140,12 @@ func (s *screen) text() string {
 // await blocks until the screen has written want, so a test never races the
 // render. The failure prints everything written, which is what makes a broken
 // frame readable.
+//
+// It reads a stream of writes rather than a rendered terminal, so a redraw that
+// only rewrites the cells that changed leaves the tail of a line and not its
+// start. Never wait on a footer or status line whose opening words may already
+// be on screen; wait on text a full redraw writes, and let the pty's own input
+// buffer order the keystrokes.
 func (s *screen) await(want string) {
 	s.t.Helper()
 	s.awaitFrom(0, want)
@@ -221,7 +227,7 @@ func TestReviewScreenSubmits(t *testing.T) {
 	// jumps to it so the person rules on the one it stopped for.
 	sc.press("S")
 	sc.await("still draft")
-	sc.press("r")
+	sc.press("mr")
 	sc.await("is ready")
 
 	sc.press("S")
@@ -300,9 +306,12 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 	sc := openReview(t, s, dir, "EDITOR="+editor, "2")
 	sc.await("open thread")
 
-	sc.press("\t")
-	sc.await("e reply")
+	// ]t names the thread; e opens the editor in the frame, and ctrl+e hands
+	// what is in it to $EDITOR, which is the path this fixture's script drives.
+	sc.press("]t")
 	sc.press("e")
+	sc.await("ctrl+s save")
+	sc.press("\x05")
 	sc.await("staged, ready to post")
 	sc.press("q")
 
@@ -401,7 +410,6 @@ func TestReviewScreenAttachesAShellTranscript(t *testing.T) {
 	// ]c rather than tab: tab lands on whatever wants a decision next, which is
 	// an open thread once the screen caches them, and the note goes on a comment.
 	sc.press("]c")
-	sc.await("r/d/x state")
 	sc.press("!")
 	sc.await("stays local")
 	sc.press("q")
