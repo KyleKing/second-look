@@ -1275,6 +1275,27 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 
 // The file name scrolls off exactly when the diff is long enough to lose track
 // of which file is in front of you, so the title carries it from then on.
+// minFrame is the shortest frame the screen draws, which is where anything
+// worth keeping on screen has to earn its line.
+const minFrame = 10
+
+func TestTheTitleCarriesTheFileOnceItsHeadingHasScrolledOff(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: minFrame})
+
+	if got := plain(m.Frame()); strings.Contains(got, "#42  internal/vcs/diff.go") {
+		t.Errorf("the title names a heading the frame is already showing:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "internal/vcs/git.go") {
+		t.Errorf("the title lost the file the cursor is in:\n%s", got)
+	}
+}
+
 // Writing a comment with no agent involved was the last thing alpha left out:
 // the screen could restamp, edit, and answer a thread, and it could not start
 // one of its own.

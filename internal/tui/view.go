@@ -48,7 +48,7 @@ func (m *Model) title() string {
 		left += "  " + word
 	}
 
-	if path := m.rowPath(); path != "" {
+	if path := fitPath(m.rowPath(), m.width-textWidth(right)-textWidth(left)-indent); path != "" {
 		left += "  " + path
 	}
 
@@ -59,6 +59,27 @@ func (m *Model) title() string {
 
 	return m.styles.title.Render(left) +
 		strings.Repeat(" ", gap) + m.styles.subtitle.Render(right)
+}
+
+// fitPath keeps the part of a path that says which file it is. Cutting a path
+// at either end loses that, so the base name stands in where the whole will not
+// fit, and where even the base name will not, the title says nothing rather
+// than something unreadable.
+func fitPath(path string, room int) string {
+	if path == "" || room < 1 {
+		return ""
+	}
+
+	if textWidth(path) <= room {
+		return path
+	}
+
+	base := path[strings.LastIndex(path, "/")+1:]
+	if textWidth(base) <= room {
+		return base
+	}
+
+	return ""
 }
 
 // treeWord is where the working copy stands, which C, !, and M each behave
@@ -172,12 +193,24 @@ func (m *Model) counts() tally {
 	return out
 }
 
+// rowPath is the file the cursor is in, and only once that file's own row has
+// scrolled off the top: a heading the reader can already see is not worth the
+// width, and the one that has gone is exactly what the eye has lost. The list
+// screens carry their section heading the same way.
 func (m *Model) rowPath() string {
-	if m.cursor < 0 || m.cursor >= len(m.screen.rows) {
-		return ""
+	for i := min(m.cursor, len(m.screen.rows)-1); i >= 0; i-- {
+		if m.screen.rows[i].kind != rowFile {
+			continue
+		}
+
+		if i >= m.offset {
+			return ""
+		}
+
+		return m.screen.rows[i].path
 	}
 
-	return m.screen.rows[m.cursor].path
+	return ""
 }
 
 // maxFailLines caps how much of the frame a failure takes. A refusal from gh
