@@ -31,6 +31,12 @@ type Review struct {
 	// different head is refused, because an anchor that moved is an anchor that lies.
 	HeadSHA string `json:"head_sha" post:"commit_id" toml:"head_sha"`
 
+	// HeadRef and BaseRef are the branches the pull request joins. They are
+	// recorded so a list of staged reviews can see a stack: a pull request
+	// whose base is another one's head is read after it, not on its own.
+	HeadRef string `json:"head_ref,omitempty" toml:"head_ref,omitempty"`
+	BaseRef string `json:"base_ref,omitempty" toml:"base_ref,omitempty"`
+
 	// Event is COMMENT, APPROVE, or REQUEST_CHANGES.
 	Event string `json:"event" post:"event" toml:"event"`
 

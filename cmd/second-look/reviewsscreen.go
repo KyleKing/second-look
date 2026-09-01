@@ -41,6 +41,8 @@ var reviewsHelp = helpFor(helpMove(), [][2]string{
 	"Every review here is unfinished: the file is deleted when it posts.",
 	"A review with no checkout of its repository is listed in its own group and",
 	"opens the same way, from the API.",
+	"A pull request based on another one staged here is grouped with it, bottom",
+	"first, which is the order the diffs read in.",
 ))
 
 // openReviews shows the staged reviews and opens whichever one was chosen, once
@@ -84,31 +86,33 @@ func (s *reviewsScreen) counts() string {
 	return fmt.Sprintf("%d staged · %d blocked", len(s.rows), blocked)
 }
 
-// sections splits by where the review is kept, because that is what says
-// whether the code under review is on this disk. Within a group recency is the
-// order and no further bucket earns its place.
+// sections puts each stack in its own group, then splits what is left by where
+// the review is kept, because that is what says whether the code under review is
+// on this disk. Within a group recency is the order and no further bucket earns
+// its place.
 func (s *reviewsScreen) sections() []tui.Section {
 	now := time.Now()
-	here := make([]tui.Row, 0, len(s.rows))
+	stacks, alone := prepared.Split(s.rows)
+
+	out := make([]tui.Section, 0, len(stacks)+2)
+
+	for i := range stacks {
+		rows := make([]tui.Row, 0, len(stacks[i].Rows))
+		for j := range stacks[i].Rows {
+			rows = append(rows, reviewRow(&stacks[i].Rows[j], now))
+		}
+
+		out = append(out, tui.Section{Name: stackName(&stacks[i]), Rows: rows})
+	}
+
+	here := make([]tui.Row, 0, len(alone))
 
 	var away []tui.Row
 
-	for i := range s.rows {
-		r := &s.rows[i]
-		row := tui.Row{
-			// The key names the repository as well as the number, since the same
-			// number in two repositories is two rows.
-			Key:  r.Where(),
-			Left: r.Where(),
-			Mid:  prepared.State(r),
-			Age:  humanize.Ago(r.Modified, now),
-			Tail: holds(r),
-			// A review with a draft in it is the one to come back to, which is
-			// what the unread mark means on this screen.
-			Unread: r.Blocked() || r.Broken != "",
-		}
+	for i := range alone {
+		row := reviewRow(&alone[i], now)
 
-		if r.Detached {
+		if alone[i].Detached {
 			away = append(away, row)
 
 			continue
@@ -117,12 +121,34 @@ func (s *reviewsScreen) sections() []tui.Section {
 		here = append(here, row)
 	}
 
-	out := []tui.Section{{Name: "staged under .second-look", Rows: here}}
+	out = append(out, tui.Section{Name: "staged under .second-look", Rows: here})
 	if len(away) > 0 {
 		out = append(out, tui.Section{Name: "staged with no checkout", Rows: away})
 	}
 
 	return out
+}
+
+// stackName says what the chain lands on and that its order is the reading
+// order, since the group being a stack is the only reason it is not in the list
+// underneath.
+func stackName(st *prepared.Stack) string {
+	return "stacked onto " + st.Onto + ", bottom first"
+}
+
+func reviewRow(r *prepared.Review, now time.Time) tui.Row {
+	return tui.Row{
+		// The key names the repository as well as the number, since the same
+		// number in two repositories is two rows.
+		Key:  r.Where(),
+		Left: r.Where(),
+		Mid:  prepared.State(r),
+		Age:  humanize.Ago(r.Modified, now),
+		Tail: holds(r),
+		// A review with a draft in it is the one to come back to, which is
+		// what the unread mark means on this screen.
+		Unread: r.Blocked() || r.Broken != "",
+	}
 }
 
 // holds is what the review carries, or why it could not be read.

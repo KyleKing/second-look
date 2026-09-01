@@ -24,12 +24,17 @@ import (
 
 // Review is one staged review, as a list row needs it.
 type Review struct {
-	Path       string    `json:"path"`
-	Number     int       `json:"number"`
-	Repository string    `json:"repository"`
-	Event      string    `json:"event"`
-	HeadSHA    string    `json:"head_sha"`
-	Modified   time.Time `json:"modified"`
+	Path       string `json:"path"`
+	Number     int    `json:"number"`
+	Repository string `json:"repository"`
+	Event      string `json:"event"`
+	HeadSHA    string `json:"head_sha"`
+	// HeadRef and BaseRef are the branches the pull request joins, absent from a
+	// review staged before they were recorded. A base that is another staged
+	// review's head is what makes the two a stack.
+	HeadRef  string    `json:"head_ref,omitempty"`
+	BaseRef  string    `json:"base_ref,omitempty"`
+	Modified time.Time `json:"modified"`
 
 	Ready int `json:"ready"`
 	Draft int `json:"draft"`
@@ -261,6 +266,7 @@ func read(path string, number int) Review {
 	row.Repository = r.Owner + "/" + r.Repo
 	row.Event = r.Event
 	row.HeadSHA = r.HeadSHA
+	row.HeadRef, row.BaseRef = r.HeadRef, r.BaseRef
 	row.Body = strings.TrimSpace(r.Body) != ""
 
 	for i := range r.Comments {

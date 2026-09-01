@@ -367,7 +367,7 @@ func TestAQueueDrawsEachSectionAsItLands(t *testing.T) {
 
 // q means what it says, and a filter is a state esc gets out of. They shared one
 // binding, so q cleared the filter instead of leaving and a pattern carrying a q
-// cancelled itself as it was typed.
+// canceled itself as it was typed.
 func TestQuitLeavesAndEscapeClearsTheFilter(t *testing.T) {
 	t.Parallel()
 

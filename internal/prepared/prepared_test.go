@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -230,5 +231,55 @@ func TestDetachedOnAnEmptyHome(t *testing.T) {
 
 	if len(rows) != 0 {
 		t.Errorf("%d row(s) from a home that does not exist", len(rows))
+	}
+}
+
+// A stack is what the artifact alone can see of one: a review whose base branch
+// is another staged review's head. Every rule interacts with the others, so one
+// set of rows exercises them together: a three-deep chain that forks, a review
+// that shares a branch name with it in another repository, and one staged
+// before the branches were recorded.
+func TestSplitGroupsAStackBottomFirst(t *testing.T) {
+	t.Parallel()
+
+	rows := []prepared.Review{
+		{Number: 4, Repository: "acme/api", HeadRef: "part-3", BaseRef: "part-2"},
+		{Number: 1, Repository: "acme/api", HeadRef: "part-1", BaseRef: "main"},
+		{Number: 3, Repository: "acme/api", HeadRef: "part-2", BaseRef: "part-1"},
+		{Number: 5, Repository: "acme/api", HeadRef: "part-2b", BaseRef: "part-1"},
+		{Number: 9, Repository: "acme/web", HeadRef: "part-2", BaseRef: "part-1"},
+		{Number: 7, Repository: "acme/api"},
+	}
+
+	stacks, alone := prepared.Split(rows)
+
+	if len(stacks) != 1 {
+		t.Fatalf("%d stack(s), want the one chain: %+v", len(stacks), stacks)
+	}
+
+	if stacks[0].Onto != "main" {
+		t.Errorf("the stack lands on %q, want main", stacks[0].Onto)
+	}
+
+	order := make([]int, 0, len(stacks[0].Rows))
+	for _, r := range stacks[0].Rows {
+		order = append(order, r.Number)
+	}
+
+	// The fork reads after the branch it hangs off, and the bottom comes first
+	// either way: reading #3 before #1 is reading a diff against unseen changes.
+	if want := []int{1, 3, 4, 5}; !slices.Equal(order, want) {
+		t.Errorf("the stack reads %v, want %v", order, want)
+	}
+
+	left := make([]int, 0, len(alone))
+	for _, r := range alone {
+		left = append(left, r.Number)
+	}
+
+	// #9 names the same branches in another repository and #7 was staged before
+	// the branches were recorded, so neither joins anything.
+	if want := []int{9, 7}; !slices.Equal(left, want) {
+		t.Errorf("%v stand alone, want %v", left, want)
 	}
 }

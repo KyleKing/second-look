@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 
+	"github.com/kyleking/aragonite/forge"
 	"github.com/kyleking/aragonite/forge/github"
 	"github.com/kyleking/aragonite/vcs"
 
@@ -65,7 +66,7 @@ func Open(ctx context.Context, t Target) (*Review, error) {
 		return nil, err
 	}
 
-	review, path, err := load(t, pr.HeadSHA)
+	review, path, err := load(t, pr)
 	if err != nil {
 		return nil, err
 	}
@@ -169,11 +170,24 @@ func onHead(ctx context.Context, t Target, want string) (bool, error) {
 // load reads the prepared review, writing a new one only when there is none.
 // An existing review keeps the head it was staged against, so what its anchors
 // were quoted from stays a fact rather than being restamped on every open.
-func load(t Target, headSHA string) (*artifact.Review, string, error) {
+//
+// The branches are the exception: they name where the pull request sits rather
+// than what its comments were written against, so a review staged before they
+// were recorded picks them up here.
+func load(t Target, pr *forge.PullRequest) (*artifact.Review, string, error) {
 	path := artifact.Path(t.Store, t.Number)
 
 	review, err := artifact.Load(path)
 	if err == nil {
+		if review.HeadRef == pr.HeadRef && review.BaseRef == pr.BaseRef {
+			return review, path, nil
+		}
+
+		review.HeadRef, review.BaseRef = pr.HeadRef, pr.BaseRef
+		if err := artifact.Save(path, review); err != nil {
+			return nil, "", fmt.Errorf("writing the prepared review: %w", err)
+		}
+
 		return review, path, nil
 	}
 
@@ -183,7 +197,8 @@ func load(t Target, headSHA string) (*artifact.Review, string, error) {
 
 	review = &artifact.Review{
 		Version: artifact.SchemaVersion, Host: Host,
-		Owner: t.Owner, Repo: t.Repo, Number: t.Number, HeadSHA: headSHA,
+		Owner: t.Owner, Repo: t.Repo, Number: t.Number, HeadSHA: pr.HeadSHA,
+		HeadRef: pr.HeadRef, BaseRef: pr.BaseRef,
 	}
 
 	if err := artifact.Save(path, review); err != nil {

@@ -36,7 +36,7 @@ func scrollbar(height, total, offset int) []string {
 
 // alongside puts the bar on the right edge of lines already rendered, padding
 // each to the same column so the bar is straight whatever the lines carry.
-func alongside(lines []string, bar []string, s styles, width int) []string {
+func alongside(lines, bar []string, s styles, width int) []string {
 	if bar == nil {
 		return lines
 	}
