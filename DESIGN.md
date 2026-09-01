@@ -74,6 +74,13 @@ other documentation. `-h` prints the short form for a human who forgot a flag.
 
 ## Screens
 
+The inbox, the conversations, and the staged reviews are three tabs of one screen. They
+are the same shape, they are read in one sitting, and as three programs there was no way
+to go from a pull request waiting on you to the conversation on it without leaving and
+starting again. Each command opens on its own tab, digits and `]`/`[` switch, and every
+tab keeps its own cursor, filter, and scroll. A tab's loader runs when it is first looked
+at, so a tab nobody switched to makes no request.
+
 ### Inbox
 
 A task list in three buckets, ranked inside each by the cost rating, with stacks shown as
@@ -82,8 +89,8 @@ and what is finished.
 
 Built as a `tui.List` over the configured searches, with `enter` opening the review, `C`
 checking out, `m` commenting, and `A` approving. What the mock below still promises and the
-screen does not: the cost rating, the stack, and sorting by anything but what the query
-asks for. Opening a row needs no clone of the repository, which is what makes the queue
+screen does not: the stack, and sorting by anything but the triage order. The cost rating
+shows where an earlier read cached one. Opening a row needs no clone of the repository, which is what makes the queue
 faster than a browser tab.
 
 ```
@@ -228,8 +235,15 @@ A file that no longer parses is listed with its reason rather than skipped, beca
 review I cannot read is the row most worth knowing about. `blocked` means a comment is
 still a draft, which stops the submit.
 
-Both screens are the same `tui.List`: sections of rows, one cursor, and a set of actions
-the caller supplies. They are the same shape, and two screens would drift apart.
+A pull request whose base branch is another staged review's head is a stack, and the chain
+gets its own group with the bottom first: reading the top of a stack first means reading a
+diff against changes you have not seen. Both branches are recorded when a review is
+prepared, so the artifact alone answers it and a stack is visible where both of its pull
+requests have a review staged here. That is the limit of reading disk, and it is the case
+that matters, because a stack nobody is reviewing needs no reading order.
+
+All three screens are the same `tui.List`: sections of rows, one cursor, and a set of
+actions the caller supplies. They are the same shape, and three screens would drift apart.
 
 ### Review
 
@@ -328,7 +342,8 @@ Layered so the footer stays short.
 | --- | --- |
 | Universal | `q` quit, `esc` back, `enter` select, `/` search, `?` help, `:` command |
 | Motion | `j`/`k` line, `n`/`p` hunk, `}`/`{` file, `g`/`G` top and bottom |
-| Review | `space` seen, `c` comment, `S` submit, `u` unresolved only |
+| Review | `space` seen, `c` comment, `S` then `a`/`r`/`c` submit, `o` on GitHub, `u` unresolved only |
+| Queue | `1`/`2`/`3` and `]`/`[` the tab, `tab` the next group |
 | View | `-` file overlay, `g` context pane, `s` split, `w` whitespace, `t` syntax-aware |
 | Thread | `ctrl+j`/`ctrl+k` scroll, `tab` complete, `r` reply, `R` resolve |
 

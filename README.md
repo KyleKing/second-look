@@ -22,6 +22,12 @@ answering a conversation, and posting all come off the API, so a review is prepa
 finished from an empty directory, with its state under your config directory rather than
 in a working copy. `second-look reviews` lists those beside the checkout's own.
 
+`second-look inbox`, `second-look threads`, and `second-look reviews` are three tabs of
+one screen rather than three programs. Each command opens on its own tab, `1`, `2`, and
+`3` pick one, `]` and `[` step through them, and each keeps its own cursor and filter, so
+going from a pull request waiting on you to the conversation on it costs a keystroke. A
+tab loads when it is first looked at, so opening on one pays for that one alone.
+
 The inbox runs its sections at once and draws each as it lands, with the headings saying
 which searches are still out. Each bucket is ordered for triage rather than by recency:
 what you have already started here first, then the smallest of what an earlier read
@@ -79,6 +85,12 @@ way here.
 Merging is not on a list row. It is `M` in the review screen, `M` again to confirm, and it
 refuses while anything is still staged.
 
+Submitting is `S` and then what the review is: `a` approves, `r` requests changes, and `c`
+comments. What the second key says is written back to the artifact, so a review posted as
+an approval does not read afterwards as a comment. There is no key for sending it as
+whatever the file already says, because that is the decision the confirmation exists to
+take. `o` opens the pull request in a browser, which is where to go the moment it posts.
+
 `second-look threads` is the queue of conversations across every open pull request you
 are involved in, in three buckets: what moved since you last looked, what is still
 waiting on you, then what is waiting on somebody else. A conversation is yours when the
@@ -106,6 +118,12 @@ with 77 rows where 13 were real.
 checkout's, then the ones staged with no checkout of their repository at all. `enter`
 opens one. Everything it lists is unfinished, because the artifact is deleted the moment a
 review posts.
+
+A pull request based on another one staged here is a stack, and the two are grouped
+together with the bottom first, which is the order they read in: a diff against changes
+you have not seen yet is a diff you cannot review. The branches are read when the review
+is prepared, so a stack is visible where both of its pull requests have a review staged
+on this laptop.
 
 Answering a conversation on a repository you are not standing in works too. second-look
 asks `gh repo-dashboard --cli` (from its cache, so no network) which clones of that

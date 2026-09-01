@@ -62,6 +62,15 @@ need more than a rendering change.
 
 ### Still open
 
+**An edit abandoned mid-sentence is lost.** The in-place editor writes to the artifact
+when you accept it and throws the buffer away when you press escape, so a long comment
+half written is gone if you leave the screen or the terminal dies. What it wants is the
+buffer kept on disk beside the review, and a restore offered next time the same comment
+is opened, shown against what the comment says now so accepting or discarding is a
+decision rather than a guess. Where the buffer lives, whether one abandoned an hour ago
+is still worth offering, and what a restore does to a comment edited elsewhere since are
+all unsettled.
+
 **What a removal reads as in the code view.** It stands as one line saying how much
 came out, which is enough to know something was there and not enough to know what.
 A preview of the two sides is the answer, and its shape (a bottom split, a right
@@ -69,6 +78,25 @@ split at wide widths, or a modal over the frame) is deliberately unsettled: it w
 driving on a real review before it is built.
 
 ### Done
+
+**The three queues are one screen with three tabs.** `inbox`, `threads`, and `reviews`
+each open on their own tab, digits and `]`/`[` switch, and each tab keeps its own cursor,
+filter, and scroll. A tab's loader runs when it is first looked at, so a tab nobody
+switched to makes no request. Going from a pull request waiting on you to the conversation
+on it used to mean quitting and starting a second program.
+
+**A stack reads bottom first.** The branches a pull request joins are recorded when its
+review is prepared, so the staged list can see that one review's base is another's head
+and group the chain in the order the diffs make sense in.
+
+**Where the frame sits, and which comment the cursor is on.** A scrollbar down the right
+edge of every list and the review screen, and `comment 3/12` in the title where the cursor
+is inside one. The column is only spent where the content overflows.
+
+**Submitting names what it posts.** `S` then `a`, `r`, or `c`, written back to the
+artifact. `S` then `S` used to send the review as whatever the file already said it was,
+which is the one decision the confirmation exists to take. `o` opens the pull request in a
+browser, which is where to go the moment it posts.
 
 **The inbox fills in as it answers, and orders itself for triage.** Its sections are
 independent searches, so they run at once and each is drawn as it lands rather than
@@ -227,6 +255,45 @@ needs a throwaway pull request opened for the purpose.
 resolving, reacting, browsing, approving, commenting, and merging are one shape: run a gh
 call, report its own stderr in the error. Writing that stderr to the terminal, which is
 what it did before, drew over the frame of whichever screen was up.
+
+## A lockfile is not a diff worth reading
+
+A `uv.lock` or a `package-lock.json` change is hundreds of lines that say almost nothing,
+and the four things I actually want to know are not in them: what moved, when the new
+version shipped, whether anything newer exists, and whether any of it is a known
+vulnerability. GitHub shows the diff and a dependency review tab that is thin, and I read
+neither. So: fold every lockfile hunk by default and draw a card where it was.
+
+The card is one row per package, with the direction of the move (`1.4.2 → 1.6.0`, major
+minor or patch), how old the new version is, what the latest is if the move does not reach
+it, and any advisory against the range being adopted. A package that is new to the file
+gets more, because adopting one is the decision worth a second look: stars, downloads,
+open issues and pull requests, how often it releases, and when it last did.
+
+Folding the hunk is also what makes a comment on a lockfile placeable. Today the anchor is
+whichever of four hundred lines the cursor happens to be on, which is a line nobody will
+find again. With the card in the hunk's place, the comment lands on the package.
+
+What has to be answered before any of it is built:
+
+- Where the metadata comes from, one resolver per ecosystem: PyPI, the npm registry,
+  crates.io, and the Go module proxy all answer versions and release dates without auth
+- Where advisories come from. [OSV](https://osv.dev) covers every ecosystem here, takes a
+  batch query, and needs no key, which makes it the one to try first
+- What it costs. A hundred-package bump is a hundred lookups, so the answers are cached by
+  package and version under the state directory, the batch endpoints are used where they
+  exist, and the card fills in as it lands the way the inbox's sections do
+- What happens offline, on a private registry, or when a lookup fails. The hunk is still
+  there, so the fallback is the diff and a line saying which packages could not be
+  resolved. A card that quietly omits a package is worse than no card
+- Which files count as lockfiles, and whether that list is configurable
+- What "popular alternatives" means. I have no definition that is not somebody's ranking,
+  so it stays out until one exists that I would trust in a review
+
+This is the first thing second-look would fetch from anywhere but GitHub, which is a real
+change to what the tool is: every request is a package name leaving the laptop. It reaches
+nothing without being asked, so the fetch is opt-in per repository and says what it will
+query before it does.
 
 ## Decided since
 
