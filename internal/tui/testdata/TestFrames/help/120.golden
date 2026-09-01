@@ -1,0 +1,24 @@
+kyleking/jj-diff #42                                                                  0% · 1 ready · 1 draft · 1 skipped
+  j / k             move a line
+  ctrl+d / ctrl+u   move half a page
+  g / G             top, bottom
+  n / p             next, previous hunk
+  } / {             next, previous file
+  tab / shift+tab   next, previous comment
+  e                 edit the comment under the cursor in $EDITOR
+  r / d / x         mark it ready, draft, or skipped
+  S                 submit the review to GitHub, S again to confirm
+  ? / esc           this help, back
+  q                 quit
+
+
+
+
+
+
+
+
+
+
+
+ n/p hunk }/{ file tab comment e edit r/d/x state S submit ? help
