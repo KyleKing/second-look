@@ -126,7 +126,7 @@ func states() [][2]string {
 }
 
 func foldObjects() [][2]string {
-	return [][2]string{{"a", "fold this"}, {"R", "open all"}, {"M", "fold all"}}
+	return [][2]string{{"a", "fold this"}, {"i", "invert all"}, {"R", "open all"}, {"M", "fold all"}}
 }
 
 // events are what the second key of the submit chord can say the review is.
@@ -159,7 +159,7 @@ func helpLines() [][2]string {
 		{"t", "hide hunks that change no code at all, comments and re-wraps included"},
 		{spaceKey, "mark the hunk read, or the whole file from a file line"},
 		{"m then r / d / x", "mark the comment ready, draft, or skipped"},
-		{"z then a / R / M", "fold the file, hunk, or note here; open all; fold to the file names"},
+		{"z then a / i / R / M", "fold what is here, or all of it; invert; open all; fold to the file names"},
 		{"e", "write here: a comment, an answer to a thread, the review's body or note"},
 		{"E", "edit the comment's local note, which never posts"},
 		{"!", "run a shell here and attach what it printed to the note"},

@@ -1340,25 +1340,33 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 
 	m, _ := fixture(t, long)
 
-	// A note carries the evidence for a comment rather than the comment, so it
-	// starts folded once it runs long enough to bury what it supports.
+	// A note is the evidence for the comment above it, so it is drawn until
+	// somebody folds it rather than the other way round.
 	go2(m, ']', 'c')
 
-	if got := plain(m.Frame()); !strings.Contains(got, "NOTE  4 lines · za to read") {
-		t.Fatalf("the note is not folded:\n%s", got)
+	if got := plain(m.Frame()); !strings.Contains(got, "against the fixture") {
+		t.Fatalf("the note is not open:\n%s", got)
 	}
 
 	go2(m, 'z', 'a')
+
+	if got := plain(m.Frame()); !strings.Contains(got, "NOTE  4 lines · za to read") {
+		t.Fatalf("za did not fold the note:\n%s", got)
+	}
+
+	go2(m, 'z', 'i')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "against the fixture") {
-		t.Fatalf("za did not open the note:\n%s", got)
+		t.Fatalf("zi did not open what was folded:\n%s", got)
 	}
 
-	go2(m, 'z', 'a')
+	go2(m, 'z', 'i')
 
-	if got := plain(m.Frame()); strings.Contains(got, "against the fixture") {
-		t.Fatalf("za did not close it again:\n%s", got)
+	if got := plain(m.Frame()); !strings.Contains(got, "1 hunk folded") {
+		t.Fatalf("zi did not fold it all again:\n%s", got)
 	}
+
+	go2(m, 'z', 'R')
 
 	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 	go2(m, ']', 'f')
@@ -1426,6 +1434,22 @@ func TestTheCodeViewShowsTheFileThatResults(t *testing.T) {
 
 	if got := plain(m.Frame()); strings.Contains(got, "▸ ● MAJOR") {
 		t.Errorf("za did not open the comment:\n%s", got)
+	}
+
+	// How much came out is enough to keep reading and not enough to review
+	// the change, so the run opens where it stands.
+	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	typeSearch(m, "1 line removed")
+	go2(m, 'z', 'a')
+
+	if got := plain(m.Frame()); !strings.Contains(got, "lines := split(r)") {
+		t.Errorf("za did not show what was removed:\n%s", got)
+	}
+
+	go2(m, 'z', 'a')
+
+	if got := plain(m.Frame()); strings.Contains(got, "lines := split(r)") {
+		t.Errorf("za did not put the removal away again:\n%s", got)
 	}
 }
 

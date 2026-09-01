@@ -36,6 +36,13 @@ type hunkAt struct {
 	hunk int
 }
 
+// goneAt names one run of removed lines by where it started in the file it came
+// from. The file that results carries none of them, so no line of it can.
+type goneAt struct {
+	path string
+	old  int
+}
+
 // hider is how the frame holds hunks back and what it says about the ones it
 // held. A hunk that vanished with no reason given reads as a bug.
 type hider struct {

@@ -16,11 +16,6 @@ const (
 	reviewNote = -3
 )
 
-// noteFold is how many wrapped lines a note shows before it starts folded. A
-// note carries the evidence for a comment, which runs longer than the comment
-// far more often than not, so unfolded it buries the prose it exists to support.
-const noteFold = 2
-
 // noteLabel introduces a note and sets the column its continuation lines align
 // to, so a wrapped note reads as one block rather than as a list. It is capital
 // because it is the block's label and not the first words of it.
@@ -42,27 +37,30 @@ func proseCols(width, numWidth int) int {
 // folds records which notes are open against that default.
 type folds map[int]bool
 
-// shown reports whether a block of lines is drawn in full. A foldAt of zero
-// never folds on its own and can still be closed by hand.
-func (f folds) shown(index, lines, foldAt int) bool {
-	if open, ok := f[index]; ok {
-		return open
-	}
+// shown reports whether a block is drawn in full. Everything is open until it
+// is folded by hand: a note is the evidence for the comment above it, and one
+// folded by default is one nobody reads.
+func (f folds) shown(index int) bool {
+	open, ok := f[index]
 
-	return foldAt == 0 || lines <= foldAt
+	return !ok || open
 }
 
-// folded is what z has put away by hand: a note, a hunk, or a whole file. A
-// note carries a default that depends on how long it is, so the map records the
-// answer either way; a hunk or a file is open until somebody folds it.
+// folded is what z has put away by hand: a note, a run of removed lines, a
+// hunk, or a whole file. Everything is open until it is in one of these maps,
+// except a comment in the code view, which the marker folds by default.
 type folded struct {
 	notes folds
 	hunks map[hunkAt]bool
 	files map[string]bool
+	gone  map[goneAt]bool
 }
 
 func newFolded() folded {
-	return folded{notes: folds{}, hunks: map[hunkAt]bool{}, files: map[string]bool{}}
+	return folded{
+		notes: folds{}, hunks: map[hunkAt]bool{},
+		files: map[string]bool{}, gone: map[goneAt]bool{},
+	}
 }
 
 // layout is what laying out a review takes beyond the review itself: the width
@@ -88,13 +86,13 @@ func header(r *artifact.Review, lay layout, numWidth int) []row {
 	avail := proseCols(lay.width, numWidth)
 
 	return append(
-		prose(reviewBody, "REVIEW BODY", r.Body, avail, 0, lay),
-		prose(reviewNote, "REVIEW NOTE", r.Note, avail, noteFold, lay)...,
+		prose(reviewBody, "REVIEW BODY", r.Body, avail, lay),
+		prose(reviewNote, "REVIEW NOTE", r.Note, avail, lay)...,
 	)
 }
 
 // prose is one titled block of the review's own writing.
-func prose(index int, title, text string, avail, foldAt int, lay layout) []row {
+func prose(index int, title, text string, avail int, lay layout) []row {
 	head := row{kind: rowComment, text: title, comment: index, head: true}
 
 	if text == "" {
@@ -104,7 +102,7 @@ func prose(index int, title, text string, avail, foldAt int, lay layout) []row {
 	}
 
 	lines := wrap(text, avail)
-	if !lay.fold.notes.shown(index, len(lines), foldAt) {
+	if !lay.fold.notes.shown(index) {
 		head.text = fmt.Sprintf("%s  %s · za to read", title, plural(len(lines), "line"))
 		head.folded = true
 
@@ -163,7 +161,7 @@ func noteRows(note string, index int, path string, avail int, lay layout) []row 
 	}
 
 	lines := wrap(note, avail-len(noteLabel))
-	if !lay.fold.notes.shown(index, len(lines), noteFold) {
+	if !lay.fold.notes.shown(index) {
 		return []row{{
 			kind: rowNote, path: path, comment: index, folded: true,
 			text: noteLabel + plural(len(lines), "line") + " · za to read",

@@ -56,6 +56,9 @@ type row struct {
 	// folded marks a row standing in for lines it is hiding, which is what za
 	// inverts.
 	folded bool
+	// gone marks a row belonging to a run of removed lines, numbered by the
+	// line the run started on. Zero belongs to no run.
+	gone int
 }
 
 // screen is the flattened review: the diff with each open thread and each

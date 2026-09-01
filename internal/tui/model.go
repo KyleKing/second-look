@@ -452,7 +452,8 @@ func (m *Model) stateKey(msg tea.KeyPressMsg) bool {
 }
 
 // foldNote answers the z chord: za inverts what the cursor is standing on, zo
-// and zc name a direction, and zR and zM answer for the whole review.
+// and zc name a direction, zR and zM answer for the whole review, and zi
+// inverts the whole review the way za inverts one block.
 func (m *Model) foldNote(msg tea.KeyPressMsg) {
 	switch msg.String() {
 	case "a":
@@ -465,19 +466,38 @@ func (m *Model) foldNote(msg tea.KeyPressMsg) {
 		m.foldAll(true)
 	case "M":
 		m.foldAll(false)
+	case "i":
+		m.foldAll(m.anyFolded())
 	default:
-		m.say("no fold for "+msg.String()+"; a this one, R open all, M close all", false)
+		m.say("no fold for "+msg.String()+"; a this one, i invert, R open all, M close all", false)
 	}
 }
 
+// anyFolded reports whether the frame is holding anything back, which is what
+// zi inverts. It reads the rows rather than the maps, so the answer is about
+// what the eye is looking at rather than about a fold on a file the current
+// view does not draw.
+func (m *Model) anyFolded() bool {
+	for _, r := range m.screen.rows {
+		if r.folded {
+			return true
+		}
+	}
+
+	return false
+}
+
 // foldHere folds what the cursor is on, which is the file from its name, the
-// hunk from anywhere inside it, and the note from the comment it belongs to.
+// hunk from anywhere inside it, the run of removed lines from any of them, and
+// the note from the comment it belongs to.
 func (m *Model) foldHere(open bool) {
 	r := m.screen.rows[m.cursor]
 
 	switch {
 	case r.kind == rowFile && r.path != "":
 		m.folded.files[r.path] = !open
+	case r.gone > 0:
+		m.folded.gone[goneAt{r.path, r.gone}] = open
 	case r.hunk > 0:
 		m.folded.hunks[hunkAt{r.path, r.hunk}] = !open
 	default:
@@ -498,6 +518,8 @@ func (m *Model) openHere() bool {
 	switch {
 	case r.kind == rowFile:
 		return !m.folded.files[r.path]
+	case r.gone > 0:
+		return m.folded.gone[goneAt{r.path, r.gone}]
 	case r.hunk > 0:
 		return !m.folded.hunks[hunkAt{r.path, r.hunk}]
 	}
@@ -541,6 +563,12 @@ func (m *Model) foldAll(open bool) {
 	}
 
 	m.folded.notes[reviewBody], m.folded.notes[reviewNote] = open, open
+
+	if open {
+		for _, at := range goneRuns(m.diff) {
+			m.folded.gone[at] = true
+		}
+	}
 
 	if !open {
 		for i := range m.diff.Files {

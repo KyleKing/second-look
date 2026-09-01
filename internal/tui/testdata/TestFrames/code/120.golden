@@ -6,7 +6,7 @@ kyleking/jj-diff #42  code                                                  0% �
    line 14  func Parse(r io.Reader) ([]Hunk, error) {
   14       first := 1
       ┃ ▸ ◐ QUESTION  draft  Is first still 1 after the change?
-     ▁ 1 line removed
+     ▁ 1 line removed · za to read
   15 +     lines, err := split(r)
       ┃ ▸ ● MAJOR  ready  split can fail now, so this has to check err.
   16 +     if err != nil {
