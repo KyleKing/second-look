@@ -1273,6 +1273,40 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 	}
 }
 
+// Saving an edit is the ruling a draft is waiting for. Writing the comment and
+// then reaching for m r to say it can go is a second decision nobody is making.
+func TestSavingAnEditMakesADraftReady(t *testing.T) {
+	t.Parallel()
+
+	draft := comment("c1", parsed, artifact.SideRight, 15, "check err")
+	draft.Status = artifact.StatusDraft
+
+	skipped := comment("c2", parsed, artifact.SideRight, 16, "out of scope")
+	skipped.Status, skipped.SkipReason = artifact.StatusSkip, "not this change"
+
+	m, path := fixture(t, draft, skipped)
+
+	go2(m, ']', 'c')
+	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	typeIn(m, ", it can fail")
+	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	if got := reviewAt(t, path).Comments[0].Status; got != artifact.StatusReady {
+		t.Errorf("the edited draft is %q, want ready", got)
+	}
+
+	// A skip is a decision with a reason against it, so writing that reason out
+	// more fully is not a decision to post it after all.
+	go2(m, ']', 'c')
+	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	typeIn(m, " at all")
+	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	if got := reviewAt(t, path).Comments[1].Status; got != artifact.StatusSkip {
+		t.Errorf("the edited skip is %q, want skip", got)
+	}
+}
+
 // Answering an open thread is the second pass's whole job, and the only cover
 // it had was a pty test, so a motion that stopped reaching a thread would only
 // have shown up as a ten-second timeout.

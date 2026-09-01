@@ -1275,13 +1275,40 @@ func (m *Model) applyEdit(msg editedMsg) {
 	}
 
 	if c.Body == msg.body {
+		if promote(c) {
+			m.save(c.ID + " is ready")
+
+			return
+		}
+
 		m.say("unchanged", false)
 
 		return
 	}
 
 	c.Body = msg.body
+
+	if promote(c) {
+		m.save("edited " + c.ID + ", now ready")
+
+		return
+	}
+
 	m.save("edited " + c.ID)
+}
+
+// promote makes a draft ready, and reports whether it did. Saving an edit is
+// the ruling a draft is waiting for, which is the same reason a reply typed
+// here is staged ready. A skip is left alone: it is a decision with a reason
+// against it, and posting one somebody wrote out is the opposite of what x said.
+func promote(c *artifact.Comment) bool {
+	if c.Status != artifact.StatusDraft {
+		return false
+	}
+
+	c.Status = artifact.StatusReady
+
+	return true
 }
 
 // stageReply puts an answer to an open thread into the prepared review. It is
