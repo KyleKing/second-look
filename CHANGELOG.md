@@ -1,3 +1,36 @@
+## v0.4.0 (2026-09-01)
+
+### Feat
+
+- **inbox**: print the review queue in three buckets
+- **post**: send one comment on its own, from the shell or the screen
+- **tui**: hide hunks that change nothing but whitespace
+- **tui**: group files by directory with their counts
+- **tui**: show the comments alone, by file, with the counts
+- **tui**: search the diff, scoped to what has not been read
+- **get**: carry read hunks across a head move by content
+- **tui**: mark hunks read and walk what is left with ]u
+- **tui**: replace the key-per-destination map with a motion grammar
+- **tui**: attach a shell transcript to the comment it is evidence for
+- read the pull request's open review threads and answer them
+- **tui**: show the renames, binaries, and mode changes a diff carries
+- print the agent instructions the binary carries
+
+### Fix
+
+- **tui**: say when a jump ran out and when an edit changed nothing
+- **tui**: measure the frame in terminal cells instead of runes
+- name the command to run when the review screen has no terminal
+- **post**: refuse a comment review that would carry nothing
+- **tui**: refuse a second submit while the first is still in flight
+- **tui**: report a submit that failed instead of losing it with the frame
+- **tui**: keep the cursor and the way out visible without color
+- **tui**: refuse to write the review back once it has posted
+
+### Refactor
+
+- name the subprocess coverage directory for the template, not the project
+
 ## v0.3.0 (2026-09-01)
 
 ### Feat
