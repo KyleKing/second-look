@@ -21,6 +21,8 @@ type keyMap struct {
 	Up        key.Binding
 	Down      key.Binding
 	HalfUp    key.Binding
+	PeekUp    key.Binding
+	PeekDown  key.Binding
 	HalfDown  key.Binding
 	Top       key.Binding
 	Bottom    key.Binding
@@ -58,6 +60,8 @@ func defaultKeyMap() keyMap {
 		Up:        key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("j/k", "line")),
 		Down:      key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "line")),
 		HalfUp:    key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
+		PeekUp:    key.NewBinding(key.WithKeys("ctrl+y"), key.WithHelp("ctrl+y/e", "peek")),
+		PeekDown:  key.NewBinding(key.WithKeys("ctrl+e"), key.WithHelp("ctrl+y/e", "peek")),
 		HalfDown:  key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
 		Top:       key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("g/G", "top, bottom")),
 		Bottom:    key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("g/G", "top, bottom")),
@@ -120,6 +124,7 @@ func helpLines() [][2]string {
 	return [][2]string{
 		{"j / k", "move a line"},
 		{"ctrl+d / ctrl+u", "move half a page"},
+		{"ctrl+e / ctrl+y", "scroll without moving the cursor; any motion comes back to it"},
 		{"g / G", "top, bottom"},
 		{"] / [", "go to the next, previous: d directory, f file, h hunk, c comment, t thread, u unread"},
 		{"n / N", "repeat that motion forward, backward"},

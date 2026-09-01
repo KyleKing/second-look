@@ -44,9 +44,10 @@ func newStyles() styles {
 		remove:   base.Foreground(p.Red),
 		context:  base.Foreground(p.Subtext1),
 		number:   base.Foreground(p.Overlay0),
-		// Reverse is an attribute rather than a color, so where the cursor is
-		// survives NO_COLOR and a 16-color terminal.
-		cursor: base.Background(p.Surface1).Reverse(true),
+		// A bar in the margin rather than a reversed row: the glyph carries
+		// where the cursor is, so it survives NO_COLOR and a 16-color terminal
+		// without a block of inverted text to read the content through.
+		cursor: base.Foreground(p.Lavender).Bold(true),
 		rail:   base.Foreground(p.Lavender),
 		body:   base.Foreground(p.Text),
 		note:   base.Foreground(p.Overlay1).Italic(true),

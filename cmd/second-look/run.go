@@ -20,6 +20,7 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/ghrun"
+	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/prepared"
@@ -295,6 +296,26 @@ func getCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Write
 	return nil
 }
 
+// stage adds a batch to the review and reports how many of them it held back.
+// A comment written by something other than the author is a proposal about
+// someone else's code, so it is a draft whatever it arrived as, and the author
+// rules on each one. A skip is left alone: that is a finding already declined.
+func stage(into *artifact.Review, batch []artifact.Comment) int {
+	held := 0
+
+	for i := range batch {
+		c := batch[i]
+		if c.Status == artifact.StatusReady {
+			c.Status = artifact.StatusDraft
+			held++
+		}
+
+		into.Upsert(c)
+	}
+
+	return held
+}
+
 func commentCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) != 2 || args[0] != "add" {
 		return errUsageComment
@@ -336,9 +357,7 @@ func commentCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.W
 	staged := *r
 	staged.Comments = append([]artifact.Comment(nil), r.Comments...)
 
-	for i := range b.Comments {
-		staged.Upsert(b.Comments[i])
-	}
+	held := stage(&staged, b.Comments)
 
 	if err := staged.Validate(); err != nil {
 		return fmt.Errorf("the batch was rejected and nothing was written:\n%w", err)
@@ -357,7 +376,13 @@ func commentCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.W
 		return fmt.Errorf("saving the prepared review: %w", err)
 	}
 
-	return write(stdout, fmt.Sprintf("%d comment(s) staged, %d total\n", len(b.Comments), len(staged.Comments)))
+	out := fmt.Sprintf("%s staged, %d total\n",
+		humanize.Plural(len(b.Comments), "comment"), len(staged.Comments))
+	if held > 0 {
+		out += humanize.Plural(held, "comment") + " held as draft for the author to rule on\n"
+	}
+
+	return write(stdout, out)
 }
 
 func showCmd(ctx context.Context, args []string, stdout io.Writer) error {

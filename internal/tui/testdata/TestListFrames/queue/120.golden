@@ -1,13 +1,13 @@
  second-look conversations  new since you looked (2)                                         3 conversations · 2 unread 
- new since you looked (2)
- ● kyleking/tlr#118                    internal/pool/pool.go:42   2h     alice  2 replies  add TTL to the pool          
-      good catch, pushed a defer
- ● …g/a-much-longer-repository-name#7  review body                13h    bob  fix the footnote reorder
-      two questions inline
- waiting on you (0)
- awaiting others (1)
-   kyleking/wavez#7                    internal/lease/lease.go:9  4d     KyleKing  scheduler leases
-      no, that one is per worker
+  new since you looked (2)
+▌ ● kyleking/tlr#118                    internal/pool/pool.go:42   2h     alice  2 replies  add TTL to the pool
+       good catch, pushed a defer
+  ● …g/a-much-longer-repository-name#7  review body                13h    bob  fix the footnote reorder
+       two questions inline
+  waiting on you (0)
+  awaiting others (1)
+    kyleking/wavez#7                    internal/lease/lease.go:9  4d     KyleKing  scheduler leases
+       no, that one is per worker
 
 
 

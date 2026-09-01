@@ -149,6 +149,10 @@ comment itself.
 `/` searches, and `tab` in the prompt restricts it to hunks you have not read yet. The
 pattern becomes a motion, so `n` walks the matches the same way it walks hunks.
 
+`ctrl+e` and `ctrl+y` scroll without moving the cursor, so a glance at what is above or
+below costs nothing to come back from: the next motion pulls the frame back to where you
+were.
+
 `space` marks a hunk read and `]u` goes to the next unread one, so a long review is
 finished when nothing answers `]u`. What is read is keyed by the hunk's content, so a
 force-push that leaves a hunk alone leaves it read.

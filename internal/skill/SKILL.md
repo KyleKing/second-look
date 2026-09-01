@@ -56,12 +56,19 @@ The review's own `note` is the run log: what was run and what it returned, suite
 could not run and why, whether a bot already reviewed the pull request. It shows how much
 of the review is proven rather than read.
 
-## Use status honestly
+## Everything you stage is a draft
 
-`ready` means post it. `draft` means the thought is unfinished, and `post` refuses while
-any draft remains, so a draft is the safe state rather than the risky one. `skip` with a
-`skip_reason` records a finding considered and declined, which is worth more than
-deleting it: it reads as considered rather than missed.
+Write `"status": "draft"` on every comment. `comment add` holds one anyway: a comment
+staged as `ready` is written as a draft and the run says how many it held. Nothing you
+write posts until the author has read it and marked it ready in the review screen, and
+`post` refuses while any draft remains.
+
+That is the point of staging through a file rather than posting. What you write is a
+proposal about someone else's code, and the author rules on each one.
+
+`skip` with a `skip_reason` is left as you wrote it, because it records a finding you
+considered and declined, which is worth more than deleting it: it reads as considered
+rather than missed.
 
 `severity` is blocker, major, minor, nit, or question. It orders what the user reads
 first.

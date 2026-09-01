@@ -1,6 +1,7 @@
 kyleking/jj-diff #42                                                        0% · on head · 1 ready · 1 draft · 1 skipped
   j / k             move a line
   ctrl+d / ctrl+u   move half a page
+  ctrl+e / ctrl+y   scroll without moving the cursor; any motion comes back to it
   g / G             top, bottom
   ] / [             go to the next, previous: d directory, f file, h hunk, c comment, t thread, u unread
   n / N             repeat that motion forward, backward
@@ -20,5 +21,4 @@ kyleking/jj-diff #42                                                        0% �
   P                 post the comment under the cursor on its own, now
   S                 submit the review to GitHub, S again to confirm
   M                 squash-merge the pull request, M again to confirm
-  ? / esc           this help, back
  [j/k] line  []] go to  [c]ode  writ[e]  [S]ubmit  [?] help  [q]uit

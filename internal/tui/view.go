@@ -269,16 +269,21 @@ func (m *Model) rowLines() []string {
 	return out[:h]
 }
 
+// cursorBar is the column every row spends on saying whether the cursor is on
+// it. It is a glyph rather than a reversed row, so a wide terminal does not
+// answer a keystroke with a bar of inverted text across it.
+const cursorBar = "▌"
+
 func (m *Model) renderRow(i int) string {
 	r := m.screen.rows[i]
 	text, style := m.rowContent(r)
-	text = cut(text, m.width)
+	text = cut(text, m.width-1)
 
 	if i == m.cursor {
-		return m.styles.cursor.Render(pad(text, m.width))
+		return m.styles.cursor.Render(cursorBar) + style.Render(text)
 	}
 
-	return style.Render(text)
+	return " " + style.Render(text)
 }
 
 func (m *Model) rowContent(r row) (string, lipgloss.Style) {

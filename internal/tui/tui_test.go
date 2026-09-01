@@ -1424,3 +1424,32 @@ func TestTheCodeViewShowsTheFileThatResults(t *testing.T) {
 		t.Errorf("za did not open the comment:\n%s", got)
 	}
 }
+
+// A peek is for looking at what is above or below without giving up where you
+// were, so the next motion comes back to the cursor rather than to the frame.
+func TestPeekScrollsWithoutMovingTheCursor(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+
+	go2(m, ']', 'h')
+	was := m.CursorRow()
+
+	for range 5 {
+		press(m, tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	}
+
+	if got := m.CursorRow(); got != was {
+		t.Fatalf("the peek moved the cursor to row %d, want %d", got, was)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+
+	if got := m.CursorRow(); got != was+1 {
+		t.Errorf("j after a peek landed on row %d, want %d", got, was+1)
+	}
+
+	if got := plain(m.Frame()); !strings.Contains(got, "\n▌") {
+		t.Errorf("the frame did not come back to the cursor:\n%s", got)
+	}
+}

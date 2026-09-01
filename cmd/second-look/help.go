@@ -167,6 +167,12 @@ NAMING A PULL REQUEST
       already present replaces it; anything else is appended. The whole review is
       validated before anything is written, so a rejected batch changes nothing.
 
+      Every comment it stages is held as a draft, whatever status it arrived
+      with, and the run says how many it held. A comment written by something
+      other than the author is a proposal about someone else's code, and post
+      refuses while any draft remains, so the author rules on each one. A skip
+      is left alone: it records a finding already considered and declined.
+
   second-look show <pr>
       Print the prepared review as JSON, local fields included.
 
@@ -326,7 +332,7 @@ BATCH SHAPE (stdin to second-look comment add)
         "in_reply_to": 0,
         "note":     "why this comment exists: evidence, the command that proved it",
         "severity": "blocker | major | minor | nit | question",
-        "status":   "ready | draft | skip",
+        "status":   "ready | draft | skip, and ready is held as draft",
         "skip_reason": "required when status is skip"
       }
     ]

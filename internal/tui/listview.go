@@ -103,20 +103,20 @@ func (l *List) line(i, left, mid int) string {
 
 	switch {
 	case line.heading != "":
-		return l.styles.file.Render(" " + line.heading)
+		return " " + l.styles.file.Render(" "+line.heading)
 	case line.detail != "":
-		return l.styles.body.Render(cut("        "+line.detail, l.width))
+		return " " + l.styles.body.Render(cut("        "+line.detail, l.width-1))
 	case line.under:
-		return l.styles.note.Render(cut("      "+line.Under(), l.width))
+		return " " + l.styles.note.Render(cut("      "+line.Under(), l.width-1))
 	}
 
-	text := cut(l.row(line.row, left, mid), l.width)
+	text := cut(l.row(line.row, left, mid), l.width-1)
 
 	if i == l.cursor {
-		return l.styles.cursor.Render(pad(text, l.width))
+		return l.styles.cursor.Render(cursorBar) + text
 	}
 
-	return text
+	return " " + text
 }
 
 // Under is the quoted line under a row, kept as a method so the renderer reads

@@ -568,6 +568,16 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 
 	half := m.viewHeight() / halfPage
 
+	// A peek moves the frame and leaves the cursor where it was, so a glance at
+	// what is above or below costs nothing to come back from: the next motion
+	// pulls the frame to the cursor before it moves.
+	switch {
+	case key.Matches(msg, m.keys.PeekDown):
+		return m.peek(1)
+	case key.Matches(msg, m.keys.PeekUp):
+		return m.peek(-1)
+	}
+
 	switch {
 	case key.Matches(msg, m.keys.Down):
 		m.moveBy(1)
@@ -595,6 +605,14 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 
 	m.say("", false)
 	m.follow()
+
+	return true
+}
+
+// peek scrolls the frame by a line without moving the cursor.
+func (m *Model) peek(step int) bool {
+	m.offset = clamp(m.offset+step, len(m.screen.rows)-m.viewHeight())
+	m.say("", false)
 
 	return true
 }

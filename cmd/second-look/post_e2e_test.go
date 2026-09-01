@@ -184,6 +184,42 @@ func TestCommentAddRefusesAnUnanchoredLine(t *testing.T) {
 	}
 }
 
+// TestCommentAddHoldsEveryStagedCommentAsADraft is the whole point of staging
+// through a file: what an agent writes is a proposal, and the author rules on
+// each one. A skip is left alone, since that is a finding already declined.
+func TestCommentAddHoldsEveryStagedCommentAsADraft(t *testing.T) {
+	t.Parallel()
+
+	s := ghcassette.Replay(t, derive(t, "no-calls", func(c *ghcassette.Cassette) {
+		c.Interactions = nil
+	}))
+	dir := workspace(t, "triaged.toml")
+	seedDiff(t, dir)
+
+	batch := `{"comments":[{"id":"held","path":"testdata/fixture/sample.go","line":17,` +
+		`"side":"RIGHT","body":"wrap this","note":"","severity":"nit","status":"ready"}]}`
+
+	res := runCLIStdin(t, s, dir, batch, "comment", "add", "2")
+	if res.code != 0 {
+		t.Fatalf("staging failed: %s", res.stderr)
+	}
+
+	if !strings.Contains(res.stdout, "held as draft") {
+		t.Errorf("staging did not say what it held: %q", res.stdout)
+	}
+
+	review, err := artifact.Load(filepath.Join(dir, ".second-look", "pr-2.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := range review.Comments {
+		if review.Comments[i].ID == "held" && review.Comments[i].Status != artifact.StatusDraft {
+			t.Errorf("a staged comment is %q, want draft", review.Comments[i].Status)
+		}
+	}
+}
+
 // guardOnly keeps the two reads the anchor guard makes and drops the post, for
 // a run that is expected to stop before it sends anything.
 func guardOnly(c *ghcassette.Cassette) {
