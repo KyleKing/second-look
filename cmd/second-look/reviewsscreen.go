@@ -148,7 +148,8 @@ func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		s.rows = rows
 
 		return s.counts(), false, nil
-	case tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve:
+	case tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
+		tui.ActCheckout, tui.ActComment, tui.ActApprove:
 		return "", false, errNotHere
 	}
 
@@ -162,7 +163,11 @@ var (
 		"enter opens a review, ? lists the keys")
 	errNotInInbox = errors.New("that key belongs to the conversation queue; " +
 		"enter reviews the pull request, o opens it on GitHub, ? lists the keys")
-	errNoPullRequest = errors.New("this row is a search that failed, not a pull request")
+	errNoPullRequest  = errors.New("this row is a search that failed, not a pull request")
+	errNoCheckoutHere = errors.New("no clone of it is on this laptop, so there is nothing to check out; " +
+		"enter reviews it from the API instead")
+	errNotOnAConversation = errors.New("that key belongs to the inbox, which lists pull requests; " +
+		"r answers this conversation and R marks it dealt with")
 )
 
 // choose leaves the screen so the review can open. Two Bubble Tea programs

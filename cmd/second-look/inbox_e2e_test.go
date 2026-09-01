@@ -116,3 +116,48 @@ func inboxThenReview(t *testing.T) string {
 
 	return path
 }
+
+// TestInboxScreenApprovesOnTheSecondPress is the one verb on a row that sends
+// something GitHub keeps. One press arms it and says so, and the second sends
+// the approval the cassette expects.
+func TestInboxScreenApprovesOnTheSecondPress(t *testing.T) {
+	t.Parallel()
+
+	s := ghcassette.Replay(t, withApprove(t))
+	home := t.TempDir()
+
+	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
+	sc.await("kyleking/aragonite#100")
+
+	sc.press("A")
+	sc.await("A again to approve")
+
+	// The footer clips to the frame, so what it says is checked short and the
+	// cassette is what proves the request went out.
+	sc.press("A")
+	sc.await("approved")
+
+	sc.press("q")
+	sc.wait()
+
+	s.RequireAllPlayed(t)
+}
+
+// withApprove is the three searches plus the approval the second A sends. The
+// answer is empty because gh prints nothing on success and the exit code is
+// what says it worked.
+func withApprove(t *testing.T) string {
+	t.Helper()
+
+	c := load(t, "inbox")
+	c.Interactions = append(c.Interactions, ghcassette.Interaction{
+		Args: []string{"pr", "review", "100", "--repo", "kyleking/aragonite", "--approve"},
+	})
+
+	path := filepath.Join(t.TempDir(), "inbox-approve.golden")
+	if err := ghcassette.Save(path, c); err != nil {
+		t.Fatalf("writing the derived cassette: %v", err)
+	}
+
+	return path
+}

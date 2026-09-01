@@ -51,6 +51,7 @@ type Model struct {
 	path    string
 	submit  Submitter
 	send    Sender
+	merge   Merger
 	tree    Tree
 
 	screen screen
@@ -71,15 +72,17 @@ type Model struct {
 	last   *motion
 	change *tea.KeyPressMsg
 
-	status     string
-	failed     bool
-	posted     bool
-	posting    bool
-	confirming bool
-	searching  bool
-	listing    bool
-	folding    bool
-	help       bool
+	status    string
+	failed    bool
+	posted    bool
+	posting   bool
+	merged    bool
+	merging   bool
+	asking    confirmKind
+	searching bool
+	listing   bool
+	folding   bool
+	help      bool
 	// checkout is C, answered by the caller once the screen has closed.
 	checkout bool
 	// failure is the last submit that did not post, cleared by one that does.
@@ -163,6 +166,12 @@ type submittedMsg struct {
 	err     error
 }
 
+// mergedMsg is what the merge answered with.
+type mergedMsg struct {
+	summary string
+	err     error
+}
+
 // Update routes one message. Movement is separated from the keys that change
 // the review, so what can alter a comment stays a short list.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -178,6 +187,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case sentMsg:
 		m.applySent(msg)
+
+		return m, tea.ClearScreen
+	case mergedMsg:
+		m.applyMerge(msg)
 
 		return m, tea.ClearScreen
 	case submittedMsg:
@@ -207,7 +220,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// A prompt, a confirmation, and a half-typed motion each own the keyboard
 	// until they are finished, so they are answered before anything else.
 	switch {
-	case m.confirming:
+	case m.asking != askNothing:
 		return m.answer(msg)
 	case m.searching:
 		return m.typing(msg)
@@ -596,6 +609,8 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case key.Matches(msg, m.keys.Submit):
 		m.askSubmit()
+	case key.Matches(msg, m.keys.Merge):
+		m.askMergeNow()
 	}
 
 	return m, nil
@@ -1012,16 +1027,69 @@ func (m *Model) askSubmit() {
 		return
 	}
 
-	m.confirming = true
+	m.asking = askSubmit
 	// The pull request is already named in the title bar, so the prompt spends
 	// its width on what the keys do and stays readable in an 80-column frame.
 	m.say(fmt.Sprintf("S again to post, any key cancels: %d comment(s) as %s", c.ready, m.event()), false)
 }
 
-// answer reads the reply to the submit prompt. Anything but a second S cancels
-// and is swallowed, so no keystroke meant for the review posts it instead.
+// confirmKind is which confirmation owns the keyboard. Two of the screen's keys
+// send something that cannot be taken back, and each is confirmed by its own
+// key rather than by any keystroke at all.
+type confirmKind int
+
+const (
+	askNothing confirmKind = iota
+	askSubmit
+	askMerge
+)
+
+// askMergeNow asks before it merges. A merge is the least reversible thing this
+// screen does, and a review still staged is work the merge would strand, so it
+// is refused rather than confirmed.
+func (m *Model) askMergeNow() {
+	switch {
+	case m.merge == nil:
+		m.say("merging is not available here", true)
+	case m.merging:
+		m.say("merging…", false)
+	case m.merged:
+		m.say("already merged", false)
+	case m.posting:
+		m.say("the review is still posting", false)
+	case !m.posted && !m.review.Empty():
+		m.say("this review is still staged; S posts it, or skip its comments first", true)
+	default:
+		m.asking = askMerge
+		m.say("M again to squash-merge and delete the branch, any key cancels", false)
+	}
+}
+
+// answer reads the reply to a prompt. Anything but the same key again cancels
+// and is swallowed, so no keystroke meant for the review sends anything.
 func (m *Model) answer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	m.confirming = false
+	kind := m.asking
+	m.asking = askNothing
+
+	if kind == askMerge {
+		if !key.Matches(msg, m.keys.Merge) {
+			m.say("canceled, nothing was merged", false)
+
+			return m, nil
+		}
+
+		m.merging = true
+
+		m.say("merging…", false)
+
+		ctx, review := m.ctx, m.review
+
+		return m, func() tea.Msg {
+			summary, err := m.merge(ctx, review)
+
+			return mergedMsg{summary: summary, err: err}
+		}
+	}
 
 	if !key.Matches(msg, m.keys.Submit) {
 		m.say("canceled, nothing was posted", false)
@@ -1086,6 +1154,21 @@ func (m *Model) applySubmit(msg submittedMsg) {
 	}
 
 	m.posted = true
+	m.say(msg.summary+", press q to leave", false)
+}
+
+// applyMerge reports the merge. A failure is carried out of the screen the way
+// a failed post is, since a merge that GitHub refused is the one thing a
+// footer taken away by the alternate screen must not swallow.
+func (m *Model) applyMerge(msg mergedMsg) {
+	m.merging, m.failure = false, msg.err
+	if msg.err != nil {
+		m.say(msg.err.Error(), true)
+
+		return
+	}
+
+	m.merged = true
 	m.say(msg.summary+", press q to leave", false)
 }
 

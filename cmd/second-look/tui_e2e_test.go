@@ -41,6 +41,20 @@ type screen struct {
 	mu  sync.Mutex
 	buf strings.Builder
 	cmd *exec.Cmd
+	// drained closes once everything the screen wrote has been read. A process
+	// that has exited may still have bytes in the pty, so a test asserting on
+	// the last thing it wrote -- the escape that gives the alternate screen
+	// back -- has to wait for the reader and not just for the exit.
+	drained chan struct{}
+}
+
+// raw is everything written, escapes included, for an assertion about the
+// terminal state rather than about the text.
+func (s *screen) raw() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.buf.String()
 }
 
 // openReview starts the screen on a pty. Anything before the first argument
@@ -65,7 +79,7 @@ func openReview(t *testing.T, s *ghcassette.Session, dir string, args ...string)
 		t.Fatalf("starting the review screen on a pty: %v", err)
 	}
 
-	sc := &screen{t: t, pty: f, cmd: cmd}
+	sc := &screen{t: t, pty: f, cmd: cmd, drained: make(chan struct{})}
 
 	go sc.drain()
 
@@ -88,6 +102,8 @@ var answers = []struct{ query, reply string }{
 }
 
 func (s *screen) drain() {
+	defer close(s.drained)
+
 	chunk := make([]byte, 4096)
 
 	for {
@@ -150,16 +166,29 @@ func (s *screen) press(keys string) {
 func (s *screen) wait() int {
 	s.t.Helper()
 
+	code := 0
+
 	if err := s.cmd.Wait(); err != nil {
 		var exitErr *exec.ExitError
 		if !errors.As(err, &exitErr) {
 			s.t.Fatalf("waiting for the screen to exit: %v", err)
 		}
 
-		return exitErr.ExitCode()
+		code = exitErr.ExitCode()
 	}
 
-	return 0
+	// The pty answers EIO once the process is gone, which is what ends the
+	// reader. A deadline rather than a bare receive, so a reader that somehow
+	// does not end fails here instead of hanging the suite.
+	const patience = 5 * time.Second
+
+	select {
+	case <-s.drained:
+	case <-time.After(patience):
+		s.t.Fatalf("the screen exited but its output was still being read:\n%s", s.text())
+	}
+
+	return code
 }
 
 // TestReviewScreenSubmits is the whole premise in one run: open the review on a
@@ -419,7 +448,7 @@ func TestReviewScreenQuitsWithoutPosting(t *testing.T) {
 
 			// Every quit path has to give the alternate screen back, or the
 			// terminal is left showing a frame nobody can scroll out of.
-			if !strings.Contains(sc.buf.String(), "\x1b[?1049l") {
+			if !strings.Contains(sc.raw(), "\x1b[?1049l") {
 				t.Error("the alternate screen was not restored")
 			}
 		})

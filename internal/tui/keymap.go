@@ -38,6 +38,7 @@ type keyMap struct {
 	Accept   key.Binding
 	Send     key.Binding
 	Submit   key.Binding
+	Merge    key.Binding
 	Help     key.Binding
 	Quit     key.Binding
 }
@@ -71,6 +72,7 @@ func defaultKeyMap() keyMap {
 		Accept:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
 		Send:     key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
 		Submit:   key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
+		Merge:    key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
 		Help:     key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", "quit")),
 	}
@@ -111,6 +113,7 @@ func helpLines() [][2]string {
 		{"C", "move the checkout onto this pull request"},
 		{"P", "post the comment under the cursor on its own, now"},
 		{"S", "submit the review to GitHub, S again to confirm"},
+		{"M", "squash-merge the pull request, M again to confirm"},
 		{"? / esc", "this help, back"},
 		{"q", "quit"},
 	}

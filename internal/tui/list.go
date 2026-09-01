@@ -56,6 +56,14 @@ const (
 	ActResolve
 	// ActRefresh is ctrl+r: read the queue again.
 	ActRefresh
+	// ActCheckout is C: move a working copy onto the row's pull request.
+	ActCheckout
+	// ActComment is m: say something on the pull request itself, outside any
+	// review.
+	ActComment
+	// ActApprove is A: approve the row's pull request. The caller decides what
+	// ceremony that takes, since this screen sends nothing itself.
+	ActApprove
 )
 
 // Act performs an action on a row. What it returns is the one line the footer
@@ -67,12 +75,15 @@ type Act func(a Action, r *Row) (status string, done bool, err error)
 // letters are the first letter of the verb, and none is chorded except the
 // refresh, because a queue is read far more often than it is re-read.
 type listKeys struct {
-	Mark    key.Binding
-	Browse  key.Binding
-	Reply   key.Binding
-	Resolve key.Binding
-	Refresh key.Binding
-	Section key.Binding
+	Mark     key.Binding
+	Browse   key.Binding
+	Reply    key.Binding
+	Resolve  key.Binding
+	Refresh  key.Binding
+	Section  key.Binding
+	Checkout key.Binding
+	Comment  key.Binding
+	Approve  key.Binding
 }
 
 func defaultListKeys() listKeys {
@@ -83,6 +94,11 @@ func defaultListKeys() listKeys {
 		Resolve: key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "resolve")),
 		Refresh: key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "refresh")),
 		Section: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next group")),
+		// C matches the review screen's own checkout key, and m and A are the
+		// first letter of the verb rather than gh-dash's, since c is taken.
+		Checkout: key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
+		Comment:  key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "comment")),
+		Approve:  key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "approve")),
 	}
 }
 
@@ -290,6 +306,9 @@ func (l *List) perform(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		{l.list.Reply, ActReply},
 		{l.list.Resolve, ActResolve},
 		{l.list.Refresh, ActRefresh},
+		{l.list.Checkout, ActCheckout},
+		{l.list.Comment, ActComment},
+		{l.list.Approve, ActApprove},
 	} {
 		if key.Matches(msg, m.binding) {
 			return l.run(m.action, row)

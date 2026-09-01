@@ -36,11 +36,14 @@ a clone and a branch switch. So the goal is one screen I can live in: read the q
 open any pull request in it, review it properly, answer the conversations, post, and move
 to the next one, without touching the working tree unless I mean to.
 
-Three of the four things that stood between here and that are built (below). What is left
-is **the list itself**: sections driven by search queries rather than three fixed buckets,
-and the verbs gh-dash puts on a list row (checkout, comment, approve, merge) reachable
-from the queue. Issues beside pull requests is the one part of gh-dash I am not sure I
-want, so it waits for a real gap rather than parity for its own sake.
+All four are built (below). Sections come from `~/.config/second-look/config.toml`, one gh
+search query each, and the row verbs are `C` check out, `m` comment, `A` approve, with the
+merge deliberately elsewhere: `M` in the review screen, after the diff has been read.
+
+What gh-dash still has that this does not: issues beside pull requests, which waits for a
+real gap rather than parity for its own sake, and its preview pane, which the review screen
+replaces with something better. What is left of the goal is the queue's own order past
+about forty rows, which is the review-cost rating's first real job.
 
 The division of labour with gh-repo-dashboard is worth stating, because two tools reading
 the same data is the failure mode to avoid. gh-repo-dashboard owns disk: clones,
@@ -85,6 +88,32 @@ against a directory that is not the repository at all, is refused by name rather
 
 Cloning stays manual. `C` moves a clone that is already here, and a repository with none
 says so.
+
+## Sections and row verbs — done
+
+The inbox reads `[[section]]` blocks out of `~/.config/second-look/config.toml`: a name and
+a gh search query each, in the order the file names them, replacing the three built-in
+buckets outright. aragonite's `FleetSearchArgs` turns the query into gh's arguments, so a
+`sort:` qualifier becomes `--sort` and `--order` and a query naming no subject is scoped to
+what involves me. A query written for gh-dash works unchanged, which is the whole point.
+
+The file lives under XDG rather than `os.UserConfigDir`, which on macOS answers
+`~/Library/Application Support`. A file written by hand belongs beside gh's and gh-dash's
+in a dotfiles repository; what second-look writes for itself stays in the platform
+directory. A config that will not parse is reported and the built-in buckets are used, so
+a typo leaves a working queue rather than none.
+
+Row verbs are `C` check out, `m` comment in `$EDITOR`, and `A` approve, which arms on the
+first press and sends on the second. Reviewing, checking out, and commenting all need the
+terminal the screen owns, so each closes the screen, runs, and comes back to the queue;
+approving is a single gh call and happens in place. Merging is `M` in the review screen
+instead, where the key is only reachable after the diff has been read, and it refuses while
+anything is still staged.
+
+`internal/ghrun` is the seam all of these share, lifted out of `internal/resolve` because
+resolving, reacting, browsing, approving, commenting, and merging are one shape: run a gh
+call, report its own stderr in the error. Writing that stderr to the terminal, which is
+what it did before, drew over the frame of whichever screen was up.
 
 ## Decided since
 

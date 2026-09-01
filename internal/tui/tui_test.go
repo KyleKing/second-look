@@ -161,6 +161,99 @@ func TestTreeDecidesWhatCheckoutAndShellCanDo(t *testing.T) {
 	}
 }
 
+// Merging is the least reversible thing the screen does, so it takes the key
+// twice, refuses while the review is still staged, and refuses outright where
+// there is nothing to merge with.
+func TestMergeAsksTwiceAndRefusesAStagedReview(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a staged review is not merged", func(t *testing.T) {
+		t.Parallel()
+
+		m, merges := mergeFixture(t, comment("c1", parsed, "RIGHT", 16, "a word"))
+		pressKey(m, 'M')
+		pressKey(m, 'M')
+
+		if *merges != 0 {
+			t.Errorf("%d merge(s) sent with a review still staged", *merges)
+		}
+
+		if !strings.Contains(plain(m.Frame()), "still staged") {
+			t.Errorf("the refusal does not say why:\n%s", plain(m.Frame()))
+		}
+	})
+
+	t.Run("one press arms and the second sends", func(t *testing.T) {
+		t.Parallel()
+
+		m, merges := mergeFixture(t)
+
+		pressKey(m, 'M')
+
+		if *merges != 0 {
+			t.Error("the first M merged without confirming")
+		}
+
+		if !strings.Contains(plain(m.Frame()), "M again") {
+			t.Errorf("the first M did not ask:\n%s", plain(m.Frame()))
+		}
+
+		pressKey(m, 'M')
+
+		if *merges != 1 {
+			t.Errorf("%d merge(s) after confirming, want 1", *merges)
+		}
+	})
+
+	t.Run("any other key cancels", func(t *testing.T) {
+		t.Parallel()
+
+		m, merges := mergeFixture(t)
+
+		pressKey(m, 'M')
+		pressKey(m, 'j')
+		pressKey(m, 'M')
+
+		if *merges != 0 {
+			t.Errorf("%d merge(s) after a cancel", *merges)
+		}
+	})
+}
+
+func pressKey(m *tui.Model, c rune) {
+	press(m, tea.KeyPressMsg{Code: c, Text: string(c)})
+}
+
+// mergeFixture is a review with nothing staged unless comments are given, and a
+// merger that counts rather than merging.
+func mergeFixture(t *testing.T, cs ...artifact.Comment) (*tui.Model, *int) {
+	t.Helper()
+
+	merges := 0
+	sub := &counter{}
+
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment, Comments: cs,
+	}
+
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithMerger(func(context.Context, *artifact.Review) (string, error) {
+			merges++
+
+			return "merged", nil
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	return m, &merges
+}
+
 func treeFixture(t *testing.T, tree tui.Tree) *tui.Model {
 	t.Helper()
 

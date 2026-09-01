@@ -7,6 +7,7 @@ import (
 	"github.com/kyleking/aragonite/ghcassette"
 
 	"github.com/kyleking/second-look/internal/conversations"
+	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/resolve"
 )
 
@@ -46,7 +47,7 @@ func TestRunAgainstGitHub(t *testing.T) {
 		Notes: []conversations.Note{{NodeID: liveComment, Author: "KyleKing", Body: "a finding"}},
 	}
 
-	status, err := resolve.Run(t.Context(), resolve.GH(), ".", c)
+	status, err := resolve.Run(t.Context(), ghrun.GH(), ".", c)
 	if err != nil {
 		t.Fatal(err)
 	}

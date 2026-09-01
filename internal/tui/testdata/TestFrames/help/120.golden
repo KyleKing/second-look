@@ -17,8 +17,8 @@ kyleking/jj-diff #42                                                            
   C                 move the checkout onto this pull request
   P                 post the comment under the cursor on its own, now
   S                 submit the review to GitHub, S again to confirm
+  M                 squash-merge the pull request, M again to confirm
   ? / esc           this help, back
   q                 quit
-
 
  j/k line ] go c comments S submit ? help q quit

@@ -35,10 +35,35 @@ before anything is sent.
 Conversations already open on the pull request are shown where they anchor, so a second
 pass answers what was said last time. `e` on one writes the reply in `$EDITOR`.
 
-`second-look inbox` is your review queue in three buckets: pending your review, reviewed
-and still open, then reviewed and merged. `enter` on a row opens the review, which needs no
+`second-look inbox` is your review queue. `enter` on a row opens the review, which needs no
 clone of that repository, so getting to one costs an API read rather than a clone and a
-branch switch. A pipe or `--json` gets the text instead of the screen.
+branch switch. `C` moves a checkout onto it, `m` comments on the pull request itself, `A`
+approves it (`A` again to confirm), and `o` opens it on GitHub. A pipe or `--json` gets the
+text instead of the screen.
+
+The sections are yours. Without a config it shows three buckets (pending your review,
+reviewed and still open, then reviewed and merged); with one it shows what you asked for:
+
+```toml
+# ~/.config/second-look/config.toml
+limit = 25
+
+[[section]]
+name = "needs my review"
+query = "review-requested:@me is:open archived:false sort:updated-desc"
+
+[[section]]
+name = "my work"
+query = "author:@me org:acme is:open archived:false sort:updated-desc"
+```
+
+A query is `gh search prs` terms, which is what GitHub's search box takes. A `sort:`
+qualifier becomes gh's own flags and a query naming no subject is scoped to what involves
+you, so a query written for [gh-dash](https://github.com/dlvhdr/gh-dash) answers the same
+way here.
+
+Merging is not on a list row. It is `M` in the review screen, `M` again to confirm, and it
+refuses while anything is still staged.
 
 `second-look threads` is the queue of conversations across every open pull request you
 are involved in, in three buckets: what moved since you last looked, what is still

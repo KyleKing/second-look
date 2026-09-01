@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kyleking/second-look/internal/conversations"
+	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/resolve"
 	"github.com/kyleking/second-look/internal/tui"
@@ -229,13 +230,15 @@ func (s *threadsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return s.stageReply(c)
 	case tui.ActRefresh:
 		return s.refresh()
+	case tui.ActCheckout, tui.ActComment, tui.ActApprove:
+		return "", false, errNotOnAConversation
 	}
 
 	return "", false, nil
 }
 
 func (s *threadsScreen) browse(c *conversations.Conversation) (string, bool, error) {
-	if err := resolve.GH().Run(s.ctx, ".", "browse", "--repo", c.Repository, "-n", strconv.Itoa(c.Number)); err != nil {
+	if err := ghrun.GH().Run(s.ctx, ".", "browse", "--repo", c.Repository, "-n", strconv.Itoa(c.Number)); err != nil {
 		return "", false, fmt.Errorf("opening %s: %w", c.Where(), err)
 	}
 
@@ -245,7 +248,7 @@ func (s *threadsScreen) browse(c *conversations.Conversation) (string, bool, err
 // resolve marks the conversation dealt with on GitHub and drops it from the
 // queue, since the queue is what is still open and this no longer is.
 func (s *threadsScreen) resolve(c *conversations.Conversation) (string, bool, error) {
-	status, err := resolve.Run(s.ctx, resolve.GH(), ".", c)
+	status, err := resolve.Run(s.ctx, ghrun.GH(), ".", c)
 	if err != nil {
 		return "", false, fmt.Errorf("marking %s dealt with: %w", c.Where(), err)
 	}

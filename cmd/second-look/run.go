@@ -15,9 +15,11 @@ import (
 	"github.com/charmbracelet/x/term"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/config"
 	"github.com/kyleking/second-look/internal/conversations"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
+	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/prepared"
@@ -185,7 +187,8 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 
 	out, runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(t, opened.Path, &log),
 		tui.WithThreads(opened.Threads), tui.WithSeen(opened.Read, opened.SeenPath),
-		tui.WithSender(sender(t, opened.Path, &log)), tui.WithTree(tree(opened)))
+		tui.WithSender(sender(t, opened.Path, &log)), tui.WithTree(tree(opened)),
+		tui.WithMerger(merger(t)))
 
 	// The log is written either way: a post that failed partway through still
 	// names the endpoints it reached, which is what says whether anything
@@ -245,6 +248,24 @@ func sender(t get.Target, path string, log io.Writer) tui.Sender {
 		}
 
 		return "posted " + id + "; it is off the review now", nil
+	}
+}
+
+// merger squash-merges from inside the review screen, which is the one place
+// the decision has the diff behind it: the key is only reachable after the
+// review is read, and it refuses while anything is still staged.
+func merger(t get.Target) tui.Merger {
+	return func(ctx context.Context, r *artifact.Review) (string, error) {
+		args := []string{"pr", "merge", strconv.Itoa(r.Number), "--squash", "--delete-branch"}
+		if t.Remote() != "" {
+			args = append(args, "--repo", t.Remote())
+		}
+
+		if err := ghrun.GH().Run(ctx, t.Dir(), args...); err != nil {
+			return "", fmt.Errorf("merging #%d: %w", r.Number, err)
+		}
+
+		return fmt.Sprintf("merged %s/%s #%d", r.Owner, r.Repo, r.Number), nil
 	}
 }
 
@@ -446,9 +467,74 @@ func postFlags(args []string) (bool, string, error) {
 	return false, "", errUsagePost
 }
 
-// inboxLimit is how many pull requests each bucket asks for. A queue longer
-// than this is not a queue, and the search costs the same either way.
+// inboxLimit is how many pull requests each bucket asks for when the config
+// names no limit of its own. A queue longer than this is not a queue, and the
+// search costs the same either way.
 const inboxLimit = 30
+
+// queue is the review queue: the sections the config names, or the three
+// built-in buckets when it names none.
+//
+// A config that cannot be read is reported and the built-in buckets are used, so
+// a typo in a file leaves a working queue rather than no queue. Every other
+// failure here belongs to one bucket and is printed in it.
+func queue(ctx context.Context, out io.Writer) []inbox.Bucket {
+	cfg, err := configured(out)
+	if err != nil {
+		return nil
+	}
+
+	return runQueue(ctx, cfg)
+}
+
+// configured reads the config, reporting a file that cannot be read and falling
+// back to the built-in buckets: a typo in a file should leave a working queue
+// rather than no queue. It is read before the screen opens, because nothing can
+// be written to a terminal the alternate screen owns.
+func configured(out io.Writer) (*config.Config, error) {
+	cfg, err := loadConfig()
+	if err == nil {
+		return cfg, nil
+	}
+
+	if err := write(out, err.Error()+"\n"); err != nil {
+		return nil, err
+	}
+
+	return &config.Config{}, nil
+}
+
+func runQueue(ctx context.Context, cfg *config.Config) []inbox.Bucket {
+	limit := cfg.Limit
+	if limit <= 0 {
+		limit = inboxLimit
+	}
+
+	if len(cfg.Sections) == 0 {
+		return inbox.Buckets(ctx, ".", limit)
+	}
+
+	sections := make([]inbox.Section, 0, len(cfg.Sections))
+	for i := range cfg.Sections {
+		sections = append(sections, inbox.Section{Name: cfg.Sections[i].Name, Query: cfg.Sections[i].Query})
+	}
+
+	return inbox.Configured(ctx, ".", sections, limit)
+}
+
+func loadConfig() (*config.Config, error) {
+	path, err := config.Path()
+	if err != nil {
+		return nil, fmt.Errorf("reading your config: %w", err)
+	}
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading your config: %w", err)
+	}
+
+	return cfg, nil
+}
 
 // threadsCmd prints the conversation queue: the discussions across your open
 // pull requests that moved since you last looked, then the ones still waiting on
@@ -563,7 +649,7 @@ func inboxCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 		return openInbox(ctx, stdin, stdout)
 	}
 
-	buckets := inbox.Buckets(ctx, ".", inboxLimit)
+	buckets := queue(ctx, stdout)
 
 	if asJSON == jsonArg {
 		return writeJSON(stdout, buckets)

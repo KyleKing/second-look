@@ -53,6 +53,17 @@ type Outcome struct {
 // rest of the review is still staged.
 type Sender func(ctx context.Context, r *artifact.Review, id string) (string, error)
 
+// Merger merges the pull request under review. It is a separate seam from
+// Submitter because it is a different consequence: a review can be taken back
+// by deleting it on GitHub and a merge cannot.
+type Merger func(ctx context.Context, r *artifact.Review) (string, error)
+
+// WithMerger allows merging from inside the screen. Without one, the key says
+// so rather than appearing to work.
+func WithMerger(merge Merger) Option {
+	return func(m *Model) { m.merge = merge }
+}
+
 // WithSender allows posting a single comment from inside the screen. Without
 // one, the key says so rather than appearing to work.
 func WithSender(send Sender) Option {

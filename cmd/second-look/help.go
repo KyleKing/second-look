@@ -12,7 +12,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look post <pr>            post the review
   second-look post <pr> --dry-run  print the request without sending it
   second-look post <pr> --only <id>  post one comment on its own, now
-  second-look inbox                the review queue, in three buckets
+  second-look inbox                the review queue, in your own sections
   second-look threads              conversations that moved since you looked
   second-look reviews              what is staged locally under .second-look/
   second-look skill                print the agent instructions this binary carries
@@ -65,6 +65,10 @@ NAMING A PULL REQUEST
       or unread hunk, n repeats that motion and N reverses it, and . repeats the
       last change. So triaging a review reads "]c" then "n . n . n .", and
       reading one through reads "]u" then "n" until nothing answers.
+
+      M squash-merges the pull request and deletes its head branch, M again to
+      confirm. It refuses while anything is still staged, since a review left
+      behind by a merge is work nobody will post.
 
       P posts the comment under the cursor on its own, now, and takes it off
       the review. It asks nothing first: a single comment is small enough to
@@ -163,15 +167,20 @@ NAMING A PULL REQUEST
       because GitHub owns it from that moment.
 
   second-look inbox [--json]
-      The review queue in three buckets, in the order they want doing: pending
-      your review, reviewed and still open, then reviewed and merged. Each line
-      carries the repository, the author, how stale it is, and the title, which
-      is enough to triage without opening anything. A terminal gets the screen
-      and a pipe or --json gets the text.
+      The review queue, as the sections your config names or the three built-in
+      buckets when it names none: pending your review, reviewed and still open,
+      then reviewed and merged. Each line carries the repository, the author,
+      how stale it is, and the title, which is enough to triage without opening
+      anything. A terminal gets the screen and a pipe or --json gets the text.
 
-      enter reviews the pull request under the cursor and o opens it on GitHub.
-      Opening one needs no clone of its repository, which is the point: getting
-      to a review costs an API read rather than a clone and a branch switch.
+      enter reviews the pull request under the cursor, C moves a checkout onto
+      it, m comments on the pull request itself in $EDITOR, A approves it (A
+      again to confirm), and o opens it on GitHub. Opening one needs no clone of
+      its repository, which is the point: getting to a review costs an API read
+      rather than a clone and a branch switch.
+
+      Merging is not here. It is M in the review screen, where the diff has been
+      read by the time the key is reachable.
 
       It reads GitHub and nothing local, so it works from anywhere gh is logged
       in rather than only inside a checkout. One bucket failing prints its
@@ -244,6 +253,36 @@ NAMING A PULL REQUEST
       Read it, or install it with
 
         second-look skill > ~/.claude/skills/second-look/SKILL.md
+
+CONFIG
+
+  ~/.config/second-look/config.toml, or $XDG_CONFIG_HOME/second-look/config.toml.
+  It sits beside gh's and gh-dash's rather than in the platform's own config
+  directory, because a person writes it by hand and keeps it in their dotfiles.
+  Everything second-look writes for itself stays in the platform directory.
+
+  Optional. Without it the inbox shows the three built-in buckets.
+
+    limit = 25                        # rows per section, 30 by default
+
+    [[section]]
+    name = "needs my review"
+    query = "review-requested:@me is:open archived:false sort:updated-desc"
+
+    [[section]]
+    name = "my work"
+    query = "author:@me org:acme is:open archived:false sort:updated-desc"
+
+  A query is gh search prs terms, which is what GitHub's own search box takes.
+  A sort: qualifier becomes gh's --sort and --order, and a query naming no
+  subject is scoped to what involves you, so a query written for gh-dash answers
+  the same way here. Sections replace the built-in buckets outright: merging the
+  two would put rows in front of you that no query asked for.
+
+  A file that exists and says something wrong is reported and the built-in
+  buckets are used, so a typo leaves a working queue. An unknown key is refused
+  for the same reason it is in a prepared review: a misspelled key does not do
+  what its author meant.
 
 BATCH SHAPE (stdin to second-look comment add)
 

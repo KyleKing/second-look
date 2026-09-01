@@ -15,7 +15,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kyleking/aragonite/forge/github"
 )
+
+// Section is one configured query, under the name it is shown by.
+type Section struct {
+	Name  string
+	Query string
+}
 
 // Bucket is one section of the queue, in the order they want doing.
 type Bucket struct {
@@ -48,14 +56,48 @@ const fields = "repository,number,title,author,isDraft,commentsCount,labels,upda
 // Buckets is the queue, in order: what is waiting on you first, because that is
 // the only bucket with anything to do in it.
 func Buckets(ctx context.Context, root string, limit int) []Bucket {
-	out := []Bucket{
-		{Name: "pending your review", query: []string{"--review-requested=@me", "--state=open"}},
-		{Name: "reviewed, still open", query: []string{"--reviewed-by=@me", "--state=open"}},
-		{Name: "reviewed, merged", query: []string{"--reviewed-by=@me", "--merged"}},
+	return run(ctx, root, []Bucket{
+		{Name: "pending your review", query: built(limit, "--review-requested=@me", "--state=open")},
+		{Name: "reviewed, still open", query: built(limit, "--reviewed-by=@me", "--state=open")},
+		{Name: "reviewed, merged", query: built(limit, "--reviewed-by=@me", "--merged")},
+	})
+}
+
+// Configured is the queue a config asked for: one bucket per section, in the
+// order the file names them, each a gh search query of its own.
+//
+// A query carrying a sort: qualifier is turned into gh's own flags, and one
+// naming no subject is scoped to what involves you, both by aragonite, so a
+// query written for gh-dash or pasted out of GitHub's search box answers the
+// same way here.
+func Configured(ctx context.Context, root string, sections []Section, limit int) []Bucket {
+	out := make([]Bucket, 0, len(sections))
+
+	for i := range sections {
+		out = append(out, Bucket{
+			Name:  sections[i].Name,
+			query: github.FleetSearchArgs(sections[i].Query, page(limit)...),
+		})
 	}
 
+	return run(ctx, root, out)
+}
+
+// built is a built-in bucket's whole argument list. Recency is its order,
+// because a queue is read from the top and the stalest row is rarely the next
+// one to do.
+func built(limit int, filters ...string) []string {
+	return append(append(filters, "--sort", "updated"), page(limit)...)
+}
+
+// page is what every search asks for however it was written.
+func page(limit int) []string {
+	return []string{"--limit", strconv.Itoa(limit), "--json", fields}
+}
+
+func run(ctx context.Context, root string, out []Bucket) []Bucket {
 	for i := range out {
-		items, err := search(ctx, root, limit, out[i].query...)
+		items, err := search(ctx, root, out[i].query...)
 		if err != nil {
 			out[i].Err = err.Error()
 
@@ -68,9 +110,8 @@ func Buckets(ctx context.Context, root string, limit int) []Bucket {
 	return out
 }
 
-func search(ctx context.Context, root string, limit int, filters ...string) ([]PullRequest, error) {
-	args := append([]string{"search", "prs"}, filters...)
-	args = append(args, "--sort", "updated", "--limit", strconv.Itoa(limit), "--json", fields)
+func search(ctx context.Context, root string, tail ...string) ([]PullRequest, error) {
+	args := append([]string{"search", "prs"}, tail...)
 
 	//nolint:gosec // every argument is a constant or an integer from the caller
 	cmd := exec.CommandContext(ctx, "gh", args...)

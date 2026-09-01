@@ -271,11 +271,12 @@ Navigation, only as far as the pipeline needs:
   opening it. Searchable and sortable, and available from the CLI as well as the TUI
 - Stacked reviews shown as a stack, with the ability to move between them from the inbox
 - Replace [gh-dash](https://github.com/dlvhdr/gh-dash), which is the tool this one has to
-  be better than to be worth opening. What it does that second-look does not yet: sections
-  driven by arbitrary search queries rather than three fixed buckets, issues beside pull
-  requests, and the verbs (checkout, comment, approve, merge, close) reachable from the
-  list. What second-look does that it cannot: read the diff properly, keep what was read,
-  hold a review while it is written, and answer conversations
+  be better than to be worth opening. Built: sections driven by arbitrary search queries,
+  and checkout, comment, and approve on a list row, with the merge kept in the review
+  screen where the diff has been read. What it still does that second-look does not: issues
+  beside pull requests, which waits for a real gap. What second-look does that it cannot:
+  read the diff properly, keep what was read, hold a review while it is written, and answer
+  conversations
 - Move between reviews without a checkout and without leaving the screen, which is the
   whole reason a dashboard is faster than a browser tab. Opening a pull request from any
   list costs one API read, not a clone and a branch switch. Built: reading, triaging,

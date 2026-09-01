@@ -48,7 +48,9 @@ flowchart TB
 | `review/rate` | Deterministic review-cost rating |
 | `conversations` | The cross-repository conversation queue and what has been read |
 | `resolve` | Resolve a thread, or thumbs-up what GitHub gives no resolve |
-| `inbox` | The three review searches, and what a triage line shows |
+| `config` | The sections the inbox shows, read from the user's own file |
+| `ghrun` | One gh call behind a seam: resolve, react, browse, approve, comment, merge |
+| `inbox` | The review searches, and what a triage line shows |
 | `prepared` | What is staged under `.second-look/`, in a checkout and in the state directory |
 | `stash` | Park uncommitted work so the checkout can move onto a pull request |
 | `checkouts` | Which local clones hold a repository, asked of gh-repo-dashboard |
@@ -76,10 +78,11 @@ A task list in three buckets, ranked inside each by the cost rating, with stacks
 stacks. The buckets are the whole point: what I owe, what I have done that is still live,
 and what is finished.
 
-Built as a `tui.List` over the three searches, with `enter` opening the review. What the
-mock below still promises and the screen does not: the cost rating, the stack, and sorting
-by anything but recency. Opening a row needs no clone of the repository, which is what
-makes the queue faster than a browser tab.
+Built as a `tui.List` over the configured searches, with `enter` opening the review, `C`
+checking out, `m` commenting, and `A` approving. What the mock below still promises and the
+screen does not: the cost rating, the stack, and sorting by anything but what the query
+asks for. Opening a row needs no clone of the repository, which is what makes the queue
+faster than a browser tab.
 
 ```
  second-look                                  12 open · 4 assigned
