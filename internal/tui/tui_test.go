@@ -139,6 +139,31 @@ func TestAFailedSubmitIsReadableAndReported(t *testing.T) {
 	}
 }
 
+// Posting is asynchronous, so the keys pressed while it is in flight arrive
+// before the result that sets posted. Four fast S presses must still post once.
+func TestSubmittingTwiceBeforeTheFirstAnswers(t *testing.T) {
+	t.Parallel()
+
+	m, _, sub := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+
+	var cmds []tea.Cmd
+
+	for range 4 {
+		_, cmd := m.Update(tea.KeyPressMsg{Code: 'S', Text: "S"})
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	for _, cmd := range cmds {
+		m.Update(cmd())
+	}
+
+	if sub.n != 1 {
+		t.Errorf("the review posted %d times, want 1", sub.n)
+	}
+}
+
 // counter is a submitter that records how many times it ran, since what the
 // confirmation buys is that a keystroke on its own does not post.
 type counter struct{ n int }

@@ -57,6 +57,7 @@ type Model struct {
 	status     string
 	failed     bool
 	posted     bool
+	posting    bool
 	confirming bool
 	help       bool
 	// failure is the last submit that did not post, cleared by one that does.
@@ -202,7 +203,7 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Posting removes the prepared review, and every action below writes it
 	// back. One keystroke after a successful post would recreate the file that
 	// was deleted to stop `second-look post` from publishing a second copy.
-	if m.posted && m.changes(msg) {
+	if m.settled() && m.changes(msg) {
 		m.say("already posted; GitHub has this review now", false)
 
 		return m, nil
@@ -359,6 +360,15 @@ func (m *Model) applyEdit(msg editedMsg) {
 // that cannot be taken back, and S sits one shift away from the keys that mark
 // a comment ready.
 func (m *Model) askSubmit() {
+	// posting is set from the moment the request is dispatched, not when it
+	// answers, because the keys pressed while it is in flight arrive first and
+	// a second confirmed S would publish the review twice.
+	if m.posting {
+		m.say("posting…", false)
+
+		return
+	}
+
 	if m.posted {
 		m.say("already posted", false)
 
@@ -390,7 +400,10 @@ func (m *Model) answer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	m.posting = true
+
 	m.say("posting…", false)
+
 	ctx, review := m.ctx, m.review
 
 	return m, func() tea.Msg {
@@ -431,8 +444,10 @@ func (m *Model) focus(index int) {
 	}
 }
 
+func (m *Model) settled() bool { return m.posted || m.posting }
+
 func (m *Model) applySubmit(msg submittedMsg) {
-	m.failure = msg.err
+	m.posting, m.failure = false, msg.err
 	if msg.err != nil {
 		m.say(msg.err.Error(), true)
 
