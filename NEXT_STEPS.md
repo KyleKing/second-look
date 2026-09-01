@@ -782,28 +782,23 @@ it through the template's `ci:project` hook, which needs no workflow edit.
 
 ## Deferred
 
-Both backports to [my_go_template](https://github.com/KyleKing/my_go_template) are done
-and sit unpushed there:
-[`e665527`](https://github.com/KyleKing/my_go_template/commit/e665527) counts subprocess
-tests toward the coverage floor, and
-[`82fcd6d`](https://github.com/KyleKing/my_go_template/commit/82fcd6d) teaches typos to
-read an abbreviated commit hash as a hash. Once the template releases and second-look
-takes a `copier update`, the `test:coverage-min` override in
-`.config/mise/conf.d/user.toml` can be deleted: the two now agree on
-`COVERDIR_SUBPROCESS`, so the rendered task drives this project's `TestMain` unchanged.
-`ci:project` stays, since it is what runs the floor in CI.
+The coverage-gate backport is done and pushed:
+[`8816862`](https://github.com/KyleKing/my_go_template/commit/8816862) anchors the read
+to `grep '^total:'`, since the loose form also matches every covered function whose name
+contains it and hands `awk` two numbers. Once the template releases and second-look takes
+a `copier update`, the `test:coverage-min` override in `.config/mise/conf.d/user.toml`
+loses that half of its reason to exist.
 
-A third backport is owed and not yet written. Both copies of `test:coverage-min` read the
-coverage number with `grep total`, which also matches every covered function whose name
-contains "total", so `awk` is handed two numbers and the gate fails with a syntax error
-rather than a verdict. `internal/rate` has such a function, which is how it surfaced. The
-local task is anchored to `grep '^total:'` now, and the template renders the loose version
-into every project it has made.
+The other half is the subprocess coverage this project needs and the template does not
+render: `COVERDIR_SUBPROCESS` is still absent upstream, so the override stays until it
+lands there. `ci:project` stays either way, since it is what runs the floor in CI.
 
 One thing is owed to [aragonite](https://github.com/KyleKing/aragonite): `tui/editor`,
-recorded in its README and not written. Modal editing over a text box, or a pane
-handing the buffer to the user's own nvim, shared by every tool here that writes
-prose in a terminal. `tui/keyhint` shipped in v0.7.0 and this repository imports it.
+recorded in its README and not written. Modal editing over a text box, or a pane handing
+the buffer to the user's own nvim, shared by every tool here that writes prose in a
+terminal. Everything else it owed has shipped: `tui/keyhint` (including the help legend),
+`tui/skin`, and the out-of-order cassette replay a queue running its searches at once
+needs, all in v0.9.0.
 
 ## Open questions
 
