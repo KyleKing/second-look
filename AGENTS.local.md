@@ -44,6 +44,14 @@ and a recording session writes one cassette.
 leaves that id pointing at a thread that still exists, which is fine; deleting the thread
 on GitHub is what would break it.
 
+`internal/resolve` carries the fourth, of the resolve and the thumbs-up `R` sends. It is
+the one recording of a mutation this repository makes on its own behalf, and it is the
+reason one thread on #2 is resolved and carries a thumbs-up: `addReaction` refuses a
+duplicate and a resolved thread cannot be resolved again, so re-recording it needs a new
+thread rather than the same one twice. The ids are consts at the top of `live_test.go`.
+That test replays gh in-process through `Session.Apply` rather than driving the binary,
+which is why it cannot be parallel.
+
 `internal/threads` carries the third recording, of the GraphQL query for a pull request's
 open review threads. It lives there rather than under `cmd/second-look/testdata/` because
 the scratch repository cannot record a whole `get`: the recorded head and the scratch head

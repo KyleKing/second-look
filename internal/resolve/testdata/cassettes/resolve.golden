@@ -1,0 +1,9 @@
+[[interaction]]
+stdout = '{"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}'
+args = ['api', 'graphql', '-F', 'id=PRRT_kwDOT-RSFs6d8L5o', '-f', "query=mutation($id:ID!){\n  resolveReviewThread(input:{threadId:$id}){thread{isResolved}}\n}"]
+exit = 0
+
+[[interaction]]
+stdout = '{"data":{"addReaction":{"reaction":{"content":"THUMBS_UP"}}}}'
+args = ['api', 'graphql', '-F', 'id=PRRC_kwDOT-RSFs7odd7g', '-f', "query=mutation($id:ID!){\n  addReaction(input:{subjectId:$id,content:THUMBS_UP}){reaction{content}}\n}"]
+exit = 0
