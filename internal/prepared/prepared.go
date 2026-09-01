@@ -77,6 +77,30 @@ func (r *Review) Short() string {
 	return r.HeadSHA[:shortSHA]
 }
 
+// The words State answers with. They are named because the row renderer pads
+// the column to the longest of them and the list screen prints the same set.
+const (
+	StateBlocked    = "blocked"
+	StateEmpty      = "empty"
+	StateReady      = "ready"
+	StateUnreadable = "unreadable"
+)
+
+// State is the one word that says what to do with the review: a draft blocks
+// the submit, and everything else is ready to post.
+func State(r *Review) string {
+	switch {
+	case r.Broken != "":
+		return StateUnreadable
+	case r.Blocked():
+		return StateBlocked
+	case r.Ready > 0 || r.Body:
+		return StateReady
+	default:
+		return StateEmpty
+	}
+}
+
 // ErrNoDir reports a checkout with no artifact directory, which is what a
 // repository nobody has staged a review in looks like.
 var ErrNoDir = errors.New("no .second-look directory here")

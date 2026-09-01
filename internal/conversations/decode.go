@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 type response struct {
 	Data struct {
 		Viewer struct {
@@ -67,6 +66,7 @@ type thread struct {
 
 //nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 type comment struct {
+	NodeID         string          `json:"id"`
 	DatabaseID     int64           `json:"databaseId"`
 	Body           string          `json:"body"`
 	CreatedAt      time.Time       `json:"createdAt"`
@@ -80,7 +80,6 @@ type reactionGroup struct {
 	ViewerHasReacted bool   `json:"viewerHasReacted"`
 }
 
-//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 type review struct {
 	comment
 
@@ -211,6 +210,7 @@ func (p *pullRequest) base(k Kind, yours bool) Conversation {
 func (c *comment) note() Note {
 	return Note{
 		ID:      c.DatabaseID,
+		NodeID:  c.NodeID,
 		Author:  c.Author.Login,
 		Body:    c.Body,
 		Created: c.CreatedAt,

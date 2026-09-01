@@ -46,6 +46,9 @@ flowchart TB
 | `review/artifact` | Read, write, and validate the versioned review JSON |
 | `review/anchor` | Hunk identity, seen-state, re-anchoring across a force-push |
 | `review/rate` | Deterministic review-cost rating |
+| `conversations` | The cross-repository conversation queue and what has been read |
+| `resolve` | Resolve a thread, or thumbs-up what GitHub gives no resolve |
+| `prepared` | What is staged under `.second-look/` in a checkout |
 | `aragonite/forge` | Fetch a pull request, post a review atomically |
 | `aragonite/vcs` | Diff, branch identity, and working-tree state for git and jj |
 | `aragonite/cache` | Everything network-derived and everything expensive to compute |
@@ -88,6 +91,87 @@ again, so the artifact survives a merge even though the diff it annotated is col
 gh-repo-dashboard keeps its own inbox and answers a different question. The cache, the
 filter and sort engine, and the table live in aragonite, so the two share data and logic
 while their screens stay separate.
+
+### Conversations
+
+The queue of open discussions across every pull request I am involved in, bucketed by
+whose turn it is. It answers the question neither GitHub nor Linear does: GitHub's
+notifications fire on everything and say nothing about who is waiting, and Linear shows
+the newest comment rather than the thread it belongs to, so a reply that arrived while I
+was away is easy to miss.
+
+```
+ second-look conversations                        50 conversations · 13 unread
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ new since you looked (13)                                                    │
+│ ● kyleking/tlr#118      internal/pool/pool.go:42   2h  alice  2 replies       │
+│      good catch, pushed a defer                                              │
+│ ● kyleking/calcipy#91   review body               13h  bob                    │
+│      two questions inline                                                    │
+│ waiting on you (2)                                                           │
+│ awaiting others (35)                                                         │
+│   kyleking/wavez#7      internal/lease/lease.go:9  4d  KyleKing               │
+│      no, that one is per worker                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [enter]read [space]mark read [r]reply [R]resolve [o]GitHub [tab]group [?]help
+```
+
+Three surfaces count as a conversation: inline review threads, the pull request's own
+comments, and the bodies submitted reviews carry. A conversation is mine when the pull
+request is mine, when I have commented in it, or when a comment names me.
+
+Four rules keep the queue short enough to read, and each one was measured against my own
+82 open pull requests rather than guessed:
+
+- A machine account reaches the queue only through an inline review thread. That is the
+  one surface where what a bot says is anchored to code and can be resolved, whereas its
+  pull request comments are coverage tables, linkbacks, and reviewer nudges nobody ever
+  resolves. Without this rule the queue held 77 rows and 13 were real
+- My own comment with nothing under it is something I said rather than a discussion.
+  Nobody owes an answer and I will not thumbs-up myself, so it would be a row that never
+  leaves
+- A resolved thread is gone, and so is a comment I have thumbs-upped. GitHub gives a pull
+  request comment and a review body no resolve, so the reaction is the resolve, which is
+  why `R` resolves a thread and thumbs-ups what cannot be resolved
+- An outdated thread stays. A reply to it is still owed even though the review screen has
+  nowhere to draw it
+
+What I have read is kept per conversation under the user config directory rather than in
+a repository, because the queue spans repositories and a mark written into whichever
+checkout happened to be open would be lost to every other one. Which bucket a row is in
+is fixed while the screen is open: recomputing it after a mark moved the row out from
+under the cursor the moment I opened it, which made the screen unusable.
+
+A reply is staged into that pull request's prepared review and posts with it, so `r`
+leaves this screen and opens the review screen, which is where a threaded reply already
+lives. Writing the answer here would mean a second editor flow and a second copy of the
+anchor rules.
+
+### Staged reviews
+
+What is on disk under `.second-look/` in this checkout, newest first. The artifact is
+deleted the moment a review posts, so every row is unfinished work: the review being
+written, or one whose head has since moved and which will refuse to post until it is
+prepared again.
+
+```
+ second-look staged reviews                                  4 staged · 1 blocked
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ staged under .second-look (4)                                                │
+│ ● #9                        unreadable  7m   owner, repo, and number are all  │
+│   kyleking/second-look#2    ready       7m   1 ready · 1 reply · body @6bc121 │
+│   kyleking/second-look#118  ready       17d  3 ready · 2 skipped · body       │
+│ ● kyleking/second-look#42   blocked     1y   3 ready · 1 draft · 1 skipped    │
+└──────────────────────────────────────────────────────────────────────────────┘
+ [enter]open [ctrl+r]refresh [?]help
+```
+
+A file that no longer parses is listed with its reason rather than skipped, because a
+review I cannot read is the row most worth knowing about. `blocked` means a comment is
+still a draft, which stops the submit.
+
+Both screens are the same `tui.List`: sections of rows, one cursor, and a set of actions
+the caller supplies. They are the same shape, and two screens would drift apart.
 
 ### Review
 

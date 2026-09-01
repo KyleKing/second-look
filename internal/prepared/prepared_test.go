@@ -11,6 +11,10 @@ import (
 	"github.com/kyleking/second-look/internal/prepared"
 )
 
+// fixtures is cmd/second-look's review corpus, so what is counted here is the
+// same TOML the end-to-end tests post.
+var fixtures = filepath.Join("..", "..", "cmd", "second-look", "testdata", "review")
+
 // stage builds a checkout holding the reviews and cache files named, and
 // returns its root. The fixtures are cmd/second-look's, so what is counted here
 // is the same TOML the end-to-end tests post.
@@ -28,11 +32,13 @@ func stage(t *testing.T) string {
 		"pr-2.toml":  "reply.toml",
 		"pr-42.toml": "staged.toml",
 	} {
-		body, err := os.ReadFile(filepath.Join("..", "..", "cmd", "second-look", "testdata", "review", from))
+		//nolint:gosec // a constant directory and a constant name
+		body, err := os.ReadFile(filepath.Join(fixtures, from))
 		if err != nil {
 			t.Fatal(err)
 		}
 
+		//nolint:gosec // dir is this test's own temporary directory
 		if err := os.WriteFile(filepath.Join(dir, name), body, 0o600); err != nil {
 			t.Fatal(err)
 		}

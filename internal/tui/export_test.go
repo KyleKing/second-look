@@ -20,3 +20,17 @@ func (m *Model) CursorText() string { return rowText(m.screen.rows[m.cursor]) }
 // SetSender supplies the single-comment poster after construction, which is
 // what a test needs when the sender has to see the model's own review.
 func (m *Model) SetSender(s Sender) { m.send = s }
+
+// ListFrame returns one rendered list screen, so a test can check the layout
+// without a terminal.
+func (l *List) ListFrame() string { return l.render() }
+
+// CursorKey is the row the cursor is on, so a test can check where a motion
+// landed rather than inferring it from the frame.
+func (l *List) CursorKey() string {
+	if row := l.current(); row != nil {
+		return row.Key
+	}
+
+	return ""
+}

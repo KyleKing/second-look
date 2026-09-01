@@ -54,6 +54,13 @@ queue, and this repository is public. The arguments in it are the ones a real ru
 the answers are gh's own shape with invented content. `SECOND_LOOK_RECORD=1` would
 overwrite it with real data, so the test uses `Replay` rather than `Start`.
 
+`internal/conversations/testdata/queue.json` is written for the same reason
+`inbox.golden` is. A real reply carries the private repository names, logins, and titles
+of whatever is open, and this repository is public, so the shapes in it are GitHub's own
+with invented content. Every admit-or-drop rule is exercised against that one reply,
+because the rules interact: a bot's inline thread stays while the same bot's pull request
+comment goes, and that only reads as a rule when both are present.
+
 ### The suite reaches nothing
 
 Only `gh` is replayed. `git` runs for real, so a code path that shells out to the network

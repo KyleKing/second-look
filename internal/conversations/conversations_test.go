@@ -259,9 +259,11 @@ func TestWriteAlignsAndQuotesTheLastWord(t *testing.T) {
 			{
 				Kind: conversations.KindThread, Repository: "a/b", Number: 7, Title: "short",
 				ThreadID: "T1", Path: "x.go", Line: 3,
-				Notes: []conversations.Note{
-					{Author: "alice", Body: "  \n\ngood catch, pushed a defer\nmore", Created: now.Add(-90 * time.Minute)},
-				},
+				Notes: []conversations.Note{{
+					Author:  "alice",
+					Body:    "  \n\ngood catch, pushed a defer\nmore",
+					Created: now.Add(-90 * time.Minute),
+				}},
 			},
 			{
 				Kind: conversations.KindReview, Repository: "much/longer-repo", Number: 14691, Title: "long",

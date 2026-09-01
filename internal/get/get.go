@@ -149,6 +149,18 @@ type repo struct {
 	name  string
 }
 
+// Repository is the owner/name this checkout files reviews against, which is
+// what says whether a conversation on another repository's pull request can be
+// answered from here.
+func Repository(ctx context.Context, root string) (string, error) {
+	id, err := identify(ctx, root)
+	if err != nil {
+		return "", err
+	}
+
+	return id.owner + "/" + id.name, nil
+}
+
 // identify reads the repository off the remote rather than off the pull
 // request's URL, because a fork's pull request still belongs to the upstream
 // repository the review is filed against.

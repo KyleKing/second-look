@@ -38,7 +38,11 @@ const (
 type Note struct {
 	// ID is the REST database id, which is what in_reply_to takes. The GraphQL
 	// node id names the same comment and the replies endpoint refuses it.
-	ID      int64     `json:"id"`
+	ID int64 `json:"id"`
+	// NodeID is the GraphQL id addReaction takes. A reaction is the only way to
+	// mark a pull request comment or a review body dealt with, and no REST
+	// endpoint reacts to a review body, so the node id is not optional.
+	NodeID  string    `json:"node_id,omitempty"`
 	Author  string    `json:"author"`
 	Body    string    `json:"body"`
 	Created time.Time `json:"created"`

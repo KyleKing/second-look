@@ -9,7 +9,9 @@ package conversations
 //
 // The reaction groups are only asked for where they mean something: a review
 // thread is resolved through resolveReviewThread, while a conversation comment
-// and a review body can only be marked handled by reacting to them.
+// and a review body can only be marked handled by reacting to them. Those two
+// carry a node id as well as a database id, because addReaction takes the node
+// id and no REST endpoint reacts to a review body at all.
 const query = `query($q:String!,$n:Int!){
   viewer{login}
   search(query:$q,type:ISSUE,first:$n){
@@ -34,6 +36,7 @@ const query = `query($q:String!,$n:Int!){
         }
         comments(first:50){
           nodes{
+            id
             databaseId
             body
             createdAt
@@ -43,6 +46,7 @@ const query = `query($q:String!,$n:Int!){
         }
         reviews(first:50){
           nodes{
+            id
             databaseId
             body
             createdAt

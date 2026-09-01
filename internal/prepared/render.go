@@ -39,7 +39,9 @@ func Write(w io.Writer, rows []Review, now time.Time) error {
 func line(r *Review, now time.Time, whereWidth int) string {
 	var b strings.Builder
 
-	fmt.Fprintf(&b, "%-*s  %5s  %s", whereWidth, r.Where(), humanize.Ago(r.Modified, now), state(r))
+	const stateWidth = 10
+
+	fmt.Fprintf(&b, "%-*s  %5s  %-*s", whereWidth, r.Where(), humanize.Ago(r.Modified, now), stateWidth, State(r))
 
 	if r.Broken != "" {
 		b.WriteString("  " + r.Broken)
@@ -47,33 +49,18 @@ func line(r *Review, now time.Time, whereWidth int) string {
 		return b.String()
 	}
 
-	b.WriteString("  " + counts(r))
-
-	if r.HeadSHA != "" {
-		b.WriteString("  @" + r.Short())
-	}
+	b.WriteString("  " + Holds(r))
 
 	return b.String()
 }
 
-// state is the one word that says what to do with the review: a draft blocks
-// the submit, and everything else is ready to post.
-func state(r *Review) string {
-	switch {
-	case r.Broken != "":
-		return "unreadable"
-	case r.Blocked():
-		return "blocked   "
-	case r.Ready > 0 || r.Body:
-		return "ready     "
-	default:
-		return "empty     "
-	}
-}
-
-// counts spells out what the review holds. A zero is left out rather than
+// Holds spells out what the review carries. A zero is left out rather than
 // printed, so the row carries only what is there.
-func counts(r *Review) string {
+//
+// The text screen and the list screen both draw this line, so it lives here
+// rather than in either: two copies drift, and the first thing they disagreed
+// about was whether one reply is "1 reply" or "1 replies".
+func Holds(r *Review) string {
 	parts := make([]string, 0, 5)
 
 	for _, c := range []struct {
@@ -81,7 +68,7 @@ func counts(r *Review) string {
 		name   string
 		plural string
 	}{
-		{r.Ready, "ready", "ready"},
+		{r.Ready, StateReady, StateReady},
 		{r.Draft, "draft", "drafts"},
 		{r.Skip, "skipped", "skipped"},
 		{r.Replies, "reply", "replies"},
@@ -104,6 +91,10 @@ func counts(r *Review) string {
 
 	if r.Event != "" {
 		parts = append(parts, strings.ToLower(r.Event))
+	}
+
+	if r.HeadSHA != "" {
+		parts = append(parts, "@"+r.Short())
 	}
 
 	if len(parts) == 0 {

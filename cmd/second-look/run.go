@@ -45,6 +45,13 @@ var (
 	errUsageSkill     = errors.New("usage: second-look skill")
 )
 
+// The two flags every listing command takes, named so the switch and the
+// terminal check cannot disagree about their spelling.
+const (
+	helpArg = "help"
+	jsonArg = "--json"
+)
+
 func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) == 0 {
 		return reviewCurrent(ctx, stdout)
@@ -53,7 +60,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	switch args[0] {
 	case "-h":
 		return write(stdout, shortHelp)
-	case "--help", "help":
+	case "--help", helpArg:
 		return write(stdout, longHelp)
 	case "get":
 		return getCmd(ctx, args[1:], stdout)
@@ -68,7 +75,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	case "threads":
 		return threadsCmd(ctx, args[1:], stdout)
 	case "reviews":
-		return reviewsCmd(args[1:], stdout)
+		return reviewsCmd(ctx, args[1:], stdout)
 	case "skill":
 		return skillCmd(args[1:], stdout)
 	default:
@@ -99,6 +106,26 @@ func reviewCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	return openReview(ctx, number, stdout)
+}
+
+// onATerminal reports whether a screen can be drawn. Both ends are checked
+// because a run with either one redirected is a run whose output someone is
+// reading as text.
+func onATerminal() bool {
+	return term.IsTerminal(os.Stdin.Fd()) && term.IsTerminal(os.Stdout.Fd())
+}
+
+// currentRepo is the owner/name this checkout files reviews against, or empty
+// when there is no reading it. It is empty rather than an error because the
+// conversation queue works anywhere with a gh login, and only staging a reply
+// needs to know which repository this is.
+func currentRepo(ctx context.Context) string {
+	name, err := get.Repository(ctx, ".")
+	if err != nil {
+		return ""
+	}
+
+	return name
 }
 
 func openReview(ctx context.Context, number int, stdout io.Writer) error {
@@ -372,9 +399,15 @@ const inboxLimit = 30
 // that emptied the first bucket by being run would hide the one thing the
 // bucket is for.
 func threadsCmd(ctx context.Context, args []string, stdout io.Writer) error {
-	asJSON, err := oneOf(args, errUsageThreads, "--json")
+	asJSON, err := oneOf(args, errUsageThreads, jsonArg)
 	if err != nil {
 		return err
+	}
+
+	// A terminal gets the screen; a pipe or --json gets the text, so an agent
+	// and a person run the same command.
+	if asJSON != jsonArg && onATerminal() {
+		return openThreads(ctx, stdout)
 	}
 
 	queue, err := conversations.Fetch(ctx, ".", conversations.DefaultLimit)
@@ -389,7 +422,7 @@ func threadsCmd(ctx context.Context, args []string, stdout io.Writer) error {
 
 	buckets := conversations.Buckets(queue, looked)
 
-	if asJSON == "--json" {
+	if asJSON == jsonArg {
 		return writeJSON(stdout, buckets)
 	}
 
@@ -413,10 +446,14 @@ func loadLooked() (*conversations.Looked, error) {
 
 // reviewsCmd lists what is staged under .second-look in this checkout. The
 // artifact is deleted when it posts, so everything it prints is unfinished.
-func reviewsCmd(args []string, stdout io.Writer) error {
-	asJSON, err := oneOf(args, errUsageReviews, "--json")
+func reviewsCmd(ctx context.Context, args []string, stdout io.Writer) error {
+	asJSON, err := oneOf(args, errUsageReviews, jsonArg)
 	if err != nil {
 		return err
+	}
+
+	if asJSON != jsonArg && onATerminal() {
+		return openReviews(ctx, stdout)
 	}
 
 	rows, err := prepared.List(".")
@@ -424,7 +461,7 @@ func reviewsCmd(args []string, stdout io.Writer) error {
 		return fmt.Errorf("listing the staged reviews: %w", err)
 	}
 
-	if asJSON == "--json" {
+	if asJSON == jsonArg {
 		return writeJSON(stdout, rows)
 	}
 
@@ -436,14 +473,14 @@ func reviewsCmd(args []string, stdout io.Writer) error {
 // nothing local, so it works from anywhere with a gh login rather than only
 // inside a checkout.
 func inboxCmd(ctx context.Context, args []string, stdout io.Writer) error {
-	asJSON, err := oneOf(args, errUsageInbox, "--json")
+	asJSON, err := oneOf(args, errUsageInbox, jsonArg)
 	if err != nil {
 		return err
 	}
 
 	buckets := inbox.Buckets(ctx, ".", inboxLimit)
 
-	if asJSON == "--json" {
+	if asJSON == jsonArg {
 		return writeJSON(stdout, buckets)
 	}
 

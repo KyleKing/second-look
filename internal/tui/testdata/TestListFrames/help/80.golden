@@ -1,0 +1,13 @@
+second-look conversations
+
+  j/k, ctrl+u/d, g/G   move, half page, top and bottom
+  tab                  the next group
+  enter                read the whole conversation, and mark it read
+  space                mark read without opening it
+  r                    reply, staged into the prepared review
+  R                    resolve the thread, or thumbs-up what cannot be resolved
+  o                    open it on GitHub
+  ctrl+r               read the queue again
+  q, esc               leave
+
+  ● marks a conversation that moved since you last read it.

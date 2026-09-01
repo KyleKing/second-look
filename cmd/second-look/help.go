@@ -11,6 +11,8 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look post <pr> --dry-run  print the request without sending it
   second-look post <pr> --only <id>  post one comment on its own, now
   second-look inbox                the review queue, in three buckets
+  second-look threads              conversations that moved since you looked
+  second-look reviews              what is staged locally under .second-look/
   second-look skill                print the agent instructions this binary carries
 
   --help  the full contract, including every JSON field
@@ -140,6 +142,51 @@ COMMANDS
       in rather than only inside a checkout. One bucket failing prints its
       reason and leaves the others: a rate limit on the merged list is no reason
       to stop showing what is waiting.
+
+  second-look threads [--json]
+      The conversations across your open pull requests that are yours to answer,
+      in three buckets: what moved since you last looked, what is still waiting
+      on you, then what is waiting on somebody else. A terminal gets the screen
+      and a pipe or --json gets the text, so an agent and a person run the same
+      command.
+
+      A conversation is yours when the pull request is yours, when you have
+      commented in it, or when a comment names you. Three surfaces count: inline
+      review threads, the pull request's own comments, and the bodies submitted
+      reviews carry.
+
+      A resolved thread is gone, and so is a comment you have thumbs-upped,
+      because GitHub gives a pull request comment and a review body no resolve
+      and a reaction is how a person marks one dealt with. R does whichever
+      applies: it resolves a thread, and thumbs-ups what cannot be resolved.
+
+      A machine account reaches the queue only through an inline review thread.
+      That is the one surface where what a bot says is anchored to code and can
+      be resolved; its pull request comments are status posts nobody ever
+      resolves, so admitting them would fill the queue with rows that never
+      leave.
+
+      "New" means new to you, not new to GitHub. What you have read is kept
+      per conversation in the user config directory rather than in a repository,
+      because the queue spans repositories. enter reads a conversation and marks
+      it; space marks one without opening it. Which bucket a row is in is fixed
+      while the screen is open, so marking one read does not move it out from
+      under the cursor.
+
+      r stages a reply. The answer is written in the review screen, which is
+      where a threaded reply already lives, so r leaves this screen and opens
+      that one; it needs the checkout the pull request belongs to.
+
+  second-look reviews [--json]
+      List the reviews staged under .second-look/ in this checkout, newest
+      first. A terminal gets a screen where enter opens one, and a pipe or
+      --json gets the text.
+
+      Everything it prints is unfinished by definition: the artifact is deleted
+      the moment a review posts. Each row says what the review holds and what
+      state it is in -- blocked when a comment is still a draft, which stops the
+      submit -- and a file that no longer parses is listed with the reason
+      rather than skipped.
 
   second-look skill
       Print the instructions for an agent driving this binary, as a skill file
