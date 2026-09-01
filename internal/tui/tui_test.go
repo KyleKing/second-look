@@ -128,6 +128,29 @@ func TestFramesFitTheirWidthInEveryScript(t *testing.T) {
 	}
 }
 
+// A key that silently does nothing reads as a key that is not working, and the
+// end of the review is where a reader presses tab one more time.
+func TestRunningOutOfCommentsSaysSo(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the only one"))
+
+	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+
+	if want := "no comment after this one"; !strings.Contains(plain(m.Frame()), want) {
+		t.Errorf("want %q in the frame:\n%s", want, plain(m.Frame()))
+	}
+
+	// The next real move clears it, so the hints are not hidden by a message
+	// about a key press that is already over.
+	press(m, tea.KeyPressMsg{Code: 'k', Text: "k"})
+
+	if strings.Contains(plain(m.Frame()), "no comment after") {
+		t.Error("the boundary message outlived the keystroke that caused it")
+	}
+}
+
 func fitsWidth(t *testing.T, what, frame string, width int) {
 	t.Helper()
 

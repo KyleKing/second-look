@@ -198,21 +198,22 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 	case key.Matches(msg, m.keys.Bottom):
 		m.cursor = len(m.screen.rows) - 1
 	case key.Matches(msg, m.keys.NextHunk):
-		return m.jump(1, isKind(rowHunk))
+		return m.jump(1, "hunk", isKind(rowHunk))
 	case key.Matches(msg, m.keys.PrevHunk):
-		return m.jump(-1, isKind(rowHunk))
+		return m.jump(-1, "hunk", isKind(rowHunk))
 	case key.Matches(msg, m.keys.NextFile):
-		return m.jump(1, isKind(rowFile))
+		return m.jump(1, "file", isKind(rowFile))
 	case key.Matches(msg, m.keys.PrevFile):
-		return m.jump(-1, isKind(rowFile))
+		return m.jump(-1, "file", isKind(rowFile))
 	case key.Matches(msg, m.keys.NextNote):
-		return m.jump(1, isHead)
+		return m.jump(1, "comment", isHead)
 	case key.Matches(msg, m.keys.PrevNote):
-		return m.jump(-1, isHead)
+		return m.jump(-1, "comment", isHead)
 	default:
 		return false
 	}
 
+	m.say("", false)
 	m.follow()
 
 	return true
@@ -401,8 +402,15 @@ func (m *Model) applyEdit(msg editedMsg) {
 		return
 	}
 
-	m.review.Comments[msg.index].Body = msg.body
-	m.save("edited " + m.review.Comments[msg.index].ID)
+	c := &m.review.Comments[msg.index]
+	if c.Body == msg.body {
+		m.say("unchanged", false)
+
+		return
+	}
+
+	c.Body = msg.body
+	m.save("edited " + c.ID)
 }
 
 // stageReply puts an answer to an open thread into the prepared review. It is
@@ -415,8 +423,17 @@ func (m *Model) stageReply(msg editedMsg) {
 
 	t := &m.threads[msg.replyTo]
 
+	id := fmt.Sprintf("reply-%d", t.ReplyTo())
+	for i := range m.review.Comments {
+		if m.review.Comments[i].ID == id && m.review.Comments[i].Body == msg.body {
+			m.say("unchanged", false)
+
+			return
+		}
+	}
+
 	m.review.Upsert(artifact.Comment{
-		ID: fmt.Sprintf("reply-%d", t.ReplyTo()), Path: t.Path, Side: t.Side, Line: t.Line,
+		ID: id, Path: t.Path, Side: t.Side, Line: t.Line,
 		InReplyTo: t.ReplyTo(), Body: msg.body, Severity: "question", Status: artifact.StatusReady,
 	})
 
@@ -558,15 +575,27 @@ func (m *Model) moveBy(n int) {
 // jump moves to the next row matching want and anchors it near the top of the
 // frame. Scrolling by the least that reaches a heading leaves it on the last
 // line, which is the one place the content under it cannot be read.
-func (m *Model) jump(step int, want func(row) bool) bool {
+//
+// Running out of matches says so, because a key that silently does nothing
+// reads as a key that is not working, and the end of a review is where one more
+// press is most likely.
+func (m *Model) jump(step int, what string, want func(row) bool) bool {
 	for i := m.cursor + step; i >= 0 && i < len(m.screen.rows); i += step {
 		if want(m.screen.rows[i]) {
 			m.cursor = i
+			m.say("", false)
 			m.reveal()
 
-			break
+			return true
 		}
 	}
+
+	where := "after"
+	if step < 0 {
+		where = "before"
+	}
+
+	m.say(fmt.Sprintf("no %s %s this one", what, where), false)
 
 	return true
 }
