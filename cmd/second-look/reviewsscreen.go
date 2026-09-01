@@ -39,11 +39,13 @@ var reviewsHelp = []string{
 	"",
 	"  blocked means a comment is still a draft, which stops the submit.",
 	"  Every review here is unfinished: the file is deleted when it posts.",
+	"  Opening one you are not standing on moves the checkout onto it, and asks",
+	"  first if that would strand uncommitted work.",
 }
 
 // openReviews shows the staged reviews and opens whichever one was chosen, once
 // this screen has given the terminal back.
-func openReviews(ctx context.Context, stdout io.Writer) error {
+func openReviews(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 	rows, err := prepared.List(".")
 	if err != nil && !errors.Is(err, prepared.ErrNoDir) {
 		return fmt.Errorf("listing the staged reviews: %w", err)
@@ -61,7 +63,7 @@ func openReviews(ctx context.Context, stdout io.Writer) error {
 	}
 
 	if s.open > 0 {
-		return openReview(ctx, s.open, stdout)
+		return openStaged(ctx, s.open, stdin, stdout)
 	}
 
 	return nil

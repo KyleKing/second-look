@@ -49,6 +49,13 @@ with 77 rows where 13 were real.
 newest first, and `enter` opens one. Everything it lists is unfinished, because the
 artifact is deleted the moment a review posts.
 
+Choosing a row off either list moves the checkout onto that pull request when standing
+somewhere else is what stops it opening. Uncommitted work is the case it asks about: it
+names how many files are dirty and offers to park them with `git stash`, and
+`git stash pop` brings them back. Nothing is popped for you, and declining leaves the
+tree as it was. Only a terminal is asked, so a piped run never has its working tree
+moved.
+
 `P` posts one comment on its own for the thing that should not wait, and
 `second-look post 42 --only <id>` does the same from the shell.
 

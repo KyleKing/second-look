@@ -43,7 +43,7 @@ type threadsScreen struct {
 // way out. The marks are saved once rather than on every keystroke: the file is
 // user-level state that every checkout shares, and rewriting it under the
 // cursor would make a crash mid-queue lose more than the keystroke in flight.
-func openThreads(ctx context.Context, stdout io.Writer) error {
+func openThreads(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 	queue, err := conversations.Fetch(ctx, ".", conversations.DefaultLimit)
 	if err != nil {
 		return fmt.Errorf("reading your conversations: %w", err)
@@ -86,7 +86,7 @@ func openThreads(ctx context.Context, stdout io.Writer) error {
 			return err
 		}
 
-		return openReview(ctx, s.reply, stdout)
+		return openStaged(ctx, s.reply, stdin, stdout)
 	}
 
 	return nil
@@ -116,7 +116,9 @@ var threadsHelp = []string{
 	"",
 	"  ● marks a conversation that moved since you last read it.",
 	"  A reply is staged into that pull request's prepared review and posts with it,",
-	"  so r only works in the checkout the pull request belongs to.",
+	"  so r only works in the checkout the pull request belongs to. Standing on",
+	"  another branch of it is fine: r moves the checkout, and asks first if that",
+	"  would strand uncommitted work.",
 }
 
 // counts is the header's right-hand corner: how much is in the queue, and how

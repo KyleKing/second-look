@@ -49,6 +49,7 @@ flowchart TB
 | `conversations` | The cross-repository conversation queue and what has been read |
 | `resolve` | Resolve a thread, or thumbs-up what GitHub gives no resolve |
 | `prepared` | What is staged under `.second-look/` in a checkout |
+| `stash` | Park uncommitted work so the checkout can move onto a pull request |
 | `aragonite/forge` | Fetch a pull request, post a review atomically |
 | `aragonite/vcs` | Diff, branch identity, and working-tree state for git and jj |
 | `aragonite/cache` | Everything network-derived and everything expensive to compute |
@@ -146,6 +147,21 @@ A reply is staged into that pull request's prepared review and posts with it, so
 leaves this screen and opens the review screen, which is where a threaded reply already
 lives. Writing the answer here would mean a second editor flow and a second copy of the
 anchor rules.
+
+Answering means standing on the pull request, and the whole point of the queue is that I
+am somewhere else when I read it. So choosing a row off either list moves the checkout
+onto it. A dirty tree is the one case that needs me: the question names how many files
+are uncommitted and offers to park them with `git stash`, and `git stash pop` brings them
+back on whichever branch I choose. Nothing is popped for me, because the work rarely
+belongs on the head I just checked out. Declining leaves the tree exactly as it was, so
+committing by hand and asking again is the other way through.
+
+The question is only ever asked on a terminal. A piped or `--json` run answers no and
+fails with the reason, which keeps an agent from moving a working tree nobody is watching.
+
+The move is offered rather than automatic: a review that opens where I already stand has
+no business touching the tree, so the checkout only moves when standing elsewhere is what
+stopped it opening.
 
 ### Staged reviews
 

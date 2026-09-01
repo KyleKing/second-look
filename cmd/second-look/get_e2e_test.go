@@ -3,6 +3,7 @@ package main_test
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -238,4 +239,70 @@ func TestGetRefusesSomewhereThatIsNotARepo(t *testing.T) {
 // on every run, so the output can be pinned.
 func anonymize(out, sha string) string {
 	return strings.ReplaceAll(out, sha[:7], "<head>")
+}
+
+// TestGetOffersToStashADirtyTree is the other half of the refusal above: a
+// person at a terminal is asked, and answering yes parks the work rather than
+// sending them away to do it by hand. The checkout that follows cannot land here
+// (gh is replayed and the branch is unreachable), which is the case worth
+// pinning anyway: a move that fails after the stash still says how to get the
+// work back.
+func TestGetOffersToStashADirtyTree(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		answer string
+		parked bool
+	}{
+		{name: "yes", answer: "y\r", parked: true},
+		{name: "no", answer: "n\r"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir, _ := scratchRepo(t, "some-other-branch")
+			s := ghcassette.Replay(t, deriveFrom(t, "post-review", "stash-"+tc.name, func(c *ghcassette.Cassette) {
+				c.Interactions = c.Interactions[:1]
+			}))
+
+			if err := os.WriteFile(filepath.Join(dir, "unsaved.txt"), []byte("work\n"), 0o600); err != nil {
+				t.Fatalf("dirtying the tree: %v", err)
+			}
+
+			sc := openReview(t, s, dir, "get", "2")
+			sc.await("Stash them and check out #2?")
+			sc.press(tc.answer)
+			sc.wait()
+
+			if parked := strings.Contains(inRepo(t, dir, "stash", "list"), "before reviewing #2"); parked != tc.parked {
+				t.Errorf("parked=%v, want %v; the run wrote:\n%s", parked, tc.parked, sc.text())
+			}
+
+			dirty := inRepo(t, dir, "status", "--porcelain") != ""
+			if dirty == tc.parked {
+				t.Errorf("dirty=%v after answering %q", dirty, tc.answer)
+			}
+
+			if tc.parked && !strings.Contains(sc.text(), "git stash pop") {
+				t.Errorf("the run never said how to get the work back:\n%s", sc.text())
+			}
+		})
+	}
+}
+
+// inRepo reads the scratch repository back, so a test can check what moved
+// rather than trusting what the run printed.
+func inRepo(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+
+	cmd := exec.CommandContext(t.Context(), "git", args...) // #nosec G204 -- constants from the caller
+	cmd.Dir = dir
+
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git %v: %v", args, err)
+	}
+
+	return string(out)
 }

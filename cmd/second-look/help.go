@@ -100,9 +100,12 @@ COMMANDS
       A resolved or outdated thread is skipped: an outdated one anchors to a
       line the diff no longer carries.
 
-      It never clones, and it never moves a dirty working tree. Already being on
-      the pull request head is fine however dirty the tree, since refusing to
-      review a branch you already have would be wrong.
+      It never clones. A dirty working tree stops a move, and on a terminal it
+      asks first: answer yes and the work is parked with git stash, which
+      "git stash pop" brings back. A run nobody is watching is never asked and
+      never moved. Already being on the pull request head is fine however dirty
+      the tree, since refusing to review a branch you already have would be
+      wrong.
 
   second-look comment add <pr>
       Read a JSON batch on stdin and stage it. A comment carrying an id that is
@@ -175,12 +178,15 @@ COMMANDS
 
       r stages a reply. The answer is written in the review screen, which is
       where a threaded reply already lives, so r leaves this screen and opens
-      that one; it needs the checkout the pull request belongs to.
+      that one; it needs the checkout the pull request belongs to. Standing on
+      another branch of it is fine: the checkout moves onto the pull request on
+      the way, asking before it stashes anything.
 
   second-look reviews [--json]
       List the reviews staged under .second-look/ in this checkout, newest
       first. A terminal gets a screen where enter opens one, and a pipe or
-      --json gets the text.
+      --json gets the text. Opening one you are not standing on moves the
+      checkout onto it, asking before it stashes anything.
 
       Everything it prints is unfinished by definition: the artifact is deleted
       the moment a review posts. Each row says what the review holds and what

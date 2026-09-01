@@ -63,7 +63,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	case "--help", helpArg:
 		return write(stdout, longHelp)
 	case "get":
-		return getCmd(ctx, args[1:], stdout)
+		return getCmd(ctx, args[1:], stdin, stdout)
 	case "comment":
 		return commentCmd(args[1:], stdin, stdout)
 	case "show":
@@ -73,9 +73,9 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	case "inbox":
 		return inboxCmd(ctx, args[1:], stdout)
 	case "threads":
-		return threadsCmd(ctx, args[1:], stdout)
+		return threadsCmd(ctx, args[1:], stdin, stdout)
 	case "reviews":
-		return reviewsCmd(ctx, args[1:], stdout)
+		return reviewsCmd(ctx, args[1:], stdin, stdout)
 	case "skill":
 		return skillCmd(args[1:], stdout)
 	default:
@@ -161,6 +161,26 @@ func openReview(ctx context.Context, number int, stdout io.Writer) error {
 	return nil
 }
 
+// openStaged opens a review the person chose off a list, moving the checkout
+// onto the pull request first when that is what stands in the way.
+//
+// The tree is left alone otherwise: a review that opens where you are standing
+// has no reason to touch it, and the move is only offered because choosing a row
+// off a list is already saying which pull request you mean. The screen has given
+// the terminal back by the time this runs, so the stash question can be asked.
+func openStaged(ctx context.Context, number int, stdin io.Reader, stdout io.Writer) error {
+	err := openReview(ctx, number, stdout)
+	if !errors.Is(err, get.ErrNotOnHead) && !errors.Is(err, get.ErrStaleReview) {
+		return err
+	}
+
+	if err := get.Prepare(ctx, stdout, ".", number, confirm(stdin, stdout)); err != nil {
+		return fmt.Errorf("preparing #%d: %w", number, err)
+	}
+
+	return openReview(ctx, number, stdout)
+}
+
 // submitter posts from inside the review screen. What it returns is the one
 // line the footer shows, so it stays short enough to survive a narrow frame,
 // and the endpoints it touched go to the log instead.
@@ -204,7 +224,7 @@ type batch struct {
 	Comments []artifact.Comment `json:"comments"`
 }
 
-func getCmd(ctx context.Context, args []string, stdout io.Writer) error {
+func getCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) != 1 {
 		return errUsageGet
 	}
@@ -214,7 +234,7 @@ func getCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 
-	if err := get.Run(ctx, stdout, ".", number); err != nil {
+	if err := get.Prepare(ctx, stdout, ".", number, confirm(stdin, stdout)); err != nil {
 		return fmt.Errorf("get %d: %w", number, err)
 	}
 
@@ -398,7 +418,7 @@ const inboxLimit = 30
 // It never writes a read mark. Printing a queue is not reading it, and a run
 // that emptied the first bucket by being run would hide the one thing the
 // bucket is for.
-func threadsCmd(ctx context.Context, args []string, stdout io.Writer) error {
+func threadsCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	asJSON, err := oneOf(args, errUsageThreads, jsonArg)
 	if err != nil {
 		return err
@@ -407,7 +427,7 @@ func threadsCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	// A terminal gets the screen; a pipe or --json gets the text, so an agent
 	// and a person run the same command.
 	if asJSON != jsonArg && onATerminal() {
-		return openThreads(ctx, stdout)
+		return openThreads(ctx, stdin, stdout)
 	}
 
 	queue, err := conversations.Fetch(ctx, ".", conversations.DefaultLimit)
@@ -446,14 +466,14 @@ func loadLooked() (*conversations.Looked, error) {
 
 // reviewsCmd lists what is staged under .second-look in this checkout. The
 // artifact is deleted when it posts, so everything it prints is unfinished.
-func reviewsCmd(ctx context.Context, args []string, stdout io.Writer) error {
+func reviewsCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	asJSON, err := oneOf(args, errUsageReviews, jsonArg)
 	if err != nil {
 		return err
 	}
 
 	if asJSON != jsonArg && onATerminal() {
-		return openReviews(ctx, stdout)
+		return openReviews(ctx, stdin, stdout)
 	}
 
 	rows, err := prepared.List(".")
