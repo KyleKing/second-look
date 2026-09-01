@@ -7,6 +7,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/threads"
 )
 
@@ -95,6 +96,17 @@ func (s screen) fileRows(
 	p := filePath(f)
 	rows := []row{{kind: rowFile, text: p, path: p, comment: -1}}
 
+	if lay.fold.files[p] {
+		rows[0].text = p + "  " + plural(hunkCount(f), "hunk") + " folded" + staged(r, p) + " · za to open"
+		rows[0].folded = true
+
+		for _, ln := range f.Lines {
+			claim(byLine, placed, p, ln)
+		}
+
+		return rows
+	}
+
 	if f.Note != "" {
 		rows = append(rows, row{kind: rowHunk, text: f.Note, path: p, comment: -1})
 	}
@@ -107,17 +119,28 @@ func (s screen) fileRows(
 			// than once per line.
 			hunk = l.Hunk
 			hide = lay.hide.skip != nil && lay.hide.skip(p, hunk)
+			shut := lay.fold.hunks[hunkAt{p, hunk}]
 
-			if hide {
+			switch {
+			case hide:
 				folded++
-			} else {
+			case shut:
+				rows = append(rows, row{
+					kind: rowHunk, text: hunkHeader(d, hunk) + "  folded · za to open",
+					path: p, comment: -1, hunk: hunk, folded: true,
+				})
+			default:
 				rows = append(rows, row{
 					kind: rowHunk, text: hunkHeader(d, hunk), path: p, comment: -1, hunk: hunk,
 				})
 			}
+
+			hide = hide || shut
 		}
 
 		if hide {
+			claim(byLine, placed, p, l)
+
 			continue
 		}
 
@@ -143,6 +166,26 @@ func (s screen) fileRows(
 	}
 
 	return rows
+}
+
+// claim marks the comments anchored to a line without drawing them, so a hunk
+// folded away does not send its comments to the list of what the diff no longer
+// carries, which is where a review staged against a head that moved goes.
+func claim(byLine map[anchor][]int, placed []bool, p string, l diff.Line) {
+	for _, c := range byLine[anchorOf(p, l)] {
+		placed[c] = true
+	}
+}
+
+// staged is what a folded file is holding, since a fold that hid work would
+// make the outline the one view that cannot be trusted.
+func staged(r *artifact.Review, path string) string {
+	c := countFor(r, path)
+	if n := c.ready + c.draft; n > 0 {
+		return " · " + plural(n, "comment")
+	}
+
+	return ""
 }
 
 // appendUnanchored lists comments no diff line claimed. Staging refuses those,
@@ -297,9 +340,9 @@ func indexThreads(ts []threads.Thread) map[anchor][]int {
 // a comment in the prepared review like any other.
 func threadRows(t *threads.Thread, index int, path string, width, numWidth int) []row {
 	// bodyIndent is applied after wrapping, so it comes off the width first.
-	avail := width - numWidth - rail - bodyIndent
+	avail := proseCols(width, numWidth) - bodyIndent
 	rows := []row{{
-		kind: rowThread, text: fmt.Sprintf("⤷ open thread · %d comment(s)", len(t.Notes)),
+		kind: rowThread, text: "⤷ open thread · " + plural(len(t.Notes), "comment"),
 		path: path, comment: -1, thread: index, head: true,
 	}}
 
@@ -329,14 +372,6 @@ type dirGroup struct {
 
 func (g dirGroup) heading() string {
 	return fmt.Sprintf("%s  %s · %s", g.dir, plural(len(g.files), "file"), plural(g.hunks, "hunk"))
-}
-
-func plural(n int, what string) string {
-	if n == 1 {
-		return fmt.Sprintf("%d %s", n, what)
-	}
-
-	return fmt.Sprintf("%d %ss", n, what)
 }
 
 // group collects the diff's files by the directory they sit in, keeping each
@@ -489,3 +524,7 @@ func split(word string, width int) []string {
 
 	return append(out, line)
 }
+
+// plural is humanize's, under a short name because this package counts things
+// on nearly every row it draws.
+func plural(n int, what string) string { return humanize.Plural(n, what) }

@@ -92,10 +92,9 @@ type Model struct {
 	// has an answer to show.
 	cost    rate.Score
 	reading bool
-	// notes is which notes are folded open, against the default that a short
-	// one shows and a long one does not.
-	notes folds
-	help  bool
+	// folded is what z has put away by hand.
+	folded folded
+	help   bool
 	// checkout is C, answered by the caller once the screen has closed.
 	checkout bool
 	// failure is the last submit that did not post, cleared by one that does.
@@ -131,7 +130,7 @@ func New(
 	m := &Model{
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
 		keys: defaultKeyMap(), styles: newStyles(), search: newSearch(),
-		width: minWidth, height: startHeight, notes: folds{},
+		width: minWidth, height: startHeight, folded: newFolded(),
 	}
 
 	for _, opt := range opts {
@@ -330,11 +329,11 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Zed):
 		m.pending = 'z'
 
-		m.say("z  a this note   R open every note   M close every note", false)
+		m.say(m.chord("z", foldObjects()), false)
 	case key.Matches(msg, m.keys.State):
 		m.pending = 'm'
 
-		m.say("m  r ready   d draft   x skip", false)
+		m.say(m.chord("m", states()), false)
 	case key.Matches(msg, m.keys.Search):
 		cmd := m.begin()
 
@@ -345,7 +344,7 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 			m.pending = '['
 		}
 
-		m.say(objectMenu(m.pending), false)
+		m.say(m.chord(string(m.pending), objects()), false)
 	default:
 		return false, m, nil
 	}
@@ -402,58 +401,101 @@ func (m *Model) stateKey(msg tea.KeyPressMsg) bool {
 		key.Matches(msg, m.keys.Skip)
 }
 
-// foldNote answers the z chord: za inverts the block under the cursor, zo and
-// zc name a direction, and zR and zM answer for every note at once.
+// foldNote answers the z chord: za inverts what the cursor is standing on, zo
+// and zc name a direction, and zR and zM answer for the whole review.
 func (m *Model) foldNote(msg tea.KeyPressMsg) {
 	switch msg.String() {
 	case "a":
-		m.setNote(m.current(), !m.expanded(m.current()))
+		m.foldHere(!m.openHere())
 	case "o":
-		m.setNote(m.current(), true)
+		m.foldHere(true)
 	case "c":
-		m.setNote(m.current(), false)
+		m.foldHere(false)
 	case "R":
-		m.allNotes(true)
+		m.foldAll(true)
 	case "M":
-		m.allNotes(false)
+		m.foldAll(false)
 	default:
 		m.say("no fold for "+msg.String()+"; a this one, R open all, M close all", false)
 	}
 }
 
-// setNote folds one block open or closed. A comment with nothing in its note
-// has nothing to fold, which is worth saying rather than answering with a frame
-// that did not change.
-func (m *Model) setNote(index int, open bool) {
+// foldHere folds what the cursor is on, which is the file from its name, the
+// hunk from anywhere inside it, and the note from the comment it belongs to.
+func (m *Model) foldHere(open bool) {
+	r := m.screen.rows[m.cursor]
+
 	switch {
-	case index == noComment:
-		m.say("nothing to fold here", false)
-
-		return
-	case index >= 0 && m.review.Comments[index].Note == "":
-		m.say("no note on "+m.review.Comments[index].ID, false)
-
-		return
-	case index == reviewBody && m.review.Body == "",
-		index == reviewNote && m.review.Note == "":
-		m.say("nothing written here yet; e writes it", false)
-
-		return
+	case r.kind == rowFile && r.path != "":
+		m.folded.files[r.path] = !open
+	case r.hunk > 0:
+		m.folded.hunks[hunkAt{r.path, r.hunk}] = !open
+	default:
+		if !m.setNote(r.comment, open) {
+			return
+		}
 	}
 
-	m.notes[index] = open
 	m.rebuild()
 	m.say("", false)
 }
 
-// allNotes answers zR and zM. Both write every block explicitly, so what is
-// open no longer depends on how long each note happens to be.
-func (m *Model) allNotes(open bool) {
-	for i := range m.review.Comments {
-		m.notes[i] = open
+// openHere is whether what the cursor is on is showing, which is what za has
+// to invert.
+func (m *Model) openHere() bool {
+	r := m.screen.rows[m.cursor]
+
+	switch {
+	case r.kind == rowFile:
+		return !m.folded.files[r.path]
+	case r.hunk > 0:
+		return !m.folded.hunks[hunkAt{r.path, r.hunk}]
 	}
 
-	m.notes[reviewBody], m.notes[reviewNote] = open, open
+	return m.expanded(r.comment)
+}
+
+// setNote records a note's fold and reports whether there was one to fold.
+// Answering a keystroke with a frame that did not change reads as a key that
+// is not working.
+func (m *Model) setNote(index int, open bool) bool {
+	switch {
+	case index == noComment:
+		m.say("nothing to fold here", false)
+
+		return false
+	case index >= 0 && m.review.Comments[index].Note == "":
+		m.say("no note on "+m.review.Comments[index].ID, false)
+
+		return false
+	case index == reviewBody && m.review.Body == "",
+		index == reviewNote && m.review.Note == "":
+		m.say("nothing written here yet; e writes it", false)
+
+		return false
+	}
+
+	m.folded.notes[index] = open
+
+	return true
+}
+
+// foldAll answers zR and zM. Closing everything leaves the file names and what
+// each carries, which is the outline a long review is read from.
+func (m *Model) foldAll(open bool) {
+	m.folded = newFolded()
+
+	for i := range m.review.Comments {
+		m.folded.notes[i] = open
+	}
+
+	m.folded.notes[reviewBody], m.folded.notes[reviewNote] = open, open
+
+	if !open {
+		for i := range m.diff.Files {
+			m.folded.files[filePath(&m.diff.Files[i])] = true
+		}
+	}
 
 	m.rebuild()
 	m.say(foldedWord(open), false)
@@ -461,10 +503,10 @@ func (m *Model) allNotes(open bool) {
 
 func foldedWord(open bool) string {
 	if open {
-		return "every note open"
+		return "everything open"
 	}
 
-	return "every note closed"
+	return "folded to the file names"
 }
 
 // expanded reports whether the block under the cursor is drawn in full. It is
@@ -511,13 +553,11 @@ func (m *Model) repeatable(mo motion) {
 	m.jump(mo.step, mo.what, mo.want)
 }
 
-func objectMenu(prefix rune) string {
-	parts := make([]string, 0, len(objects()))
-	for _, o := range objects() {
-		parts = append(parts, o[0]+" "+o[1])
-	}
-
-	return string(prefix) + "  " + strings.Join(parts, "   ")
+// chord is what the second key can be, shown while the first is waiting. The
+// brackets are unstyled because the footer renders the status as one span, and
+// a color opened inside it would close the span around it.
+func (*Model) chord(prefix string, hints [][2]string) string {
+	return prefix + hintGap + hintLine(styles{}, hints)
 }
 
 // moved handles every key that only changes where the cursor is, so the action
@@ -623,7 +663,7 @@ func (m *Model) markRead() {
 		}
 
 		m.read.Mark(read, ids...)
-		m.saveRead(fmt.Sprintf("%s: %d hunk(s) %s", r.path, len(refs), readWord(read)))
+		m.saveRead(r.path + ": " + plural(len(refs), "hunk") + " " + readWord(read))
 
 		return
 	}
@@ -1244,7 +1284,7 @@ func (m *Model) askSubmit() {
 	c := m.counts()
 	if c.draft > 0 {
 		_ = m.focus(m.firstDraft())
-		m.say(fmt.Sprintf("%d comment(s) still draft, r to post it or x to skip it", c.draft), true)
+		m.say(plural(c.draft, "comment")+" still draft, m r posts it or m x skips it", true)
 
 		return
 	}
@@ -1252,7 +1292,7 @@ func (m *Model) askSubmit() {
 	m.asking = askSubmit
 	// The pull request is already named in the title bar, so the prompt spends
 	// its width on what the keys do and stays readable in an 80-column frame.
-	m.say(fmt.Sprintf("S again to post, any key cancels: %d comment(s) as %s", c.ready, m.event()), false)
+	m.say("S again to post, any key cancels: "+plural(c.ready, "comment")+" as "+m.event(), false)
 }
 
 // confirmKind is which confirmation owns the keyboard. Two of the screen's keys
@@ -1395,7 +1435,7 @@ func (m *Model) applyMerge(msg mergedMsg) {
 }
 
 func (m *Model) rebuild() {
-	lay := layout{width: m.width, hide: m.skipper(), open: m.notes}
+	lay := layout{width: m.width, hide: m.skipper(), fold: m.folded}
 
 	if m.listing {
 		m.screen = buildList(m.review, m.diff, lay)

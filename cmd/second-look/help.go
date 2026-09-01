@@ -46,8 +46,9 @@ NAMING A PULL REQUEST
 
   second-look <pr>
       Open the review screen: the diff with the prepared review's comments
-      inline, where they anchor. Mark a comment ready, draft, or skipped, edit
-      one in $EDITOR, and submit the review with S. Press ? for every key.
+      inline, where they anchor. m then r, d, or x marks a comment ready,
+      draft, or skipped, e writes one where it sits, and S submits the review.
+      Press ? for every key.
 
       It needs no checkout. The diff, the open threads, and the comment id a
       reply carries all come off the API, so a pull request is read, triaged,
@@ -105,6 +106,18 @@ NAMING A PULL REQUEST
       line. What is read is kept in .second-look/seen/ against the hunk's
       content rather than its position, so a force-push that does not touch a
       hunk leaves it read.
+
+      e opens an editor in the frame, over the block it is writing, so the line
+      being answered stays on screen: ctrl+s saves, esc abandons, and ctrl+e
+      hands what is typed to $EDITOR for the edits a text box is the wrong
+      shape for. It writes a comment, an answer to an open thread, and the
+      review's own body and note, which are rows the cursor lands on.
+
+      z folds what the cursor is on: a whole file from its name, one hunk from
+      anywhere inside it, and a comment's note from the comment. za inverts it,
+      zR opens everything, and zM folds to the file names, which is the outline
+      a long review is read from. A note over two lines starts folded, since it
+      carries the evidence for a comment rather than the comment.
 
       E edits a comment's local note, and ! hands the terminal to $SHELL in the
       repository and appends what the session printed to that note. Running the

@@ -1,4 +1,4 @@
-kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skipped
+kyleking/jj-diff #42                0% · on head · 1 ready · 1 draft · 1 skipped
   j / k             move a line
   ctrl+d / ctrl+u   move half a page
   g / G             top, bottom
@@ -12,7 +12,7 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
   t                 hide hunks that change no code at all, comments and re-wrap…
   space             mark the hunk read, or the whole file from a file line
   m then r / d / x  mark the comment ready, draft, or skipped
-  z then a / R / M  fold this note, open every note, close every note
+  z then a / R / M  fold the file, hunk, or note here; open all; fold to the fi…
   e                 edit a comment, the review's body or note, or answer a thre…
   E                 edit the comment's local note in $EDITOR
   !                 run a shell here and attach what it printed to the note
@@ -21,4 +21,4 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
   S                 submit the review to GitHub, S again to confirm
   M                 squash-merge the pull request, M again to confirm
   ? / esc           this help, back
- j/k line ] go c comments e write S submit ? help q quit
+ [j/k] line  []] go to  [c]omments  writ[e]  [S]ubmit  [?] help  [q]uit

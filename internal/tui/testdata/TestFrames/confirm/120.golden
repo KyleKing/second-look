@@ -1,4 +1,4 @@
-kyleking/jj-diff #42  internal/vcs/diff.go                                           34% · 1 ready · 1 draft · 1 skipped
+kyleking/jj-diff #42  internal/vcs/diff.go                                 34% · on head · 1 ready · 1 draft · 1 skipped
 
 internal/vcs  2 files · 2 hunks
   internal/vcs/diff.go
@@ -7,7 +7,7 @@ internal/vcs  2 files · 2 hunks
 
      ┃ ◐ QUESTION  draft                                                                                                
      ┃ Is first still 1 after the change?
-     ┃ note  Unverified: I have not read the caller.
+     ┃ NOTE  Unverified: I have not read the caller.
  15 -     lines := split(r)
  15 +     lines, err := split(r)
 
@@ -21,4 +21,4 @@ internal/vcs  2 files · 2 hunks
 
      ┃ ○ NIT  skip  Out of scope for this change.
      ┃ Rename this to headSHA.
-1 comment(s) still draft, r to post it or x to skip it
+1 comment still draft, m r posts it or m x skips it

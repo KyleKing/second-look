@@ -44,8 +44,8 @@ func (m *Model) render() string {
 func (m *Model) title() string {
 	c := m.counts()
 	left := fmt.Sprintf("%s/%s #%d", m.review.Owner, m.review.Repo, m.review.Number)
-	right := cut(fmt.Sprintf("%s · %s%s%d ready · %d draft · %d skipped",
-		m.progress(), m.costCount(), m.readCount(), c.ready, c.draft, c.skip), m.width)
+	right := cut(fmt.Sprintf("%s · %s · %s%s%d ready · %d draft · %d skipped",
+		m.progress(), m.treeWord(), m.costCount(), m.readCount(), c.ready, c.draft, c.skip), m.width)
 
 	if m.listing {
 		left += "  comments"
@@ -60,6 +60,22 @@ func (m *Model) title() string {
 
 	return m.styles.title.Render(left) +
 		strings.Repeat(" ", gap) + m.styles.subtitle.Render(right)
+}
+
+// treeWord is where the working copy stands, which C, !, and M each behave
+// differently for. The screen knew it and said nothing, so the way to find out
+// was to press a key and read the refusal.
+func (m *Model) treeWord() string {
+	switch m.tree {
+	case TreeOnHead:
+		return "on head"
+	case TreeElsewhere:
+		return "off head"
+	case TreeNone:
+		return "no clone"
+	}
+
+	return ""
 }
 
 // costCount is what the change is rated, absent until the structural pass
@@ -149,13 +165,7 @@ func (m *Model) footerLines() []string {
 	}
 
 	if m.status == "" {
-		var b strings.Builder
-
-		for _, k := range m.hints() {
-			b.WriteString(" " + m.styles.key.Render(k[0]) + m.styles.footer.Render(" "+k[1]))
-		}
-
-		return []string{b.String()}
+		return []string{cut(" "+hintLine(m.styles, m.hints()), m.width)}
 	}
 
 	if !m.failed {
@@ -201,7 +211,7 @@ func (m *Model) hints() [][2]string {
 	case m.currentThread() >= 0:
 		middle = [][2]string{{"e", "reply"}}
 	case m.current() >= 0:
-		middle = [][2]string{{"m", "state"}, {"e", "edit"}}
+		middle = [][2]string{{"m", "mark"}, {"e", "edit"}, {"z", "fold"}}
 	case m.current() != noComment:
 		middle = [][2]string{{"e", "write"}}
 	}
@@ -212,10 +222,10 @@ func (m *Model) hints() [][2]string {
 	}
 
 	hints := make([][2]string, 0, len(middle)+6)
-	hints = append(hints, [2]string{"j/k", "line"}, [2]string{"]", "go"}, view)
+	hints = append(hints, [2]string{"j/k", "line"}, [2]string{"]", "go to"}, view)
 	hints = append(hints, middle...)
 
-	return append(hints, [2]string{"S", "submit"}, [2]string{"?", "help"}, [2]string{"q", "quit"})
+	return append(hints, [2]string{"S", "submit"}, [2]string{"?", "help"}, [2]string{"q", quitWord})
 }
 
 func (m *Model) helpLines() []string {

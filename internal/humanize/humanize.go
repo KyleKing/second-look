@@ -1,5 +1,5 @@
-// Package humanize renders the two values every queue in this tool prints: how
-// stale something is, and a string cut to fit a column.
+// Package humanize renders the values every queue in this tool prints: how
+// stale something is, a string cut to fit a column, and a count with its noun.
 //
 // It is shared rather than copied because the review queue and the conversation
 // queue sit next to each other on screen, and two implementations of "2h" would
@@ -11,6 +11,20 @@ import (
 	"strings"
 	"time"
 )
+
+// Plural writes a count with its noun. The plural is the noun with an s unless
+// one is given, which is what a word like "search" needs.
+func Plural(n int, one string, many ...string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+
+	if len(many) > 0 {
+		return strconv.Itoa(n) + " " + many[0]
+	}
+
+	return strconv.Itoa(n) + " " + one + "s"
+}
 
 // Ago is how stale something is, which is the field that decides what to look
 // at when two rows are otherwise equal. A zero time renders empty rather than

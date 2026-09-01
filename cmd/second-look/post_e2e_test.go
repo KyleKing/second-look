@@ -133,7 +133,7 @@ func TestPostRefusesDrafts(t *testing.T) {
 		t.Fatal("expected a draft comment to block the post")
 	}
 
-	if !strings.Contains(res.stderr, "still drafts") {
+	if !strings.Contains(res.stderr, "still draft") {
 		t.Errorf("want the drafts named, got %q", res.stderr)
 	}
 

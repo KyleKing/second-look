@@ -95,7 +95,7 @@ func TestRun(t *testing.T) {
 		{
 			name:    "a draft comment blocks the post and nothing is sent",
 			review:  review(inlineComment("1", artifact.StatusDraft)),
-			wantErr: "still drafts",
+			wantErr: "still draft",
 		},
 	}
 

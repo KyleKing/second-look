@@ -204,14 +204,14 @@ func (s *inboxScreen) counts() string {
 
 	out := fmt.Sprintf("%d waiting on you", rows)
 	if s.configured {
-		out = fmt.Sprintf("%d in %d section(s)", rows, len(s.buckets))
+		out = fmt.Sprintf("%d in %s", rows, humanize.Plural(len(s.buckets), "section"))
 	}
 
 	if failed == 0 {
 		return out
 	}
 
-	return fmt.Sprintf("%s · %d search(es) failed", out, failed)
+	return out + " · " + humanize.Plural(failed, "search", "searches") + " failed"
 }
 
 func (s *inboxScreen) sections() []tui.Section {

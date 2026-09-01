@@ -22,11 +22,24 @@ const (
 const noteFold = 2
 
 // noteLabel introduces a note and sets the column its continuation lines align
-// to, so a wrapped note reads as one block rather than as a list.
-const noteLabel = "note  "
+// to, so a wrapped note reads as one block rather than as a list. It is capital
+// because it is the block's label and not the first words of it.
+const noteLabel = "NOTE  "
 
-// folds records which notes are open against that default: za toggles one, zR
-// opens every note, and zM closes them.
+// How wide prose is set. A comment measured to the full width of a wide
+// terminal is hard to read back, and the margin keeps it off the right edge.
+const (
+	proseWidth = 88
+	rightPad   = 2
+)
+
+// proseCols is the measure a comment, a note, or the review's own prose is
+// wrapped to.
+func proseCols(width, numWidth int) int {
+	return min(width-numWidth-rail-rightPad, proseWidth)
+}
+
+// folds records which notes are open against that default.
 type folds map[int]bool
 
 // shown reports whether a block of lines is drawn in full. A foldAt of zero
@@ -39,23 +52,37 @@ func (f folds) shown(index, lines, foldAt int) bool {
 	return foldAt == 0 || lines <= foldAt
 }
 
+// folded is what z has put away by hand: a note, a hunk, or a whole file. A
+// note carries a default that depends on how long it is, so the map records the
+// answer either way; a hunk or a file is open until somebody folds it.
+type folded struct {
+	notes folds
+	hunks map[hunkAt]bool
+	files map[string]bool
+}
+
+func newFolded() folded {
+	return folded{notes: folds{}, hunks: map[hunkAt]bool{}, files: map[string]bool{}}
+}
+
 // layout is what laying out a review takes beyond the review itself: the width
-// to wrap to, which hunks are hidden, and which notes are open.
+// to wrap to, which hunks are hidden because nothing in them changed, and what
+// has been folded away by hand.
 type layout struct {
 	width int
 	hide  hider
-	open  folds
+	fold  folded
 }
 
 // header is the review's own prose. Both blocks are drawn whether or not
 // anything is written in them: a review posted with no body is unsigned, and a
 // field that appears only once it is filled in is one nobody knows to fill in.
 func header(r *artifact.Review, lay layout, numWidth int) []row {
-	avail := lay.width - numWidth - rail
+	avail := proseCols(lay.width, numWidth)
 
 	return append(
-		prose(reviewBody, "review body", r.Body, avail, 0, lay),
-		prose(reviewNote, "review note", r.Note, avail, noteFold, lay)...,
+		prose(reviewBody, "REVIEW BODY", r.Body, avail, 0, lay),
+		prose(reviewNote, "REVIEW NOTE", r.Note, avail, noteFold, lay)...,
 	)
 }
 
@@ -70,7 +97,7 @@ func prose(index int, title, text string, avail, foldAt int, lay layout) []row {
 	}
 
 	lines := wrap(text, avail)
-	if !lay.open.shown(index, len(lines), foldAt) {
+	if !lay.fold.notes.shown(index, len(lines), foldAt) {
 		head.text = fmt.Sprintf("%s  %s · za to read", title, plural(len(lines), "line"))
 		head.folded = true
 
@@ -91,7 +118,7 @@ func prose(index int, title, text string, avail, foldAt int, lay layout) []row {
 // it will post, the body at the contrast of the code it is about, and the local
 // note under it.
 func commentRows(c *artifact.Comment, index int, path string, lay layout, numWidth int) []row {
-	avail := lay.width - numWidth - rail
+	avail := proseCols(lay.width, numWidth)
 	body := wrap(c.Body, avail)
 
 	rows := make([]row, 0, len(body)+3)
@@ -129,7 +156,7 @@ func noteRows(note string, index int, path string, avail int, lay layout) []row 
 	}
 
 	lines := wrap(note, avail-len(noteLabel))
-	if !lay.open.shown(index, len(lines), noteFold) {
+	if !lay.fold.notes.shown(index, len(lines), noteFold) {
 		return []row{{
 			kind: rowNote, path: path, comment: index, folded: true,
 			text: noteLabel + plural(len(lines), "line") + " · za to read",

@@ -1,6 +1,6 @@
-kyleking/jj-diff #42                          4% · 1 ready · 1 draft · 1 skipped
-     ┃ review body  empty · e to write one
-     ┃ review note  empty · e to write one                                      
+kyleking/jj-diff #42                4% · on head · 1 ready · 1 draft · 1 skipped
+     ┃ REVIEW BODY  empty · e to write one
+     ┃ REVIEW NOTE  empty · e to write one                                      
 
 internal/vcs  2 files · 2 hunks
   internal/vcs/diff.go
@@ -9,7 +9,7 @@ internal/vcs  2 files · 2 hunks
 
      ┃ ◐ QUESTION  draft
      ┃ Is first still 1 after the change?
-     ┃ note  Unverified: I have not read the caller.
+     ┃ NOTE  Unverified: I have not read the caller.
  15 -     lines := split(r)
  15 +     lines, err := split(r)
 
@@ -21,4 +21,4 @@ internal/vcs  2 files · 2 hunks
   @@ -200,3 +201,3 @@ func Head() string {
 201       return head
 
- j/k line ] go c comments e write S submit ? help q quit
+ [j/k] line  []] go to  [c]omments  writ[e]  [S]ubmit  [?] help  [q]uit

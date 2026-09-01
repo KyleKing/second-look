@@ -1106,7 +1106,7 @@ func TestADraftStopsTheSubmitAndIsShown(t *testing.T) {
 	}
 
 	got := plain(m.Frame())
-	if !strings.Contains(got, "1 comment(s) still draft") {
+	if !strings.Contains(got, "1 comment still draft") {
 		t.Errorf("the refusal never said what blocked it:\n%s", got)
 	}
 
@@ -1214,7 +1214,7 @@ func TestTheReviewBodyIsWrittenFromTheScreen(t *testing.T) {
 
 	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
 
-	if got := m.CursorText(); !strings.Contains(got, "review body") {
+	if got := m.CursorText(); !strings.Contains(got, "REVIEW BODY") {
 		t.Fatalf("the screen does not open on the review body: %q", got)
 	}
 
@@ -1233,7 +1233,7 @@ func TestTheReviewBodyIsWrittenFromTheScreen(t *testing.T) {
 
 	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
 
-	if got := m.CursorText(); !strings.Contains(got, "review note") {
+	if got := m.CursorText(); !strings.Contains(got, "REVIEW NOTE") {
 		t.Errorf("tab off the body landed on %q, want the review note", got)
 	}
 }
@@ -1250,7 +1250,7 @@ func TestALongNoteStartsFoldedAndZaOpensIt(t *testing.T) {
 
 	go2(m, ']', 'c')
 
-	if got := plain(m.Frame()); !strings.Contains(got, "note  4 lines · za to read") {
+	if got := plain(m.Frame()); !strings.Contains(got, "NOTE  4 lines · za to read") {
 		t.Fatalf("the note is not folded:\n%s", got)
 	}
 
@@ -1310,7 +1310,7 @@ func TestReplyingToAnOpenThread(t *testing.T) {
 		t.Fatalf("]t landed on %q", got)
 	}
 
-	if got := plain(m2.Frame()); !strings.Contains(got, "e reply") {
+	if got := plain(m2.Frame()); !strings.Contains(got, "r[e]ply") {
 		t.Fatalf("the footer does not offer a reply:\n%s", got)
 	}
 
@@ -1341,4 +1341,42 @@ func reviewAt(t *testing.T, path string) *artifact.Review {
 	}
 
 	return r
+}
+
+// z acts on what the cursor is standing on, so the same two keys give an
+// outline of a long review, one file at a time or all of it.
+func TestZFoldsAFileAHunkAndTheWholeReview(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+
+	go2(m, ']', 'f')
+	go2(m, 'z', 'a')
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "1 hunk folded") || strings.Contains(frame, "lines, err := split(r)") {
+		t.Fatalf("za on the file name did not fold it:\n%s", frame)
+	}
+
+	go2(m, 'z', 'a')
+	go2(m, ']', 'h')
+	go2(m, 'z', 'a')
+
+	frame = plain(m.Frame())
+	if !strings.Contains(frame, "folded · za to open") || strings.Contains(frame, "lines, err := split(r)") {
+		t.Fatalf("za on the hunk heading did not fold it:\n%s", frame)
+	}
+
+	go2(m, 'z', 'M')
+
+	frame = plain(m.Frame())
+	if !strings.Contains(frame, "internal/vcs/git.go  1 hunk folded") {
+		t.Fatalf("zM did not fold every file:\n%s", frame)
+	}
+
+	go2(m, 'z', 'R')
+
+	if frame = plain(m.Frame()); !strings.Contains(frame, "lines, err := split(r)") {
+		t.Errorf("zR did not open it again:\n%s", frame)
+	}
 }

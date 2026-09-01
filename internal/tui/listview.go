@@ -156,19 +156,11 @@ func (l *List) footer() string {
 			{"o", "GitHub"},
 			{"tab", "group"},
 			{"?", "help"},
+			{"q", quitWord},
 		}
 	}
 
-	keys := make([]string, 0, len(hints))
-	for _, h := range hints {
-		keys = append(keys, l.key(h[0], h[1]))
-	}
-
-	return l.styles.footer.Render(cut(" "+strings.Join(keys, "  "), l.width))
-}
-
-func (l *List) key(k, what string) string {
-	return l.styles.key.Render("["+k+"]") + what
+	return cut(" "+hintLine(l.styles, hints), l.width)
 }
 
 func (l *List) helpView() string {

@@ -3,6 +3,8 @@ package artifact
 import (
 	"errors"
 	"fmt"
+
+	"github.com/kyleking/second-look/internal/humanize"
 )
 
 // reviewPayload is the body of POST /repos/{owner}/{repo}/pulls/{number}/reviews.
@@ -35,7 +37,8 @@ type ReplyPayload struct {
 type DraftError struct{ Comments []Comment }
 
 func (e *DraftError) Error() string {
-	return fmt.Sprintf("%d comment(s) are still drafts; mark them ready or skip them", len(e.Comments))
+	return humanize.Plural(len(e.Comments), "comment") +
+		" still draft; each has to be ready or skipped before this posts"
 }
 
 // ErrNothingToPost is a review that would reach GitHub carrying nothing: no

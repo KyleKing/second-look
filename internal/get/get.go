@@ -16,6 +16,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -89,7 +90,7 @@ func cacheThreads(ctx context.Context, out io.Writer, t Target, sha string) erro
 		return nil
 	}
 
-	if _, err := fmt.Fprintf(out, "%d open review thread(s)\n", len(open)); err != nil {
+	if _, err := fmt.Fprintln(out, humanize.Plural(len(open), "open review thread")); err != nil {
 		return fmt.Errorf("writing output: %w", err)
 	}
 
@@ -139,7 +140,7 @@ func carryRead(out io.Writer, root string, number int, oldSHA, newSHA string) er
 		return nil
 	}
 
-	return say(out, fmt.Sprintf("%d of %d hunk(s) were already read\n", carried, total))
+	return say(out, fmt.Sprintf("%d of %s were already read\n", carried, humanize.Plural(total, "hunk")))
 }
 
 // repo names the repository a review is filed against.
@@ -244,7 +245,7 @@ func requireCleanTree(ctx context.Context, ops vcs.StatusReader, root string) er
 	}
 
 	if n := summary.UncommittedCount(); n > 0 {
-		return fmt.Errorf("%w (%d file(s))", ErrDirtyTree, n)
+		return fmt.Errorf("%w (%s)", ErrDirtyTree, humanize.Plural(n, "file"))
 	}
 
 	return nil
@@ -275,8 +276,8 @@ func writeReview(out io.Writer, t Target, pr *forge.PullRequest) error {
 
 	if moved {
 		return say(out, fmt.Sprintf(
-			"%s moved to %s; %d staged comment(s) came with it and are re-checked on post\n",
-			path, short(pr.HeadSHA), len(review.Comments),
+			"%s moved to %s; %s came with it and are re-checked on post\n",
+			path, short(pr.HeadSHA), humanize.Plural(len(review.Comments), "staged comment"),
 		))
 	}
 

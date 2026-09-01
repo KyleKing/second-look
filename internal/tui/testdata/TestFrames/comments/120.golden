@@ -1,6 +1,6 @@
-kyleking/jj-diff #42  comments                                                        0% · 1 ready · 1 draft · 1 skipped
-     ┃ review body  empty · e to write one                                                                              
-     ┃ review note  empty · e to write one
+kyleking/jj-diff #42  comments                                              0% · on head · 1 ready · 1 draft · 1 skipped
+     ┃ REVIEW BODY  empty · e to write one                                                                              
+     ┃ REVIEW NOTE  empty · e to write one
 
   internal/vcs/diff.go  1 ready · 1 draft · 0 skipped
 
@@ -9,7 +9,7 @@ kyleking/jj-diff #42  comments                                                  
 
      ┃ ◐ QUESTION  draft
      ┃ Is first still 1 after the change?
-     ┃ note  Unverified: I have not read the caller.
+     ┃ NOTE  Unverified: I have not read the caller.
 
   internal/vcs/git.go  0 ready · 0 draft · 1 skipped
 
@@ -21,4 +21,4 @@ kyleking/jj-diff #42  comments                                                  
 
 
 
- j/k line ] go c diff e write S submit ? help q quit
+ [j/k] line  []] go to  [c] diff  writ[e]  [S]ubmit  [?] help  [q]uit

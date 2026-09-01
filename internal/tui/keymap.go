@@ -13,6 +13,10 @@ import "charm.land/bubbles/v2/key"
 // relied on. `m` then r, d, or x restamps a comment and `z` then a, R, or M
 // folds a note, which leaves both irreversible restamps behind a deliberate
 // pair of keys rather than under one letter next to the motion keys.
+// Leaving is called the same thing on every screen, so the three footers that
+// offer it cannot drift.
+const quitWord = "quit"
+
 type keyMap struct {
 	Up        key.Binding
 	Down      key.Binding
@@ -83,7 +87,7 @@ func defaultKeyMap() keyMap {
 		Submit:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
 		Merge:     key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
 		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		Quit:      key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", "quit")),
+		Quit:      key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", quitWord)),
 	}
 }
 
@@ -98,6 +102,16 @@ func objects() [][2]string {
 		{"t", "thread"},
 		{"u", "unread hunk"},
 	}
+}
+
+// states are what m accepts, and folds what z accepts. Both are shown while the
+// chord waits, so the second key never has to be remembered.
+func states() [][2]string {
+	return [][2]string{{"r", "ready"}, {"d", "draft"}, {"x", "skip"}}
+}
+
+func foldObjects() [][2]string {
+	return [][2]string{{"a", "fold this"}, {"R", "open all"}, {"M", "fold all"}}
 }
 
 // helpLines is the full help overlay, one row per line, so the footer can stay
@@ -117,7 +131,7 @@ func helpLines() [][2]string {
 		{"t", "hide hunks that change no code at all, comments and re-wraps included"},
 		{"space", "mark the hunk read, or the whole file from a file line"},
 		{"m then r / d / x", "mark the comment ready, draft, or skipped"},
-		{"z then a / R / M", "fold this note, open every note, close every note"},
+		{"z then a / R / M", "fold the file, hunk, or note here; open all; fold to the file names"},
 		{"e", "edit a comment, the review's body or note, or answer a thread"},
 		{"E", "edit the comment's local note in $EDITOR"},
 		{"!", "run a shell here and attach what it printed to the note"},
@@ -126,6 +140,6 @@ func helpLines() [][2]string {
 		{"S", "submit the review to GitHub, S again to confirm"},
 		{"M", "squash-merge the pull request, M again to confirm"},
 		{"? / esc", "this help, back"},
-		{"q", "quit"},
+		{"q", quitWord},
 	}
 }

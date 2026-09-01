@@ -127,6 +127,21 @@ the groups.
 `c` shows the comments alone, by file, and `c` again goes back to the same comment in the
 diff.
 
+`e` opens an editor in the frame, in place of the block it is writing, so the line being
+answered stays on screen. `ctrl+s` saves, `esc` abandons, and `ctrl+e` hands what is typed
+to `$EDITOR` for the edits a text box is the wrong shape for. It writes a comment, an
+answer to an open thread, and the review's own body and note.
+
+`m` then `r`, `d`, or `x` marks a comment ready, draft, or skipped. It is a chord because
+each of those restamps whatever the cursor is on, irreversibly, and three unmodified
+letters next to the motion keys made that one keystroke away.
+
+`z` folds what the cursor is on: a whole file from its name, one hunk from anywhere inside
+it, and a comment's note from the comment. `za` inverts it, `zR` opens everything, and
+`zM` folds to the file names, which is the outline a long review is read from. A note over
+two lines starts folded, since it carries the evidence for a comment rather than the
+comment itself.
+
 `/` searches, and `tab` in the prompt restricts it to hunks you have not read yet. The
 pattern becomes a motion, so `n` walks the matches the same way it walks hunks.
 
