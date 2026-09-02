@@ -14,6 +14,8 @@ import (
 	"context"
 	"slices"
 
+	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/structure"
 )
 
@@ -95,16 +97,26 @@ func Of(readings []structure.Reading) Score {
 	return s
 }
 
-// Read rates a change by making the structural pass itself, for a caller that
-// has hunks and no reading of them.
-func Read(ctx context.Context, hs []structure.Hunk) (Score, error) {
+// Read makes the structural pass over a diff and answers in the order
+// seen.Hunks lists its hunks, so one caller can score the change and another
+// can say which hunks changed no code. Both sides of every hunk come from the
+// patch, so nothing here reads a working copy.
+func Read(ctx context.Context, d *diff.Diff) ([]structure.Reading, []seen.Ref, error) {
+	refs := seen.Hunks(d)
+	hs := make([]structure.Hunk, 0, len(refs))
+
+	for _, r := range refs {
+		before, after := d.Sides(r.Path, r.Hunk)
+		hs = append(hs, structure.Hunk{Path: r.Path, Before: before, After: after})
+	}
+
 	readings, err := structure.ReadAll(ctx, hs)
 	if err != nil {
 		//nolint:wrapcheck // ReadAll's error already names the fragment
-		return Score{}, err
+		return nil, nil, err
 	}
 
-	return Of(readings), nil
+	return readings, refs, nil
 }
 
 // total sums the signals under the ceiling. A signature change counts once

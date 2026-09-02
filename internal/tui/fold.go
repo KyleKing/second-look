@@ -8,8 +8,6 @@ import (
 
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/rate"
-	"github.com/kyleking/second-look/internal/seen"
-	"github.com/kyleking/second-look/internal/structure"
 )
 
 // errNoParser is what t says where the structural tool is missing. The w level
@@ -81,15 +79,7 @@ type structureMsg struct {
 // keys while it reads is a screen that looks broken.
 func readStructure(d *diff.Diff) tea.Cmd {
 	return func() tea.Msg {
-		refs := seen.Hunks(d)
-		hs := make([]structure.Hunk, 0, len(refs))
-
-		for _, r := range refs {
-			before, after := d.Sides(r.Path, r.Hunk)
-			hs = append(hs, structure.Hunk{Path: r.Path, Before: before, After: after})
-		}
-
-		readings, err := structure.ReadAll(context.Background(), hs)
+		readings, refs, err := rate.Read(context.Background(), d)
 		if err != nil {
 			return structureMsg{err: err}
 		}
