@@ -1,3 +1,13 @@
+## v0.6.0 (2026-09-02)
+
+### Feat
+
+- **inbox**: ask what the hourly allowance covers before rating a queue
+
+### Fix
+
+- **ci**: run the coverage task under bash and pin the queue test's config home
+
 ## v0.5.0 (2026-09-02)
 
 ### Feat
