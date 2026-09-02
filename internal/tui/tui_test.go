@@ -1573,6 +1573,18 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 	if frame = plain(m.Frame()); !strings.Contains(frame, "lines, err := split(r)") {
 		t.Errorf("zR did not open it again:\n%s", frame)
 	}
+
+	// A fold is a change, so . does it again wherever the cursor now stands.
+	// Folding a run of files costs za once and a dot for each file after it.
+	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	go2(m, ']', 'f')
+	go2(m, 'z', 'a')
+	go2(m, ']', 'f')
+	press(m, tea.KeyPressMsg{Code: '.', Text: "."})
+
+	if frame = plain(m.Frame()); strings.Count(frame, "hunk folded") != 2 {
+		t.Errorf(". did not repeat the fold on the next file:\n%s", frame)
+	}
 }
 
 // The code view is the file as it reads after the change, which is the question

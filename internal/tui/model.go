@@ -73,11 +73,11 @@ type Model struct {
 
 	// pending is the ] or [ waiting for the object that completes it.
 	pending rune
-	// last is the motion n repeats and N reverses, and change is the keystroke
-	// . replays. Only a change that needs no further input is recorded, since
-	// replaying an editor blind is not a repeat of anything.
+	// last is the motion n repeats and N reverses, and change is what . replays.
+	// Only a change that needs no further input is recorded, since replaying an
+	// editor blind is not a repeat of anything.
 	last   *motion
-	change *tea.KeyPressMsg
+	change *change
 
 	status    string
 	failed    bool
@@ -317,15 +317,37 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		return m.act(*m.change)
+		return m.redo(*m.change)
 	}
 
 	if m.records(msg) {
-		replay := msg
-		m.change = &replay
+		m.remember(0, msg)
 	}
 
 	return m.act(msg)
+}
+
+// change is what the repeat key does again: a key on its own, or the chord
+// prefix and the key that completed it.
+type change struct {
+	prefix rune
+	key    tea.KeyPressMsg
+}
+
+func (m *Model) remember(prefix rune, msg tea.KeyPressMsg) {
+	m.change = &change{prefix: prefix, key: msg}
+}
+
+// redo replays a change where the cursor is standing now. Walking a run of
+// comments is therefore ]c m r, then ]c and a dot for each one after it.
+func (m *Model) redo(c change) (tea.Model, tea.Cmd) {
+	if c.prefix == 0 {
+		return m.act(c.key)
+	}
+
+	m.pending = c.prefix
+
+	return m.complete(c.key)
 }
 
 // readHelp scrolls the legend and closes it, and swallows everything else, so a
@@ -403,8 +425,9 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 	return true, m, nil
 }
 
-// records marks the changes the repeat key can replay: the ones that take no
-// further input, so replaying one does exactly what it did the first time.
+// records marks the unchorded changes the repeat key can replay: the ones that
+// take no further input, so replaying one does exactly what it did the first
+// time. A chord records itself once its second key lands.
 func (m *Model) records(msg tea.KeyPressMsg) bool {
 	return key.Matches(msg, m.keys.Seen)
 }
@@ -424,7 +447,9 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch prefix {
 	case 'z':
-		m.foldNote(msg)
+		if m.foldNote(msg) {
+			m.remember(prefix, msg)
+		}
 
 		return m, nil
 	case 'a':
@@ -440,8 +465,7 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		replay := msg
-		m.change = &replay
+		m.remember(prefix, msg)
 
 		return m.act(msg)
 	}
@@ -476,8 +500,9 @@ func (m *Model) stateKey(msg tea.KeyPressMsg) bool {
 
 // foldNote answers the z chord: za inverts what the cursor is standing on, zo
 // and zc name a direction, zR and zM answer for the whole review, and zi
-// inverts the whole review the way za inverts one block.
-func (m *Model) foldNote(msg tea.KeyPressMsg) {
+// inverts the whole review the way za inverts one block. It reports whether the
+// key named a fold, which is what the repeat key records.
+func (m *Model) foldNote(msg tea.KeyPressMsg) bool {
 	switch msg.String() {
 	case "a":
 		m.foldHere(!m.openHere())
@@ -493,7 +518,11 @@ func (m *Model) foldNote(msg tea.KeyPressMsg) {
 		m.foldAll(m.anyFolded())
 	default:
 		m.say("no fold for "+msg.String()+"; a this one, i invert, R open all, M close all", false)
+
+		return false
 	}
+
+	return true
 }
 
 // anyFolded reports whether the frame is holding anything back, which is what

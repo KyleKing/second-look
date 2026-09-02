@@ -155,7 +155,7 @@ func helpLines() [][2]string {
 		{"n / N", "repeat that motion forward, backward"},
 		{"/", "search; tab in the prompt restricts it to hunks not yet read"},
 		{"tab / shift+tab", "next, previous thing wanting a decision"},
-		{".", "repeat the last change"},
+		{".", "repeat the last change: space, m r/d/x, a fold"},
 		{"c", "the next view: both, the code as it now reads, the comments alone"},
 		{"w", "hide hunks that change nothing but whitespace, and show them again"},
 		{"t", "hide hunks that change no code at all, comments and re-wraps included"},
