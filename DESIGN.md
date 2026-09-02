@@ -68,6 +68,13 @@ directory, one directory per host, owner, and name, because the queue spans repo
 and a review filed into whichever checkout happened to be open would be lost to every
 other one.
 
+Opening a review that is already staged reads nothing but those files. The diff and the
+threads are on disk, so the screen draws in about a tenth of a second, and the one
+question left for GitHub (whether the head still stands) runs behind the first frame and
+puts "head moved" in the title when it does not. Posting re-checks the head anyway, so
+nothing can be published against the older diff. A first open still fetches, and its two
+calls run at once rather than one after the other.
+
 The diff, the threads, and the rating are keyed by head commit, so a pull request pushed
 to a dozen times would leave a dozen copies of each. `second-look get` clears every one no
 staged review is pinned to, and posting, discarding, and merging take that review's own

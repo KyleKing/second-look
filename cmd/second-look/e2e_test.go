@@ -146,6 +146,13 @@ func load(t *testing.T, name string) *ghcassette.Cassette {
 // recording so the bytes are the ones GitHub sent rather than a second copy.
 func seedDiff(t *testing.T, dir string) {
 	t.Helper()
+	seedDiffAt(t, dir, fixtureHeadSHA)
+}
+
+// seedDiffAt caches the recorded diff against another head, which is what a
+// scratch repository's own commit is.
+func seedDiffAt(t *testing.T, dir, sha string) {
+	t.Helper()
 
 	c := load(t, "post-review")
 
@@ -154,7 +161,7 @@ func seedDiff(t *testing.T, dir string) {
 		t.Fatalf("the cassette has no recorded diff: %v", err)
 	}
 
-	path := filepath.Join(dir, ".second-look", "diff", fixtureHeadSHA+".patch")
+	path := filepath.Join(dir, ".second-look", "diff", sha+".patch")
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("creating the diff cache: %v", err)
 	}
@@ -408,6 +415,19 @@ func openOnlyCassette(t *testing.T, sha string) string {
 		inCheckout(c)
 		restamp(c, sha)
 		c.Interactions = c.Interactions[:reads]
+	})
+}
+
+// headCassette answers the head check and nothing else, so a screen that
+// fetched anything at all fails on an unrecorded call. It is left on the
+// recorded head rather than re-stamped onto the scratch one, which is what a
+// pull request pushed to since the review was staged looks like.
+func headCassette(t *testing.T) string {
+	t.Helper()
+
+	return deriveFrom(t, "post-review", "head-only", func(c *ghcassette.Cassette) {
+		inCheckout(c)
+		c.Interactions = c.Interactions[:1]
 	})
 }
 

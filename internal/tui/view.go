@@ -48,6 +48,12 @@ func (m *Model) title() string {
 		left += "  " + word
 	}
 
+	// A head that moved outlives the footer message that announced it, because
+	// every row under this line belongs to the diff it moved away from.
+	if m.newHead != "" {
+		left += "  head moved to " + short(m.newHead)
+	}
+
 	if path := fitPath(m.rowPath(), m.width-textWidth(right)-textWidth(left)-indent); path != "" {
 		left += "  " + path
 	}

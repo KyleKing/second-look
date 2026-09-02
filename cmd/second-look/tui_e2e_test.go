@@ -286,6 +286,33 @@ func TestReviewScreenFetchesThreadsWithoutAGet(t *testing.T) {
 	}
 }
 
+// A review already staged and read once is drawn out of the artifact tree
+// alone. The head check is the only call left and it runs behind the first
+// frame, so a warm open waits for nothing: the cassette answers that one call
+// and a fetch of the diff or the threads fails on an unrecorded one. The head
+// it answers with is not the staged one, which is how the report of a head that
+// moved is drawn rather than refusing the open.
+func TestReviewScreenOpensFromTheCache(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, headCassette(t))
+	seedReview(t, dir, sha)
+	seedDiffAt(t, dir, sha)
+	seedThreads(t, dir, sha)
+
+	sc := openReview(t, s, dir, "2")
+	sc.await("testdata/fixture/sample.go")
+	sc.await("the head moved to")
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("the screen exited %d:\n%s", code, sc.text())
+	}
+
+	s.RequireAllPlayed(t)
+}
+
 // Answering a conversation already on the pull request is the second pass this
 // tool exists for. The thread comes from the recording, the reply is written in
 // $EDITOR, and what lands is a comment addressed to a real GitHub comment id.

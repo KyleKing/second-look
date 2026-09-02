@@ -10,6 +10,7 @@ import (
 	"github.com/kyleking/aragonite/forge"
 	"github.com/kyleking/aragonite/forge/github"
 	"github.com/kyleking/aragonite/vcs"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -45,6 +46,11 @@ type Review struct {
 	// against the code the diff describes.
 	Work   string
 	OnHead bool
+	// Unverified marks a review opened from the cache without asking the forge
+	// whether the head still stands. The caller checks behind the first frame:
+	// a warm open reads nothing but local files, and waiting on one API call
+	// was the whole of what it used to cost.
+	Unverified bool
 }
 
 // Open reads a pull request into a review, creating the artifact and caching
@@ -56,6 +62,10 @@ type Review struct {
 // around the change and running it, so where the checkout is standing is
 // reported rather than enforced, and moving it is a key in the screen.
 func Open(ctx context.Context, t Target) (*Review, error) {
+	if opened, ok, err := cached(ctx, t); err != nil || ok {
+		return opened, err
+	}
+
 	pr, err := github.GetPR(ctx, t.Dir(), t.Remote(), t.Number)
 	if err != nil {
 		return nil, fmt.Errorf("reading pull request #%d: %w", t.Number, err)
@@ -76,21 +86,14 @@ func Open(ctx context.Context, t Target) (*Review, error) {
 			ErrStaleReview, short(review.HeadSHA), short(pr.HeadSHA), t.Number)
 	}
 
-	patch, err := patchFor(ctx, t, review.HeadSHA)
+	patch, open, err := fetchBoth(ctx, t, review.HeadSHA)
 	if err != nil {
 		return nil, err
 	}
 
-	open, err := threadsFor(ctx, t, review.HeadSHA)
+	read, seenPath, err := readMarks(t)
 	if err != nil {
 		return nil, err
-	}
-
-	seenPath := seen.Path(t.Store, t.Number)
-
-	read, err := seen.Load(seenPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading what has already been read: %w", err)
 	}
 
 	return &Review{
@@ -98,6 +101,133 @@ func Open(ctx context.Context, t Target) (*Review, error) {
 		Read: read, SeenPath: seenPath, Path: path, HeadSHA: pr.HeadSHA,
 		Work: t.Work, OnHead: standing,
 	}, nil
+}
+
+// cached opens a review out of the artifact tree alone, and reports nil for
+// anything it cannot answer without the network. Everything the screen draws is
+// already on disk once a review has been staged and read once, and the one call
+// that stays is the head check, which the caller runs behind the first frame.
+func cached(ctx context.Context, t Target) (*Review, bool, error) {
+	path := artifact.Path(t.Store, t.Number)
+
+	review, ok := stagedAt(path)
+	if !ok {
+		return nil, false, nil
+	}
+
+	patch, ok := cachedDiff(t.Store, review.HeadSHA)
+	if !ok {
+		return nil, false, nil
+	}
+
+	if !fileExists(artifact.ThreadsPath(t.Store, review.HeadSHA)) {
+		return nil, false, nil
+	}
+
+	var open []threads.Thread
+	if err := artifact.LoadThreads(t.Store, review.HeadSHA, &open); err != nil {
+		return nil, false, fmt.Errorf("reading the cached review threads: %w", err)
+	}
+
+	// The tree is asked where it stands against the head the review was staged
+	// against, which is the head its diff and its anchors belong to.
+	standing, err := onHead(ctx, t, review.HeadSHA)
+	if err != nil {
+		return nil, false, err
+	}
+
+	read, seenPath, err := readMarks(t)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return &Review{
+		Review: review, Diff: diff.Parse(patch), Threads: open,
+		Read: read, SeenPath: seenPath, Path: path, HeadSHA: review.HeadSHA,
+		Work: t.Work, OnHead: standing, Unverified: true,
+	}, true, nil
+}
+
+// stagedAt is the review on disk, reported false where there is none to read or
+// it names no head. Why it could not be read is the slow path's to report.
+func stagedAt(path string) (*artifact.Review, bool) {
+	review, err := artifact.Load(path)
+	if err != nil || review.HeadSHA == "" {
+		return nil, false
+	}
+
+	return review, true
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+
+	return err == nil
+}
+
+func cachedDiff(root, sha string) ([]byte, bool) {
+	patch, err := artifact.LoadDiff(root, sha)
+	if err != nil {
+		return nil, false
+	}
+
+	return patch, true
+}
+
+// fetchBoth reads the diff and the threads at once. They are two calls to the
+// same API that need nothing from each other, and running them one after the
+// other is half the wait a first open costs.
+func fetchBoth(ctx context.Context, t Target, sha string) ([]byte, []threads.Thread, error) {
+	var (
+		patch []byte
+		open  []threads.Thread
+	)
+
+	group, ctx := errgroup.WithContext(ctx)
+
+	group.Go(func() error {
+		var err error
+		patch, err = patchFor(ctx, t, sha)
+
+		return err
+	})
+
+	group.Go(func() error {
+		var err error
+		open, err = threadsFor(ctx, t, sha)
+
+		return err
+	})
+
+	//nolint:wrapcheck // both goroutines return an error this package already wrapped
+	if err := group.Wait(); err != nil {
+		return nil, nil, err
+	}
+
+	return patch, open, nil
+}
+
+func readMarks(t Target) (*seen.Set, string, error) {
+	path := seen.Path(t.Store, t.Number)
+
+	read, err := seen.Load(path)
+	if err != nil {
+		return nil, "", fmt.Errorf("reading what has already been read: %w", err)
+	}
+
+	return read, path, nil
+}
+
+// CurrentHead is the pull request's head as the forge has it now. A review
+// opened from the cache is drawn first and checked with this afterwards, so a
+// head that moved is reported rather than waited for.
+func CurrentHead(ctx context.Context, t Target) (string, error) {
+	pr, err := github.GetPR(ctx, t.Dir(), t.Remote(), t.Number)
+	if err != nil {
+		return "", fmt.Errorf("reading pull request #%d: %w", t.Number, err)
+	}
+
+	return pr.HeadSHA, nil
 }
 
 // threadsFor reads the conversations open on the pull request, fetching them

@@ -70,6 +70,18 @@ func WithSender(send Sender) Option {
 	return func(m *Model) { m.send = send }
 }
 
+// HeadCheck asks the forge what the pull request's head is now. A review opened
+// out of the cache is drawn before anything is asked of the network, and this
+// runs behind the first frame to say whether what is on screen still stands.
+type HeadCheck func(ctx context.Context) (string, error)
+
+// WithHeadCheck verifies the head behind the first frame. Without one the
+// screen makes no claim either way, which is what an open that already checked
+// is.
+func WithHeadCheck(check HeadCheck) Option {
+	return func(m *Model) { m.head = check }
+}
+
 // Opener shows the pull request in a browser. It reads nothing back: what the
 // screen wants is for the page to be open, and whether anyone looked at it is
 // not something a terminal can find out.

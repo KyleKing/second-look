@@ -228,10 +228,22 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 	// as it happens draws over the frame.
 	var log strings.Builder
 
-	out, runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path, submitter(t, opened.Path, &log),
+	opts := []tui.Option{
 		tui.WithThreads(opened.Threads), tui.WithSeen(opened.Read, opened.SeenPath),
 		tui.WithSender(sender(t, opened.Path, &log)), tui.WithTree(tree(opened)),
-		tui.WithMerger(merger(t)), tui.WithStore(t.Store), tui.WithOpener(opener(t)))
+		tui.WithMerger(merger(t)), tui.WithStore(t.Store), tui.WithOpener(opener(t)),
+	}
+
+	// A review read out of the cache reached the screen without asking GitHub
+	// anything, so the screen asks behind the first frame instead.
+	if opened.Unverified {
+		opts = append(opts, tui.WithHeadCheck(func(ctx context.Context) (string, error) {
+			return get.CurrentHead(ctx, t)
+		}))
+	}
+
+	out, runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path,
+		submitter(t, opened.Path, &log), opts...)
 
 	// The log is written either way: a post that failed partway through still
 	// names the endpoints it reached, which is what says whether anything

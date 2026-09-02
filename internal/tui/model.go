@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -58,6 +59,7 @@ type Model struct {
 	submit  Submitter
 	send    Sender
 	merge   Merger
+	head    HeadCheck
 	browser Opener
 	tree    Tree
 
@@ -105,6 +107,11 @@ type Model struct {
 	helpAt int
 	// checkout is C, answered by the caller once the screen has closed.
 	checkout bool
+	// newHead is the head the pull request is on now, set only when it is not
+	// the one this review was staged against. The title says so for as long as
+	// the screen is open, because everything drawn under it belongs to the
+	// older diff.
+	newHead string
 	// failure is the last submit that did not post, cleared by one that does.
 	// The screen leaves through it, so a run that failed to post says so on
 	// stdout and in the exit code rather than only in a footer nobody kept.
@@ -162,11 +169,62 @@ func (m *Model) Init() tea.Cmd {
 	// The pass costs a subprocess per hunk side, so it runs behind the first
 	// frame rather than in front of it: the rating appears when it is ready and
 	// t is a redraw by the time anyone presses it.
-	if !structure.Available() {
+	cmds := []tea.Cmd{m.checkHead()}
+	if structure.Available() {
+		cmds = append(cmds, readStructure(m.diff))
+	}
+
+	return tea.Batch(cmds...)
+}
+
+// checkHead asks what the head is now, behind the first frame. It is what makes
+// opening a staged review cost no network at all: the screen draws from the
+// cache and this says afterwards whether the cache still stands.
+func (m *Model) checkHead() tea.Cmd {
+	if m.head == nil {
 		return nil
 	}
 
-	return readStructure(m.diff)
+	ctx, want := m.ctx, m.review.HeadSHA
+
+	return func() tea.Msg {
+		sha, err := m.head(ctx)
+
+		return headMsg{sha: sha, want: want, err: err}
+	}
+}
+
+// short is a commit at the length a person reads.
+func short(sha string) string {
+	const n = 7
+	if len(sha) <= n {
+		return sha
+	}
+
+	return sha[:n]
+}
+
+// headMsg is what the head check answered.
+type headMsg struct {
+	sha  string
+	want string
+	err  error
+}
+
+// applyHead reports a head that moved and says nothing about one that did not.
+// A check that failed is reported once: the network is not the review's
+// problem, and the diff on screen is as good as it was before the question.
+func (m *Model) applyHead(msg headMsg) {
+	switch {
+	case msg.err != nil:
+		m.say("could not check the head: "+msg.err.Error(), true)
+	case msg.sha == "" || msg.sha == msg.want:
+		return
+	default:
+		m.newHead = msg.sha
+		m.say("the head moved to "+short(msg.sha)+"; this diff is the older one, second-look get "+
+			strconv.Itoa(m.review.Number)+" restages it", true)
+	}
 }
 
 // field names which half of a comment an edit came back for. The note is local
@@ -245,6 +303,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if asked {
 			m.setFold(foldCosmetic)
 		}
+
+		return m, nil
+	case headMsg:
+		m.applyHead(msg)
 
 		return m, nil
 	case mergedMsg:

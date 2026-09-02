@@ -13,6 +13,7 @@ import (
 	"github.com/kyleking/aragonite/forge"
 	"github.com/kyleking/aragonite/forge/github"
 	"github.com/kyleking/aragonite/vcs"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -53,15 +54,15 @@ func Run(ctx context.Context, out io.Writer, t Target) error {
 		}
 	}
 
-	patch, err := github.PRDiff(ctx, t.Dir(), t.Remote(), t.Number)
-	if err != nil {
-		return fmt.Errorf("caching the diff: %w", err)
-	}
-	if err := artifact.SaveDiff(t.Store, pr.HeadSHA, patch); err != nil {
-		return fmt.Errorf("caching the diff: %w", err)
-	}
+	// The diff and the threads are two calls to the same API that need nothing
+	// from each other, so they run at once rather than one after the other.
+	group, fetch := errgroup.WithContext(ctx)
 
-	if err := cacheThreads(ctx, out, t, pr.HeadSHA); err != nil {
+	group.Go(func() error { return cacheDiff(fetch, t, pr.HeadSHA) })
+	group.Go(func() error { return cacheThreads(fetch, out, t, pr.HeadSHA) })
+
+	//nolint:wrapcheck // both goroutines return an error this package already wrapped
+	if err := group.Wait(); err != nil {
 		return err
 	}
 
@@ -92,6 +93,19 @@ func sweep(out io.Writer, root string) error {
 	}
 
 	return say(out, fmt.Sprintf("cleared %s cached against an older head\n", humanize.Plural(n, "file")))
+}
+
+func cacheDiff(ctx context.Context, t Target, sha string) error {
+	patch, err := github.PRDiff(ctx, t.Dir(), t.Remote(), t.Number)
+	if err != nil {
+		return fmt.Errorf("caching the diff: %w", err)
+	}
+
+	if err := artifact.SaveDiff(t.Store, sha, patch); err != nil {
+		return fmt.Errorf("caching the diff: %w", err)
+	}
+
+	return nil
 }
 
 // cacheThreads reads the conversations already open on the pull request, so a
