@@ -1,3 +1,62 @@
+## v0.5.0 (2026-09-02)
+
+### Feat
+
+- **inbox**: order a long queue by what each diff costs to read
+- **tui**: wrap a list under its own text and set the review's note apart
+- **tui**: repeat a chord with .
+- **reviews**: discard a staged review and collect what nothing needs
+- **tui**: keep an edit that was left unfinished
+- **tui**: keep the file name in the title once its heading scrolls off
+- **tui**: write a comment on the line under the cursor with a
+- **tui**: make a draft ready when its edit is saved
+- **tui**: open notes by default, and fold a removal open where it stands
+- **tui**: put the three queues in one screen as tabs
+- **reviews**: group a stack of pull requests in the order it reads
+- **tui**: show where the frame sits and which comment the cursor is on
+- **tui**: open the pull request with o, and name what a submit posts as
+- **inbox**: order a bucket for triage rather than by recency
+- submit as an approval, and fill the queue in as it answers
+- **tui**: narrow a queue with /
+- **tui**: peek in the queues too, and record what the pass landed
+- hold staged comments as drafts, mark the cursor with a bar, and peek
+- **tui**: show the code alone as a third view
+- **tui**: fold a file, a hunk, or a note, and bracket the keys
+- **tui**: write a comment where it sits
+- **tui**: give a comment a shape, and put its state behind a chord
+- **rate**: rate a change by what its symbols and capabilities did
+- **tui**: hide hunks that change no code, not just no whitespace
+- **inbox**: run the sections a config names, and act on a row
+- **inbox**: open a review from the queue on screen
+- **review**: read, answer, and post a review with no checkout
+- **threads**: find the clone that can answer a cross-repo conversation
+- **threads**: thumbs-up everything R marks dealt with
+- **get**: offer to stash before moving the checkout onto a pull request
+- **tui**: read and answer conversations from a queue screen
+- **reviews**: list what is staged under .second-look
+- **threads**: queue the conversations that moved since you looked
+
+### Fix
+
+- **tui**: key a question comment to ?, since q cancels every chord
+- **tui**: count the comment under the cursor in the order it is drawn
+- open the browser on o instead of printing the URL into the alt screen
+- **tui**: keep the identifying end of a row, and say which section it is in
+- **get**: cache the open threads when a review is opened without a get
+- **inbox**: report a broken config on stderr so --json stays parsable
+- **threads**: review from the API when no dashboard can name a clone
+- **inbox**: drop the unread dot that only restated the bucket
+
+### Refactor
+
+- **rate**: make the structural pass over a diff in one place
+- **tui**: take keyhint from aragonite v0.8.0
+- **test**: replay gh through aragonite ghcassette
+
+### Perf
+
+- **review**: draw a staged review from the cache and check the head behind it
+
 ## v0.4.0 (2026-09-01)
 
 ### Feat
