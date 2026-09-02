@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/forge/github"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/cost"
@@ -66,6 +67,18 @@ type inboxScreen struct {
 	// reading them, since two would each take a message and re-issue.
 	pending   int
 	listening bool
+	// budget is what is left of GitHub's hourly allowance, nil until the read
+	// answers, and queued is the rows waiting on that answer. Rating is the one
+	// thing here that makes a burst of reads nobody asked for, so it asks what
+	// it can afford before it starts.
+	budget *github.Allowance
+	queued []inbox.PullRequest
+	// spent is what this run has already committed of the allowance.
+	spent int
+	// short marks a run that left rows unrated because the hourly allowance
+	// would not cover them, which is a different thing from a diff that could
+	// not be read and wants saying differently.
+	short bool
 	// unread counts the rows whose diff could not be fetched, which is what a
 	// rate limit or a dropped connection looks like. Saying so beats a queue
 	// that quietly orders itself by age and looks like it never tried.
@@ -203,10 +216,19 @@ func (s *inboxScreen) Start() tea.Cmd {
 	s.waiting = len(s.buckets)
 	s.armed = ""
 	s.pending, s.listening, s.unread = 0, false, 0
+	s.budget, s.queued, s.spent, s.short = nil, nil, 0, false
 	s.rated = make(chan costMsg, ratingBuffer)
 	s.slots = make(chan struct{}, howManyAtOnce)
 
-	cmds := make([]tea.Cmd, 0, len(s.buckets))
+	cmds := make([]tea.Cmd, 0, len(s.buckets)+1)
+
+	// The allowance is read alongside the searches rather than before them: it
+	// is free and it answers faster than any of them, so nothing waits for it.
+	cmds = append(cmds, func() tea.Msg {
+		budget, err := github.Budgets(s.ctx, ".")
+
+		return budgetMsg{left: budget.Core, err: err}
+	})
 
 	for i := range s.buckets {
 		at, want := i, s.buckets[i]
@@ -229,6 +251,8 @@ func (s *inboxScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
 	switch answered := msg.(type) {
 	case bucketMsg:
 		return s.absorbBucket(answered), true
+	case budgetMsg:
+		return s.absorbBudget(answered), true
 	case costMsg:
 		return s.absorbCost(answered), true
 	}
@@ -313,14 +337,62 @@ func (s *inboxScreen) rate(items []inbox.PullRequest) tea.Cmd {
 		return nil
 	}
 
+	s.queued = append(s.queued, items...)
+
+	return s.spend()
+}
+
+// budgetMsg is what is left of the hourly allowance a rating spends.
+type budgetMsg struct {
+	left github.Allowance
+	err  error
+}
+
+// absorbBudget releases whatever was waiting on the answer. A read that failed
+// is not a reason to leave a queue unordered, so the burst goes ahead: the
+// worst it can do is what it did before anything asked.
+func (s *inboxScreen) absorbBudget(answered budgetMsg) tea.Cmd {
+	left := answered.left
+	if answered.err != nil {
+		left = github.Allowance{Limit: -1, Remaining: -1}
+	}
+
+	s.budget = &left
+
+	return s.spend()
+}
+
+// spend starts the rows the allowance can pay for. Nothing runs until the
+// allowance has answered, since a burst is the one thing here worth holding a
+// second for.
+//
+// The pool has to cover the burst twice over, so the queue never spends more
+// than half of what is left. Ordering a queue is what leads to opening the
+// reviews in it, and those are reads too: a queue ordered perfectly by a pool
+// with nothing left in it has spent the budget on the index and none on the
+// book.
+func (s *inboxScreen) spend() tea.Cmd {
+	if s.budget == nil || len(s.queued) == 0 {
+		return nil
+	}
+
+	want := s.queued
+	s.queued = nil
+
 	started := 0
 
-	for i := range items {
-		p := items[i]
+	for i := range want {
+		p := want[i]
 
 		key := artifact.RatingKey(p.Repository, p.Number)
 		if s.local[key].Rated || s.asked[key] {
 			continue
+		}
+
+		if !s.affords(started + 1) {
+			s.short = true
+
+			break
 		}
 
 		started++
@@ -329,6 +401,7 @@ func (s *inboxScreen) rate(items []inbox.PullRequest) tea.Cmd {
 	}
 
 	s.pending += started
+	s.spent += started
 
 	if started == 0 || s.listening {
 		return nil
@@ -337,6 +410,23 @@ func (s *inboxScreen) rate(items []inbox.PullRequest) tea.Cmd {
 	s.listening = true
 
 	return s.listen()
+}
+
+// keepBack is how much of the allowance the queue leaves for what ordering it
+// leads to. Spending at most half means the reviews the order names are still
+// affordable: a queue sorted perfectly by an exhausted pool spent the budget on
+// the index and none of it on the book.
+const keepBack = 2
+
+// affords reports whether the allowance covers n more reads with as much again
+// left over. An allowance nobody could read covers everything, which is what
+// the queue did before it asked.
+func (s *inboxScreen) affords(n int) bool {
+	if s.budget.Remaining < 0 {
+		return true
+	}
+
+	return s.budget.Covers(keepBack * (s.spent + n))
 }
 
 func (s *inboxScreen) rateOne(key string, p inbox.PullRequest) {
@@ -416,6 +506,10 @@ func (s *inboxScreen) counts() string {
 		return humanize.Plural(s.pending, "row") + " still being rated"
 	}
 
+	if s.short {
+		return s.budgetWord()
+	}
+
 	if s.unread > 0 {
 		return humanize.Plural(s.unread, "row") + " could not be rated"
 	}
@@ -446,6 +540,21 @@ func (s *inboxScreen) counts() string {
 	}
 
 	return out + " · " + humanize.Plural(failed, "search", "searches") + " failed"
+}
+
+// budgetWord says why the order stopped where it did, and when it can be
+// finished, since the reader can do nothing about it until then.
+func (s *inboxScreen) budgetWord() string {
+	out := "rated what the GitHub allowance covered"
+	if s.budget == nil {
+		return out
+	}
+
+	if wait := s.budget.In(time.Now()); wait > 0 {
+		out += fmt.Sprintf("; %d reads left, more in %dm", s.budget.Remaining, int(wait.Minutes())+1)
+	}
+
+	return out
 }
 
 func (s *inboxScreen) sections() []tui.Section {

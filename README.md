@@ -41,6 +41,12 @@ disk and only a pull request pushed to since is read again. A diff no grammar an
 (a lockfile, a directory of YAML) is recorded as read all the same, and one that could not
 be fetched at all is not, so a rate limit costs the order rather than the cache. A bucket
 short enough to read at a glance is left alone, because a read per row buys nothing there.
+
+Before any of it runs, the queue asks GitHub what is left of the hour's allowance, which is
+a read GitHub does not charge for. It spends at most half of what remains: ordering a queue
+is what leads to opening the reviews in it, and those are reads too, so a queue sorted
+perfectly by an exhausted allowance has spent the budget on the index and none on the book.
+Where it stops short the header says so and when more arrives.
 The other thing a reviewer would want and cannot have for free is whether they are the
 only human asked: `gh search prs` does not say. `/` narrows any of the queues to the rows carrying a word, matching the repository, the
 author, the title, and the line last said, with the header saying how many are held back.

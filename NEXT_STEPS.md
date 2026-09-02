@@ -574,6 +574,19 @@ The threshold is the reason the rating exists: recency orders a screenful well e
 a bucket a reader can see all of at once is left in the order its search answered rather
 than costing an API read per row.
 
+The allowance guard is the other half, and it lives in aragonite as `github.Budgets`
+because gh-sweep and gh-repo-dashboard burst the same way. It reads what is left of each
+pool (core, GraphQL, and search are separate allowances) through `gh api rate_limit`, which
+GitHub does not charge against the limit, so a burst can ask whether it is affordable
+rather than firing and reporting the wreckage. The queue spends at most half of what is
+left, since opening the reviews it just ordered costs reads too.
+
+GraphQL is worth naming as the pool that stays untouched while core empties, and it cannot
+take this work: `pullRequest.files` answers path, additions, deletions, and changeType, and
+no patch text, which the structural rating needs. It would carry a size-only order, which
+is worse than the rating and better than age, if the core pool ever turns out to be the
+binding constraint in practice.
+
 Capability classes are read off the callee's name rather than resolved, so a local named
 `exec` counts and an aliased call does not. Its honest meaning is "a new capability visible
 to syntax", which requirements.md already states and which still separates the changes

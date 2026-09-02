@@ -89,12 +89,29 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	sc.wait()
 }
 
+// onScreen is the inbox recording plus the one call the screen makes and the
+// listing does not: before rating anything the queue reads what is left of the
+// hourly allowance, and that read is free.
+func onScreen(t *testing.T) *ghcassette.Cassette {
+	t.Helper()
+
+	c := load(t, "inbox")
+	c.Interactions = append(c.Interactions, ghcassette.Interaction{
+		Args: []string{"api", "rate_limit"},
+		Stdout: `{"resources":{"core":{"limit":5000,"remaining":4900,"reset":1788400000},` +
+			`"graphql":{"limit":5000,"remaining":5000,"reset":1788400000},` +
+			`"search":{"limit":30,"remaining":30,"reset":1788400000}}}`,
+	})
+
+	return c
+}
+
 // inboxThenReview is the three searches, then what opening the first row costs,
 // addressed to the pull request that row names.
 func inboxThenReview(t *testing.T) string {
 	t.Helper()
 
-	c := load(t, "inbox")
+	c := onScreen(t)
 	recorded := load(t, "post-review")
 
 	opening := make([]ghcassette.Interaction, 0, reads+1)
@@ -148,7 +165,7 @@ func TestInboxScreenApprovesOnTheSecondPress(t *testing.T) {
 func withApprove(t *testing.T) string {
 	t.Helper()
 
-	c := load(t, "inbox")
+	c := onScreen(t)
 	c.Interactions = append(c.Interactions, ghcassette.Interaction{
 		Args: []string{"pr", "review", "100", "--repo", "kyleking/aragonite", "--approve"},
 	})
@@ -208,7 +225,7 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 func withComment(t *testing.T, body string) string {
 	t.Helper()
 
-	c := load(t, "inbox")
+	c := onScreen(t)
 	searches := c.Interactions
 
 	c.Interactions = append(append([]ghcassette.Interaction{}, searches...), ghcassette.Interaction{
