@@ -17,6 +17,7 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/humanize"
+	"github.com/kyleking/second-look/internal/prepared"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -69,7 +70,28 @@ func Run(ctx context.Context, out io.Writer, t Target) error {
 		return err
 	}
 
-	return carryRead(out, t.Store, t.Number, previous, pr.HeadSHA)
+	if err := carryRead(out, t.Store, t.Number, previous, pr.HeadSHA); err != nil {
+		return err
+	}
+
+	return sweep(out, t.Store)
+}
+
+// sweep clears the diff, threads, and rating cached against a head no staged
+// review is pinned to any more. A pull request pushed to a dozen times would
+// otherwise leave a dozen copies of its diff behind, and nothing else collects
+// them.
+func sweep(out io.Writer, root string) error {
+	n, err := prepared.Sweep(root)
+	if err != nil {
+		return fmt.Errorf("clearing the caches of older heads: %w", err)
+	}
+
+	if n == 0 {
+		return nil
+	}
+
+	return say(out, fmt.Sprintf("cleared %s cached against an older head\n", humanize.Plural(n, "file")))
 }
 
 // cacheThreads reads the conversations already open on the pull request, so a

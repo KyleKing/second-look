@@ -95,7 +95,7 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer)
 	case tui.ActComment:
 		err = commentOn(ctx, h.at, stdout)
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActRefresh, tui.ActApprove:
+		tui.ActRefresh, tui.ActApprove, tui.ActDiscard:
 		return nil
 	}
 
@@ -356,7 +356,7 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return "opened " + row.Key, false, nil
 	case tui.ActRefresh:
 		return "", false, nil
-	case tui.ActMark, tui.ActReply, tui.ActResolve:
+	case tui.ActMark, tui.ActReply, tui.ActResolve, tui.ActDiscard:
 		return "", false, errNotInInbox
 	}
 
@@ -372,7 +372,7 @@ func leaving(a tui.Action) string {
 	case tui.ActComment:
 		return "commenting on"
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActRefresh, tui.ActApprove:
+		tui.ActRefresh, tui.ActApprove, tui.ActDiscard:
 	}
 
 	return "opening"

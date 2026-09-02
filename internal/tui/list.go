@@ -68,6 +68,9 @@ const (
 	// ActApprove is A: approve the row's pull request. The caller decides what
 	// ceremony that takes, since this screen sends nothing itself.
 	ActApprove
+	// ActDiscard is d: throw the row's local state away. The screen asks
+	// nothing first, so a caller that cannot undo it confirms its own way.
+	ActDiscard
 )
 
 // Act performs an action on a row. What it returns is the one line the footer
@@ -88,6 +91,7 @@ type listKeys struct {
 	Checkout key.Binding
 	Comment  key.Binding
 	Approve  key.Binding
+	Discard  key.Binding
 }
 
 func defaultListKeys() listKeys {
@@ -103,6 +107,7 @@ func defaultListKeys() listKeys {
 		Checkout: key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
 		Comment:  key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "comment")),
 		Approve:  key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "approve")),
+		Discard:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "discard")),
 	}
 }
 
@@ -400,6 +405,7 @@ func (l *List) perform(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		{l.list.Checkout, ActCheckout},
 		{l.list.Comment, ActComment},
 		{l.list.Approve, ActApprove},
+		{l.list.Discard, ActDiscard},
 	} {
 		if key.Matches(msg, m.binding) {
 			return l.run(m.action, row)

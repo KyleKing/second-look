@@ -138,6 +138,18 @@ func TestReviewsScreen(t *testing.T) {
 	sc.press("\r")
 	sc.await("cannot be read")
 
+	// d asks first, because what it deletes never posted and is the only copy.
+	at := sc.mark()
+
+	sc.press("d")
+	sc.awaitFrom(at, "d again to discard")
+	sc.press("d")
+	sc.awaitFrom(at, "#9; 1 staged · 1 blocked")
+
+	if _, err := os.Stat(filepath.Join(dir, ".second-look", "pr-9.toml")); !os.IsNotExist(err) {
+		t.Errorf("the discarded review is still on disk: %v", err)
+	}
+
 	sc.press("q")
 
 	if code := sc.wait(); code != 0 {

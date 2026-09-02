@@ -117,7 +117,8 @@ with 77 rows where 13 were real.
 `second-look reviews` lists what is staged under `.second-look/`, newest first: this
 checkout's, then the ones staged with no checkout of their repository at all. `enter`
 opens one. Everything it lists is unfinished, because the artifact is deleted the moment a
-review posts.
+review posts. `d`, twice, throws one away along with the diff, threads, rating, and read
+marks kept for it.
 
 A pull request based on another one staged here is a stack, and the two are grouped
 together with the bottom first, which is the order they read in: a diff against changes

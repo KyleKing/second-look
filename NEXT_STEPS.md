@@ -54,23 +54,27 @@ server. `filter/` and `tui/table` are already named for extraction there, and th
 request cache is the next thing that wants to move, since both tools now ask GitHub the
 same questions.
 
-## The screens are hard to read — mostly done
+## The screens are hard to read — done
 
 All of it came out of driving the built binary rather than reading the code,
-which is why none of it showed up in a test. What is left needs more than a
-rendering change.
-
-### Still open
-
-**Nothing discards a staged review.** `second-look reviews` lists what is on disk and
-opens it, and the only way to be rid of one is `rm -r` on the directory it lives in. A
-review prepared from outside a checkout lives under the user config directory, so it is
-listed from every working directory on this laptop until somebody deletes it by hand,
-which is how an empty artifact from a verification run turns up in an unrelated repository
-weeks later. It wants a key on that screen, a confirmation, and a message naming the
-directory it removed.
+which is why none of it showed up in a test.
 
 ### Done
+
+**A staged review can be discarded.** `d` on `second-look reviews`, twice, removes the
+artifact along with the read marks and every cache keyed to its head. Until then the only
+way to be rid of one was `rm -r` on the directory it lives in, which is how an empty
+artifact from a verification run turned up in an unrelated repository weeks later: a
+review prepared outside a checkout lives under the user config directory and lists from
+every working directory on this laptop.
+
+**Nothing collected the caches keyed by head commit.** The diff, the threads, and the
+rating are keyed by the commit their line numbers belong to, and a pull request pushed to
+a dozen times kept a dozen of each forever, because posting removed the artifact alone and
+merging removed nothing. `second-look get` now sweeps every one no staged review is
+pinned to, and posting, discarding, and merging take that review's own with them. A file
+that will not parse stops the sweep, since its head is unknown and the diff a hand repair
+needs could be any of them.
 
 **An edit left unfinished is offered back.** The editor threw its buffer away on escape,
 so a long comment half written was gone with the keystroke that left it. It is written

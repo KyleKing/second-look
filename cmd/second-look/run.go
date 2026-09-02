@@ -308,6 +308,12 @@ func merger(t get.Target) tui.Merger {
 			return "", fmt.Errorf("merging #%d: %w", r.Number, err)
 		}
 
+		// A merged pull request cannot be reviewed again, so what is staged for
+		// it is dead weight rather than unfinished work.
+		if err := prepared.DiscardAt(t.Store, r.Number); err != nil {
+			return "", fmt.Errorf("merged #%d, and clearing what was staged for it: %w", r.Number, err)
+		}
+
 		return fmt.Sprintf("merged %s/%s #%d", r.Owner, r.Repo, r.Number), nil
 	}
 }

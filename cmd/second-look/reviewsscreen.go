@@ -29,14 +29,20 @@ type reviewsScreen struct {
 	ctx  context.Context //nolint:containedctx // it bounds the reread a refresh makes
 	rows []prepared.Review
 	open *ref
+	// armed is the row d was pressed on. Discarding is the one thing here that
+	// deletes work, and every comment staged in the row goes with it.
+	armed string
 }
 
 // reviewsHints is the footer, which advertises only the keys this screen offers.
-var reviewsHints = [][2]string{{enterKey, "open"}, {refreshKey, "refresh"}, {"?", helpArg}}
+var reviewsHints = [][2]string{
+	{enterKey, "open"}, {"d", "discard"}, {refreshKey, "refresh"}, {"?", helpArg},
+}
 
 var reviewsHelp = helpFor(helpMove(), [][2]string{
 	{enterKey, "open the review screen for it"},
 	{"/", "narrow to the rows carrying a word; esc puts them back"},
+	{"d", "throw the review away with everything cached for it; d again confirms"},
 	{refreshKey, "read the directory again"},
 }, helpLeave(), prose(
 	"blocked means a comment is still a draft, which stops the submit.",
@@ -137,9 +143,15 @@ func holds(r *prepared.Review) string {
 }
 
 func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
+	if a != tui.ActDiscard {
+		s.armed = ""
+	}
+
 	switch a {
 	case tui.ActChoose:
 		return s.choose(row.Key)
+	case tui.ActDiscard:
+		return s.discard(row.Key)
 	case tui.ActRefresh:
 		rows, err := staged()
 		if err != nil {
@@ -155,6 +167,35 @@ func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 	}
 
 	return "", false, nil
+}
+
+// discard takes the key twice, and throws away the staged review along with the
+// diff, threads, rating, and read marks kept for it. Nothing here posted, so
+// what goes is the only copy.
+func (s *reviewsScreen) discard(key string) (string, bool, error) {
+	if s.armed != key {
+		s.armed = key
+
+		return "d again to discard " + key + " and everything cached for it", false, nil
+	}
+
+	s.armed = ""
+
+	for i := range s.rows {
+		if s.rows[i].Where() != key {
+			continue
+		}
+
+		if err := prepared.Discard(&s.rows[i]); err != nil {
+			return "", false, fmt.Errorf("discarding %s: %w", key, err)
+		}
+
+		s.rows = append(s.rows[:i], s.rows[i+1:]...)
+
+		return "discarded " + key + "; " + s.counts(), false, nil
+	}
+
+	return "", false, fmt.Errorf("%w: %s", errUnknownRow, key)
 }
 
 // The keys another list screen offers and this one does not. Saying so beats a

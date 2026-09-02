@@ -944,7 +944,7 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// back. One keystroke after a successful post would recreate the file that
 	// was deleted to stop `second-look post` from publishing a second copy.
 	if m.settled() && m.changes(msg) {
-		m.say("already posted; GitHub has this review now", false)
+		m.say(m.closedWord(), false)
 
 		return m, nil
 	}
@@ -984,6 +984,16 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// closedWord says why a change was refused, since a merged pull request and a
+// posted review are two different endings.
+func (m *Model) closedWord() string {
+	if m.merged {
+		return "already merged; nothing more is staged for this pull request"
+	}
+
+	return "already posted; GitHub has this review now"
 }
 
 // changes reports whether a key writes to the prepared review.
@@ -1613,7 +1623,10 @@ func (m *Model) focus(index int) bool {
 	return false
 }
 
-func (m *Model) settled() bool { return m.posted || m.posting }
+// settled reports a review nothing may write back to: it has posted, is
+// posting, or its pull request has merged, and each of those removed the file
+// on disk or is about to.
+func (m *Model) settled() bool { return m.posted || m.posting || m.merged }
 
 func (m *Model) applySubmit(msg submittedMsg) {
 	m.posting, m.failure = false, msg.err

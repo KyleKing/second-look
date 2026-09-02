@@ -10,13 +10,18 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/kyleking/aragonite/forge/github"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/prepared"
 )
+
+// rootOf is the checkout or state directory a prepared review is staged under.
+func rootOf(path string) string { return filepath.Dir(filepath.Dir(path)) }
 
 // ErrHeadMoved reports a pull request whose head advanced since the review
 // was prepared.
@@ -106,9 +111,15 @@ func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.
 	}
 
 	// GitHub is the source of truth from here, and a prepared review left on
-	// disk would post a second copy of itself if anyone ran post again.
+	// disk would post a second copy of itself if anyone ran post again. What was
+	// cached against the head goes with it, and the read marks stay: a second
+	// pass over the same pull request still knows which hunks were read.
 	if err := os.Remove(path); err != nil {
 		return fmt.Errorf("the review posted; removing %s: %w", path, err)
+	}
+
+	if _, err := prepared.Sweep(rootOf(path)); err != nil {
+		return fmt.Errorf("the review posted; clearing its caches: %w", err)
 	}
 
 	return write(out, "removed "+path+"\n")

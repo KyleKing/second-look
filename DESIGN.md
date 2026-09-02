@@ -68,6 +68,12 @@ directory, one directory per host, owner, and name, because the queue spans repo
 and a review filed into whichever checkout happened to be open would be lost to every
 other one.
 
+The diff, the threads, and the rating are keyed by head commit, so a pull request pushed
+to a dozen times would leave a dozen copies of each. `second-look get` clears every one no
+staged review is pinned to, and posting, discarding, and merging take that review's own
+with them. A file that will not parse stops the sweep: its head is unknown, so the diff a
+hand repair needs could be any of them.
+
 The CLI is the agent's interface. `--help` prints every subcommand, the JSON shapes each
 accepts and emits, and the errors each raises, so Claude Code can drive the tool with no
 other documentation. `-h` prints the short form for a human who forgot a flag.
