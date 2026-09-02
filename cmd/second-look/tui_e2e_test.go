@@ -272,6 +272,12 @@ func TestReviewScreenFetchesThreadsWithoutAGet(t *testing.T) {
 	seedReview(t, dir, sha)
 
 	sc := openReview(t, s, dir, "2")
+	sc.await("testdata/fixture/sample.go")
+
+	// ]t is what puts the thread on screen. Whether it fits under the review's
+	// own prose depends on how much of that there is, which is not what this
+	// test is about.
+	sc.press("]t")
 	sc.await("open thread")
 	sc.press("q")
 
@@ -332,11 +338,12 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 	}
 
 	sc := openReview(t, s, dir, "EDITOR="+editor, "2")
-	sc.await("open thread")
+	sc.await("testdata/fixture/sample.go")
 
 	// ]t names the thread; e opens the editor in the frame, and ctrl+e hands
 	// what is in it to $EDITOR, which is the path this fixture's script drives.
 	sc.press("]t")
+	sc.await("open thread")
 	sc.press("e")
 	sc.await("ctrl+s save")
 	sc.press("\x05")

@@ -54,6 +54,38 @@ func TestFrames(t *testing.T) {
 	}
 }
 
+// The review's own prose opens the screen and is the block a real review has
+// most of. What is pinned here is that a list wraps under its own text rather
+// than under its marker, that an indent survives, and that the note is a block
+// of its own rather than more of the body.
+func TestReviewProseFrames(t *testing.T) {
+	t.Parallel()
+
+	body := "Picking up the review. I checked production and:\n\n" +
+		"1. Across 177 live asks, seven orgs carry an id owned by another org, " +
+		"which is the case this change is for\n" +
+		"2. The org in the ticket has none of it: no cross-org pointer, no duplicate ask\n" +
+		"- it does have two live questionnaires sharing a name"
+	note := "PROD EVIDENCE (read-only). The orgs named here are real.\n\n" +
+		"- 177 live asks across 7 orgs carry an id owned by a different org, and the " +
+		"template asks do the same\n" +
+		"    - every pair of them matches a fork run, so the fork is the source"
+
+	for _, width := range []int{80, 120} {
+		t.Run(fmt.Sprintf("prose/%d", width), func(t *testing.T) {
+			t.Parallel()
+
+			m, _, _ := modelFor(t, &artifact.Review{
+				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+				HeadSHA: "a1b2c3d", Event: artifact.EventComment, Body: body, Note: note,
+			}, patch)
+			m.Update(tea.WindowSizeMsg{Width: width, Height: 24})
+
+			golden.RequireEqual(t, []byte(plain(m.Frame())))
+		})
+	}
+}
+
 // triaged is a review in every state the screen can show: one comment ready to
 // post, one still a draft, and one skipped with its reason.
 func triaged(t *testing.T) *tui.Model {

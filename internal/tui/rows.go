@@ -469,6 +469,11 @@ func numberWidth(d *diff.Diff) int {
 // left to be truncated: a sentence in a script that puts no spaces between its
 // words is one word, and dropping all but the first line of it loses the
 // comment.
+//
+// A line's own indent is kept, and a line that opens a list item is wrapped
+// under its text rather than under its marker, so where one item ends and the
+// next begins survives the wrap. An agent writes in lists and a review read
+// back as one paragraph is a review nobody finds the second finding in.
 func wrap(text string, width int) []string {
 	if text == "" {
 		return nil
@@ -479,34 +484,81 @@ func wrap(text string, width int) []string {
 	}
 
 	var out []string
-
 	for _, para := range strings.Split(text, "\n") {
-		line := ""
-
-		for _, word := range strings.Fields(para) {
-			switch {
-			case line == "":
-				line = word
-			case textWidth(line)+1+textWidth(word) <= width:
-				line += " " + word
-
-				continue
-			default:
-				out = append(out, line)
-				line = word
-			}
-
-			if textWidth(line) > width {
-				chunks := split(line, width)
-				out = append(out, chunks[:len(chunks)-1]...)
-				line = chunks[len(chunks)-1]
-			}
-		}
-
-		out = append(out, line)
+		out = append(out, wrapLine(para, width)...)
 	}
 
 	return out
+}
+
+func wrapLine(para string, width int) []string {
+	body := strings.TrimLeft(para, " \t")
+	lead := strings.Repeat(" ", textWidth(strings.ReplaceAll(para[:len(para)-len(body)], "\t", "    ")))
+	pad := lead + strings.Repeat(" ", marker(body))
+	avail := max(1, width-textWidth(pad))
+
+	var (
+		out  []string
+		line string
+	)
+
+	for _, word := range strings.Fields(body) {
+		switch {
+		case line == "":
+			line = word
+		case textWidth(line)+1+textWidth(word) <= avail:
+			line += " " + word
+
+			continue
+		default:
+			out = append(out, line)
+			line = word
+		}
+
+		if textWidth(line) > avail {
+			chunks := split(line, avail)
+			out = append(out, chunks[:len(chunks)-1]...)
+			line = chunks[len(chunks)-1]
+		}
+	}
+
+	out = append(out, line)
+
+	for i := range out {
+		if i == 0 {
+			out[i] = lead + out[i]
+
+			continue
+		}
+
+		out[i] = pad + out[i]
+	}
+
+	return out
+}
+
+// bulletWidth is the marker and the space after it, which is what a bullet or a
+// single-digit number costs.
+const bulletWidth = 2
+
+// marker is how wide the list marker opening a line is, and zero for a line
+// that opens no list. The bullets are the ones an agent writes in markdown.
+func marker(body string) int {
+	if len(body) > 1 && strings.ContainsRune("-*+", rune(body[0])) && body[1] == ' ' {
+		return bulletWidth
+	}
+
+	digits := 0
+	for digits < len(body) && body[digits] >= '0' && body[digits] <= '9' {
+		digits++
+	}
+
+	if digits == 0 || digits+1 >= len(body) ||
+		(body[digits] != '.' && body[digits] != ')') || body[digits+1] != ' ' {
+		return 0
+	}
+
+	return digits + bulletWidth
 }
 
 // split breaks one over-wide word into frame-sized pieces, measured in cells so

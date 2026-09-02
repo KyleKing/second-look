@@ -404,7 +404,9 @@ func (m *Model) commentRow(r row) (string, lipgloss.Style) {
 	case !r.head:
 		return text, m.styles.body
 	case r.comment < 0:
-		return text, m.styles.rail
+		// The review's own labels are the only headings inside the rail, so
+		// they carry the weight that says a block starts here.
+		return text, m.styles.rail.Bold(true)
 	}
 
 	return text, m.styles.forSeverity(m.review.Comments[r.comment].Severity)

@@ -63,12 +63,16 @@ func fixture(t *testing.T, cs ...artifact.Comment) (*tui.Model, string) {
 func fixtureWith(t *testing.T, patch string, cs ...artifact.Comment) (*tui.Model, string, *counter) {
 	t.Helper()
 
-	sub := &counter{}
-
-	r := &artifact.Review{
+	return modelFor(t, &artifact.Review{
 		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
 		HeadSHA: "a1b2c3d", Event: artifact.EventComment, Comments: cs,
-	}
+	}, patch)
+}
+
+func modelFor(t *testing.T, r *artifact.Review, patch string) (*tui.Model, string, *counter) {
+	t.Helper()
+
+	sub := &counter{}
 
 	path := filepath.Join(t.TempDir(), "pr-42.toml")
 	if err := artifact.Save(path, r); err != nil {

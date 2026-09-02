@@ -85,14 +85,19 @@ func header(r *artifact.Review, lay layout, numWidth int) []row {
 
 	avail := proseCols(lay.width, numWidth)
 
-	return append(
-		prose(reviewBody, "REVIEW BODY", r.Body, avail, lay),
-		prose(reviewNote, "REVIEW NOTE", r.Note, avail, lay)...,
-	)
+	// The two blocks are separated, because a note that opens where a body ended
+	// reads as more of the body. The gap keeps the rail, so the review's own
+	// prose still reads as one bounded block.
+	rows := prose(reviewBody, "REVIEW BODY", r.Body, rowComment, avail, lay)
+	rows = append(rows, row{kind: rowComment, comment: reviewNote})
+
+	return append(rows, prose(reviewNote, "REVIEW NOTE", r.Note, rowNote, avail, lay)...)
 }
 
-// prose is one titled block of the review's own writing.
-func prose(index int, title, text string, avail int, lay layout) []row {
+// prose is one titled block of the review's own writing. The kind is what its
+// lines are drawn as, so the note reads as local the way a comment's note does
+// and the body reads as what will post.
+func prose(index int, title, text string, kind rowKind, avail int, lay layout) []row {
 	head := row{kind: rowComment, text: title, comment: index, head: true}
 
 	if text == "" {
@@ -113,7 +118,7 @@ func prose(index int, title, text string, avail int, lay layout) []row {
 	rows = append(rows, head)
 
 	for _, line := range lines {
-		rows = append(rows, row{kind: rowComment, text: line, comment: index})
+		rows = append(rows, row{kind: kind, text: line, comment: index})
 	}
 
 	return rows
