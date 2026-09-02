@@ -175,7 +175,10 @@ func TestThreadsScreen(t *testing.T) {
 	s := ghcassette.Replay(t, queueCassette(t))
 	home := t.TempDir()
 
-	sc := openReview(t, s, t.TempDir(), "HOME="+home, "threads")
+	// Both, because os.UserConfigDir reads XDG_CONFIG_HOME on Linux and ignores
+	// it on macOS: setting only HOME leaves the marks under the harness's own
+	// config directory there, where nothing looking under home finds them.
+	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "threads")
 	sc.await("second-look conversations")
 	sc.await(conversations.BucketNew)
 	sc.await("a.go:12")

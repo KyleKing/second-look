@@ -7,8 +7,11 @@
 # -cover` sees none of it and internal/get reads as 0%. The child is built with
 # `go build -cover` and writes into COVERDIR_SUBPROCESS; both halves are
 # covdata directories, which is the only format `go tool covdata merge` takes.
+# Named because the script is bash: mise runs a task under sh, which is dash on
+# Ubuntu, and dash has neither `set -o pipefail` nor `(( ))`.
 [tasks."test:coverage-min"]
 description = "Verify minimum coverage threshold (70%), subprocess tests included"
+shell = "bash -c"
 run = '''
 set -euo pipefail
 dir=$(mktemp -d)
