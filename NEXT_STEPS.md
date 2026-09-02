@@ -28,6 +28,20 @@ has run against live GitHub from inside the screen rather than from the shell. S
 the inbox, the rating, and writing a comment without an agent all landed, so nothing alpha
 named is outstanding.
 
+## Broken today: jj colocated repositories
+
+`second-look <pr>` fails in any repository with a `.jj` directory, including this one:
+
+```
+opening #2: reading the checkout: resolving the jj git head: running jj: exit status 1
+```
+
+`vcs.HeadSHA` in aragonite asks `jj log -r 'git_head()'`, and jj 0.44 answers
+"Function `git_head` doesn't exist". A colocated repository's `git rev-parse HEAD` is the
+same commit, so the fix is upstream in
+[aragonite](https://github.com/kyleking/aragonite): fall back to git where the revset does
+not resolve, rather than pinning a jj version.
+
 ## Beyond alpha: replace gh-dash
 
 The bar is [gh-dash](https://github.com/dlvhdr/gh-dash). It is the tool I would otherwise
