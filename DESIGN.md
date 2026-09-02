@@ -75,6 +75,12 @@ puts "head moved" in the title when it does not. Posting re-checks the head anyw
 nothing can be published against the older diff. A first open still fetches, and its two
 calls run at once rather than one after the other.
 
+The queue's own ratings are the exception to that shape: one file under the state home,
+keyed by pull request and by the update time the search reported, rather than one artifact
+tree per repository. A queue spans repositories and most of its rows have no review staged
+anywhere, so a per-repository tree would mean a directory for every row of a search, and
+the cache sweep below would delete a rating nothing has a review pinned to.
+
 The diff, the threads, and the rating are keyed by head commit, so a pull request pushed
 to a dozen times would leave a dozen copies of each. `second-look get` clears every one no
 staged review is pinned to, and posting, discarding, and merging take that review's own

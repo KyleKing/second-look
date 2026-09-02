@@ -31,11 +31,18 @@ tab loads when it is first looked at, so opening on one pays for that one alone.
 The inbox runs its sections at once and draws each as it lands, with the headings saying
 which searches are still out. Each bucket is ordered for triage rather than by recency:
 what you have already started here first, then the smallest of what an earlier read
-rated, then what has waited longest, with drafts under all of it. Every signal comes off
-this laptop, so ordering eighty rows costs no API calls, and the rating shows on the row
-where a diff was cached to work it out. What a reviewer would also want and cannot have
-for free is how large an unrated diff is and whether they are the only human asked:
-`gh search prs` returns neither. `/` narrows any of the queues to the rows carrying a word, matching the repository, the
+rated, then what has waited longest, with drafts under all of it.
+
+A bucket you cannot see all of at once is rated in the background, four diffs at a time,
+and re-sorts as the answers land while the header counts what is still out. The reader
+keeps their place: the cursor stays on the row it was on. What was rated is kept under the
+state directory against the update time it was read at, so a second open orders itself off
+disk and only a pull request pushed to since is read again. A diff no grammar answers for
+(a lockfile, a directory of YAML) is recorded as read all the same, and one that could not
+be fetched at all is not, so a rate limit costs the order rather than the cache. A bucket
+short enough to read at a glance is left alone, because a read per row buys nothing there.
+The other thing a reviewer would want and cannot have for free is whether they are the
+only human asked: `gh search prs` does not say. `/` narrows any of the queues to the rows carrying a word, matching the repository, the
 author, the title, and the line last said, with the header saying how many are held back.
 `esc` puts them back before it leaves the screen.
 

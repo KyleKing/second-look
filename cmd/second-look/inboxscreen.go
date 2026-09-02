@@ -12,10 +12,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/cost"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/structure"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -50,6 +52,42 @@ type inboxScreen struct {
 	// armed is the row A was pressed on. Approving is the one thing here that
 	// cannot be taken back by deleting something, so it takes the key twice.
 	armed string
+	// ratings is what earlier runs made of these pull requests, read off disk
+	// when the screen opens and written back when the last row is rated, and
+	// asked is every row one of them already fetched the diff of.
+	ratings artifact.Ratings
+	asked   map[string]bool
+	// rated carries a row's cost back from the pool that fetched its diff, and
+	// slots is how many of those may run at once. An API read per row is worth
+	// the order it buys and not worth eighty at once.
+	rated chan costMsg
+	slots chan struct{}
+	// waiting counts the ratings still out, and listening marks the one command
+	// reading them, since two would each take a message and re-issue.
+	pending   int
+	listening bool
+	// unread counts the rows whose diff could not be fetched, which is what a
+	// rate limit or a dropped connection looks like. Saying so beats a queue
+	// that quietly orders itself by age and looks like it never tried.
+	unread int
+}
+
+// howManyAtOnce bounds the diffs the rating pool fetches. It is small because
+// each row is a network read the reader did not ask for: the queue is already
+// drawn and this only reorders it.
+const howManyAtOnce = 4
+
+// costMsg is one row's rating.
+type costMsg struct {
+	key  string
+	when time.Time
+	cost int
+	// read says the diff was fetched, whatever the grammar then made of it, and
+	// rated says a grammar answered. A row that was read and not rated is still
+	// recorded, so it is not fetched again until it is pushed to; a row that
+	// could not be read is not, since the next open may reach it.
+	read  bool
+	rated bool
 }
 
 // handoff is an action the screen carried out with the row it was pressed on.
@@ -155,9 +193,18 @@ type bucketMsg struct {
 // is under two seconds, and an empty terminal until then reads as a hang.
 func (s *inboxScreen) Start() tea.Cmd {
 	s.local = localKnowledge()
+	if s.local == nil {
+		s.local = map[string]inbox.Known{}
+	}
+
+	s.ratings = artifact.LoadRatings()
+	s.asked = map[string]bool{}
 	s.buckets = s.plan()
 	s.waiting = len(s.buckets)
 	s.armed = ""
+	s.pending, s.listening, s.unread = 0, false, 0
+	s.rated = make(chan costMsg, ratingBuffer)
+	s.slots = make(chan struct{}, howManyAtOnce)
 
 	cmds := make([]tea.Cmd, 0, len(s.buckets))
 
@@ -172,21 +219,157 @@ func (s *inboxScreen) Start() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// Absorb takes a search that has answered. It runs on the program's own loop,
-// so this is the one place the buckets are written.
+// ratingBuffer is how many answers the pool may leave waiting for the loop.
+// It only has to outrun one keystroke, since the loop drains one per message.
+const ratingBuffer = 64
+
+// Absorb takes a search or a rating that has answered. It runs on the program's
+// own loop, so this is the one place the buckets and what is known are written.
 func (s *inboxScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
-	answered, ok := msg.(bucketMsg)
-	if !ok {
-		return nil, false
+	switch answered := msg.(type) {
+	case bucketMsg:
+		return s.absorbBucket(answered), true
+	case costMsg:
+		return s.absorbCost(answered), true
 	}
 
-	if answered.at < len(s.buckets) {
-		inbox.Rank(answered.bucket.Items, s.known)
-		s.buckets[answered.at] = answered.bucket
-		s.waiting--
+	return nil, false
+}
+
+func (s *inboxScreen) absorbBucket(answered bucketMsg) tea.Cmd {
+	if answered.at >= len(s.buckets) {
+		return nil
 	}
 
-	return nil, true
+	for key := range inbox.Recall(answered.bucket.Items, s.ratings, s.local) {
+		s.asked[key] = true
+	}
+
+	inbox.Rank(answered.bucket.Items, s.known)
+
+	s.buckets[answered.at] = answered.bucket
+	s.waiting--
+
+	return s.rate(answered.bucket.Items)
+}
+
+// absorbCost records one rating and puts the queue back in order around it. The
+// list screen keeps the cursor on the row it was on, so a row moving under a
+// reader who has started reading does not move the reader.
+func (s *inboxScreen) absorbCost(answered costMsg) tea.Cmd {
+	// An empty key is the canceled context, which is the screen closing rather
+	// than a row that could not be rated.
+	if answered.key == "" {
+		s.listening = false
+
+		return nil
+	}
+
+	s.pending--
+
+	if answered.read {
+		s.ratings[answered.key] = artifact.Rating{
+			Updated: answered.when, Cost: answered.cost, Rated: answered.rated,
+		}
+	} else {
+		s.unread++
+	}
+
+	if answered.rated {
+		known := s.local[answered.key]
+		known.Cost, known.Rated = answered.cost, true
+		s.local[answered.key] = known
+
+		for i := range s.buckets {
+			inbox.Rank(s.buckets[i].Items, s.known)
+		}
+	}
+
+	if s.pending > 0 {
+		return s.listen()
+	}
+
+	s.listening = false
+
+	// The file is written once the queue is rated rather than per row: it is
+	// one file for every repository, so a write per answer would be eighty
+	// rewrites of the same thing.
+	if err := artifact.SaveRatings(s.ratings); err != nil {
+		return nil
+	}
+
+	return nil
+}
+
+// rate sends every row nobody has rated to the pool, and returns the command
+// that reads the answers back.
+//
+// A bucket short enough to read at a glance is left in the order its search
+// answered, because a read per row buys nothing there. Rating also needs a
+// grammar, so where none is installed nothing is fetched: a number built from
+// no parsed hunk is a hunk count wearing a rating's clothes.
+func (s *inboxScreen) rate(items []inbox.PullRequest) tea.Cmd {
+	if len(items) < inbox.WorthRating || !structure.Available() {
+		return nil
+	}
+
+	started := 0
+
+	for i := range items {
+		p := items[i]
+
+		key := artifact.RatingKey(p.Repository, p.Number)
+		if s.local[key].Rated || s.asked[key] {
+			continue
+		}
+
+		started++
+
+		go s.rateOne(key, p)
+	}
+
+	s.pending += started
+
+	if started == 0 || s.listening {
+		return nil
+	}
+
+	s.listening = true
+
+	return s.listen()
+}
+
+func (s *inboxScreen) rateOne(key string, p inbox.PullRequest) {
+	s.slots <- struct{}{}
+	defer func() { <-s.slots }()
+
+	answer := costMsg{key: key, when: p.Updated}
+
+	if score, err := cost.Of(s.ctx, ".", p.Repository, p.Number); err == nil {
+		answer.read = true
+		answer.cost, answer.rated = score.Total, score.Rated()
+	}
+
+	select {
+	case s.rated <- answer:
+	case <-s.ctx.Done():
+	}
+}
+
+// listen waits for one rating. A canceled context answers with a rating that
+// records nothing, so the loop stops rather than waiting on a pool that is
+// going away with the screen.
+func (s *inboxScreen) listen() tea.Cmd {
+	rated, done := s.rated, s.ctx.Done()
+
+	return func() tea.Msg {
+		select {
+		case answered := <-rated:
+			return answered
+		case <-done:
+			return costMsg{}
+		}
+	}
 }
 
 // known is what this laptop holds for one row of the queue.
@@ -208,9 +391,9 @@ func localKnowledge() map[string]inbox.Known {
 	for i := range rows {
 		r := &rows[i]
 
-		cost, rated := artifact.LoadScore(filepath.Dir(filepath.Dir(r.Path)), r.HeadSHA)
-		out[fmt.Sprintf("%s#%d", r.Repository, r.Number)] = inbox.Known{
-			Reviewed: true, Cost: cost, Rated: rated,
+		total, rated := artifact.LoadScore(filepath.Dir(filepath.Dir(r.Path)), r.HeadSHA)
+		out[artifact.RatingKey(r.Repository, r.Number)] = inbox.Known{
+			Reviewed: true, Cost: total, Rated: rated,
 		}
 	}
 
@@ -226,6 +409,15 @@ func localKnowledge() map[string]inbox.Known {
 func (s *inboxScreen) counts() string {
 	if s.waiting > 0 {
 		return humanize.Plural(s.waiting, "search", "searches") + " still out"
+	}
+
+	// Rows move as ratings land, so the header says what is moving them.
+	if s.pending > 0 {
+		return humanize.Plural(s.pending, "row") + " still being rated"
+	}
+
+	if s.unread > 0 {
+		return humanize.Plural(s.unread, "row") + " could not be rated"
 	}
 
 	rows, failed := 0, 0

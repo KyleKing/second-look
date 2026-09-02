@@ -56,9 +56,8 @@ merge deliberately elsewhere: `M` in the review screen, after the diff has been 
 
 What gh-dash still has that this does not: issues beside pull requests, which waits for a
 real gap rather than parity for its own sake, and its preview pane, which the review screen
-replaces with something better. What is left of the goal is the queue's own order past
-about forty rows. The rating that answers it exists and rates one open pull request; what
-it does not yet do is order a list of them.
+replaces with something better. The queue's order past a screenful is the rating's, which
+now rates a list of pull requests rather than only the one being read.
 
 The division of labour with gh-repo-dashboard is worth stating, because two tools reading
 the same data is the failure mode to avoid. gh-repo-dashboard owns disk: clones,
@@ -526,7 +525,7 @@ so a re-wrap across line boundaries and a reworded comment go too. It shares its
 the review-cost rating, which is why the two arrived together. The section below has the
 whole of it.
 
-## The review-cost rating — in the review screen, not yet in the queue
+## The review-cost rating — in the review screen and in the queue
 
 The number is in the title bar as `cost`, and `t` hides every hunk a parser says changed
 no code. Both come from one pass, which is why they arrived together: they read the same
@@ -561,18 +560,26 @@ symbol deleted (8), and the hunk count as a tiebreaker (1 each), capped at 99. A
 parser could not read counts toward size and nothing else, and `Score.Rated` reports that,
 so the title shows no number rather than a number meaning less than it looks.
 
+### Ordering the queue by it
+
+Built. A bucket holding more rows than a screen shows is rated in the background, four
+diffs at a time, and the queue re-sorts as the answers land. What was rated is kept in one
+file under the state home against the update time the search reported, so a second open
+orders itself off disk and only a row pushed to since is read again. A diff no grammar
+answers for is recorded as read too, or a queue of lockfile bumps would fetch the same
+unratable diffs on every open; a diff that could not be fetched is not recorded, so a rate
+limit costs the order and not the cache.
+
+The threshold is the reason the rating exists: recency orders a screenful well enough, so
+a bucket a reader can see all of at once is left in the order its search answered rather
+than costing an API read per row.
+
 Capability classes are read off the callee's name rather than resolved, so a local named
 `exec` counts and an aliased call does not. Its honest meaning is "a new capability visible
 to syntax", which requirements.md already states and which still separates the changes
 carrying one from the ones carrying none.
 
 ### What is left
-
-**Ordering the queue by it, which is the job it exists for.** Rating a row needs that pull
-request's diff, so 78 rows is 78 reads. It wants: draw the queue in query order at once,
-rate in a bounded background pool, re-sort as answers arrive, and cache by head SHA so the
-second run is instant. That is the same progressive draw the queue needs anyway for the
-blank four seconds above, so the two should be built together.
 
 **Blast radius.** requirements.md already calls it "a later addition rather than a
 first-cut input": import graphs overcount, dynamic imports undercount, and it needs a

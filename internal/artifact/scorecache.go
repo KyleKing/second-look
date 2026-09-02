@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 )
 
 // ScorePath is where the review screen leaves what it rated a change, keyed by
@@ -63,15 +62,3 @@ func LoadScore(root, sha string) (int, bool) {
 
 	return out.Total, true
 }
-
-// Rated is a pull request this laptop has already read, as the queue needs it:
-// the review it holds and what that diff was rated.
-type Rated struct {
-	Repository string
-	Number     int
-	Cost       int
-	Known      bool
-}
-
-// Key names a pull request the way a queue row does.
-func (r Rated) Key() string { return r.Repository + "#" + strconv.Itoa(r.Number) }

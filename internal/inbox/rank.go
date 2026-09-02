@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"math"
 	"slices"
+
+	"github.com/kyleking/second-look/internal/artifact"
 )
 
 // Known is what this laptop already knows about a pull request without asking
@@ -18,6 +20,46 @@ type Known struct {
 	// one to read. A pull request nobody has opened has neither.
 	Cost  int
 	Rated bool
+}
+
+// WorthRating is how many rows a bucket needs before its order is worth an API
+// read per row. Recency orders a screenful well enough, and a bucket you can
+// see all of at once is one you can order yourself; past that the rating is
+// what separates the cheap review from the one that costs an afternoon.
+const WorthRating = 20
+
+// Recall fills in what earlier runs made of these rows, so a second open of the
+// same queue orders itself off disk. A rating is about the diff at one moment,
+// so one recorded against another update time is dropped rather than trusted: a
+// push since then is exactly the case where the number would mislead.
+//
+// It answers Asked as well as Known, which is every row an earlier run already
+// fetched the diff of, rated or not. Fetching the same unratable diff on every
+// open is what that saves.
+func Recall(items []PullRequest, ratings artifact.Ratings, known map[string]Known) map[string]bool {
+	asked := make(map[string]bool, len(items))
+
+	for i := range items {
+		p := &items[i]
+		key := artifact.RatingKey(p.Repository, p.Number)
+
+		was, ok := ratings[key]
+		if !ok || !was.Updated.Equal(p.Updated) {
+			continue
+		}
+
+		asked[key] = true
+
+		if known[key].Rated || !was.Rated {
+			continue
+		}
+
+		k := known[key]
+		k.Cost, k.Rated = was.Cost, true
+		known[key] = k
+	}
+
+	return asked
 }
 
 // Rank orders a bucket the way triage goes rather than the way a feed does.
