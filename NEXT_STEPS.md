@@ -104,12 +104,19 @@ folded region and the file the cursor is not in are the other half, and both wan
 with before they are built: dimming every file but one is most of a long diff most of the
 time, which is a different thing from dimming a window nobody is typing in.
 
-Folded in here because every one of them is a rendering problem:
+Folded in here because every one of them is a rendering problem, and both are waiting on
+a decision rather than on code. `demo/case.sh many-on-one-line` and `demo/case.sh skipped`
+open each as a live review off a TOML file to edit, which is how the shape gets argued
+with:
 
-- Several comments on one line break the layout today, which is the case the comment
-  block was never designed for
-- A skipped comment draws as an ordinary comment carrying its body and note, marked
-  skipped, rather than as a special case
+- Several comments on one line do not break the layout, and three things about a run of
+  them read badly: nothing says the comments are a run rather than three consecutive
+  lines, the anchor scrolls off the top before the last of them is read, and a skip in
+  the run costs a live comment's room
+- A skipped comment already draws as an ordinary comment carrying its body and note,
+  marked skipped, everywhere except the comment view, where it is counted rather than
+  listed. That is the settled decision recorded below, so what is left is whether a run
+  is the case that breaks it
 
 One keymap fix stood alone rather than folding in, and is done: `dd` on the third staged
 review armed the first, because `moved` set `touched` on every keypress and cleared it
@@ -117,7 +124,7 @@ again for anything that was not a motion, so the rebuild every action runs sent 
 back to the top. Getting back to where you were was `djjd`. It cost every row verb the
 same way, not only the discard.
 
-### 2. What order the diff arrives in
+### 2. What order the diff arrives in — done
 
 Files group by directory today and the diff's own order is kept inside a group, which is
 the right default and is not the whole of it. What a review actually wants is the change
