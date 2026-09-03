@@ -124,6 +124,18 @@ fixture's head moved would be a fixture problem, not a network one.
 The gif is committed, so regenerate it whenever the screen changes shape. Keep the tape's
 sleeps: a frame nobody can read is not a demo.
 
+## Layout cases
+
+`demo/case.sh <name>` opens `demo/cases/<name>.toml` as a live review on the same fixture
+and the same stand-in `gh`, so a layout argument is settled by looking at it. A case is a
+prepared review and nothing else, which is what makes it worth checking in: a shape that
+reads badly is edited into the TOML and seen in a second, and the golden frames stay for
+what is already decided.
+
+The checkout is rebuilt from the case file on every run and kept afterwards, so what the
+screen wrote back is readable at `demo/.work/<name>/.second-look/`. Edits belong in
+`demo/cases/`, since the work directory is thrown away on the next run.
+
 ## Driving the review screen
 
 `tmux` for looking at it, the pty tests in `cmd/second-look/tui_e2e_test.go` for pinning

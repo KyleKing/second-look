@@ -1,0 +1,59 @@
+# Skipped comments, on their own and inside a run. A skip carries its body and
+# its reason and draws as a comment marked skipped, which costs a live comment's
+# room; this is the case for deciding whether that is right.
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 2
+head_sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
+event = "COMMENT"
+body = ""
+note = "A layout case, not a real review."
+
+[[comment]]
+id = "skipped-in-a-run"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+anchor = "\t\treturn 0, err"
+body = "This returns os.ReadFile's error with no context, so the caller sees a bare `no such file or directory` and cannot tell which budget failed."
+note = "Matches the wrapping rule in AGENTS.md."
+severity = "major"
+status = "skip"
+skip_reason = "the caller already logs the path"
+
+[[comment]]
+id = "live-in-the-same-run"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+anchor = "\t\treturn 0, err"
+body = "Second on the same line, still live, so the two draw side by side."
+note = ""
+severity = "nit"
+status = "ready"
+
+[[comment]]
+id = "skipped-alone"
+path = "testdata/fixture/sample.go"
+line = 27
+side = "RIGHT"
+anchor = "\t\t\tcontinue"
+body = "A line that does not parse is skipped silently, so a typo in the budget file reads as a smaller total rather than as an error. Return the failure instead of continuing past it."
+note = "Reproduced against a budget file with one bad line: the total came back short and no error was returned."
+severity = "blocker"
+status = "skip"
+skip_reason = "raised on an earlier review and declined there"
+
+[[comment]]
+id = "no-body"
+path = "testdata/fixture/sample.go"
+line = 30
+side = "RIGHT"
+anchor = "\t\ttotal += n"
+body = ""
+note = ""
+severity = "nit"
+status = "skip"
+skip_reason = "considered and dropped before anything was written"

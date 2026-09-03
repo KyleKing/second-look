@@ -1,0 +1,78 @@
+# Five comments anchored to one line, plus one on its own for contrast. What the
+# comment block was never designed for: edit, add, and remove comments here and
+# run `demo/case.sh many-on-one-line` again to see the layout change.
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 2
+head_sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
+event = "COMMENT"
+body = ""
+note = "A layout case, not a real review."
+
+[[comment]]
+id = "one"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+anchor = "\t\treturn 0, err"
+body = "This returns os.ReadFile's error with no context, so the caller sees a bare `no such file or directory` and cannot tell which budget failed. Wrap it: `fmt.Errorf(\"reading %s: %w\", path, err)`."
+note = "Matches the wrapping rule in AGENTS.md.\nRan: go vet ./... -> clean, so nothing else catches this."
+severity = "blocker"
+status = "draft"
+
+[[comment]]
+id = "two"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+anchor = "\t\treturn 0, err"
+body = "Second on line 19, short."
+note = "the second note"
+severity = "major"
+status = "ready"
+
+[[comment]]
+id = "three"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+anchor = "\t\treturn 0, err"
+body = "Third on line 19, long enough to wrap at eighty columns and then some, because a run of comments reads differently when each one of them is a paragraph rather than a sentence."
+note = ""
+severity = "minor"
+status = "ready"
+
+[[comment]]
+id = "four"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+anchor = "\t\treturn 0, err"
+body = "Fourth on line 19, short."
+note = ""
+severity = "nit"
+status = "ready"
+
+[[comment]]
+id = "five"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+anchor = "\t\treturn 0, err"
+body = "Fifth on line 19: is the budget file ever expected to be missing rather than empty?"
+note = ""
+severity = "question"
+status = "ready"
+
+[[comment]]
+id = "elsewhere"
+path = "testdata/fixture/sample.go"
+line = 27
+side = "RIGHT"
+anchor = "\t\t\tcontinue"
+body = "A line that does not parse is skipped silently, so a typo reads as a smaller total."
+note = "short note"
+severity = "minor"
+status = "ready"
