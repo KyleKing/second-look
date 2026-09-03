@@ -30,7 +30,7 @@ func TestReviewWithNoCheckout(t *testing.T) {
 		t.Fatalf("get failed: %s%s", res.stdout, res.stderr)
 	}
 
-	store := awayStore(t, home)
+	store := storeIn(t, home)
 
 	if _, err := os.Stat(artifact.Path(store, 2)); err != nil {
 		t.Fatalf("the prepared review is not in the state directory: %v", err)
@@ -61,10 +61,8 @@ func TestReviewWithNoCheckout(t *testing.T) {
 		t.Fatalf("reviews failed: %s%s", res.stdout, res.stderr)
 	}
 
-	for _, want := range []string{`"detached": true`, "KyleKing/second-look"} {
-		if !strings.Contains(res.stdout, want) {
-			t.Errorf("reviews never listed the review with no checkout (%s):\n%s", want, res.stdout)
-		}
+	if !strings.Contains(res.stdout, "KyleKing/second-look") {
+		t.Errorf("reviews never listed the review with no checkout:\n%s", res.stdout)
 	}
 }
 
@@ -114,10 +112,10 @@ func homeEnv(home string) []string {
 	return []string{"HOME=" + home, "XDG_CONFIG_HOME=" + filepath.Join(home, ".config")}
 }
 
-// awayStore is where the state directory lands for the fixture repository. The
+// storeIn is where the state directory lands for the fixture repository. The
 // config directory is the platform's, so the test asks for the same rule the
 // binary follows rather than spelling one path out.
-func awayStore(t *testing.T, home string) string {
+func storeIn(t *testing.T, home string) string {
 	t.Helper()
 
 	if runtime.GOOS == "darwin" {

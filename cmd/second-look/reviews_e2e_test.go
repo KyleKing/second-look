@@ -130,11 +130,13 @@ func TestReviewsScreen(t *testing.T) {
 	sc := openReview(t, s, dir, "reviews")
 	sc.await("second-look staged reviews")
 	sc.await("[3] staged")
-	sc.await("staged under .second-look")
+	sc.await("left in a working copy")
 	sc.await("KyleKing/second-look#2")
 
-	// The unreadable row is first, being the newest, and choosing it reports the
-	// reason rather than opening a review that could not be read.
+	// A file that could not be read names no repository, so nothing could move it
+	// into the store and it lists as a leftover. Choosing it reports the reason
+	// rather than opening a review that could not be read.
+	sc.press("j")
 	sc.press("\r")
 	sc.await("cannot be read")
 

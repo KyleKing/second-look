@@ -178,7 +178,7 @@ func TestWriteReportsStateAndCounts(t *testing.T) {
 // TestDetachedFindsReviewsWithNoCheckout is what keeps a review prepared away
 // from a clone findable. It lives three directories down under the state home,
 // beside state that is not a review at all.
-func TestDetachedFindsReviewsWithNoCheckout(t *testing.T) {
+func TestAllFindsEveryReviewInTheStore(t *testing.T) {
 	t.Parallel()
 
 	home := t.TempDir()
@@ -203,7 +203,7 @@ func TestDetachedFindsReviewsWithNoCheckout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rows, err := prepared.Detached(home)
+	rows, err := prepared.All(home)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,20 +211,14 @@ func TestDetachedFindsReviewsWithNoCheckout(t *testing.T) {
 	if len(rows) != 3 {
 		t.Fatalf("%d row(s), want the 3 reviews staged: %+v", len(rows), rows)
 	}
-
-	for i := range rows {
-		if !rows[i].Detached {
-			t.Errorf("%s is not marked as having no checkout", rows[i].Where())
-		}
-	}
 }
 
-// TestDetachedOnAnEmptyHome is the first run, where nothing has been reviewed
+// TestAllOnAnEmptyHome is the first run, where nothing has been reviewed
 // away from a clone and the directory does not exist yet.
-func TestDetachedOnAnEmptyHome(t *testing.T) {
+func TestAllOnAnEmptyHome(t *testing.T) {
 	t.Parallel()
 
-	rows, err := prepared.Detached(filepath.Join(t.TempDir(), "never-written"))
+	rows, err := prepared.All(filepath.Join(t.TempDir(), "never-written"))
 	if err != nil {
 		t.Fatal(err)
 	}

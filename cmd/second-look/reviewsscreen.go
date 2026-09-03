@@ -94,7 +94,7 @@ func (s *reviewsScreen) sections() []tui.Section {
 	for i := range alone {
 		row := reviewRow(&alone[i], now)
 
-		if alone[i].Detached {
+		if alone[i].Stray {
 			away = append(away, row)
 
 			continue
@@ -103,9 +103,9 @@ func (s *reviewsScreen) sections() []tui.Section {
 		here = append(here, row)
 	}
 
-	out = append(out, tui.Section{Name: "staged under .second-look", Rows: here})
+	out = append(out, tui.Section{Name: "staged", Rows: here})
 	if len(away) > 0 {
-		out = append(out, tui.Section{Name: "staged with no checkout", Rows: away})
+		out = append(out, tui.Section{Name: "left in a working copy", Rows: away})
 	}
 
 	return out

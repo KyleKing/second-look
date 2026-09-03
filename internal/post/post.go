@@ -122,7 +122,7 @@ func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.
 		return fmt.Errorf("the review posted; clearing its caches: %w", err)
 	}
 
-	return write(out, "removed "+path+"\n")
+	return write(out, fmt.Sprintf("removed the staged review for %s/%s#%d\n", r.Owner, r.Repo, r.Number))
 }
 
 // One posts a single comment on its own, outside any review, and takes it out
@@ -170,7 +170,7 @@ func One(ctx context.Context, p Poster, path string, r *artifact.Review, id stri
 		return fmt.Errorf("the comment posted; rewriting %s: %w", path, err)
 	}
 
-	return write(out, "removed "+id+" from "+path+"\n")
+	return write(out, fmt.Sprintf("removed %s from the staged review for %s/%s#%d\n", id, r.Owner, r.Repo, r.Number))
 }
 
 // withCommit adds the head the comment was anchored against. A standalone

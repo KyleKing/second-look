@@ -73,14 +73,14 @@ func TestGetCarriesReadHunksOntoANewHead(t *testing.T) {
 	// Read everything against the head the fixture was staged at.
 	seedDiff(t, dir)
 
-	patch, err := artifact.LoadDiff(dir, fixtureHeadSHA)
+	patch, err := artifact.LoadDiff(stored(t, dir), fixtureHeadSHA)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	refs := seen.Hunks(diff.Parse(patch))
 
-	set, err := seen.Load(seen.Path(dir, 2))
+	set, err := seen.Load(seen.Path(stored(t, dir), 2))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestGetCarriesReadHunksOntoANewHead(t *testing.T) {
 		set.Mark(true, r.ID)
 	}
 
-	if err := seen.Save(seen.Path(dir, 2), set, refs); err != nil {
+	if err := seen.Save(seen.Path(stored(t, dir), 2), set, refs); err != nil {
 		t.Fatal(err)
 	}
 
@@ -104,14 +104,14 @@ func TestGetCarriesReadHunksOntoANewHead(t *testing.T) {
 
 	// The head moved, so the marks are only still there because they are keyed
 	// by what the hunk says rather than by the commit it sat on.
-	moved, err := artifact.LoadDiff(dir, sha)
+	moved, err := artifact.LoadDiff(stored(t, dir), sha)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	after := seen.Hunks(diff.Parse(moved))
 
-	back, err := seen.Load(seen.Path(dir, 2))
+	back, err := seen.Load(seen.Path(stored(t, dir), 2))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,10 +135,10 @@ func TestGetPreparesTheReview(t *testing.T) {
 		t.Fatalf("get failed: %s%s", res.stdout, res.stderr)
 	}
 
-	golden.RequireEqual(t, []byte(anonymize(res.stdout, sha)))
+	golden.RequireEqual(t, []byte(anonymize(t, res.stdout, sha, dir)))
 	s.RequireAllPlayed(t)
 
-	review, err := artifact.Load(filepath.Join(dir, ".second-look", "pr-2.toml"))
+	review, err := artifact.Load(artifact.Path(stored(t, dir), 2))
 	if err != nil {
 		t.Fatalf("the prepared review: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestGetPreparesTheReview(t *testing.T) {
 	}
 
 	// #nosec G304 -- a path under the test's own temporary directory
-	cached, err := os.ReadFile(filepath.Join(dir, ".second-look", "diff", sha+".patch"))
+	cached, err := os.ReadFile(artifact.DiffPath(stored(t, dir), sha))
 	if err != nil {
 		t.Fatalf("the cached diff: %v", err)
 	}
@@ -176,9 +176,9 @@ func TestGetCarriesStagedCommentsOntoANewHead(t *testing.T) {
 		t.Fatalf("get failed: %s%s", res.stdout, res.stderr)
 	}
 
-	golden.RequireEqual(t, []byte(anonymize(res.stdout, sha)))
+	golden.RequireEqual(t, []byte(anonymize(t, res.stdout, sha, dir)))
 
-	review, err := artifact.Load(filepath.Join(dir, ".second-look", "pr-2.toml"))
+	review, err := artifact.Load(artifact.Path(stored(t, dir), 2))
 	if err != nil {
 		t.Fatalf("the prepared review: %v", err)
 	}
@@ -237,9 +237,13 @@ func TestGetRefusesSomewhereThatIsNotARepo(t *testing.T) {
 	}
 }
 
-// anonymize replaces the scratch repository's commit, which is a different one
-// on every run, so the output can be pinned.
-func anonymize(out, sha string) string {
+// anonymize replaces the two things that differ on every run: the scratch
+// repository's commit, and the temporary directory the store sits under.
+func anonymize(t *testing.T, out, sha, dir string) string {
+	t.Helper()
+
+	out = strings.ReplaceAll(out, stored(t, dir), "<store>")
+
 	return strings.ReplaceAll(out, sha[:7], "<head>")
 }
 

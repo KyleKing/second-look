@@ -81,17 +81,14 @@ func cassettePath(t *testing.T, name string) string {
 	return path
 }
 
-// workspace is a directory holding a prepared review and nothing else, which is
-// all `post` reads: the anchor guard fetches the live diff rather than the
-// cached one.
+// workspace is a directory that is not a checkout of anything, with a prepared
+// review in the store behind it. It is all `post` reads: the anchor guard
+// fetches the live diff rather than the cached one, and a bare number resolves
+// because the store holds exactly one review answering to it.
 func workspace(t *testing.T, fixture string) string {
 	t.Helper()
 
 	dir := t.TempDir()
-
-	if err := os.MkdirAll(filepath.Join(dir, ".second-look"), 0o750); err != nil {
-		t.Fatalf("creating the workspace: %v", err)
-	}
 
 	// #nosec G304,G703 -- a fixture in this package
 	raw, err := os.ReadFile(filepath.Join("testdata", "review", fixture))
@@ -99,12 +96,22 @@ func workspace(t *testing.T, fixture string) string {
 		t.Fatalf("reading the fixture review: %v", err)
 	}
 
-	// #nosec G703 -- a path under the test's own temporary directory
-	if err := os.WriteFile(filepath.Join(dir, ".second-look", "pr-2.toml"), raw, 0o600); err != nil {
-		t.Fatalf("writing the fixture review: %v", err)
-	}
+	write(t, artifact.Path(stored(t, dir), 2), raw)
 
 	return dir
+}
+
+// write puts a file where a test wants it, creating what is above it.
+func write(t *testing.T, path string, body []byte) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("creating %s: %v", filepath.Dir(path), err)
+	}
+
+	if err := os.WriteFile(path, body, 0o600); err != nil { // #nosec G703 -- the test's own directory
+		t.Fatalf("writing %s: %v", path, err)
+	}
 }
 
 // derive builds a cassette from the one real recording and writes it where the
@@ -161,14 +168,7 @@ func seedDiffAt(t *testing.T, dir, sha string) {
 		t.Fatalf("the cassette has no recorded diff: %v", err)
 	}
 
-	path := filepath.Join(dir, ".second-look", "diff", sha+".patch")
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatalf("creating the diff cache: %v", err)
-	}
-
-	if err := os.WriteFile(path, []byte(patch), 0o600); err != nil {
-		t.Fatalf("writing the cached diff: %v", err)
-	}
+	write(t, artifact.DiffPath(stored(t, dir), sha), []byte(patch))
 }
 
 type result struct {
@@ -205,7 +205,7 @@ func runCLIStdinEnv(
 	cmd := exec.CommandContext(t.Context(), binary, args...) // #nosec G204 -- the binary TestMain built
 	cmd.Stdin = strings.NewReader(stdin)
 	cmd.Dir = dir
-	cmd.Env = append(childEnv(t, s), env...)
+	cmd.Env = append(childEnv(t, s, dir), env...)
 
 	var out, errOut strings.Builder
 
@@ -237,10 +237,10 @@ func runCLIStdinEnv(
 // a child inheriting a real one would read the state of whoever is running the
 // suite and write into it. A test that wants to inspect that state appends its
 // own HOME, which wins.
-func childEnv(t *testing.T, s *ghcassette.Session) []string {
+func childEnv(t *testing.T, s *ghcassette.Session, dir string) []string {
 	t.Helper()
 
-	home := t.TempDir()
+	home := testHome(t, dir)
 
 	env := append(s.Env(t),
 		"GH_REPO="+fixtureRepo,
@@ -253,6 +253,28 @@ func childEnv(t *testing.T, s *ghcassette.Session) []string {
 	}
 
 	return env
+}
+
+// testHome is the state directory every run inside one test shares, so a review
+// staged by one command is read by the next. It sits beside the working
+// directory rather than under it: a store inside a checkout makes the tree
+// dirty, and the checkout guard would offer to stash it.
+func testHome(t *testing.T, dir string) string {
+	t.Helper()
+
+	home := filepath.Join(filepath.Dir(dir), "home")
+	if err := os.MkdirAll(home, 0o750); err != nil {
+		t.Fatalf("creating the state home: %v", err)
+	}
+
+	return home
+}
+
+// stored is where the fixture repository's state lands for a run in dir.
+func stored(t *testing.T, dir string) string {
+	t.Helper()
+
+	return storeIn(t, testHome(t, dir))
 }
 
 // scratchRepo is a git repository with one commit on branch, and a remote that
@@ -302,15 +324,8 @@ func seedReview(t *testing.T, dir, sha string) {
 		t.Fatalf("reading the fixture review: %v", err)
 	}
 
-	path := filepath.Join(dir, ".second-look", "pr-2.toml")
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatalf("creating the workspace: %v", err)
-	}
-
 	body := strings.ReplaceAll(string(raw), fixtureHeadSHA, sha)
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil { // #nosec G703 -- the test's own directory
-		t.Fatalf("writing the fixture review: %v", err)
-	}
+	write(t, artifact.Path(stored(t, dir), 2), []byte(body))
 }
 
 // seedThreads caches the recorded conversations onto the scratch head, which is
@@ -330,7 +345,7 @@ func seedThreads(t *testing.T, dir, sha string) {
 		t.Fatalf("reading the recorded thread query: %v", err)
 	}
 
-	if err := artifact.SaveThreads(dir, sha, open); err != nil {
+	if err := artifact.SaveThreads(stored(t, dir), sha, open); err != nil {
 		t.Fatalf("caching the threads: %v", err)
 	}
 }

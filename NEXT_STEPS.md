@@ -197,18 +197,31 @@ The cache carries the scale it was written on, and a file from another one is dr
 rather than read. A queue ordering a mix of two scales orders wrongly and says nothing
 about it.
 
-### 4. One store, one identity
+### 4. One store, one identity — done
 
 Everything second-look keeps (the review, the read marks, the thread cache, the diff
-cache, the ratings) moves under the state directory keyed by owner, repository, and
-number. `.second-look/` in a checkout becomes a pointer, so an agent still finds a review
-by the convention the skill teaches.
+cache, the ratings) lives under the state directory keyed by host, owner, and repository,
+with the number in the filename it always had. Reading #42 from `../irm-0-null` and later
+from `../irm-5-five` is one review, where it used to be two, which is what made an
+incremental re-review across directories impossible.
 
-Reading #42 from `../irm-0-null` and later from `../irm-5-five` is one review, and today
-it is two, which is the bug that makes an incremental re-review impossible across
-directories. It also leaves one place to sweep instead of one per clone, and both the
-prefetch and the re-review filter need a store that is not a working directory. Carry a
-migration: an in-repo artifact is moved on first read rather than orphaned.
+The seam was already in the right place: every path in the codebase is built from a root
+plus `.second-look/`, and a target already carried a store beside its working copy, so
+what changed is which root a checkout answers with. What a checkout still holds is moved
+into the store the first time that review is opened, from `Here`, from `Staged`, and from
+`reviews`, and a `WHERE.md` is left saying where it went. The migration is idempotent, and
+a file staged on both sides stops the whole move rather than picking one: choosing would
+drop work nobody has posted.
+
+A bare number outside a checkout now resolves too, because the store holds every review
+and only one usually answers to a number. Two repositories with the same number open is
+refused rather than guessed, since guessing reads one pull request while saying the
+other's.
+
+Two things fell out of it. A review that no longer parses names no repository, so nothing
+can move it: it lists as a leftover under a heading of its own rather than being hidden.
+And `post` says what it removed by naming the review rather than the path, since an
+absolute path into the state directory is neither short nor something anyone types.
 
 ### 5. The agent loop, both directions
 

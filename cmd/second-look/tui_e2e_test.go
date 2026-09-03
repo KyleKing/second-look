@@ -63,7 +63,7 @@ func (s *screen) raw() string {
 func openReview(t *testing.T, s *ghcassette.Session, dir string, args ...string) *screen {
 	t.Helper()
 
-	env := append(childEnv(t, s), "TERM=xterm-256color")
+	env := append(childEnv(t, s, dir), "TERM=xterm-256color")
 
 	for len(args) > 1 && strings.Contains(args[0], "=") {
 		env = append(env, args[0])
@@ -247,14 +247,14 @@ func TestReviewScreenSubmits(t *testing.T) {
 	out := sc.text()
 	for _, want := range []string{
 		"posted /repos/KyleKing/second-look/pulls/2/reviews",
-		"removed .second-look/pr-2.toml",
+		"removed the staged review for KyleKing/second-look#2",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("want %q in the scrollback, got:\n%s", want, out)
 		}
 	}
 
-	if _, err := os.Stat(filepath.Join(dir, ".second-look", "pr-2.toml")); !os.IsNotExist(err) {
+	if _, err := os.Stat(artifact.Path(stored(t, dir), 2)); !os.IsNotExist(err) {
 		t.Error("the prepared review outlived the submit")
 	}
 
@@ -287,7 +287,7 @@ func TestReviewScreenFetchesThreadsWithoutAGet(t *testing.T) {
 
 	s.RequireAllPlayed(t)
 
-	if _, err := os.Stat(artifact.ThreadsPath(dir, sha)); err != nil {
+	if _, err := os.Stat(artifact.ThreadsPath(stored(t, dir), sha)); err != nil {
 		t.Fatalf("the threads were not cached: %v", err)
 	}
 }
@@ -354,7 +354,7 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 		t.Fatalf("the screen exited %d:\n%s", code, sc.text())
 	}
 
-	review, err := artifact.Load(filepath.Join(dir, ".second-look", "pr-2.toml"))
+	review, err := artifact.Load(artifact.Path(stored(t, dir), 2))
 	if err != nil {
 		t.Fatalf("the prepared review: %v", err)
 	}
@@ -406,12 +406,12 @@ func TestReviewScreenMarksHunksRead(t *testing.T) {
 	}
 
 	// The screen is gone, so what says the hunk was read is the file it left.
-	set, err := seen.Load(seen.Path(dir, 2))
+	set, err := seen.Load(seen.Path(stored(t, dir), 2))
 	if err != nil {
 		t.Fatalf("the read hunks: %v", err)
 	}
 
-	patch, err := artifact.LoadDiff(dir, sha)
+	patch, err := artifact.LoadDiff(stored(t, dir), sha)
 	if err != nil {
 		t.Fatalf("the cached diff: %v", err)
 	}
@@ -453,7 +453,7 @@ func TestReviewScreenAttachesAShellTranscript(t *testing.T) {
 		t.Fatalf("the screen exited %d:\n%s", code, sc.text())
 	}
 
-	review, err := artifact.Load(filepath.Join(dir, ".second-look", "pr-2.toml"))
+	review, err := artifact.Load(artifact.Path(stored(t, dir), 2))
 	if err != nil {
 		t.Fatalf("the prepared review: %v", err)
 	}
@@ -525,7 +525,7 @@ func TestReviewScreenQuitsWithoutPosting(t *testing.T) {
 				t.Fatalf("quitting exited %d:\n%s", code, sc.text())
 			}
 
-			if _, err := os.Stat(filepath.Join(dir, ".second-look", "pr-2.toml")); err != nil {
+			if _, err := os.Stat(artifact.Path(stored(t, dir), 2)); err != nil {
 				t.Error("quitting removed the prepared review")
 			}
 

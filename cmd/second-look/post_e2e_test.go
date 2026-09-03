@@ -2,7 +2,6 @@ package main_test
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -30,7 +29,7 @@ func TestPostReview(t *testing.T) {
 	golden.RequireEqual(t, []byte(res.stdout))
 	s.RequireAllPlayed(t)
 
-	if _, err := os.Stat(filepath.Join(dir, ".second-look", "pr-2.toml")); !os.IsNotExist(err) {
+	if _, err := os.Stat(artifact.Path(stored(t, dir), 2)); !os.IsNotExist(err) {
 		t.Fatal("the prepared review outlived a successful post, so posting again would post it twice")
 	}
 }
@@ -86,7 +85,7 @@ func TestPostOneCommentOnItsOwn(t *testing.T) {
 		t.Errorf("the standalone endpoint was not used:\n%s", res.stdout)
 	}
 
-	review, err := artifact.Load(filepath.Join(dir, ".second-look", "pr-2.toml"))
+	review, err := artifact.Load(artifact.Path(stored(t, dir), 2))
 	if err != nil {
 		t.Fatalf("the prepared review: %v", err)
 	}
@@ -137,7 +136,7 @@ func TestPostRefusesDrafts(t *testing.T) {
 		t.Errorf("want the drafts named, got %q", res.stderr)
 	}
 
-	if _, err := os.Stat(filepath.Join(dir, ".second-look", "pr-2.toml")); err != nil {
+	if _, err := os.Stat(artifact.Path(stored(t, dir), 2)); err != nil {
 		t.Error("a refused post removed the prepared review")
 	}
 }
@@ -208,7 +207,7 @@ func TestCommentAddHoldsEveryStagedCommentAsADraft(t *testing.T) {
 		t.Errorf("staging did not say what it held: %q", res.stdout)
 	}
 
-	review, err := artifact.Load(filepath.Join(dir, ".second-look", "pr-2.toml"))
+	review, err := artifact.Load(artifact.Path(stored(t, dir), 2))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,7 +10,7 @@ trap 'rm -rf "$work"' EXIT
 cp -R "$here/fixture/.second-look" "$work/"
 cd "$work"
 git init -q .
-git commit -q --allow-empty -m "the demo's own history"
+git -c user.name=demo -c user.email=demo@example.invalid commit -q --allow-empty -m "the demo's own history"
 git remote add origin https://github.com/KyleKing/second-look.git
 
-FIXTURE="$here/fixture" PATH="$here/bin:$PATH" "$here/../second-look" 2
+HOME="$work/home" FIXTURE="$here/fixture" PATH="$here/bin:$PATH" "$here/../second-look" 2

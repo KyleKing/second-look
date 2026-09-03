@@ -132,9 +132,12 @@ where what it says is anchored to code and can be resolved. Its pull request com
 coverage tables and linkbacks nobody ever resolves, and admitting them filled the queue
 with 77 rows where 13 were real.
 
-`second-look reviews` lists what is staged under `.second-look/`, newest first: this
-checkout's, then the ones staged with no checkout of their repository at all. `enter`
-opens one. Everything it lists is unfinished, because the artifact is deleted the moment a
+Every review, read mark, cached diff, and rating lives in one store under the user state
+directory, keyed by owner, repository, and number, so a pull request read from two clones
+is one review rather than two. An artifact directory left in a working copy is moved there
+the first time that review is opened, and a pointer is left saying where it went.
+
+`second-look reviews` lists what is staged, newest first. `enter` opens one. Everything it lists is unfinished, because the artifact is deleted the moment a
 review posts. `d`, twice, throws one away along with the diff, threads, rating, and read
 marks kept for it.
 

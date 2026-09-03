@@ -752,12 +752,12 @@ func reviewsCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.W
 	return prepared.Write(stdout, rows, time.Now())
 }
 
-// staged is every review on disk: this checkout's, then the ones staged with no
-// checkout of their repository at all. Both are unfinished work and neither is
-// findable without being listed.
+// staged is every review on disk: the store's, and anything an artifact tree in
+// the working directory still holds. The second is a leftover by definition,
+// since opening a review moves what it finds into the store, and it lists
+// because an unfinished review nobody can see is one that is lost.
 func staged() ([]prepared.Review, error) {
-	rows, err := prepared.List(".")
-	if err != nil && !errors.Is(err, prepared.ErrNoDir) {
+	if err := artifact.AdoptHere("."); err != nil {
 		return nil, fmt.Errorf("listing the staged reviews: %w", err)
 	}
 
@@ -766,12 +766,21 @@ func staged() ([]prepared.Review, error) {
 		return nil, fmt.Errorf("listing the staged reviews: %w", err)
 	}
 
-	away, err := prepared.Detached(home)
+	rows, err := prepared.All(home)
 	if err != nil {
 		return nil, fmt.Errorf("listing the staged reviews: %w", err)
 	}
 
-	return append(rows, away...), nil
+	stray, err := prepared.List(".")
+	if err != nil && !errors.Is(err, prepared.ErrNoDir) {
+		return nil, fmt.Errorf("listing the staged reviews: %w", err)
+	}
+
+	for i := range stray {
+		stray[i].Stray = true
+	}
+
+	return append(rows, stray...), nil
 }
 
 // inboxCmd prints the review queue in three buckets. It reads GitHub and
@@ -848,11 +857,17 @@ func target(ctx context.Context, arg string) (get.Target, error) {
 	}
 
 	t, err := get.Resolve(ctx, ".", r.owner, r.repo, r.number)
-	if err != nil {
-		return get.Target{}, fmt.Errorf("%s: %w", r, err)
+	if err == nil {
+		return t, nil
 	}
 
-	return t, nil
+	if r.here() {
+		if t, look := get.Lookup(r.number); look == nil {
+			return t, nil
+		}
+	}
+
+	return get.Target{}, fmt.Errorf("%s: %w", r, err)
 }
 
 func prNumber(pr string) (int, error) {

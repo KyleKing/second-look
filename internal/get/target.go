@@ -2,12 +2,22 @@ package get
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/kyleking/aragonite/vcs"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/prepared"
+)
+
+// Reasons a bare number resolves to no one review.
+var (
+	ErrAmbiguous     = errors.New("name the repository: owner/name#number")
+	ErrNothingStaged = errors.New("nothing is staged for it, and this is not a checkout")
 )
 
 // Host is the only forge this reviews against. It is a constant rather than a
@@ -58,7 +68,8 @@ func (t Target) Dir() string {
 }
 
 // Here is the target for a pull request of the repository the checkout at root
-// belongs to.
+// belongs to. Its state goes in the store like every other review, and an
+// artifact tree left in the checkout is moved there on the way.
 func Here(ctx context.Context, root string, number int) (Target, error) {
 	if !vcs.IsRepo(root) {
 		return Target{}, notARepo(root)
@@ -69,7 +80,18 @@ func Here(ctx context.Context, root string, number int) (Target, error) {
 		return Target{}, err
 	}
 
-	return Target{Owner: id.owner, Repo: id.name, Number: number, Work: root, Store: root}, nil
+	t, err := Away(id.owner, id.name, number)
+	if err != nil {
+		return Target{}, err
+	}
+
+	if err := artifact.Adopt(root, t.Store); err != nil {
+		return Target{}, fmt.Errorf("moving %s into the store: %w", root, err)
+	}
+
+	t.Work = root
+
+	return t, nil
 }
 
 // Away is the target for a pull request whose repository is not checked out
@@ -94,14 +116,9 @@ func Away(owner, repo string, number int) (Target, error) {
 // review that will not parse still resolves, so the failure reported is the
 // parse rather than the surroundings.
 func Staged(ctx context.Context, root string, number int) (Target, bool) {
-	path := artifact.Path(root, number)
-	if _, err := os.Stat(path); err != nil {
+	t, ok := stagedHere(root, number)
+	if !ok {
 		return Target{}, false
-	}
-
-	t := Target{Number: number, Store: root}
-	if r, err := artifact.Load(path); err == nil {
-		t.Owner, t.Repo = r.Owner, r.Repo
 	}
 
 	// The directory is the working copy only when it is a checkout of the
@@ -115,6 +132,31 @@ func Staged(ctx context.Context, root string, number int) (Target, bool) {
 	t.Work = root
 	if t.Owner == "" {
 		t.Owner, t.Repo = here.Owner, here.Repo
+	}
+
+	return t, true
+}
+
+// stagedHere reads the review staged in a directory and answers for the store
+// it belongs to, moving an artifact tree left there on the way. A review that
+// will not parse names no repository, so it is read where it lies.
+func stagedHere(root string, number int) (Target, bool) {
+	if _, err := os.Stat(artifact.Path(root, number)); err != nil {
+		return Target{}, false
+	}
+
+	r, err := artifact.Load(artifact.Path(root, number))
+	if err != nil {
+		return Target{Number: number, Store: root}, true
+	}
+
+	t, err := Away(r.Owner, r.Repo, number)
+	if err != nil {
+		return Target{Number: number, Store: root}, true
+	}
+
+	if err := artifact.Adopt(root, t.Store); err != nil {
+		return Target{Number: number, Owner: r.Owner, Repo: r.Repo, Store: root}, true
 	}
 
 	return t, true
@@ -138,4 +180,44 @@ func Resolve(ctx context.Context, root, owner, repo string, number int) (Target,
 	}
 
 	return Away(owner, repo, number)
+}
+
+// Lookup finds a staged review by number alone, which is what a bare number
+// means outside a checkout: every review lives in the store, so it resolves
+// wherever it is typed as long as one review answers to the number.
+//
+// Two repositories with the same number open is the case it refuses. Guessing
+// there would read one pull request while saying the other's number.
+func Lookup(number int) (Target, error) {
+	home, err := artifact.StateHome()
+	if err != nil {
+		//nolint:wrapcheck // StateHome's own error already names what failed
+		return Target{}, err
+	}
+
+	rows, err := prepared.All(home)
+	if err != nil {
+		return Target{}, fmt.Errorf("reading the store: %w", err)
+	}
+
+	var found []string
+
+	for i := range rows {
+		if rows[i].Number == number && rows[i].Repository != "" &&
+			!slices.Contains(found, rows[i].Repository) {
+			found = append(found, rows[i].Repository)
+		}
+	}
+
+	switch len(found) {
+	case 0:
+		return Target{}, fmt.Errorf("#%d: %w", number, ErrNothingStaged)
+	case 1:
+		owner, repo, _ := strings.Cut(found[0], "/")
+
+		return Away(owner, repo, number)
+	}
+
+	return Target{}, fmt.Errorf("#%d is staged for %s: %w",
+		number, strings.Join(found, " and "), ErrAmbiguous)
 }

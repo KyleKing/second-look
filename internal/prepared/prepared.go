@@ -48,9 +48,9 @@ type Review struct {
 	// even with no inline comment under it.
 	Body bool `json:"body"`
 
-	// Detached marks a review staged with no checkout of its repository, which
-	// lives in the state directory rather than in a working copy.
-	Detached bool `json:"detached,omitempty"`
+	// Stray marks a review still sitting in a working copy rather than in the
+	// store, which is what an artifact tree that could not be moved looks like.
+	Stray bool `json:"stray,omitempty"`
 
 	// Broken is why a file on disk could not be read as a review. The row still
 	// lists: a file that no longer parses is the one most worth knowing about,
@@ -115,7 +115,7 @@ func State(r *Review) string {
 // repository nobody has staged a review in looks like.
 var ErrNoDir = errors.New("no .second-look directory here")
 
-// List reads every staged review in the checkout at root, newest first.
+// List reads every staged review under root, newest first.
 //
 // Recency is the order because the artifact is working state: the review being
 // written is the one to reopen, and the one from three weeks ago is the one to
@@ -150,13 +150,13 @@ func List(root string) ([]Review, error) {
 	return out, nil
 }
 
-// Detached lists the reviews staged with no checkout, which live under
-// home/<host>/<owner>/<name>/.second-look. A missing directory is no reviews
-// rather than an error: reviewing away from a clone is the uncommon case.
+// All lists every staged review in the store, which holds one directory per
+// repository under home/<host>/<owner>/<name>/.second-look. A missing
+// directory is no reviews rather than an error.
 //
 // The state directory holds other things (the queue's read marks among them),
 // so a path that does not look like a repository is skipped rather than read.
-func Detached(home string) ([]Review, error) {
+func All(home string) ([]Review, error) {
 	var out []Review
 
 	repos, err := repoDirs(home)
@@ -172,10 +172,6 @@ func Detached(home string) ([]Review, error) {
 			}
 
 			return nil, err
-		}
-
-		for i := range rows {
-			rows[i].Detached = true
 		}
 
 		out = append(out, rows...)

@@ -128,13 +128,8 @@ func pick(rows []Review, chain []int) []Review {
 	return out
 }
 
-// key scopes a branch name to its repository and to whether the review is
-// staged in a checkout, since "main" names a different branch in every
-// repository and the two lists are read separately.
+// key scopes a branch name to its repository, since "main" names a different
+// branch in every repository.
 func key(r *Review, ref string) string {
-	if r.Detached {
-		return "detached\x00" + r.Repository + "\x00" + ref
-	}
-
 	return r.Repository + "\x00" + ref
 }
