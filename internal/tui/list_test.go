@@ -454,3 +454,29 @@ func TestTabsLoadOnceAndKeepWhereEachWasLeft(t *testing.T) {
 		t.Errorf("the tab ran %d search(es) in total, want 1", late.starts)
 	}
 }
+
+// A key that acts on a row must leave the cursor on it. Every action rebuilds
+// the list, and a rebuild puts the cursor back at the top unless it knows the
+// reader moved it, so `d` on the third staged review used to arm the first one:
+// getting back to where you were was `djjd`.
+func TestAnActionKeepsTheCursorWhereTheReaderPutIt(t *testing.T) {
+	t.Parallel()
+
+	l := list(t, func(_ tui.Action, r *tui.Row) (string, bool, error) {
+		return "armed " + r.Key, false, nil
+	})
+
+	for range 2 {
+		l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	}
+
+	for _, k := range []tea.KeyPressMsg{
+		{Code: 'd', Text: "d"}, {Code: 'o', Text: "o"}, {Code: tea.KeySpace, Text: " "},
+	} {
+		l.Update(k)
+
+		if got := l.CursorKey(); got != "T3" {
+			t.Errorf("%q sent the cursor to %q, want it left on T3", k.Text, got)
+		}
+	}
+}

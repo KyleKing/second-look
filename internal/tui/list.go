@@ -664,8 +664,6 @@ func (l *List) rebuild() {
 // moved handles every key that only changes where the frame is looking, so the
 // keys that do something to a row stay a short list.
 func (l *List) moved(msg tea.KeyPressMsg) bool {
-	l.touched = true
-
 	switch {
 	case key.Matches(msg, l.keys.PeekDown):
 		l.peek(1)
@@ -686,10 +684,10 @@ func (l *List) moved(msg tea.KeyPressMsg) bool {
 	case key.Matches(msg, l.list.Section):
 		l.nextSection()
 	default:
-		l.touched = false
-
 		return false
 	}
+
+	l.touched = true
 
 	return true
 }

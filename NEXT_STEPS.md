@@ -86,9 +86,11 @@ Folded in here because every one of them is a rendering problem:
 - The inbox draws the rating beside the draft and status column instead of in place of it
 - A comment anchored to a range says so on screen, which today it does not
 
-One keymap fix stands alone rather than folding in: `dd` moves the cursor on the first
-`d`, so returning to where you were is `djjd`. A confirmation that names what it is about
-to restamp replaces the jump.
+One keymap fix stood alone rather than folding in, and is done: `dd` on the third staged
+review armed the first, because `moved` set `touched` on every keypress and cleared it
+again for anything that was not a motion, so the rebuild every action runs sent the cursor
+back to the top. Getting back to where you were was `djjd`. It cost every row verb the
+same way, not only the discard.
 
 ### 2. What order the diff arrives in
 
