@@ -83,7 +83,6 @@ Folded in here because every one of them is a rendering problem:
   block was never designed for
 - A skipped comment draws as an ordinary comment carrying its body and note, marked
   skipped, rather than as a special case
-- The inbox draws the rating beside the draft and status column instead of in place of it
 - A comment anchored to a range says so on screen, which today it does not
 
 One keymap fix stood alone rather than folding in, and is done: `dd` on the third staged
@@ -292,6 +291,13 @@ All of it came out of driving the built binary rather than reading the code,
 which is why none of it showed up in a test.
 
 ### Done
+
+**The rating is a column.** The inbox spliced `cost 38  ` onto the front of the title,
+so a rated row's title started nine columns right of an unrated one's and every title
+slid sideways as the background pass answered and the queue re-sorted under it. It has a
+right-aligned column of its own between the age and the title now, sized to the widest
+number in the list and drawn at zero width where nothing is rated, which is what the
+conversations and staged queues get.
 
 **A staged review can be discarded.** `d` on `second-look reviews`, twice, removes the
 artifact along with the read marks and every cache keyed to its head. Until then the only

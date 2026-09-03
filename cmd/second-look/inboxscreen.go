@@ -589,7 +589,8 @@ func (s *inboxScreen) sections() []tui.Section {
 				Left: key,
 				Mid:  humanize.Clip(p.Author, authorCap),
 				Age:  humanize.Ago(p.Updated, now),
-				Tail: rated(s.local[key]) + waiting(p),
+				Cost: rated(s.local[key]),
+				Tail: waiting(p),
 			})
 		}
 
@@ -602,13 +603,15 @@ func (s *inboxScreen) sections() []tui.Section {
 const authorCap = 14
 
 // rated is what an earlier read of this pull request made of it, which is the
-// one number here that is about the change rather than about the queue.
+// one number here that is about the change rather than about the queue. The
+// column it is drawn in is labelled once by the header rather than on every
+// row, since a queue is scanned down rather than read across.
 func rated(k inbox.Known) string {
 	if !k.Rated {
 		return ""
 	}
 
-	return fmt.Sprintf("cost %d  ", k.Cost)
+	return strconv.Itoa(k.Cost)
 }
 
 // waiting is what the row says past the columns: whether it is a draft, its

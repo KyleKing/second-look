@@ -98,14 +98,14 @@ func (l *List) bodyView() string {
 		return l.styles.subtitle.Render("  nothing here")
 	}
 
-	left, mid := l.widest()
+	cols := l.widest()
 	bar := scrollbar(rows, len(l.lines), l.offset)
 	width := bodyWidth(l.width, bar)
 
 	out := make([]string, 0, rows)
 
 	for i := l.offset; i < len(l.lines) && len(out) < rows; i++ {
-		out = append(out, l.line(i, left, mid, width))
+		out = append(out, l.line(i, cols, width))
 	}
 
 	for len(out) < rows {
@@ -115,7 +115,7 @@ func (l *List) bodyView() string {
 	return strings.Join(alongside(out, bar, l.styles, l.width), "\n")
 }
 
-func (l *List) line(i, left, mid, width int) string {
+func (l *List) line(i int, cols columns, width int) string {
 	line := l.lines[i]
 
 	switch {
@@ -127,7 +127,7 @@ func (l *List) line(i, left, mid, width int) string {
 		return " " + l.styles.note.Render(cut("      "+line.Under(), width))
 	}
 
-	text := cut(l.row(line.row, left, mid), width)
+	text := cut(l.row(line.row, cols), width)
 
 	if i == l.cursor {
 		return l.styles.cursor.Render(cursorBar) + text
@@ -149,7 +149,7 @@ func (l listLine) Under() string {
 // row lays out one row: the mark, where it is, what it anchors to, how stale,
 // then whose turn and the title. The mark comes first because unread is the one
 // thing scanned for, and a glyph carries it so it survives NO_COLOR.
-func (l *List) row(r *Row, left, mid int) string {
+func (l *List) row(r *Row, cols columns) string {
 	var b strings.Builder
 
 	b.WriteString(" ")
@@ -160,13 +160,20 @@ func (l *List) row(r *Row, left, mid int) string {
 		b.WriteString(" ")
 	}
 
-	b.WriteString(" " + pad(cutTail(r.Left, left), left))
-	b.WriteString("  " + pad(cut(r.Mid, mid), mid))
+	b.WriteString(" " + pad(cutTail(r.Left, cols.left), cols.left))
+	b.WriteString("  " + pad(cut(r.Mid, cols.mid), cols.mid))
 	// The age column is fixed rather than measured: "13h" and "4d" are the whole
 	// range, and letting it vary would move the columns beside it between lists.
 	const ageWidth = 5
 
 	b.WriteString("  " + pad(r.Age, ageWidth))
+
+	// The rating is right-aligned so the digits line up, and it keeps its width
+	// on a row that has none: a queue re-sorting as ratings land would otherwise
+	// slide every title sideways on each answer.
+	if cols.cost > 0 {
+		b.WriteString("  " + lpad(r.Cost, cols.cost))
+	}
 
 	if r.Tail != "" {
 		b.WriteString("  " + r.Tail)

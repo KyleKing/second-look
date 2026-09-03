@@ -8,17 +8,20 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Row is one line of a list screen. The four columns are laid out by the
-// screen rather than by the caller, so two lists built from different data
-// still align the same way.
+// Row is one line of a list screen. The columns are laid out by the screen
+// rather than by the caller, so two lists built from different data still align
+// the same way.
 type Row struct {
 	// Key identifies the row to the caller. It is opaque here: the screen
 	// hands it back with whatever action was pressed and never reads it.
 	Key string
 
-	Left  string
-	Mid   string
-	Age   string
+	Left string
+	Mid  string
+	Age  string
+	// Cost is what reading the row is rated, right-aligned in a column of its
+	// own. A list where no row carries one spends no width on it.
+	Cost  string
 	Tail  string
 	Under string
 
@@ -591,23 +594,33 @@ func abs(n int) int {
 	return n
 }
 
-// widest measures the two columns that vary, so rows line up with each other.
-func (l *List) widest() (int, int) {
+// columns is how wide each measured column is drawn. A zero means the column is
+// not drawn at all, which is what a list nothing rates does with the rating.
+type columns struct {
+	left int
+	mid  int
+	cost int
+}
+
+// widest measures the columns that vary, so rows line up with each other.
+func (l *List) widest() columns {
 	const (
 		leftCap = 34
 		midCap  = 48
 	)
 
-	var left, mid int
+	var out columns
 
 	for i := range l.shown {
 		for j := range l.shown[i].Rows {
-			left = max(left, min(leftCap, textWidth(l.shown[i].Rows[j].Left)))
-			mid = max(mid, min(midCap, textWidth(l.shown[i].Rows[j].Mid)))
+			r := &l.shown[i].Rows[j]
+			out.left = max(out.left, min(leftCap, textWidth(r.Left)))
+			out.mid = max(out.mid, min(midCap, textWidth(r.Mid)))
+			out.cost = max(out.cost, textWidth(r.Cost))
 		}
 	}
 
-	return left, mid
+	return out
 }
 
 // rebuild lays the sections out as lines. It runs whenever anything that

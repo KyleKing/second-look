@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/golden"
@@ -479,4 +480,77 @@ func TestAnActionKeepsTheCursorWhereTheReaderPutIt(t *testing.T) {
 			t.Errorf("%q sent the cursor to %q, want it left on T3", k.Text, got)
 		}
 	}
+}
+
+// The rating gets a column of its own rather than being spliced onto the front
+// of the title. A queue re-sorts as ratings land, so a title whose start moved
+// with the number beside it jumped sideways under the eye on every answer.
+func TestARatingIsAColumnRatherThanTitleText(t *testing.T) {
+	t.Parallel()
+
+	rated := func() []tui.Section {
+		return []tui.Section{{Name: "pending your review", Rows: []tui.Row{
+			{Key: "A", Left: "o/r#1", Mid: "alice", Age: "2h", Cost: "7", Tail: "the title"},
+			{Key: "B", Left: "o/r#2", Mid: "bob", Age: "4d", Tail: "the title"},
+			{Key: "C", Left: "o/r#3", Mid: "carol", Age: "1d", Cost: "84", Tail: "the title"},
+		}}}
+	}
+
+	l := tui.NewList("inbox", rated, nil)
+	l.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+
+	at := startsOf(plain(l.ListFrame()), "the title")
+
+	if len(at) != 3 {
+		t.Fatalf("found %d titles, want 3:\n%s", len(at), plain(l.ListFrame()))
+	}
+
+	if at[0] != at[1] || at[1] != at[2] {
+		t.Errorf("titles start at columns %v, want one column for all three", at)
+	}
+
+	if !strings.Contains(plain(l.ListFrame()), "84") {
+		t.Error("the rating is not drawn")
+	}
+}
+
+// A list nothing rates spends no width on the column, the way the scrollbar is
+// only drawn where the content overflows.
+func TestAnUnratedListSpendsNoWidthOnTheColumn(t *testing.T) {
+	t.Parallel()
+
+	l := list(t, nil)
+
+	bare := startsOf(plain(l.ListFrame()), "add TTL to the pool")
+	if len(bare) != 1 {
+		t.Fatalf("the fixture row is drawn %d times, want once", len(bare))
+	}
+
+	withCost := tui.NewList("conversations", func() []tui.Section {
+		rows := queue()
+		rows[0].Rows[0].Cost = "9"
+
+		return rows
+	}, nil)
+	withCost.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+
+	got := startsOf(plain(withCost.ListFrame()), "add TTL to the pool")
+	if len(got) != 1 || got[0] != bare[0]+len("  9") {
+		t.Errorf("the tail is at %v with a rating and %v without", got, bare)
+	}
+}
+
+// startsOf is the column each line of a frame puts want at, measured in cells
+// so the cursor glyph is one column rather than the three bytes it is written
+// in.
+func startsOf(frame, want string) []int {
+	var out []int
+
+	for _, line := range strings.Split(frame, "\n") {
+		if i := strings.Index(line, want); i >= 0 {
+			out = append(out, utf8.RuneCountInString(line[:i]))
+		}
+	}
+
+	return out
 }
