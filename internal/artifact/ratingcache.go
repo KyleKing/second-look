@@ -49,9 +49,16 @@ func RatingsPath() (string, error) {
 	return filepath.Join(home, "ratings.toml"), nil
 }
 
+// RatingScale is what the numbers in the cache are on. Changing how a cost is
+// worked out changes what every cached number means, and a queue ordering a mix
+// of two scales orders wrongly and silently, so a file written on another one
+// is dropped rather than read.
+const RatingScale = 2
+
 // ratingFile is the on-disk shape. The key is a field rather than a table name
 // because a repository name carries characters a bare TOML key cannot.
 type ratingFile struct {
+	Scale int        `toml:"scale"`
 	Rated []ratedRow `toml:"rated"`
 }
 
@@ -81,6 +88,10 @@ func LoadRatings() Ratings {
 		return Ratings{}
 	}
 
+	if file.Scale != RatingScale {
+		return Ratings{}
+	}
+
 	out := make(Ratings, len(file.Rated))
 	for _, r := range file.Rated {
 		out[r.Key] = Rating{Updated: r.Updated, Cost: r.Cost, Rated: r.Rated}
@@ -105,7 +116,7 @@ func SaveRatings(r Ratings) error {
 
 	slices.Sort(keys)
 
-	file := ratingFile{Rated: make([]ratedRow, 0, len(keys))}
+	file := ratingFile{Scale: RatingScale, Rated: make([]ratedRow, 0, len(keys))}
 	for _, k := range keys {
 		file.Rated = append(file.Rated,
 			ratedRow{Key: k, Updated: r[k].Updated, Cost: r[k].Cost, Rated: r[k].Rated})

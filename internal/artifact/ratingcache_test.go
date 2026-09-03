@@ -1,7 +1,10 @@
 package artifact_test
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,5 +59,48 @@ func TestRatingsRoundTrip(t *testing.T) {
 
 	if got := artifact.LoadRatings(); len(got) != 0 {
 		t.Errorf("an unreadable file answered %v", got)
+	}
+}
+
+// A cost worked out a different way makes every cached number mean something
+// else, and a queue ordering a mix of two scales orders wrongly without saying
+// so. A file from another scale is no ratings, which is what the queue already
+// handles.
+func TestRatingsFromAnotherScaleAreDropped(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	path, err := artifact.RatingsPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	const row = "\n[[rated]]\nkey = \"o/r#1\"\nupdated = 2026-01-01T00:00:00Z\ncost = 99\nrated = true\n"
+
+	body := fmt.Sprintf("scale = %d\n%s", artifact.RatingScale-1, row)
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := artifact.LoadRatings(); len(got) != 0 {
+		t.Errorf("ratings from an older scale were read: %v", got)
+	}
+
+	// The same file on this scale reads, so what the guard rejects is the scale
+	// rather than the shape.
+	current := strings.Replace(body,
+		fmt.Sprintf("scale = %d", artifact.RatingScale-1),
+		fmt.Sprintf("scale = %d", artifact.RatingScale), 1)
+	if err := os.WriteFile(path, []byte(current), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := artifact.LoadRatings(); len(got) != 1 {
+		t.Errorf("ratings on this scale were dropped too: %v", got)
 	}
 }

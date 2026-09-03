@@ -12,6 +12,7 @@ package rate
 
 import (
 	"context"
+	"math"
 	"slices"
 
 	"github.com/kyleking/second-look/internal/diff"
@@ -33,6 +34,12 @@ const (
 	// Ceiling keeps the number readable at a glance and comparable between
 	// pull requests, which a raw sum of an unbounded diff is not.
 	Ceiling = 99
+	// How fast the sum approaches the ceiling. It is chosen so that
+	// the changes a week of reviewing actually holds land across the range
+	// rather than bunched at either end: one hunk of a body rates 2, a symbol
+	// added 20, a signature changed 49, a signature plus two new capabilities
+	// 78, and a refactor carrying all of it 94.
+	scale = 60.0
 )
 
 // Score is one pull request's rating and what went into it, so a screen can say
@@ -147,9 +154,17 @@ func HunkCost(r structure.Reading) int {
 	return sum
 }
 
-// total sums the signals under the ceiling. A signature change counts once
-// however many hunks carry one, because the second one is the same risk again
-// rather than more of it; the hunk count is what grows with the diff.
+// total is the signals summed and then bent onto the scale a person reads.
+//
+// A signature change counts once however many hunks carry one, because the
+// second one is the same risk again rather than more of it; the hunk count is
+// what grows with the diff.
+//
+// The sum is bent rather than clipped because clipping is what made the number
+// useless: 40 for a signature and 25 for each capability class passed 99 on
+// anything substantial, so every real change rated 99 and the number ranked
+// nothing. The curve is strictly increasing, so two changes that differ at all
+// still rate differently, and it reaches the ceiling only in the limit.
 func total(s Score) int {
 	sum := s.Hunks * weightHunk
 
@@ -167,5 +182,15 @@ func total(s Score) int {
 
 	sum += len(s.Gained) * weightGained
 
-	return min(sum, Ceiling)
+	return bend(sum)
+}
+
+// bend maps a raw sum onto 0..Ceiling, approaching the ceiling without reaching
+// it. Nothing rates zero unless it carries no signal at all.
+func bend(sum int) int {
+	if sum <= 0 {
+		return 0
+	}
+
+	return min(int(math.Round(Ceiling*(1-math.Exp(-float64(sum)/scale)))), Ceiling)
 }

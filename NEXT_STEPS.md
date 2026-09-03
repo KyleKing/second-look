@@ -168,13 +168,27 @@ worse than leaving it where the diff had it. The per-hunk cost carries no ceilin
 what matters is which of two hunks is dearer and the ceiling exists to keep a number
 comparable between pull requests.
 
-### 3. The score that always says 99
+### 3. The score that always says 99 — done
 
-A signature change is 40, each new capability class is 25, symbols and hunks add more,
-and the ceiling is 99, so anything substantial pins at the ceiling and the number ranks
-nothing. Recalibrate against a real week of the queue, which is the pass requirements.md
-already says the weights are waiting for. `internal/rate`'s test pins the order rather
-than the numbers, so this is a rescale rather than a rewrite.
+The weights were never the problem. A signature change at 40 plus two capability classes
+at 25 each already passed the 99 ceiling, and the ceiling was a `min`, so every change
+carrying that much or more rated exactly 99 and the number ranked nothing above itself.
+
+The sum is bent onto the scale now rather than clipped: the same weights, mapped through
+a curve that approaches 99 without reaching it. It is strictly increasing, so two changes
+that differ at all still rate differently, and the order `internal/rate`'s test pins is
+untouched because a monotonic map cannot change an order. What it changes is that the top
+of the range is usable: one hunk of a body rates 2, thirty rate 39, a symbol added 19, one
+new capability 35, a signature 49, a signature with two capabilities 78, and the same
+again across forty hunks 88.
+
+The weights themselves still want a real week of the queue behind them, which is what
+requirements.md has been waiting for. That is a different pass and this one no longer
+blocks it: the numbers now spread far enough apart to tell whether a weight is wrong.
+
+The cache carries the scale it was written on, and a file from another one is dropped
+rather than read. A queue ordering a mix of two scales orders wrongly and says nothing
+about it.
 
 ### 4. One store, one identity
 

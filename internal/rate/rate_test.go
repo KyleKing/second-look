@@ -97,6 +97,47 @@ func TestOfSkipsCosmeticHunks(t *testing.T) {
 }
 
 // The ceiling is what keeps two large changes comparable at a glance.
+// The number pinned at the ceiling on anything substantial and so ranked
+// nothing: a signature change at 40 plus two capability classes at 25 each
+// already passed 99, and so did every change carrying more than that. The sum
+// is bent onto the scale now rather than clipped, so changes that differ still
+// rate differently well past the point the old sum saturated.
+func TestSubstantialChangesStillRankAgainstEachOther(t *testing.T) {
+	t.Parallel()
+
+	signature := structure.Reading{Kind: structure.KindSignature, Parsed: true}
+	gained := structure.Reading{
+		Gained: []structure.Class{structure.ClassExec, structure.ClassNetwork}, Parsed: true,
+	}
+	third := structure.Reading{Gained: []structure.Class{structure.ClassSQL}, Parsed: true}
+
+	// Each of these passed the old sum's ceiling, so all three rated 99.
+	steps := []struct {
+		name     string
+		readings []structure.Reading
+	}{
+		{"a signature and two capabilities", []structure.Reading{signature, gained}},
+		{"and a third capability", []structure.Reading{signature, gained, third}},
+		{"and ten hunks of bodies", append([]structure.Reading{signature, gained, third}, body(10)...)},
+	}
+
+	last := 0
+
+	for _, step := range steps {
+		got := rate.Of(step.readings).Total
+
+		if got <= last {
+			t.Errorf("%s rates %d, which is not above the case before it (%d)", step.name, got, last)
+		}
+
+		if got >= rate.Ceiling {
+			t.Errorf("%s rates %d, which is the ceiling: it ranks nothing above itself", step.name, got)
+		}
+
+		last = got
+	}
+}
+
 func TestOfStopsAtTheCeiling(t *testing.T) {
 	t.Parallel()
 
