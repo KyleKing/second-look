@@ -28,6 +28,223 @@ has run against live GitHub from inside the screen rather than from the shell. S
 the inbox, the rating, and writing a comment without an agent all landed, so nothing alpha
 named is outstanding.
 
+## The next goal: twenty-five reviews, locally
+
+Read every one of my twenty-five open pull requests in the terminal, stage a review on
+each, then work with Claude Code to implement the notes and answer the threads that need
+a human, without opening a browser. The steps below are in the order they want doing and
+each names what it depends on. The scratch list of gripes I was keeping is folded into
+them and deleted.
+
+The order comes from where the friction is rather than from what is architecturally
+tidy. Reading the diff comes first, in two halves (how a change is drawn, then what
+order the changes arrive in), because it is the part I dislike today and every other step
+is spent looking at it. The store move follows because it is small and three later steps need it.
+The agent loop is next because it is the second half of the goal, and the session after
+that, because it is what turns twenty-five reviews into one sitting.
+
+### 1. The diff is unpleasant to read
+
+A changed line is whole-line green or red with no syntax highlighting and no word-level
+marking (`internal/tui/styles.go`), so a one-word edit reads as two entirely changed
+lines and nothing tells Go from YAML. [delta](https://github.com/dandavison/delta) and
+[hunk](https://www.hunk.dev/) both treat highlighting and intra-line marking as the
+floor, and this is below it.
+
+Three renderers land behind `v`, which cycles `plain` (what ships today), `rich`,
+`split`, and `structural`. They are experiments: rough edges are fine, each caveat is
+written into the help and the README, all of them get lived with on real reviews, and the
+losers are deleted rather than kept for symmetry.
+
+**rich** is highlighting per grammar, word-level intra-line marking, a background band
+instead of colored text, and a gutter carrying the old and new line numbers together.
+Highlighting is [chroma](https://github.com/alecthomas/chroma), which is pure Go and so
+keeps `CGO_ENABLED=0` across the ten-platform matrix, unlike every tree-sitter binding.
+
+**split** is side-by-side with a unified fallback below a width, and it has to answer
+where the context pane goes, because requirements.md already has both of them wanting the
+right half.
+
+**structural** reuses the ast-grep pass the rating already runs: the enclosing symbol on
+each hunk heading, a per-file list of which symbols changed and how, and a move drawn as
+a move rather than a delete beside an unrelated insert. A hunk is a fragment, so the
+enclosing symbol is not always knowable, which is the caveat this one ships with.
+
+The faces are nightfox's, derived into aragonite's palette rather than exposed as
+configuration, so second-look, gh-repo-dashboard, and gh-sweep stay one visual family.
+`dim_inactive` is the idea worth taking from that config: a read hunk, a folded region,
+and the file the cursor is not in can all recede.
+
+Folded in here because every one of them is a rendering problem:
+
+- Opening a comment centers it vertically, because the code that explains a finding is
+  above the line rather than at the top of the frame
+- Several comments on one line break the layout today, which is the case the comment
+  block was never designed for
+- A skipped comment draws as an ordinary comment carrying its body and note, marked
+  skipped, rather than as a special case
+- The inbox draws the rating beside the draft and status column instead of in place of it
+- A comment anchored to a range says so on screen, which today it does not
+
+One keymap fix stands alone rather than folding in: `dd` moves the cursor on the first
+`d`, so returning to where you were is `djjd`. A confirmation that names what it is about
+to restamp replaces the jump.
+
+### 2. What order the diff arrives in
+
+Files group by directory today and the diff's own order is kept inside a group, which is
+the right default and is not the whole of it. What a review actually wants is the change
+read in the order it makes sense in, and three things stop that.
+
+Hunks in one file are shown in file order even when the change is one edit made in four
+places, so a caller and its callee are pages apart. Co-locate them: the structural pass
+from step 1 knows which symbol each hunk is in, so hunks that touch the same symbol, or
+the same symbol and its callers, can sit together with the file order as the fallback.
+
+A file split across two groups is invisible. When a directory group holds part of a file
+whose other hunks are elsewhere, the heading says so and a motion walks to the rest,
+because a reader who does not know they are seeing half a file draws the wrong conclusion
+from it.
+
+Generated and machine-authored files sit in the reading order as if they were code. They
+should be grouped last, folded by default, and counted rather than read, with the same
+treatment lockfiles get in their own section below: a summary of the part worth reviewing
+in place of four hundred lines. Which files count as generated wants to be configurable,
+because no built-in list will match a monorepo.
+
+The order is also where the review-cost rating earns its second use: within a group, the
+hunk that changed a signature is worth reading before the one that renamed a local.
+
+### 3. The score that always says 99
+
+A signature change is 40, each new capability class is 25, symbols and hunks add more,
+and the ceiling is 99, so anything substantial pins at the ceiling and the number ranks
+nothing. Recalibrate against a real week of the queue, which is the pass requirements.md
+already says the weights are waiting for. `internal/rate`'s test pins the order rather
+than the numbers, so this is a rescale rather than a rewrite.
+
+### 4. One store, one identity
+
+Everything second-look keeps (the review, the read marks, the thread cache, the diff
+cache, the ratings) moves under the state directory keyed by owner, repository, and
+number. `.second-look/` in a checkout becomes a pointer, so an agent still finds a review
+by the convention the skill teaches.
+
+Reading #42 from `../irm-0-null` and later from `../irm-5-five` is one review, and today
+it is two, which is the bug that makes an incremental re-review impossible across
+directories. It also leaves one place to sweep instead of one per clone, and both the
+prefetch and the re-review filter need a store that is not a working directory. Carry a
+migration: an in-repo artifact is moved on first read rather than orphaned.
+
+### 5. The agent loop, both directions
+
+Four parts, and the point of all of them is that a review is a conversation with Claude
+Code rather than a file handoff.
+
+**Reload rather than clobber.** The screen watches the artifact and says it changed the
+way nvim says a file changed on disk, keeping the comment being edited. The case worth
+designing for is the collision: the agent rewrote the comment I am typing in, so the
+screen offers both and never silently wins.
+
+**What the agent reads.** `sl show` prints the review and cannot hand over the diff, so
+an agent asked about a finding is working from a path and a line number. `sl show <pr>
+--diff` prints the diff with the anchors marked, and a per-comment context command emits
+the hunk, the surrounding file, the thread, and the note together, so the agent reads
+what I am looking at.
+
+**A fifth state and a thread.** States become ready, draft, skipped, posted, and `todo`,
+where `todo` means the agent owes work here. A comment grows a thread of turns, each with
+an author and a body, so my guidance and the agent's answer are iterations rather than
+one mutating note. Rendering is progressive: the first comment stays sticky, the last turn
+is trimmed to a couple of lines, one line of the turn before it shows, older turns are
+hidden behind a count, and focus expands them a step at a time. Length is the risk here,
+so the collapsed shape is the design and the expanded one is the affordance.
+
+**Batch dispatch on its own key.** `T` hands every `todo` to the agent at once and does
+not block on drafts, where `S` blocks on a draft and always will, because a draft is a
+comment nobody has ruled on and handing work to an agent is not posting. The set is
+written out, the agent drains it, answers arrive as turns, and the screen says which
+came back while I was elsewhere.
+
+Alongside it, the threads tab takes on what GitHub's conversations list makes unreadable:
+gh-dash's row density, inbox-style processing of what moved, and the reply written where
+the code is rather than in a browser textarea.
+
+### 6. The session for twenty-five reviews
+
+Prefetch lazily in the background so the next review is staged before the current one is
+finished, ordered by rules from `config.toml` rather than by a single built-in ranking,
+and pruned from disk once a review is actioned.
+
+The queue then has to behave like something I am working through. Progress is visible, a
+session can carry a cutoff line so I decide what is in scope today, rows can be reordered
+by hand, and a review I walked away from is still where I left it. New and reordered rows
+are held out of the sort until I ask for them, with a count on the tab saying how many are
+waiting, because a queue that rearranges under the cursor is worse than a stale one.
+Notification lands at a boundary (a review posted, a review finished) rather than
+mid-read.
+
+Navigation is part of this: the review screen becomes a view inside the tabbed shell with
+a way back to the queue, a recently-opened list, and an indicator of which pull requests
+have a checkout here, rather than quitting and reopening the program.
+
+### 7. What changed since I read it
+
+Three steps of one feature, all of them resting on step 3.
+
+A filter first: every head I have read keeps its diff, so reopening a pull request can
+mark which hunks are new or changed since the newest read head and narrow the review to
+those. Read marks already survive a force-push by content hash, so this is presentation
+over state that exists.
+
+Then a picker, for comparing against any earlier round rather than only the last. Then
+live detection, so a push that lands while the screen is open keeps my staged comments
+and offers the incremental diff instead of making me reopen. A pull request I have already
+reviewed says so when it opens, whichever directory I open it from.
+
+### 8. Suggestions, ranges, and drift
+
+second-look owns suggestions. A key takes the line or range under the cursor, opens the
+after-side text, and stages a GitHub suggestion block, refusing what GitHub would refuse
+(a range crossing a removed line, a range leaving its hunk) at staging time rather than
+at post time. An agent can write one into the TOML and the same validation applies to it.
+
+The generalization worth having: flag when the code under any anchor changed since the
+comment was written, which is the post-time anchor guard moved to read time and useful for
+every comment rather than only a suggestion.
+
+`[TODO:` markers are the other half, and they are requirements.md's second review target:
+local changes with no posting endpoint, where a comment lands in the source as a marker.
+
+### 9. Writing the comment
+
+`e` then `ctrl+e` is the reflex today, which says the text box is the wrong shape for real
+prose. Inline modal editing is owed to aragonite as `tui/editor` and is what fixes it,
+shared with every tool here that writes prose in a terminal.
+
+With it, completion for GitHub usernames, files in the diff, symbols, and links, which
+requirements.md leaves as an open question about where the candidates come from: files in
+the diff need no index, and symbols need codeintel.
+
+Images stay an open question and want verifying rather than assuming. requirements.md
+recorded that `gh` cannot upload one; if that has changed, a linked image in a comment
+body should post, and if it has not, the fallback of opening the comment and the image
+directory together on post is what stands.
+
+### 10. Reading around the diff
+
+Spike context expansion first, since it needs no index: grow a hunk's context, or open the
+whole post-change file around it, from the checkout when there is one and the API blob when
+there is not. Definitions and usages come after, on the codeintel extraction, and the
+checkout-less path is the question that has to be answered before they can be promised.
+
+### Later, in the order I would reach for them
+
+A history view of a comment's turns, once the thread exists and I know what I go back for.
+Linear and other context on a queue row, which is the thing gh-dash cannot do at all.
+Lockfile cards, which have their own section below. Issues beside pull requests, still
+waiting for a real gap rather than parity.
+
 ## Broken today: jj colocated repositories
 
 `second-look <pr>` fails in any repository with a `.jj` directory, including this one:
