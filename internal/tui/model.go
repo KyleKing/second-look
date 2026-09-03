@@ -1763,7 +1763,7 @@ func (m *Model) applyMerge(msg mergedMsg) {
 }
 
 func (m *Model) rebuild() {
-	lay := layout{width: m.width, hide: m.skipper(), fold: m.folded}
+	lay := layout{width: m.width, hide: m.skipper(), fold: m.folded, split: m.sideBySide()}
 
 	switch m.view {
 	case viewComments:

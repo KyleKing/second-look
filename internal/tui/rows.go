@@ -41,6 +41,10 @@ type row struct {
 	kind rowKind
 	text string
 	line diff.Line
+	// mate is the other side of the same edit, drawn beside line where the
+	// renderer is side by side and ignored everywhere else. A row answering only
+	// one side leaves it zero.
+	mate diff.Line
 	path string
 	// comment indexes Review.Comments for every row of a comment block, so an
 	// action taken anywhere inside the block finds it.
@@ -117,8 +121,35 @@ func (s screen) fileRows(
 
 	hunk, folded, hide := 0, 0, false
 
+	// The threads and comments on one line, which follow the row that line was
+	// drawn on: side by side, that row carries two lines and both hang off it.
+	hang := func(l diff.Line) []row {
+		a := anchorOf(p, l)
+		out := make([]row, 0, len(byThread[a])+len(byLine[a]))
+
+		// What is already on GitHub comes before what this pass is adding, so a
+		// comment reads as an answer to the conversation above it.
+		for _, t := range byThread[a] {
+			out = append(out, threadRows(&ts[t], t, p, lay.width, s.numWidth)...)
+		}
+
+		for _, c := range byLine[a] {
+			placed[c] = true
+			out = append(out, commentRows(&r.Comments[c], c, p, lay, s.numWidth)...)
+		}
+
+		return out
+	}
+
+	lines := &pairer{split: lay.split, hang: hang, path: p, out: &rows}
+
 	for _, l := range f.Lines {
 		if l.Hunk != hunk {
+			// A change block never spans two hunks, so the pending one closes
+			// before the next heading is drawn.
+			lines.flush()
+			lines.hunk = l.Hunk
+
 			// The test walks the file, so it is asked once per hunk rather
 			// than once per line.
 			hunk = l.Hunk
@@ -148,19 +179,10 @@ func (s screen) fileRows(
 			continue
 		}
 
-		rows = append(rows, row{kind: rowCode, line: l, path: p, comment: -1, hunk: hunk})
-
-		// What is already on GitHub comes before what this pass is adding, so a
-		// comment reads as an answer to the conversation above it.
-		for _, t := range byThread[anchorOf(p, l)] {
-			rows = append(rows, threadRows(&ts[t], t, p, lay.width, s.numWidth)...)
-		}
-
-		for _, c := range byLine[anchorOf(p, l)] {
-			placed[c] = true
-			rows = append(rows, commentRows(&r.Comments[c], c, p, lay, s.numWidth)...)
-		}
+		lines.take(l)
 	}
+
+	lines.flush()
 
 	if folded > 0 {
 		rows = append(rows, row{

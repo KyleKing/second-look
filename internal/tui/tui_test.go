@@ -951,6 +951,72 @@ func TestCommentsRenderUnderTheirAnchor(t *testing.T) {
 	}
 }
 
+// Side by side pairs each removal with the addition that replaced it, so both
+// sides of one edit sit on one row rather than on two. Each half numbers the
+// file it is showing, which for a context line means two different numbers the
+// moment anything above it was added or removed.
+func TestSideBySidePairsAnEditOntoOneRow(t *testing.T) {
+	t.Parallel()
+
+	patch := "diff --git a/a.go b/a.go\n--- a/a.go\n+++ b/a.go\n@@ -1,4 +1,5 @@\n" +
+		" package main\n+// a line the old file did not have\n-const limit = 5\n" +
+		"+const limit = 30\n func run() {}\n"
+
+	m, _, _ := fixtureWith(t, patch)
+	m.Update(tea.WindowSizeMsg{Width: 160, Height: 30})
+	press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+	press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+
+	frame := plain(m.Frame())
+
+	paired := ""
+
+	for _, line := range strings.Split(frame, "\n") {
+		if strings.Contains(line, "const limit = 5") {
+			paired = line
+		}
+	}
+
+	if !strings.Contains(paired, "const limit = 30") {
+		t.Errorf("the edit is not on one row:\n%s", frame)
+	}
+
+	// package main is line 1 of both files; func run is line 3 of the old and 4
+	// of the new, because a line was added above it.
+	for _, want := range []string{"1 ", "3 ", "4 "} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("no half carries a line numbered %q:\n%s", want, frame)
+		}
+	}
+
+	if !strings.Contains(frame, "\u2502") {
+		t.Errorf("the two halves are not divided:\n%s", frame)
+	}
+}
+
+// Below the width each half needs, side by side draws unified rather than
+// wrapping two columns of code into illegibility. The mode still says it is
+// split, because that is what the next v moves off.
+func TestSideBySideFallsBackWhenNarrow(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+	press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "split") {
+		t.Errorf("the title does not name the mode:\n%s", frame)
+	}
+
+	for _, line := range strings.Split(frame, "\n") {
+		if strings.Contains(line, "lines := split(r)") && strings.Contains(line, "lines, err := split(r)") {
+			t.Errorf("a narrow frame drew two columns anyway:\n%s", line)
+		}
+	}
+}
+
 // A hunk marked read recedes, which is what says how much of a long review is
 // left without counting the glyphs down the margin. The glyph stays: color is
 // the emphasis and the glyph is the meaning.

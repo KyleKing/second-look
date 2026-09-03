@@ -159,7 +159,7 @@ func helpLines() [][2]string {
 		{"tab / shift+tab", "next, previous thing wanting a decision"},
 		{".", "repeat the last change: space, m r/d/x, a fold"},
 		{"c", "the next view: both, the code as it now reads, the comments alone"},
-		{"v", "the next renderer: plain, then rich, which is a spike; the footer names its caveat"},
+		{"v", "the next renderer: plain, rich, side by side; each is a spike with a caveat"},
 		{"w", "hide hunks that change nothing but whitespace, and show them again"},
 		{"t", "hide hunks that change no code at all, comments and re-wraps included"},
 		{spaceKey, "mark the hunk read, or the whole file from a file line"},

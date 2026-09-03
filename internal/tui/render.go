@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -31,10 +32,13 @@ const (
 	// runs that actually changed marked inside it, and both line numbers in the
 	// gutter.
 	renderRich
+	// Side by side: the same faces as rich, with each removal beside the
+	// addition that replaced it.
+	renderSplit
 )
 
 func (r renderMode) next() renderMode {
-	if r == renderRich {
+	if r == renderSplit {
 		return renderPlain
 	}
 
@@ -42,8 +46,12 @@ func (r renderMode) next() renderMode {
 }
 
 func (r renderMode) String() string {
-	if r == renderRich {
+	switch r {
+	case renderRich:
 		return "rich"
+	case renderSplit:
+		return "split"
+	case renderPlain:
 	}
 
 	return "plain"
@@ -52,11 +60,30 @@ func (r renderMode) String() string {
 // caveat is what the mode does not do, said where the mode is named. A spike
 // whose limits are only in the commit message is one nobody can judge.
 func (r renderMode) caveat() string {
-	if r == renderRich {
+	switch r {
+	case renderRich:
 		return "a hunk is a fragment, so a grammar's state above it is lost"
+	case renderSplit:
+		return "narrower than " + strconv.Itoa(splitWidth) + " columns it draws unified"
+	case renderPlain:
 	}
 
 	return ""
+}
+
+// splitWidth is the frame a side-by-side needs before each half is worth
+// reading. Under it the mode draws unified rather than wrapping two columns of
+// code into illegibility, and the caveat says so.
+const splitWidth = 120
+
+// sideBySide reports whether the screen is actually drawing two columns, which
+// the mode asks for and the frame can refuse.
+//
+// The comment and code views are flattenings of their own, and a pairing that
+// changed which rows exist under them would be a fourth and a fifth screen. So
+// the split applies to the diff, which is the view it is about.
+func (m *Model) sideBySide() bool {
+	return m.drawn == renderSplit && m.view == viewDiff && m.width >= splitWidth
 }
 
 // depth is how far toward the middle a band's lightness is lifted and how much
@@ -158,7 +185,7 @@ func newRichStyles(s styles) richStyles {
 // if it meant something.
 func (m *Model) richCode(r row, width int) string {
 	room := max(0, width-m.gutterWidth())
-	body, cells := m.richText(r, room)
+	body, cells := m.richText(r, r.line, room)
 
 	if over := room - cells; over > 0 {
 		body += m.padTo(r.line.Kind, over)
@@ -215,10 +242,10 @@ func (m *Model) padTo(kind byte, cells int) string {
 // The runs index the line as the patch spells it, so tabs are expanded run by
 // run against a running column rather than up front: expanding first would
 // move every byte offset the grammar and the pairing answered in.
-func (m *Model) richText(r row, width int) (string, int) {
-	band, ok := m.rich.band[r.line.Kind]
-	mark := m.rich.mark[r.line.Kind]
-	marked := m.refined[refOf(r.path, r.line)]
+func (m *Model) richText(r row, l diff.Line, width int) (string, int) {
+	band, ok := m.rich.band[l.Kind]
+	mark := m.rich.mark[l.Kind]
+	marked := m.refined[refOf(r.path, l)]
 
 	var (
 		b    strings.Builder
@@ -232,7 +259,7 @@ func (m *Model) richText(r row, width int) (string, int) {
 		faces = nil
 	}
 
-	for _, piece := range m.runs(r, r.line.Text) {
+	for _, piece := range m.runs(r, l) {
 		face := m.styles.behind
 		if faces != nil {
 			face = faces[piece.class]
@@ -243,7 +270,7 @@ func (m *Model) richText(r row, width int) (string, int) {
 			style = under(face, mark, true).Bold(true)
 		}
 
-		text, spent := expandFrom(r.line.Text[piece.from:piece.to], cols)
+		text, spent := expandFrom(l.Text[piece.from:piece.to], cols)
 		b.WriteString(style.Render(text))
 
 		cols = spent
@@ -288,15 +315,16 @@ type run struct {
 
 // runs cuts a line at every boundary either the grammar or the pairing draws,
 // so a face never has to answer for two of them at once.
-func (m *Model) runs(r row, text string) []run {
+func (m *Model) runs(r row, l diff.Line) []run {
+	text := l.Text
 	cuts := map[int]bool{0: true, len(text): true}
 
-	spans := m.spansFor(r)
+	spans := m.spansFor(r, l)
 	for _, s := range spans {
 		cuts[min(s.From, len(text))], cuts[min(s.To, len(text))] = true, true
 	}
 
-	for _, s := range m.refined[refOf(r.path, r.line)] {
+	for _, s := range m.refined[refOf(r.path, l)] {
 		cuts[min(s.From, len(text))], cuts[min(s.To, len(text))] = true, true
 	}
 
@@ -357,7 +385,7 @@ func refOf(path string, l diff.Line) diff.LineRef {
 // than that, which is also what makes the rich renderer work on a review
 // prepared with no checkout. The state above the hunk is what it loses, and the
 // caveat says so.
-func (m *Model) spansFor(r row) []highlight.Span {
+func (m *Model) spansFor(r row, l diff.Line) []highlight.Span {
 	at := hunkAt{path: r.path, hunk: r.hunk}
 
 	read, ok := m.lexed[at]
@@ -366,7 +394,7 @@ func (m *Model) spansFor(r row) []highlight.Span {
 		m.lexed[at] = read
 	}
 
-	return read[refOf(r.path, r.line)]
+	return read[refOf(r.path, l)]
 }
 
 // lexHunk lexes both sides of a hunk as whole texts and hands each line back
@@ -441,6 +469,11 @@ func blend(base, accent color.Color, at depth) color.Color {
 func (m *Model) cycleRenderer() {
 	m.drawn = m.drawn.next()
 
+	// Side by side pairs a removal with the addition that replaced it, which
+	// changes which rows exist rather than only how they are drawn, so the
+	// screen is laid out again rather than merely redrawn.
+	m.rebuild()
+
 	if caveat := m.drawn.caveat(); caveat != "" {
 		m.say(m.drawn.String()+": "+caveat, false)
 
@@ -448,4 +481,50 @@ func (m *Model) cycleRenderer() {
 	}
 
 	m.say(m.drawn.String(), false)
+}
+
+// splitCode draws one row as two columns: what the line said before the change
+// on the left, what it says now on the right.
+//
+// The divider is a column of its own so the two halves never touch, and a half
+// with no line is drawn as its own empty band rather than as blank frame, since
+// "nothing was here" and "the row ended" are different things.
+func (m *Model) splitCode(r row, width int) string {
+	const divider = " │ "
+
+	left, right := sidesOf(r)
+	half := (width - textWidth(divider)) / sides
+
+	// Each half numbers the file it is showing, so a context line carries its
+	// pre-image number on the left and its post-image number on the right: the
+	// two diverge the moment anything above them was added or removed.
+	return m.halfCode(r, left, left.Old, half) +
+		m.rich.gutter.Render(divider) +
+		m.halfCode(r, right, right.New, width-half-textWidth(divider))
+}
+
+// sides is the two halves a split row is cut into.
+const sides = 2
+
+// halfCode is one column: the line's own number, then its text under its band.
+// An absent line keeps the width and draws nothing, so the divider stays
+// straight down the frame.
+func (m *Model) halfCode(r row, l diff.Line, at, width int) string {
+	const signAndSpaces = 3
+
+	gutter := m.screen.numWidth + signAndSpaces
+
+	if l.Kind == 0 {
+		return strings.Repeat(" ", width)
+	}
+
+	room := max(0, width-gutter)
+	body, cells := m.richText(r, l, room)
+
+	if over := room - cells; over > 0 {
+		body += m.padTo(l.Kind, over)
+	}
+
+	return m.rich.gutter.Render(fmt.Sprintf("%s %c ", number(at, m.screen.numWidth), l.Kind)) +
+		cut(body, room)
 }

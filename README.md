@@ -186,7 +186,14 @@ says which side a line is on with a band behind it instead, marks the runs that 
 differ from the line the change paired it with, and carries both line numbers in the
 gutter, so a one-word edit reads as one word.
 
-`rich` is a spike and ships with its caveat named in the footer when you switch to it: a
+`split` is the same faces side by side, each removal beside the addition that replaced it,
+so an edit reads as one row rather than as two. Each half numbers the file it is showing,
+which for a context line means two different numbers the moment anything above it was
+added or removed. Below 120 columns it draws unified instead of wrapping two columns of
+code into illegibility. It applies to the diff and not to the code or comment views, which
+are flattenings of their own.
+
+Both are spikes and ship with their caveats named in the footer when you switch to them: a
 hunk is a fragment of a file, so a grammar's state above the hunk is lost and a hunk
 opening inside a block comment is colored as code. Highlighting is
 [chroma](https://github.com/alecthomas/chroma), which is pure Go and keeps the release

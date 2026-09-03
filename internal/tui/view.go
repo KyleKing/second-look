@@ -372,8 +372,13 @@ func (m *Model) renderRow(i, width int) string {
 // rich renderer colors a line in pieces, so it hands back text already carrying
 // its faces rather than one face for the whole row.
 func (m *Model) rowBody(r row, width int) string {
-	if r.kind == rowCode && m.drawn == renderRich {
-		return m.richCode(r, width)
+	if r.kind == rowCode {
+		switch {
+		case m.sideBySide():
+			return m.splitCode(r, width)
+		case m.drawn != renderPlain:
+			return m.richCode(r, width)
+		}
 	}
 
 	text, style := m.rowContent(r)

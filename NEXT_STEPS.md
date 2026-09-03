@@ -70,9 +70,18 @@ background's depth now, drawn deeper where the terminal cannot mix its own color
 reports 256 colors on a laptop that has millions, so that is the common case rather than
 the odd one.
 
-**split** is side-by-side with a unified fallback below a width, and it has to answer
-where the context pane goes, because requirements.md already has both of them wanting the
-right half.
+**split** is built: side by side, each removal beside the addition that replaced it, with
+a unified fallback below 120 columns rather than two columns of code wrapped into
+illegibility. Each half numbers the file it is showing, which for a context line means two
+different numbers the moment anything above it was added or removed.
+
+Where the context pane goes is settled: the split wins the frame and context opens over it
+as a modal, closing on escape, so the two are never both asking for the right half. It is
+the only renderer that changes which rows exist rather than only how they are drawn, which
+is why it applies to the diff and not to the code and comment views, and why `v` lays the
+screen out again rather than merely redrawing it. Pairing a whole review costs the resize
+path about 20% (1.5ms to 1.8ms on a forty-file diff); the per-keystroke frame is
+unchanged.
 
 **structural** reuses the ast-grep pass the rating already runs: the enclosing symbol on
 each hunk heading, a per-file list of which symbols changed and how, and a move drawn as

@@ -70,6 +70,10 @@ type layout struct {
 	width int
 	hide  hider
 	fold  folded
+	// split pairs each removal with the addition that replaced it, so the two
+	// sides of an edit share a row. It is the one renderer that changes which
+	// rows exist rather than only how they are drawn.
+	split bool
 }
 
 // header is the review's own prose. Both blocks are drawn whether or not
