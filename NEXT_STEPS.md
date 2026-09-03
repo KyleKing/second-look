@@ -56,10 +56,19 @@ Three renderers land behind `v`, which cycles `plain` (what ships today), `rich`
 written into the help and the README, all of them get lived with on real reviews, and the
 losers are deleted rather than kept for symmetry.
 
-**rich** is highlighting per grammar, word-level intra-line marking, a background band
-instead of colored text, and a gutter carrying the old and new line numbers together.
+**rich** is built: highlighting per grammar, word-level intra-line marking, a background
+band instead of colored text, and a gutter carrying the old and new line numbers together.
 Highlighting is [chroma](https://github.com/alecthomas/chroma), which is pure Go and so
 keeps `CGO_ENABLED=0` across the ten-platform matrix, unlike every tree-sitter binding.
+
+Two things it turned up. The pairing decides what to mark by how much of the two lines is
+shared, and measuring that against the longer line left a line that gained a clause
+unmarked, so it is measured against their mean instead. And a band mixed from the accent
+and the background lands in the grey ramp, where a 256-color terminal quantizes added and
+removed to the same slot and the band stops saying anything: it is the accent's hue at the
+background's depth now, drawn deeper where the terminal cannot mix its own colors. tmux
+reports 256 colors on a laptop that has millions, so that is the common case rather than
+the odd one.
 
 **split** is side-by-side with a unified fallback below a width, and it has to answer
 where the context pane goes, because requirements.md already has both of them wanting the

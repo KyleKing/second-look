@@ -179,6 +179,21 @@ stands as one line saying how much came out and a comment stands as one row, bot
 the reader and four comments on one hunk bury it. The comments are what will post, by file. The cursor keeps
 its comment across the change.
 
+`v` walks the renderers, which change how a line of the diff is drawn rather than which
+lines are drawn. `plain` is a whole-line color per side and one number per line, which is
+what a terminal diff has always looked like. `rich` colors the code by its grammar and
+says which side a line is on with a band behind it instead, marks the runs that actually
+differ from the line the change paired it with, and carries both line numbers in the
+gutter, so a one-word edit reads as one word.
+
+`rich` is a spike and ships with its caveat named in the footer when you switch to it: a
+hunk is a fragment of a file, so a grammar's state above the hunk is lost and a hunk
+opening inside a block comment is colored as code. Highlighting is
+[chroma](https://github.com/alecthomas/chroma), which is pure Go and keeps the release
+matrix building with `CGO_ENABLED=0`, unlike every tree-sitter binding. The bands are
+drawn deeper on a terminal that cannot mix its own colors, because the 256-color cube
+carries almost no dark tints and both sides otherwise quantize into the grey ramp.
+
 `a` then `b`, `m`, `n`, `t`, or `?` writes a comment on the line under the cursor, ranked
 blocker to question (`q` is every chord's cancel, so a question is `?`). The editor opens under the line, and `ctrl+s` stages the comment
 ready with the line it anchors to already quoted, so nothing has to be restamped and the

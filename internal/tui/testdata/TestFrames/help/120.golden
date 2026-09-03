@@ -9,6 +9,7 @@ kyleking/jj-diff #42                                                        0% Â
            tab / shift+tab  next, previous thing wanting a decision
                          .  repeat the last change: space, m r/d/x, a fold
                          c  the next view: both, the code as it now reads, the comments alone
+                         v  the next renderer: plain, then rich, which is a spike; the footer names its caveat
                          w  hide hunks that change nothing but whitespace, and show them again
                          t  hide hunks that change no code at all, comments and re-wraps included
                      space  mark the hunk read, or the whole file from a file line
@@ -20,5 +21,4 @@ kyleking/jj-diff #42                                                        0% Â
                          !  run a shell here and attach what it printed to the note
                          C  move the checkout onto this pull request
                          P  post the comment under the cursor on its own, now
-          S then a / r / c  submit, approving, requesting changes, or commenting
  [j/k] line  []] go to  [c]ode  writ[e]  [S]ubmit  [?] help  [q]uit

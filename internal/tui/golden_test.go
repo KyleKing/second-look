@@ -33,6 +33,7 @@ func TestFrames(t *testing.T) {
 			{Code: 'm', Text: "m"}, {Code: 'x', Text: "x"}, {Code: 'S', Text: "S"},
 		}},
 		{"code", []tea.KeyPressMsg{{Code: 'c', Text: "c"}}},
+		{"rich", []tea.KeyPressMsg{{Code: 'v', Text: "v"}}},
 		{"comments", []tea.KeyPressMsg{{Code: 'c', Text: "c"}, {Code: 'c', Text: "c"}}},
 	}
 

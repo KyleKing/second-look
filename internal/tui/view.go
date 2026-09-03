@@ -48,6 +48,10 @@ func (m *Model) title() string {
 		left += "  " + word
 	}
 
+	if m.drawn != renderPlain {
+		left += "  " + m.drawn.String()
+	}
+
 	// A head that moved outlives the footer message that announced it, because
 	// every row under this line belongs to the diff it moved away from.
 	if m.newHead != "" {
@@ -355,15 +359,26 @@ func (m *Model) rowLines() []string {
 const cursorBar = "▌"
 
 func (m *Model) renderRow(i, width int) string {
-	r := m.screen.rows[i]
-	text, style := m.rowContent(r)
-	text = cut(text, width)
+	body := m.rowBody(m.screen.rows[i], width)
 
 	if i == m.cursor {
-		return m.styles.cursor.Render(cursorBar) + style.Render(text)
+		return m.styles.cursor.Render(cursorBar) + body
 	}
 
-	return " " + style.Render(text)
+	return " " + body
+}
+
+// rowBody is the row without the column that says where the cursor is. The
+// rich renderer colors a line in pieces, so it hands back text already carrying
+// its faces rather than one face for the whole row.
+func (m *Model) rowBody(r row, width int) string {
+	if r.kind == rowCode && m.drawn == renderRich {
+		return m.richCode(r, width)
+	}
+
+	text, style := m.rowContent(r)
+
+	return style.Render(cut(text, width))
 }
 
 func (m *Model) rowContent(r row) (string, lipgloss.Style) {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/rate"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/shellrun"
@@ -71,7 +72,15 @@ type Model struct {
 
 	keys   keyMap
 	styles styles
+	rich   richStyles
 	search search
+
+	// drawn is which renderer v is on, and refined and lexed are what the rich
+	// one reads: the runs of each changed line its partner does not carry, and
+	// the grammar's reading of each hunk, lexed the first time it is drawn.
+	drawn   renderMode
+	refined diff.Refined
+	lexed   map[hunkAt]map[diff.LineRef][]highlight.Span
 
 	// pending is the ] or [ waiting for the object that completes it.
 	pending rune
@@ -148,10 +157,12 @@ func New(
 	ctx context.Context, r *artifact.Review, d *diff.Diff,
 	path string, submit Submitter, opts ...Option,
 ) *Model {
+	st := newStyles()
 	m := &Model{
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
-		keys: defaultKeyMap(), styles: newStyles(), search: newSearch(),
+		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
 		width: minWidth, height: startHeight, folded: newFolded(),
+		refined: d.Refine(), lexed: map[hunkAt]map[diff.LineRef][]highlight.Span{},
 	}
 
 	for _, opt := range opts {
@@ -455,6 +466,8 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		m.help = !m.help
 	case key.Matches(msg, m.keys.List):
 		m.cycleView()
+	case key.Matches(msg, m.keys.Renderer):
+		m.cycleRenderer()
 	case key.Matches(msg, m.keys.Fold):
 		m.setFold(foldWhitespace)
 	case key.Matches(msg, m.keys.Structure):

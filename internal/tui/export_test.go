@@ -1,5 +1,7 @@
 package tui
 
+import "image/color"
+
 // Frame returns one rendered screen, so a test can check the layout without a
 // terminal.
 func (m *Model) Frame() string { return m.render() }
@@ -42,3 +44,18 @@ func (l *List) CursorKey() string {
 
 // WantsCheckout is C, which the caller answers once the screen has closed.
 func (m *Model) WantsCheckout() bool { return m.checkout }
+
+// BandColors is the four backgrounds the rich renderer paints a change with, at
+// the depths a terminal of the given kind gets, so a test can check the terminal
+// can actually tell them apart.
+func BandColors(millions bool) map[string]color.Color {
+	p := newStyles().palette
+	band, mark := depths(millions)
+
+	return map[string]color.Color{
+		"added band":   blend(p.Base, p.Green, band),
+		"removed band": blend(p.Base, p.Red, band),
+		"added mark":   blend(p.Base, p.Green, mark),
+		"removed mark": blend(p.Base, p.Red, mark),
+	}
+}

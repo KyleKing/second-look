@@ -67,3 +67,17 @@ func BenchmarkFrame(b *testing.B) {
 		_ = m.Frame()
 	}
 }
+
+// The rich renderer lexes a hunk the first time it is drawn and keeps the
+// answer, so what this measures is a frame off that cache. A grammar run per
+// keystroke would be the one thing that made the mode unusable.
+func BenchmarkRichFrame(b *testing.B) {
+	m := big(b)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
+	_ = m.Frame()
+
+	for b.Loop() {
+		_ = m.Frame()
+	}
+}

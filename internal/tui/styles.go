@@ -21,6 +21,9 @@ func accent(p theme.Palette) color.Color { return p.Lavender }
 // carries a glyph, so a 16-color or NO_COLOR terminal loses emphasis rather
 // than meaning.
 type styles struct {
+	// palette is kept so the rich renderer can derive faces the shared skin has
+	// no use for: a band behind code is a background, and skin carries none.
+	palette  theme.Palette
 	title    lipgloss.Style
 	subtitle lipgloss.Style
 	file     lipgloss.Style
@@ -47,6 +50,7 @@ func newStyles() styles {
 	base := lipgloss.NewStyle()
 
 	return styles{
+		palette:  p,
 		title:    sk.Title,
 		subtitle: sk.Subtitle,
 		file:     sk.Heading,
