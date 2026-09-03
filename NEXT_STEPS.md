@@ -77,8 +77,6 @@ and the file the cursor is not in can all recede.
 
 Folded in here because every one of them is a rendering problem:
 
-- Opening a comment centers it vertically, because the code that explains a finding is
-  above the line rather than at the top of the frame
 - Several comments on one line break the layout today, which is the case the comment
   block was never designed for
 - A skipped comment draws as an ordinary comment carrying its body and note, marked
@@ -290,6 +288,11 @@ All of it came out of driving the built binary rather than reading the code,
 which is why none of it showed up in a test.
 
 ### Done
+
+**Landing on a comment centers it.** A jump anchored the block one row down the frame, so
+the code that explains a finding, which is above the line it hangs from, was entirely off
+the top. `]c`, `tab`, and `n` now put the block in the middle of the frame where it fits,
+and a block taller than the frame still anchors near the top rather than losing its head.
 
 **A range says what it covers.** A comment renders under its end line, so one anchored to
 lines 12 through 15 read as a comment on line 15 and left the three above it looking

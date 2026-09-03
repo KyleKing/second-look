@@ -950,6 +950,45 @@ func TestCommentsRenderUnderTheirAnchor(t *testing.T) {
 	}
 }
 
+// Landing on a comment centers its block. A finding is explained by the code
+// above the line it hangs from, and anchoring the block one row down the frame
+// put every one of those lines off the top.
+func TestLandingOnACommentCentersIt(t *testing.T) {
+	t.Parallel()
+
+	const deep = 30
+
+	m, _, _ := fixtureWith(t, longPatch(t),
+		comment("c1", "first/file.go", artifact.SideRight, deep, "the last one"))
+
+	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+
+	body := strings.Split(plain(m.Frame()), "\n")
+
+	at := -1
+
+	for i, l := range body {
+		if strings.Contains(l, "the last one") {
+			at = i
+		}
+	}
+
+	if at < 0 {
+		t.Fatalf("the comment never rendered:\n%s", strings.Join(body, "\n"))
+	}
+
+	// The title takes the first line, so a third of the frame below it is what
+	// "there is code above this" means without pinning an exact offset.
+	if want := len(body) / 3; at < want {
+		t.Errorf("the comment sits on line %d of %d, want at least %d", at, len(body), want)
+	}
+
+	if !strings.Contains(strings.Join(body[:at], "\n"), fmt.Sprintf("first line %d", deep)) {
+		t.Errorf("the line the comment hangs from is off the frame:\n%s", strings.Join(body, "\n"))
+	}
+}
+
 // A comment on a range renders under its end line like any other, so without
 // the span on its heading it reads as a comment on that one line and the four
 // above it look untouched.

@@ -604,7 +604,7 @@ const authorCap = 14
 
 // rated is what an earlier read of this pull request made of it, which is the
 // one number here that is about the change rather than about the queue. The
-// column it is drawn in is labelled once by the header rather than on every
+// column it is drawn in is labeled once by the header rather than on every
 // row, since a queue is scanned down rather than read across.
 func rated(k inbox.Known) string {
 	if !k.Rated {

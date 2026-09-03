@@ -1792,19 +1792,51 @@ func (m *Model) jump(step int, what string, want func(row) bool) {
 	m.say(fmt.Sprintf("no %s %s this one", what, where), false)
 }
 
-// reveal anchors the cursor near the top of the frame, stopping at the last
-// full frame of rows so the end of the review is not scrolled into blankness.
+// reveal places the cursor for a jump, stopping at the last full frame of rows
+// so the end of the review is not scrolled into blankness.
 //
-// A comment block opens with a blank row, so landing on one keeps a row more:
-// the line a comment is about is the context it cannot be read without.
+// Landing on a comment centers its block: a finding is explained by the code
+// above the line it hangs from, and anchoring the block near the top puts that
+// code off the frame. Everything else anchors near the top, since scrolling by
+// the least that reaches a heading leaves it on the last line, which is the one
+// place the content under it cannot be read.
 func (m *Model) reveal() {
+	h := m.viewHeight()
+
+	if top, tall, ok := m.blockSpan(); ok && tall < h {
+		const sides = 2
+
+		m.offset = clamp(top-(h-tall)/sides, len(m.screen.rows)-h)
+
+		return
+	}
+
+	// A comment block opens with a blank row, so landing on one keeps a row
+	// more: the line a comment is about is the context it cannot be read
+	// without.
 	margin := jumpMargin
 	if m.cursor > 0 && m.screen.rows[m.cursor-1].kind == rowBlank {
 		margin++
 	}
 
-	h := m.viewHeight()
 	m.offset = clamp(m.cursor-margin, len(m.screen.rows)-h)
+}
+
+// blockSpan is where the comment block under the cursor starts and how tall it
+// is. It reports false on anything that is not a comment, which is every row a
+// jump lands on except a comment head.
+func (m *Model) blockSpan() (int, int, bool) {
+	c := m.current()
+	if c < 0 || m.cursor >= len(m.screen.rows) {
+		return 0, 0, false
+	}
+
+	top := m.cursor
+	for top > 0 && m.screen.rows[top-1].comment == c {
+		top--
+	}
+
+	return top, m.blockEnd() - top + 1, true
 }
 
 // follow keeps the cursor on screen with a few rows of context either side,

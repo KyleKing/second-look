@@ -1,5 +1,6 @@
 kyleking/jj-diff #42       comment 1/3 · on head · 1 ready · 1 draft · 1 skipped
-                                                                               │
+      ┃ REVIEW  no body, no note · e to write one                              ┃
+                                                                               ┃
  internal/vcs  2 files · 2 hunks                                               ┃
    internal/vcs/diff.go                                                        ┃
    @@ -14,6 +14,7 @@ func Parse(r io.Reader) ([]Hunk, error) {                 ┃
@@ -19,6 +20,5 @@ kyleking/jj-diff #42       comment 1/3 · on head · 1 ready · 1 draft · 1 ski
    @@ -200,3 +201,3 @@ func Head() string {                                    ┃
  201       return head                                                         ┃
                                                                                ┃
-      ┃ ○ NIT  skip  Out of scope for this change.                             ┃
-      ┃ Rename this to headSHA.                                                ┃
+      ┃ ○ NIT  skip  Out of scope for this change.                             │
  [j/k] line  []] go to  [c]ode  [m]ark  [e]dit  [z] fold  [S]ubmit  [?] help  […
