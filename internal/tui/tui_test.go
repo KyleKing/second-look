@@ -1143,6 +1143,81 @@ func TestStructuralDoesNotCallARewriteAMove(t *testing.T) {
 	}
 }
 
+// What a machine wrote is grouped last, folded, and counted rather than read: a
+// lockfile in reading order is four hundred lines between two files that are
+// actually being reviewed, and what matters about it is that it moved.
+func TestGeneratedFilesAreGroupedLastAndFolded(t *testing.T) {
+	t.Parallel()
+
+	patch := `diff --git a/uv.lock b/uv.lock
+--- a/uv.lock
++++ b/uv.lock
+@@ -1,2 +1,2 @@
+-version = "1.4.2"
++version = "1.6.0"
+diff --git a/internal/rate/rate.go b/internal/rate/rate.go
+--- a/internal/rate/rate.go
++++ b/internal/rate/rate.go
+@@ -1,2 +1,2 @@
+-const ceiling = 99
++const ceiling = 400
+`
+
+	m, _, _ := fixtureWith(t, patch)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	frame := plain(m.Frame())
+
+	code := strings.Index(frame, "const ceiling")
+	made := strings.Index(frame, "uv.lock")
+
+	if code < 0 || made < 0 {
+		t.Fatalf("a file is missing from the frame:\n%s", frame)
+	}
+
+	if made < code {
+		t.Errorf("the lockfile is drawn before the code:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "counted, not read") {
+		t.Errorf("the generated group does not say what it is:\n%s", frame)
+	}
+
+	if strings.Contains(frame, `version = "1.6.0"`) {
+		t.Errorf("the lockfile is drawn in full rather than folded:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "za to open") {
+		t.Errorf("nothing says the lockfile can be opened:\n%s", frame)
+	}
+}
+
+// A generated file folds by default, which inverts the rule the rest of the
+// review follows, so za has to open it rather than close it again.
+func TestZaOpensAGeneratedFile(t *testing.T) {
+	t.Parallel()
+
+	patch := `diff --git a/uv.lock b/uv.lock
+--- a/uv.lock
++++ b/uv.lock
+@@ -1,2 +1,2 @@
+-version = "1.4.2"
++version = "1.6.0"
+`
+
+	m, _, _ := fixtureWith(t, patch)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(m, tea.KeyPressMsg{Code: 'f', Text: "f"})
+	press(m, tea.KeyPressMsg{Code: 'z', Text: "z"})
+	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, `version = "1.6.0"`) {
+		t.Errorf("za did not open the lockfile:\n%s", frame)
+	}
+}
+
 // A hunk marked read recedes, which is what says how much of a long review is
 // left without counting the glyphs down the margin. The glyph stays: color is
 // the emphasis and the glyph is the meaning.

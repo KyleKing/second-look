@@ -232,6 +232,9 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 		tui.WithThreads(opened.Threads), tui.WithSeen(opened.Read, opened.SeenPath),
 		tui.WithSender(sender(t, opened.Path, &log)), tui.WithTree(tree(opened)),
 		tui.WithMerger(merger(t)), tui.WithStore(t.Store), tui.WithOpener(opener(t)),
+		// A config that will not parse leaves the built-in patterns rather than
+		// stopping a review, the same as it leaves the built-in buckets.
+		tui.WithGenerated(generatedPatterns()),
 	}
 
 	// A review read out of the cache reached the screen without asking GitHub
@@ -644,6 +647,17 @@ func configSections(cfg *config.Config) []inbox.Section {
 	}
 
 	return out
+}
+
+// generatedPatterns is what this repository says it writes by machine, and
+// nothing where the config is missing or unreadable.
+func generatedPatterns() []string {
+	cfg, err := loadConfig()
+	if err != nil {
+		return nil
+	}
+
+	return cfg.Generated
 }
 
 func loadConfig() (*config.Config, error) {

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/generated"
 )
 
 // The review's own body and note sit in the comment index space as sentinels.
@@ -77,6 +78,20 @@ type layout struct {
 	// parsed is what the structural pass saw, said on each heading. It is nil
 	// for every renderer but the structural one, and until the pass lands.
 	parsed *shape
+	// made is what counts as written by a machine, which is grouped last and
+	// folded until somebody asks for it.
+	made generated.Set
+}
+
+// shut reports whether a file is drawn as one row rather than in full. What a
+// machine wrote starts that way and z opens it, which inverts the default the
+// rest of the review has: everything else is open until it is folded by hand.
+func (l layout) shut(path string) bool {
+	if l.made.Match(path) {
+		return !l.fold.files[path]
+	}
+
+	return l.fold.files[path]
 }
 
 // hunkWord is what the parser saw of one hunk, and nothing where no pass has

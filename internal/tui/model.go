@@ -14,6 +14,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/rate"
 	"github.com/kyleking/second-look/internal/seen"
@@ -110,6 +111,9 @@ type Model struct {
 	// has an answer to show.
 	cost    rate.Score
 	reading bool
+	// made is what counts as written by a machine, which the review groups last
+	// and folds.
+	made generated.Set
 	// done is which hunks are already read, so a row can recede without hashing
 	// its hunk to find out.
 	done map[hunkAt]bool
@@ -168,6 +172,7 @@ func New(
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
 		width: minWidth, height: startHeight, folded: newFolded(),
 		refined: d.Refine(), lexed: map[hunkAt]map[diff.LineRef][]highlight.Span{},
+		made: generated.New(nil),
 	}
 
 	for _, opt := range opts {
@@ -1772,7 +1777,10 @@ func (m *Model) applyMerge(msg mergedMsg) {
 }
 
 func (m *Model) rebuild() {
-	lay := layout{width: m.width, hide: m.skipper(), fold: m.folded, split: m.sideBySide()}
+	lay := layout{
+		width: m.width, hide: m.skipper(), fold: m.folded,
+		split: m.sideBySide(), made: m.made,
+	}
 	if m.drawn == renderStructural {
 		lay.parsed = &m.shape
 	}

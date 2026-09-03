@@ -63,7 +63,7 @@ func buildCode(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout
 
 	s.rows = append(s.rows, header(r, lay, s.numWidth)...)
 
-	for _, g := range group(d) {
+	for _, g := range group(d, lay.made) {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
 			row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
 
@@ -92,7 +92,7 @@ func (s screen) codeRows(f *diff.File, c codeCtx) []row {
 	p := filePath(f)
 	rows := []row{{kind: rowFile, text: p, path: p, comment: -1}}
 
-	if c.lay.fold.files[p] {
+	if c.lay.shut(p) {
 		rows[0].text = p + "  " + plural(hunkCount(f), "hunk") + " folded" + staged(c.r, p) + " · za to open"
 		rows[0].folded = true
 

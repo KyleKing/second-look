@@ -133,11 +133,15 @@ whose other hunks are elsewhere, the heading says so and a motion walks to the r
 because a reader who does not know they are seeing half a file draws the wrong conclusion
 from it.
 
-Generated and machine-authored files sit in the reading order as if they were code. They
-should be grouped last, folded by default, and counted rather than read, with the same
-treatment lockfiles get in their own section below: a summary of the part worth reviewing
-in place of four hundred lines. Which files count as generated wants to be configurable,
-because no built-in list will match a monorepo.
+Generated and machine-authored files no longer sit in the reading order as if they were
+code: they are collected into one group at the end however many directories they came
+from, folded, and counted, with the heading saying how many files and hunks it holds.
+`generated` in `config.toml` adds to the built-in patterns rather than replacing them,
+because a monorepo naming its own generated tree does not stop a lockfile being one. They
+are the one thing on the screen that starts folded, so `za` opens rather than closes.
+
+The card that replaces the diff, rather than only the count, is the lockfile section
+below.
 
 The order is also where the review-cost rating earns its second use: within a group, the
 hunk that changed a signature is worth reading before the one that renamed a local.

@@ -11,6 +11,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/generated"
 )
 
 // Tree is what the working directory holds for the pull request under review.
@@ -113,4 +114,11 @@ func Run(
 	}
 
 	return Outcome{}, nil
+}
+
+// WithGenerated names what this repository writes by machine, beyond the
+// built-in patterns. Those files are grouped last, folded, and counted rather
+// than read, since what matters about one is that it moved and by how much.
+func WithGenerated(patterns []string) Option {
+	return func(m *Model) { m.made = generated.New(patterns) }
 }

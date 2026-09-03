@@ -7,6 +7,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -83,7 +84,7 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 
 	s.rows = append(s.rows, header(r, lay, s.numWidth)...)
 
-	for _, g := range group(d) {
+	for _, g := range group(d, lay.made) {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
 			row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
 
@@ -104,7 +105,7 @@ func (s screen) fileRows(
 	p := filePath(f)
 	rows := []row{{kind: rowFile, text: p, path: p, comment: -1}}
 
-	if lay.fold.files[p] {
+	if lay.shut(p) {
 		rows[0].text = p + "  " + plural(hunkCount(f), "hunk") + " folded" + staged(r, p) + " · za to open"
 		rows[0].folded = true
 
@@ -418,11 +419,24 @@ type dirGroup struct {
 	dir   string
 	files []int
 	hunks int
+	// made marks the group holding what a machine wrote. It sits last and is
+	// counted rather than read.
+	made bool
 }
 
 func (g dirGroup) heading() string {
+	if g.made {
+		return fmt.Sprintf("%s  %s · %s · counted, not read",
+			g.dir, plural(len(g.files), "file"), plural(g.hunks, "hunk"))
+	}
+
 	return fmt.Sprintf("%s  %s · %s", g.dir, plural(len(g.files), "file"), plural(g.hunks, "hunk"))
 }
+
+// madeGroup is what the generated files are collected under. It is one group
+// however many directories they came from: what a reader wants of them is one
+// glance, not a tour of the tree they sit in.
+const madeGroup = "generated"
 
 // group collects the diff's files by the directory they sit in, keeping each
 // directory in the order it first appears.
@@ -432,14 +446,29 @@ func (g dirGroup) heading() string {
 // would be a different decision: the diff's own order carries the forge's
 // judgment about what to show first, and this keeps it while making the
 // boundaries visible.
-func group(d *diff.Diff) []dirGroup {
+func group(d *diff.Diff, made generated.Set) []dirGroup {
 	var (
 		out   []dirGroup
+		last  dirGroup
 		index = map[string]int{}
 	)
 
+	last.dir, last.made = madeGroup, true
+
 	for i := range d.Files {
-		dir := dirOf(filePath(&d.Files[i]))
+		path := filePath(&d.Files[i])
+
+		// What a machine wrote goes last whatever directory it is in. Left in
+		// reading order it is four hundred lines between two files that are
+		// actually being reviewed.
+		if made.Match(path) {
+			last.files = append(last.files, i)
+			last.hunks += hunkCount(&d.Files[i])
+
+			continue
+		}
+
+		dir := dirOf(path)
 
 		at, ok := index[dir]
 		if !ok {
@@ -452,7 +481,11 @@ func group(d *diff.Diff) []dirGroup {
 		out[at].hunks += hunkCount(&d.Files[i])
 	}
 
-	return out
+	if len(last.files) == 0 {
+		return out
+	}
+
+	return append(out, last)
 }
 
 // dirOf is the directory part of a diff path. A diff always spells paths with

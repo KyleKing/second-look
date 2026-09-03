@@ -39,6 +39,11 @@ type Config struct {
 	// Sections replace the built-in buckets outright when the file names any.
 	// Merging the two would put rows in front of you that no query asked for.
 	Sections []Section `toml:"section"`
+	// Generated names files this repository writes by machine, added to the
+	// built-in patterns rather than replacing them: a monorepo's own generated
+	// tree does not stop a lockfile being one. A trailing slash means a
+	// directory anywhere in the path; anything else is a path or name suffix.
+	Generated []string `toml:"generated,omitempty"`
 }
 
 // Path is where the config lives.

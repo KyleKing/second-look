@@ -81,6 +81,11 @@ reviewed and still open, then reviewed and merged); with one it shows what you a
 # ~/.config/second-look/config.toml
 limit = 25
 
+# What this repository writes by machine, added to the built-in patterns rather
+# than replacing them. A trailing slash matches a directory anywhere in a path;
+# anything else matches the end of one.
+generated = ["api/schema/", ".gen.ts"]
+
 [[section]]
 name = "needs my review"
 query = "review-requested:@me is:open archived:false sort:updated-desc"
@@ -178,6 +183,13 @@ stands as one line saying how much came out and a comment stands as one row, bot
 `za` opens where they are, because a +/- pair leaves working out what the code now says to
 the reader and four comments on one hunk bury it. The comments are what will post, by file. The cursor keeps
 its comment across the change.
+
+Files a machine wrote are grouped last, folded, and counted rather than read. Lockfiles,
+`go.sum`, `*.pb.go`, snapshots, and vendored trees are recognized without configuration;
+`generated` in the config names whatever else this repository writes. What matters about
+one is that it moved and by how much, so the group says how many files and hunks it holds
+and `za` opens any of them. It is the one thing on the screen that starts folded, because
+everything else is worth reading until you decide otherwise.
 
 `v` walks the renderers, which change how a line of the diff is drawn rather than which
 lines are drawn. `plain` is a whole-line color per side and one number per line, which is
