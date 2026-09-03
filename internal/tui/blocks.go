@@ -6,6 +6,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/generated"
+	"github.com/kyleking/second-look/internal/order"
 )
 
 // The review's own body and note sit in the comment index space as sentinels.
@@ -81,6 +82,10 @@ type layout struct {
 	// made is what counts as written by a machine, which is grouped last and
 	// folded until somebody asks for it.
 	made generated.Set
+	// plan is the reading order the structural pass worked out, and nil where
+	// there is none: before the pass answers, where nothing parsed, and where
+	// the reader asked for the diff's own order back.
+	plan []order.Group
 }
 
 // shut reports whether a file is drawn as one row rather than in full. What a

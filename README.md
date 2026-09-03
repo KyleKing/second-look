@@ -184,6 +184,19 @@ stands as one line saying how much came out and a comment stands as one row, bot
 the reader and four comments on one hunk bury it. The comments are what will post, by file. The cursor keeps
 its comment across the change.
 
+Hunks are gathered by symbol rather than left in the diff's order. A group is a symbol
+some hunk declares together with every hunk that calls it, wherever in the diff they came
+from, so the callee whose signature moved sits next to the caller that has to change with
+it. Everything no symbol gathered keeps the directory grouping. Groups are ordered by what
+their hunks cost to read, so a signature change comes before a renamed local.
+
+A name is matched rather than resolved, so a name more than one hunk declares gathers
+nothing: `New` and `Error` are one symbol to a matcher and gathering on them would put
+half a diff under a heading that lies. `O` puts the diff's own order back, which is the
+way out when the gathering guesses wrong and the way to consult what the forge thought the
+order should be. A file whose hunks landed in two groups says so on its heading and `]f`
+walks to the rest.
+
 Files a machine wrote are grouped last, folded, and counted rather than read. Lockfiles,
 `go.sum`, `*.pb.go`, snapshots, and vendored trees are recognized without configuration;
 `generated` in the config names whatever else this repository writes. What matters about

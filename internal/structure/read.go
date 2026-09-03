@@ -44,6 +44,18 @@ type Reading struct {
 	// Gained is the capability classes the after side calls into and the before
 	// side did not. Its honest meaning is "a new capability visible to syntax".
 	Gained []Class
+	// Called is every name the after side calls, bare of any receiver, in name
+	// order. It is what links a hunk to the hunk declaring what it calls, and
+	// like every other answer here it is read off syntax rather than resolved:
+	// two functions of one name are one name.
+	Called []string
+	// Declared is every symbol the after side declares, changed or not, in name
+	// order. Symbols is what the hunk did; this is what it is inside, which is
+	// what a caller has to be gathered with.
+	//
+	// A hunk is a fragment, so this is what the fragment shows: a change deep in
+	// a body whose declaration is above the hunk declares nothing here.
+	Declared []string
 	// Parsed says a grammar answered. False means Change came from comparing
 	// text and Kind and Gained are empty, which is what an absent ast-grep, an
 	// unknown extension, or a fragment nothing could recover from all look like.
@@ -79,11 +91,13 @@ func Read(ctx context.Context, h Hunk) (Reading, error) {
 
 	syms := symbolsOf(was, now)
 	r := Reading{
-		Change:  ChangeCode,
-		Kind:    kindOf(syms),
-		Symbols: syms,
-		Gained:  gained(was, now),
-		Parsed:  true,
+		Change:   ChangeCode,
+		Kind:     kindOf(syms),
+		Symbols:  syms,
+		Gained:   gained(was, now),
+		Called:   called(now),
+		Declared: declaredIn(now),
+		Parsed:   true,
 	}
 
 	if bare(without(before, was)) == bare(without(after, now)) {

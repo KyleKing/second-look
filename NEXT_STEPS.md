@@ -123,13 +123,25 @@ Files group by directory today and the diff's own order is kept inside a group, 
 the right default and is not the whole of it. What a review actually wants is the change
 read in the order it makes sense in, and three things stop that.
 
-Hunks in one file are shown in file order even when the change is one edit made in four
-places, so a caller and its callee are pages apart. Co-locate them: the structural pass
-from step 1 knows which symbol each hunk is in, so hunks that touch the same symbol, or
-the same symbol and its callers, can sit together with the file order as the fallback.
+Hunks are gathered by symbol now, across the whole diff rather than within a file: a
+group is a symbol some hunk declares together with every hunk that calls it, so the callee
+whose signature moved sits next to the caller that has to change with it whatever
+directories the two came from. Everything no symbol gathered keeps the directory grouping
+it always had, and `O` puts the diff's own order back, which is both the way out when the
+gathering guesses wrong and the way to consult what the forge thought the order should be.
 
-A file split across two groups is invisible. When a directory group holds part of a file
-whose other hunks are elsewhere, the heading says so and a motion walks to the rest,
+Two things the pass had to start answering. A call is spelled without the keyword that
+introduced the declaration it reaches, so a symbol carries the bare identifier beside its
+name. And a hunk whose body changed inside an untouched declaration reports no symbol at
+all, which is right for saying what a hunk did and useless for saying what it is inside,
+so the pass reports the declarations a fragment shows as well as the ones it changed.
+
+The guard on all of it is that a name is matched rather than resolved. A name more than
+one hunk declares is `New` or `Error`, and gathering on it would put half a diff under a
+heading that lies, so a symbol worth gathering around is one the diff declares in one
+place.
+
+A file split across two groups says so on its heading, with `]f` walking to the rest,
 because a reader who does not know they are seeing half a file draws the wrong conclusion
 from it.
 
@@ -143,8 +155,18 @@ are the one thing on the screen that starts folded, so `za` opens rather than cl
 The card that replaces the diff, rather than only the count, is the lockfile section
 below.
 
-The order is also where the review-cost rating earns its second use: within a group, the
-hunk that changed a signature is worth reading before the one that renamed a local.
+The rating earns its second use here: the gathered groups are ordered by what their
+declaring hunk costs on the same weights the whole change is scored on, so a signature
+change is read before a renamed local, and equal costs keep the order the diff declared
+them in so two opens of one review agree. Every gathered group comes before every
+directory group, which is the part worth arguing with: a group exists because something
+structural was found in it, and that is the claim being made about it.
+
+An unparsed hunk costs nothing and sorts as cheap. That is the honest answer rather than a
+convenient one: it is a hunk nobody can rank, and putting it first on a guess would be
+worse than leaving it where the diff had it. The per-hunk cost carries no ceiling, since
+what matters is which of two hunks is dearer and the ceiling exists to keep a number
+comparable between pull requests.
 
 ### 3. The score that always says 99
 

@@ -96,3 +96,47 @@ func callee(text string) string {
 
 	return text
 }
+
+// called is every name a side calls, bare of any receiver and deduplicated, in
+// name order so two runs over one hunk answer the same.
+//
+// The receiver is dropped because a call is matched against what a hunk
+// elsewhere declares, and a declaration is named without one: `os.ReadFile` and
+// a local `ReadFile` are one name here, which is the same syntax-deep claim
+// every other answer in this package makes.
+func called(ms []match) []string {
+	var out []string
+
+	for _, m := range ms {
+		if m.Rule != ruleCall {
+			continue
+		}
+
+		name := bareName(callee(m.Text))
+		if name != "" && !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+
+	slices.Sort(out)
+
+	return out
+}
+
+// bareName is a callee without its receiver or its whitespace: the last segment
+// of a dotted or arrowed path, which is what a declaration is named by.
+func bareName(callee string) string {
+	callee = strings.TrimSpace(callee)
+
+	for _, sep := range []string{"->", "::", ".", ":"} {
+		if i := strings.LastIndex(callee, sep); i >= 0 {
+			callee = callee[i+len(sep):]
+		}
+	}
+
+	if strings.ContainsAny(callee, " \t\n()[]{}") {
+		return ""
+	}
+
+	return callee
+}

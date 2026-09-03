@@ -7,7 +7,6 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
-	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -84,12 +83,18 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 
 	s.rows = append(s.rows, header(r, lay, s.numWidth)...)
 
-	for _, g := range group(d, lay.made) {
+	groups := lay.groups(d)
+	ctx := fileCtx{
+		d: d, r: r, ts: ts, byLine: byLine, byThread: byThread,
+		placed: placed, lay: lay, split: splitFiles(groups),
+	}
+
+	for _, g := range groups {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
 			row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
 
-		for _, i := range g.files {
-			s.rows = append(s.rows, s.fileRows(&d.Files[i], d, r, ts, byLine, byThread, placed, lay)...)
+		for _, at := range g.parts {
+			s.rows = append(s.rows, s.fileRows(&d.Files[at.file], at, ctx)...)
 		}
 	}
 
@@ -98,61 +103,61 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 
 // fileRows is one file: its name, whatever it says about itself, and every hunk
 // with the threads and comments that hang off each line.
-func (s screen) fileRows(
-	f *diff.File, d *diff.Diff, r *artifact.Review, ts []threads.Thread,
-	byLine, byThread map[anchor][]int, placed []bool, lay layout,
-) []row {
+//
+// A file is drawn in pieces where the reading order gathered its hunks into
+// more than one group, and the heading says so: a reader who does not know they
+// are looking at half a file draws the wrong conclusion from it. The wanted
+// hunks are this piece's own, and nil is all of them.
+func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 	p := filePath(f)
-	rows := []row{{kind: rowFile, text: p, path: p, comment: -1}}
+	rows := []row{{kind: rowFile, text: p + partWord(c.split[at.path]), path: p, comment: noComment}}
 
-	if lay.shut(p) {
-		rows[0].text = p + "  " + plural(hunkCount(f), "hunk") + " folded" + staged(r, p) + " · za to open"
+	if c.lay.shut(p) {
+		rows[0].text = p + "  " + plural(hunkCount(f), "hunk") + " folded" + staged(c.r, p) + " · za to open"
 		rows[0].folded = true
 
 		for _, ln := range f.Lines {
-			claim(byLine, placed, p, ln)
+			claim(c.byLine, c.placed, p, ln)
 		}
 
 		return rows
 	}
 
-	if f.Note != "" {
-		rows = append(rows, row{kind: rowHunk, text: f.Note, path: p, comment: -1})
-	}
+	rows = append(rows, fileNotes(f, p, c)...)
 
-	if word := lay.fileWord(p); word != "" {
-		rows = append(rows, row{kind: rowHunk, text: word, path: p, comment: -1})
-	}
-
-	hunk, folded, hide := 0, 0, false
+	hunk, folded := 0, 0
 	lines := &pairer{
-		split: lay.split, path: p, out: &rows,
-		hang: s.hanger(p, r, ts, byLine, byThread, placed, lay),
+		split: c.lay.split, path: p, out: &rows,
+		hang: s.hanger(p, c.r, c.ts, c.byLine, c.byThread, c.placed, c.lay),
 	}
+
+	hide := false
 
 	for _, l := range f.Lines {
+		if at.hunks != nil && !at.hunks[l.Hunk] {
+			continue
+		}
+
 		if l.Hunk != hunk {
 			// A change block never spans two hunks, so the pending one closes
 			// before the next heading is drawn.
 			lines.flush()
-			lines.hunk = l.Hunk
-			hunk = l.Hunk
+			lines.hunk, hunk = l.Hunk, l.Hunk
+
+			var head *row
 
 			// The tests walk the file, so they are asked once per hunk rather
 			// than once per line.
-			head, skipped := hunkRow(d, lay, hunkAt{p, hunk})
-			if head != nil {
-				rows = append(rows, *head)
-			}
-
-			hide = skipped
-			if hide && head == nil {
+			head, hide = hunkRow(c.d, c.lay, hunkAt{p, hunk})
+			if head == nil {
 				folded++
+			} else {
+				rows = append(rows, *head)
 			}
 		}
 
 		if hide {
-			claim(byLine, placed, p, l)
+			claim(c.byLine, c.placed, p, l)
 
 			continue
 		}
@@ -164,12 +169,43 @@ func (s screen) fileRows(
 
 	if folded > 0 {
 		rows = append(rows, row{
-			kind: rowHunk, path: p, comment: -1,
-			text: plural(folded, "hunk") + " hidden: " + lay.hide.why,
+			kind: rowHunk, path: p, comment: noComment,
+			text: plural(folded, "hunk") + " hidden: " + c.lay.hide.why,
 		})
 	}
 
 	return rows
+}
+
+// fileCtx is what laying out one file needs beyond the file itself, shared
+// across every file of the review so it travels as one value rather than as
+// eight arguments repeated at each call.
+type fileCtx struct {
+	d        *diff.Diff
+	r        *artifact.Review
+	ts       []threads.Thread
+	byLine   map[anchor][]int
+	byThread map[anchor][]int
+	placed   []bool
+	lay      layout
+	// split is how many other places each file is also drawn in.
+	split map[string]int
+}
+
+// fileNotes is what a file says about itself before its first hunk: why it
+// carries no lines, and what the parser saw of it.
+func fileNotes(f *diff.File, p string, c fileCtx) []row {
+	var out []row
+
+	if f.Note != "" {
+		out = append(out, row{kind: rowHunk, text: f.Note, path: p, comment: noComment})
+	}
+
+	if word := c.lay.fileWord(p); word != "" {
+		out = append(out, row{kind: rowHunk, text: word, path: p, comment: noComment})
+	}
+
+	return out
 }
 
 // hanger answers with the threads and comments sitting on one line, which
@@ -411,81 +447,6 @@ func threadRows(t *threads.Thread, index int, path string, width, numWidth int) 
 	}
 
 	return rows
-}
-
-// dirGroup is the files of one directory, which in a Go tree is one package
-// and in any tree is the unit people actually review together.
-type dirGroup struct {
-	dir   string
-	files []int
-	hunks int
-	// made marks the group holding what a machine wrote. It sits last and is
-	// counted rather than read.
-	made bool
-}
-
-func (g dirGroup) heading() string {
-	if g.made {
-		return fmt.Sprintf("%s  %s · %s · counted, not read",
-			g.dir, plural(len(g.files), "file"), plural(g.hunks, "hunk"))
-	}
-
-	return fmt.Sprintf("%s  %s · %s", g.dir, plural(len(g.files), "file"), plural(g.hunks, "hunk"))
-}
-
-// madeGroup is what the generated files are collected under. It is one group
-// however many directories they came from: what a reader wants of them is one
-// glance, not a tour of the tree they sit in.
-const madeGroup = "generated"
-
-// group collects the diff's files by the directory they sit in, keeping each
-// directory in the order it first appears.
-//
-// Reading a change is reading one package at a time, and a flat list of paths
-// makes the reader do that grouping in their head on every scroll. Sorting
-// would be a different decision: the diff's own order carries the forge's
-// judgment about what to show first, and this keeps it while making the
-// boundaries visible.
-func group(d *diff.Diff, made generated.Set) []dirGroup {
-	var (
-		out   []dirGroup
-		last  dirGroup
-		index = map[string]int{}
-	)
-
-	last.dir, last.made = madeGroup, true
-
-	for i := range d.Files {
-		path := filePath(&d.Files[i])
-
-		// What a machine wrote goes last whatever directory it is in. Left in
-		// reading order it is four hundred lines between two files that are
-		// actually being reviewed.
-		if made.Match(path) {
-			last.files = append(last.files, i)
-			last.hunks += hunkCount(&d.Files[i])
-
-			continue
-		}
-
-		dir := dirOf(path)
-
-		at, ok := index[dir]
-		if !ok {
-			at = len(out)
-			index[dir] = at
-			out = append(out, dirGroup{dir: dir})
-		}
-
-		out[at].files = append(out[at].files, i)
-		out[at].hunks += hunkCount(&d.Files[i])
-	}
-
-	if len(last.files) == 0 {
-		return out
-	}
-
-	return append(out, last)
 }
 
 // dirOf is the directory part of a diff path. A diff always spells paths with

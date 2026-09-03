@@ -52,6 +52,8 @@ func (m *Model) title() string {
 		left += "  " + m.drawn.String()
 	}
 
+	left += m.orderWord()
+
 	// A head that moved outlives the footer message that announced it, because
 	// every row under this line belongs to the diff it moved away from.
 	if m.newHead != "" {

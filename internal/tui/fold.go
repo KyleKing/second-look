@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/rate"
 )
 
@@ -78,7 +79,7 @@ type structureMsg struct {
 // readStructure parses every hunk's two sides. It is a command rather than a
 // call because each hunk costs a subprocess, and a screen that stops answering
 // keys while it reads is a screen that looks broken.
-func readStructure(d *diff.Diff) tea.Cmd {
+func readStructure(d *diff.Diff, made generated.Set) tea.Cmd {
 	return func() tea.Msg {
 		readings, refs, err := rate.Read(context.Background(), d)
 		if err != nil {
@@ -94,7 +95,7 @@ func readStructure(d *diff.Diff) tea.Cmd {
 		}
 
 		return structureMsg{
-			cosmetic: out, shape: readShape(readings, at), score: rate.Of(readings),
+			cosmetic: out, shape: readShape(readings, at, made), score: rate.Of(readings),
 		}
 	}
 }

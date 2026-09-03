@@ -50,6 +50,7 @@ type keyMap struct {
 	Search    key.Binding
 	List      key.Binding
 	Renderer  key.Binding
+	Order     key.Binding
 	Fold      key.Binding
 	Zed       key.Binding
 	Structure key.Binding
@@ -96,6 +97,7 @@ func defaultKeyMap() keyMap {
 		Search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 		List:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
 		Renderer:  key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "renderer")),
+		Order:     key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
 		Fold:      key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
 		Zed:       key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
 		Structure: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "no code changed")),
@@ -160,6 +162,7 @@ func helpLines() [][2]string {
 		{".", "repeat the last change: space, m r/d/x, a fold"},
 		{"c", "the next view: both, the code as it now reads, the comments alone"},
 		{"v", "the next renderer: plain, rich, side by side, structural; each has a caveat"},
+		{"O", "read in the diff's own order instead of gathered by symbol, and back"},
 		{"w", "hide hunks that change nothing but whitespace, and show them again"},
 		{"t", "hide hunks that change no code at all, comments and re-wraps included"},
 		{spaceKey, "mark the hunk read, or the whole file from a file line"},

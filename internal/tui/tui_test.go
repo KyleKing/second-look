@@ -1218,6 +1218,155 @@ func TestZaOpensAGeneratedFile(t *testing.T) {
 	}
 }
 
+// The diff shows one edit made in two places pages apart. Gathering puts the
+// callee whose signature moved next to the caller that has to change with it,
+// whatever directories the two came from, and says which file each piece is.
+func TestGatheringPutsACallerBesideItsCallee(t *testing.T) {
+	t.Parallel()
+
+	if !structure.Available() {
+		t.Skip("ast-grep is not installed")
+	}
+
+	patch := `diff --git a/internal/budget/read.go b/internal/budget/read.go
+--- a/internal/budget/read.go
++++ b/internal/budget/read.go
+@@ -10,4 +10,4 @@
+-func ReadBudget(path string) (int, error) {
++func ReadBudget(path string, strict bool) (int, error) {
+ 	return 0, nil
+ }
+diff --git a/internal/report/render.go b/internal/report/render.go
+--- a/internal/report/render.go
++++ b/internal/report/render.go
+@@ -5,3 +5,3 @@
+ func Render(w io.Writer) error {
+-	fmt.Fprintln(w, "unrelated")
++	fmt.Fprintln(w, "still unrelated")
+ }
+diff --git a/cmd/app/main.go b/cmd/app/main.go
+--- a/cmd/app/main.go
++++ b/cmd/app/main.go
+@@ -20,3 +20,3 @@
+ func main() {
+-	total, err := ReadBudget(path)
++	total, err := ReadBudget(path, true)
+ }
+`
+
+	m := gathered(t, patch)
+	frame := plain(m.Frame())
+
+	if !strings.Contains(frame, "ReadBudget  2 files · 2 hunks · gathered") {
+		t.Fatalf("nothing was gathered:\n%s", frame)
+	}
+
+	callee := strings.Index(frame, "internal/budget/read.go")
+	caller := strings.Index(frame, "cmd/app/main.go")
+	other := strings.Index(frame, "internal/report/render.go")
+
+	if callee < 0 || caller < 0 || other < 0 {
+		t.Fatalf("a file is missing:\n%s", frame)
+	}
+
+	if callee >= caller || caller >= other {
+		t.Errorf("the caller is not beside its callee:\n%s", frame)
+	}
+
+	// O puts the forge's judgment back, which is a thing worth being able to
+	// consult when the gathering guessed wrong.
+	pressKey(m, 'O')
+
+	back := plain(m.Frame())
+	if strings.Contains(back, "gathered") {
+		t.Errorf("O did not put the diff's own order back:\n%s", back)
+	}
+
+	if !strings.Contains(back, "as diffed") {
+		t.Errorf("the title does not say which order this is:\n%s", back)
+	}
+}
+
+// A file whose hunks were gathered into two places is drawn twice, and a reader
+// who does not know they are looking at half a file draws the wrong conclusion
+// from it.
+func TestASplitFileSaysSo(t *testing.T) {
+	t.Parallel()
+
+	if !structure.Available() {
+		t.Skip("ast-grep is not installed")
+	}
+
+	// One file declares two symbols in two hunks, and each is called from a
+	// file of its own, so the file's two hunks are gathered into two groups.
+	patch := `diff --git a/a/one.go b/a/one.go
+--- a/a/one.go
++++ b/a/one.go
+@@ -1,3 +1,3 @@
+ func Widen(n int) int {
+-	return n * 2
++	return n * 3
+ }
+@@ -30,3 +30,3 @@
+ func Narrow(n int) int {
+-	return n / 4
++	return n / 8
+ }
+diff --git a/b/two.go b/b/two.go
+--- a/b/two.go
++++ b/b/two.go
+@@ -1,3 +1,3 @@
+ func run() {
+-	println(Widen(2))
++	println(Widen(4))
+ }
+diff --git a/c/three.go b/c/three.go
+--- a/c/three.go
++++ b/c/three.go
+@@ -1,3 +1,3 @@
+ func walk() {
+-	println(Narrow(2))
++	println(Narrow(4))
+ }
+`
+
+	m := gathered(t, patch)
+
+	frame := plain(m.Frame())
+	if got := strings.Count(frame, "a/one.go"); got != 2 {
+		t.Fatalf("the file is drawn %d times, want twice:\n%s", got, frame)
+	}
+
+	if !strings.Contains(frame, "part of this file") {
+		t.Errorf("a split file does not say so:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "]f walks to it") {
+		t.Errorf("nothing says how to reach the rest of it:\n%s", frame)
+	}
+}
+
+// gathered opens a review and waits for the structural pass, which is what the
+// reading order is worked out from.
+func gathered(t *testing.T, patch string) *tui.Model {
+	t.Helper()
+
+	m, _, _ := fixtureWith(t, patch)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	// The pass costs a subprocess per hunk side, which is more than the shared
+	// helper's patience, so the command is waited on here.
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	if cmd == nil {
+		t.Fatal("t started no structural pass")
+	}
+
+	m.Update(cmd())
+	pressKey(m, 't')
+
+	return m
+}
+
 // A hunk marked read recedes, which is what says how much of a long review is
 // left without counting the glyphs down the margin. The glyph stays: color is
 // the emphasis and the glyph is the meaning.

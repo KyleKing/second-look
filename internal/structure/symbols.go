@@ -43,7 +43,11 @@ func (k Kind) String() string {
 // still reads as the same symbol.
 type Symbol struct {
 	Name string
-	Kind Kind
+	// Ident is the bare identifier, which is what a call to this symbol spells:
+	// Name carries the keyword that introduced the declaration, and a call
+	// carries none. It is what links a caller to its callee.
+	Ident string
+	Kind  Kind
 	// Head is the declaration's first line with its whitespace squeezed out,
 	// which is what tells a symbol that moved from one that was rewritten: the
 	// same head in two places is the same declaration.
@@ -99,7 +103,45 @@ func kindOf(syms []Symbol) Kind {
 // symbol names a declaration the way a person reads it, keeping the squeezed
 // head so a symbol that moved can be told from one that was rewritten.
 func symbol(at decl, k Kind) Symbol {
-	return Symbol{Name: nameOf(at.shown), Kind: k, Head: at.heads[0]}
+	name := nameOf(at.shown)
+
+	return Symbol{Name: name, Ident: identOf(name), Kind: k, Head: at.heads[0]}
+}
+
+// declWords are the words that introduce a declaration rather than name one,
+// across the grammars here. A head is several of them followed by the name.
+var declWords = map[string]bool{
+	"abstract": true, "async": true, "class": true, "const": true, "data": true,
+	"def": true, "default": true, "enum": true, "export": true, "extern": true,
+	"final": true, "fn": true, "func": true, "function": true, "impl": true,
+	"inline": true, "interface": true, "internal": true, "let": true,
+	"module": true, "override": true, "package": true, "private": true,
+	"protected": true, "public": true, "record": true, "static": true,
+	"struct": true, "sub": true, "trait": true, "type": true, "var": true,
+	"virtual": true, "void": true,
+}
+
+// identOf is the bare identifier inside a declaration head: the first word that
+// introduces nothing.
+//
+// A return type is a word too, and in `public static void main` it is one of
+// these; where a language puts a type nothing knows about in front of the name,
+// this answers the type instead. That costs a link rather than making a wrong
+// one, since a call to that name is what would have to exist for it to matter.
+func identOf(name string) string {
+	fields := strings.Fields(name)
+
+	for _, f := range fields {
+		if !declWords[f] {
+			return f
+		}
+	}
+
+	if len(fields) == 0 {
+		return name
+	}
+
+	return fields[len(fields)-1]
 }
 
 func sameHeads(a, b []string) bool {
@@ -155,4 +197,23 @@ func nameOf(head string) string {
 	}
 
 	return strings.TrimSpace(head)
+}
+
+// declaredIn is every symbol a side declares, changed or not, by the identifier
+// a call to it would spell. It is what gathers a hunk with the hunks that call
+// what it is inside, where symbolsOf answers only what the hunk did.
+func declaredIn(ms []match) []string {
+	var out []string
+
+	// The map is keyed by the squeezed head, which compares two declarations
+	// and reads as `funcWiden`. The identifier comes off the line as written.
+	for _, at := range declared(ms) {
+		if id := identOf(nameOf(at.shown)); id != "" && !slices.Contains(out, id) {
+			out = append(out, id)
+		}
+	}
+
+	slices.Sort(out)
+
+	return out
 }

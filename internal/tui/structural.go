@@ -5,6 +5,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kyleking/second-look/internal/generated"
+	"github.com/kyleking/second-look/internal/order"
+	"github.com/kyleking/second-look/internal/rate"
 	"github.com/kyleking/second-look/internal/structure"
 )
 
@@ -17,9 +20,14 @@ import (
 type shape struct {
 	// touched is the symbols each hunk declared, changed, or removed.
 	touched map[hunkAt][]structure.Symbol
+	// inside is the declarations each hunk sits in, changed or not, which is
+	// what a heading says where nothing about them changed.
+	inside map[hunkAt][]string
 	// moved is the symbols that left one place in a file and arrived in
 	// another, by the declaration they both spell.
 	moved map[string]move
+	// plan is the order the review reads in, worked out from the same pass.
+	plan []order.Group
 }
 
 // move is one symbol that went from one hunk to another rather than being
@@ -32,14 +40,25 @@ type move struct {
 	to   hunkAt
 }
 
-// readShape collects what each hunk did from the pass the rating already ran.
-func readShape(readings []structure.Reading, refs []hunkAt) shape {
-	out := shape{touched: map[hunkAt][]structure.Symbol{}, moved: map[string]move{}}
+// readShape collects what each hunk did from the pass the rating already ran,
+// and works the reading order out of it.
+func readShape(readings []structure.Reading, refs []hunkAt, made generated.Set) shape {
+	out := shape{
+		touched: map[hunkAt][]structure.Symbol{},
+		inside:  map[hunkAt][]string{},
+		moved:   map[string]move{},
+	}
 
 	gone, came := map[string]move{}, map[string]move{}
 
 	for i, r := range readings {
-		if i >= len(refs) || !r.Parsed || len(r.Symbols) == 0 {
+		if i >= len(refs) || !r.Parsed {
+			continue
+		}
+
+		out.inside[refs[i]] = r.Declared
+
+		if len(r.Symbols) == 0 {
 			continue
 		}
 
@@ -64,6 +83,33 @@ func readShape(readings []structure.Reading, refs []hunkAt) shape {
 		}
 	}
 
+	out.plan = order.Plan(planHunks(readings, refs, made))
+
+	return out
+}
+
+// planHunks is every hunk as the ordering reads it: where it is, what it
+// declares, what it calls, and what reading it costs.
+func planHunks(readings []structure.Reading, refs []hunkAt, made generated.Set) []order.Hunk {
+	out := make([]order.Hunk, 0, len(refs))
+
+	for i, at := range refs {
+		h := order.Hunk{
+			Ref:  order.Ref{Path: at.path, Hunk: at.hunk},
+			Dir:  dirOf(at.path),
+			Made: made.Match(at.path),
+		}
+
+		if i < len(readings) && readings[i].Parsed {
+			h.Calls = readings[i].Called
+			h.Cost = rate.HunkCost(readings[i])
+
+			h.Declares = readings[i].Declared
+		}
+
+		out = append(out, h)
+	}
+
 	return out
 }
 
@@ -85,6 +131,13 @@ func declKey(path string, s structure.Symbol) string {
 func (sh shape) symbolWord(at hunkAt) string {
 	touched := sh.touched[at]
 	if len(touched) == 0 {
+		// Nothing about the declaration changed, so the heading says what the
+		// hunk is inside instead, which is still what a reader needs to place
+		// it. A change deep in a body has neither, and says nothing.
+		if inside := sh.inside[at]; len(inside) > 0 {
+			return "  in " + strings.Join(inside, ", ")
+		}
+
 		return ""
 	}
 

@@ -114,6 +114,9 @@ type Model struct {
 	// made is what counts as written by a machine, which the review groups last
 	// and folds.
 	made generated.Set
+	// asDiffed puts the forge's own order back, which is what to press when the
+	// gathering guessed wrong about what belongs together.
+	asDiffed bool
 	// done is which hunks are already read, so a row can recede without hashing
 	// its hunk to find out.
 	done map[hunkAt]bool
@@ -192,7 +195,7 @@ func (m *Model) Init() tea.Cmd {
 	// t is a redraw by the time anyone presses it.
 	cmds := []tea.Cmd{m.checkHead()}
 	if structure.Available() {
-		cmds = append(cmds, readStructure(m.diff))
+		cmds = append(cmds, readStructure(m.diff, m.made))
 	}
 
 	return tea.Batch(cmds...)
@@ -485,6 +488,8 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		m.cycleView()
 	case key.Matches(msg, m.keys.Renderer):
 		m.cycleRenderer()
+	case key.Matches(msg, m.keys.Order):
+		m.cycleOrder()
 	case key.Matches(msg, m.keys.Fold):
 		m.setFold(foldWhitespace)
 	case key.Matches(msg, m.keys.Structure):
@@ -997,7 +1002,7 @@ func (m *Model) askStructure() tea.Cmd {
 	m.reading = true
 	m.say("reading the structure of "+plural(len(seen.Hunks(m.diff)), "hunk")+"...", false)
 
-	return readStructure(m.diff)
+	return readStructure(m.diff, m.made)
 }
 
 func (m *Model) hunksOf(path string) []seen.Ref {
@@ -1780,6 +1785,9 @@ func (m *Model) rebuild() {
 	lay := layout{
 		width: m.width, hide: m.skipper(), fold: m.folded,
 		split: m.sideBySide(), made: m.made,
+	}
+	if !m.asDiffed {
+		lay.plan = m.shape.plan
 	}
 	if m.drawn == renderStructural {
 		lay.parsed = &m.shape

@@ -63,12 +63,12 @@ func buildCode(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout
 
 	s.rows = append(s.rows, header(r, lay, s.numWidth)...)
 
-	for _, g := range group(d, lay.made) {
+	for _, g := range lay.groups(d) {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
 			row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
 
-		for _, i := range g.files {
-			s.rows = append(s.rows, s.codeRows(&d.Files[i], ctx)...)
+		for _, at := range g.parts {
+			s.rows = append(s.rows, s.codeRows(&d.Files[at.file], at.hunks, ctx)...)
 		}
 	}
 
@@ -88,7 +88,7 @@ type codeCtx struct {
 	lay      layout
 }
 
-func (s screen) codeRows(f *diff.File, c codeCtx) []row {
+func (s screen) codeRows(f *diff.File, want map[int]bool, c codeCtx) []row {
 	p := filePath(f)
 	rows := []row{{kind: rowFile, text: p, path: p, comment: -1}}
 
@@ -108,6 +108,10 @@ func (s screen) codeRows(f *diff.File, c codeCtx) []row {
 	var run []diff.Line
 
 	for _, ln := range f.Lines {
+		if want != nil && !want[ln.Hunk] {
+			continue
+		}
+
 		if ln.Hunk != hunk {
 			rows = append(rows, s.removed(run, p, hunk, c)...)
 			run = nil

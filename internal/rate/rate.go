@@ -119,6 +119,34 @@ func Read(ctx context.Context, d *diff.Diff) ([]structure.Reading, []seen.Ref, e
 	return readings, refs, nil
 }
 
+// HunkCost is what reading one hunk is worth, on the same weights the whole
+// change is scored on. It orders the reading order rather than a queue, so it
+// carries no ceiling: what matters is which of two hunks is dearer, and the
+// ceiling exists to keep a number comparable between pull requests.
+//
+// A hunk nothing parsed costs nothing, which sorts it as if it were cheap. That
+// is the honest answer: an unparsed hunk is one nobody can rank, and putting it
+// first on a guess would be worse than leaving it where the diff had it.
+func HunkCost(r structure.Reading) int {
+	if !r.Parsed || r.Change.Cosmetic() {
+		return 0
+	}
+
+	sum := weightHunk + len(r.Gained)*weightGained
+
+	switch r.Kind {
+	case structure.KindSignature:
+		sum += weightSignature
+	case structure.KindNew:
+		sum += weightNew
+	case structure.KindDeleted:
+		sum += weightDeleted
+	case structure.KindBody:
+	}
+
+	return sum
+}
+
 // total sums the signals under the ceiling. A signature change counts once
 // however many hunks carry one, because the second one is the same risk again
 // rather than more of it; the hunk count is what grows with the diff.
