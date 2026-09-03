@@ -81,8 +81,12 @@ enclosing symbol is not always knowable, which is the caveat this one ships with
 
 The faces are nightfox's, derived into aragonite's palette rather than exposed as
 configuration, so second-look, gh-repo-dashboard, and gh-sweep stay one visual family.
-`dim_inactive` is the idea worth taking from that config: a read hunk, a folded region,
-and the file the cursor is not in can all recede.
+`dim_inactive` was the idea worth taking from that config, and half of it is done: a hunk
+already marked read recedes in both renderers, keeping its band and losing its grammar,
+since what the code says has been read and what is left to read is the question. The
+folded region and the file the cursor is not in are the other half, and both want living
+with before they are built: dimming every file but one is most of a long diff most of the
+time, which is a different thing from dimming a window nobody is typing in.
 
 Folded in here because every one of them is a rendering problem:
 

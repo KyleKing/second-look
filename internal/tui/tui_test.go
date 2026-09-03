@@ -16,6 +16,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/structure"
 	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
@@ -948,6 +949,89 @@ func TestCommentsRenderUnderTheirAnchor(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A hunk marked read recedes, which is what says how much of a long review is
+// left without counting the glyphs down the margin. The glyph stays: color is
+// the emphasis and the glyph is the meaning.
+func TestAReadHunkRecedes(t *testing.T) {
+	t.Parallel()
+
+	for _, renderer := range []string{"plain", "rich"} {
+		t.Run(renderer, func(t *testing.T) {
+			t.Parallel()
+
+			m := readable(t, longPatch(t))
+			if renderer == "rich" {
+				press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+			}
+
+			// space acts on the hunk the cursor is in, and the screen opens on
+			// the review's own prose rather than in the diff.
+			press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
+			press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+
+			before := styledLine(t, m, "first line 1")
+
+			press(m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+
+			after := styledLine(t, m, "first line 1")
+			if after == before {
+				t.Errorf("a read hunk is drawn the same as an unread one:\n%q", after)
+			}
+
+			if !strings.Contains(plain(m.Frame()), "first line 1") {
+				t.Errorf("a read hunk lost its content:\n%s", plain(m.Frame()))
+			}
+		})
+	}
+}
+
+// readable is a screen that can record what has been read, which the plain
+// fixture cannot: without it space says there is nowhere to put an answer and
+// nothing about a read hunk can be asked.
+func readable(t *testing.T, patch string) *tui.Model {
+	t.Helper()
+
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pr-42.toml")
+
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	marks, err := seen.Load(filepath.Join(dir, "seen.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, (&counter{}).post,
+		tui.WithSeen(marks, filepath.Join(dir, "seen.toml")))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	return m
+}
+
+// styledLine is one rendered row with its escapes intact, which is the only way
+// to see a change that is entirely a change of face.
+func styledLine(t *testing.T, m *tui.Model, want string) string {
+	t.Helper()
+
+	for _, line := range strings.Split(m.Frame(), "\n") {
+		if strings.Contains(plain(line), want) {
+			return line
+		}
+	}
+
+	t.Fatalf("no row carries %q:\n%s", want, plain(m.Frame()))
+
+	return ""
 }
 
 // Landing on a comment centers its block. A finding is explained by the code

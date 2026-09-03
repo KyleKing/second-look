@@ -377,6 +377,9 @@ func (m *Model) rowBody(r row, width int) string {
 	}
 
 	text, style := m.rowContent(r)
+	if r.kind == rowCode && m.behind(r) {
+		style = m.styles.behind
+	}
 
 	return style.Render(cut(text, width))
 }

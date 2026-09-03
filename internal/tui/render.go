@@ -225,10 +225,22 @@ func (m *Model) richText(r row, width int) (string, int) {
 		cols int
 	)
 
+	// A hunk already read keeps its band and loses its grammar: what the code
+	// says has been read, and what is left to read is the question.
+	faces := m.rich.class
+	if m.behind(r) {
+		faces = nil
+	}
+
 	for _, piece := range m.runs(r, r.line.Text) {
-		style := under(m.rich.class[piece.class], band, ok)
+		face := m.styles.behind
+		if faces != nil {
+			face = faces[piece.class]
+		}
+
+		style := under(face, band, ok)
 		if ok && covered(marked, piece.from) {
-			style = under(m.rich.class[piece.class], mark, true).Bold(true)
+			style = under(face, mark, true).Bold(true)
 		}
 
 		text, spent := expandFrom(r.line.Text[piece.from:piece.to], cols)

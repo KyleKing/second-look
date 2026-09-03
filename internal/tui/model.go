@@ -108,6 +108,9 @@ type Model struct {
 	// has an answer to show.
 	cost    rate.Score
 	reading bool
+	// done is which hunks are already read, so a row can recede without hashing
+	// its hunk to find out.
+	done map[hunkAt]bool
 	// folded is what z has put away by hand.
 	folded folded
 	help   bool
@@ -1771,8 +1774,35 @@ func (m *Model) rebuild() {
 		m.screen = build(m.review, m.diff, m.threads, lay)
 	}
 
+	m.done = m.readHunks()
 	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()
+}
+
+// readHunks is every hunk already marked read, hashed once per rebuild rather
+// than once per row: a row that asked would hash its whole hunk to draw one
+// line of it.
+func (m *Model) readHunks() map[hunkAt]bool {
+	if m.read == nil {
+		return nil
+	}
+
+	out := map[hunkAt]bool{}
+
+	for _, ref := range seen.Hunks(m.diff) {
+		if m.read.Has(seen.Hunk(m.diff, ref.Path, ref.Hunk)) {
+			out[hunkAt{path: ref.Path, hunk: ref.Hunk}] = true
+		}
+	}
+
+	return out
+}
+
+// behind reports whether a row is work already done, which recedes so the eye
+// finds what is left rather than counting glyphs down the margin. It is the
+// idea worth taking from nightfox's dim_inactive.
+func (m *Model) behind(r row) bool {
+	return r.hunk != 0 && m.done[hunkAt{path: r.path, hunk: r.hunk}]
 }
 
 func (m *Model) moveBy(n int) {

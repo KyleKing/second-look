@@ -31,6 +31,7 @@ type styles struct {
 	add      lipgloss.Style
 	remove   lipgloss.Style
 	context  lipgloss.Style
+	behind   lipgloss.Style
 	number   lipgloss.Style
 	cursor   lipgloss.Style
 	rail     lipgloss.Style
@@ -60,16 +61,19 @@ func newStyles() styles {
 		add:     base.Foreground(p.Green),
 		remove:  base.Foreground(p.Red),
 		context: base.Foreground(p.Subtext1),
-		number:  base.Foreground(p.Overlay0),
-		cursor:  sk.Cursor,
-		rail:    sk.Accent,
-		body:    sk.Body,
-		note:    sk.Muted.Italic(true),
-		footer:  sk.Subtitle,
-		key:     sk.Key,
-		warn:    sk.Warning,
-		fail:    sk.Error,
-		ok:      sk.Success,
+		// What is already read recedes, which is nightfox's dim_inactive: the
+		// eye then finds what is left instead of counting glyphs.
+		behind: base.Foreground(p.Overlay0),
+		number: base.Foreground(p.Overlay0),
+		cursor: sk.Cursor,
+		rail:   sk.Accent,
+		body:   sk.Body,
+		note:   sk.Muted.Italic(true),
+		footer: sk.Subtitle,
+		key:    sk.Key,
+		warn:   sk.Warning,
+		fail:   sk.Error,
+		ok:     sk.Success,
 		severity: map[string]lipgloss.Style{
 			"blocker": base.Foreground(p.Red).Bold(true),
 			"major":   base.Foreground(p.Peach).Bold(true),
