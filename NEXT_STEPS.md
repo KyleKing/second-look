@@ -923,6 +923,12 @@ The other half is the subprocess coverage this project needs and the template do
 render: `COVERDIR_SUBPROCESS` is still absent upstream, so the override stays until it
 lands there. `ci:project` stays either way, since it is what runs the floor in CI.
 
+One thing is owed to [gh-sweep](https://github.com/KyleKing/gh-sweep): its `comments`
+view reads unresolved review threads across a repo list via GraphQL, which second-look
+only does for one PR at a time (`## Existing review threads — done`). A cross-repo
+unresolved-thread queue is the natural next tab once second-look wants one; gh-sweep's
+implementation is the reference. Not moving until second-look actually wants that scope.
+
 One thing is owed to [aragonite](https://github.com/KyleKing/aragonite): `tui/editor`,
 recorded in its README and not written. Modal editing over a text box, or a pane handing
 the buffer to the user's own nvim, shared by every tool here that writes prose in a
