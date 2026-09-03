@@ -83,7 +83,6 @@ Folded in here because every one of them is a rendering problem:
   block was never designed for
 - A skipped comment draws as an ordinary comment carrying its body and note, marked
   skipped, rather than as a special case
-- A comment anchored to a range says so on screen, which today it does not
 
 One keymap fix stood alone rather than folding in, and is done: `dd` on the third staged
 review armed the first, because `moved` set `touched` on every keypress and cleared it
@@ -291,6 +290,12 @@ All of it came out of driving the built binary rather than reading the code,
 which is why none of it showed up in a test.
 
 ### Done
+
+**A range says what it covers.** A comment renders under its end line, so one anchored to
+lines 12 through 15 read as a comment on line 15 and left the three above it looking
+untouched. The heading names the span, and names both sides where they differ, which is
+the case where the range crosses a change rather than sitting on one side of it. Drawing
+the covered lines themselves belongs to the rich renderer, which is where a band is.
 
 **The rating is a column.** The inbox spliced `cost 38  ` onto the front of the title,
 so a rated row's title started nine columns right of an unrated one's and every title

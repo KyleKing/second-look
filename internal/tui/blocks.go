@@ -147,7 +147,7 @@ func commentRows(c *artifact.Comment, index int, path string, lay layout, numWid
 // for on a screen of code, and keeps the glyph so a monochrome terminal still
 // says whether the comment will post.
 func commentHead(c *artifact.Comment) string {
-	head := fmt.Sprintf("%s %s  %s", statusGlyph(c.Status), strings.ToUpper(c.Severity), c.Status)
+	head := fmt.Sprintf("%s %s  %s%s", statusGlyph(c.Status), strings.ToUpper(c.Severity), c.Status, span(c))
 
 	if c.InReplyTo != 0 {
 		head += fmt.Sprintf("  reply to %d", c.InReplyTo)
@@ -185,4 +185,22 @@ func noteRows(note string, index int, path string, avail int, lay layout) []row 
 	}
 
 	return rows
+}
+
+// span is the lines a comment covers, and nothing for one on a single line. A
+// comment renders under its end line, so a range that said nothing read as a
+// comment on that line alone and left the lines above it looking untouched.
+//
+// The sides are named only where they differ, which GitHub allows and which
+// means the range crosses a change rather than sitting on one side of it.
+func span(c *artifact.Comment) string {
+	if c.StartLine == 0 || c.StartLine == c.Line {
+		return ""
+	}
+
+	if c.StartSide != "" && c.StartSide != c.Side {
+		return fmt.Sprintf("  lines %s %d-%s %d", c.StartSide, c.StartLine, c.Side, c.Line)
+	}
+
+	return fmt.Sprintf("  lines %d-%d", c.StartLine, c.Line)
 }

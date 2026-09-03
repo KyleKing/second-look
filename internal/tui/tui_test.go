@@ -950,6 +950,27 @@ func TestCommentsRenderUnderTheirAnchor(t *testing.T) {
 	}
 }
 
+// A comment on a range renders under its end line like any other, so without
+// the span on its heading it reads as a comment on that one line and the four
+// above it look untouched.
+func TestARangeSaysWhatItCovers(t *testing.T) {
+	t.Parallel()
+
+	ranged := comment("c1", parsed, artifact.SideRight, 15, "this whole block")
+	ranged.StartLine, ranged.StartSide = 12, artifact.SideRight
+
+	m, _ := fixture(t, ranged)
+
+	if got := plain(m.Frame()); !strings.Contains(got, "lines 12-15") {
+		t.Errorf("the range is not on screen:\n%s", got)
+	}
+
+	single, _ := fixture(t, comment("c2", parsed, artifact.SideRight, 15, "one line only"))
+	if got := plain(single.Frame()); regexp.MustCompile(`lines \d+-\d+`).MatchString(got) {
+		t.Errorf("a single-line comment claims a range:\n%s", got)
+	}
+}
+
 // Staging refuses a comment the diff does not carry, so one reaching the screen
 // means the diff moved underneath it. Hiding it would hide the problem.
 func TestACommentOutsideTheDiffIsStillListed(t *testing.T) {
