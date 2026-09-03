@@ -34,9 +34,13 @@ func (c Change) Cosmetic() bool { return c != ChangeCode }
 // Reading is one hunk's structural pass.
 type Reading struct {
 	Change Change
-	// Kind is what the hunk did to the symbols it touches, which is the signal
-	// the review-cost rating multiplies the rest by.
+	// Kind is the strongest thing the hunk did to any symbol it touches, which
+	// is the signal the review-cost rating multiplies the rest by.
 	Kind Kind
+	// Symbols is every declaration the hunk touched and what it did to each, in
+	// name order. A hunk that only changed a body touches none: the symbol it
+	// sits inside is above the fragment and not knowable from it.
+	Symbols []Symbol
 	// Gained is the capability classes the after side calls into and the before
 	// side did not. Its honest meaning is "a new capability visible to syntax".
 	Gained []Class
@@ -73,11 +77,13 @@ func Read(ctx context.Context, h Hunk) (Reading, error) {
 		return Reading{Change: ChangeCode}, err
 	}
 
+	syms := symbolsOf(was, now)
 	r := Reading{
-		Change: ChangeCode,
-		Kind:   kindOf(was, now),
-		Gained: gained(was, now),
-		Parsed: true,
+		Change:  ChangeCode,
+		Kind:    kindOf(syms),
+		Symbols: syms,
+		Gained:  gained(was, now),
+		Parsed:  true,
 	}
 
 	if bare(without(before, was)) == bare(without(after, now)) {

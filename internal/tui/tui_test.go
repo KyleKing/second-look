@@ -1017,6 +1017,132 @@ func TestSideBySideFallsBackWhenNarrow(t *testing.T) {
 	}
 }
 
+// The structural renderer says what the parser saw: which symbols each hunk
+// touched, a summary of the same per file, and a symbol that left one hunk and
+// arrived in another drawn as a move rather than as a delete beside an
+// unrelated insert.
+func TestStructuralNamesWhatEachHunkTouched(t *testing.T) {
+	t.Parallel()
+
+	if !structure.Available() {
+		t.Skip("ast-grep is not installed")
+	}
+
+	patch := `diff --git a/x.go b/x.go
+--- a/x.go
++++ b/x.go
+@@ -1,3 +1,3 @@
+-func Read(path string) error {
++func Read(path string, strict bool) error {
+ 	return nil
+ }
+@@ -20,8 +20,4 @@
+-func split(s string) []string {
+-	return nil
+-}
+-
+ func Widen(n int) int {
+ 	return n * 2
+ }
+@@ -40,3 +36,7 @@
+ func Narrow(n int) int {
+ 	return n / 2
+ }
++
++func split(s string) []string {
++	return nil
++}
+`
+
+	m, _, _ := fixtureWith(t, patch)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+
+	// The pass costs a subprocess per hunk side, which is more than the shared
+	// helper's patience, so the command is waited on here.
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	if cmd == nil {
+		t.Fatal("t started no structural pass")
+	}
+
+	m.Update(cmd())
+	pressKey(m, 't')
+
+	for range 3 {
+		pressKey(m, 'v')
+	}
+
+	frame := plain(m.Frame())
+
+	for _, want := range []string{
+		"func Read signature",
+		"func split moved out",
+		"func split moved in",
+		"func split moved",
+	} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("nothing says %q:\n%s", want, frame)
+		}
+	}
+
+	// The delete and the insert are one move, so neither half is announced as
+	// a symbol arriving or leaving on its own.
+	for _, wrong := range []string{"func split new", "func split deleted"} {
+		if strings.Contains(frame, wrong) {
+			t.Errorf("a move was drawn as %q:\n%s", wrong, frame)
+		}
+	}
+}
+
+// A symbol whose declaration was rewritten on the way is not the same code
+// arriving somewhere else, so it stays a delete and an insert.
+func TestStructuralDoesNotCallARewriteAMove(t *testing.T) {
+	t.Parallel()
+
+	if !structure.Available() {
+		t.Skip("ast-grep is not installed")
+	}
+
+	patch := `diff --git a/x.go b/x.go
+--- a/x.go
++++ b/x.go
+@@ -20,8 +20,4 @@
+-func split(s string) []string {
+-	return nil
+-}
+-
+ func Widen(n int) int {
+ 	return n * 2
+ }
+@@ -40,3 +36,7 @@
+ func Narrow(n int) int {
+ 	return n / 2
+ }
++
++func split(s string, sep rune) []string {
++	return nil
++}
+`
+
+	m, _, _ := fixtureWith(t, patch)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	if cmd == nil {
+		t.Fatal("t started no structural pass")
+	}
+
+	m.Update(cmd())
+	pressKey(m, 't')
+
+	for range 3 {
+		pressKey(m, 'v')
+	}
+
+	if frame := plain(m.Frame()); strings.Contains(frame, "moved") {
+		t.Errorf("a rewritten declaration was called a move:\n%s", frame)
+	}
+}
+
 // A hunk marked read recedes, which is what says how much of a long review is
 // left without counting the glyphs down the margin. The glyph stays: color is
 // the emphasis and the glyph is the meaning.

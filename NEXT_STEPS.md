@@ -51,10 +51,11 @@ lines and nothing tells Go from YAML. [delta](https://github.com/dandavison/delt
 [hunk](https://www.hunk.dev/) both treat highlighting and intra-line marking as the
 floor, and this is below it.
 
-Three renderers land behind `v`, which cycles `plain` (what ships today), `rich`,
+Three renderers landed behind `v`, which cycles `plain` (what shipped before), `rich`,
 `split`, and `structural`. They are experiments: rough edges are fine, each caveat is
-written into the help and the README, all of them get lived with on real reviews, and the
-losers are deleted rather than kept for symmetry.
+written into the help and the README and named in the footer on the keystroke that
+switches to it, all of them get lived with on real reviews, and the losers are deleted
+rather than kept for symmetry.
 
 **rich** is built: highlighting per grammar, word-level intra-line marking, a background
 band instead of colored text, and a gutter carrying the old and new line numbers together.
@@ -83,10 +84,16 @@ screen out again rather than merely redrawing it. Pairing a whole review costs t
 path about 20% (1.5ms to 1.8ms on a forty-file diff); the per-keystroke frame is
 unchanged.
 
-**structural** reuses the ast-grep pass the rating already runs: the enclosing symbol on
-each hunk heading, a per-file list of which symbols changed and how, and a move drawn as
-a move rather than a delete beside an unrelated insert. A hunk is a fragment, so the
-enclosing symbol is not always knowable, which is the caveat this one ships with.
+**structural** is built, and reuses the ast-grep pass the rating already runs, so it costs
+no extra work: the symbols each hunk touched on its heading, a per-file list of the same
+under the file name, and a symbol that left one hunk and arrived in another drawn as a
+move rather than as a delete beside an unrelated insert. A symbol whose declaration was
+rewritten on the way is not a move, since it is not the same code arriving somewhere else.
+
+A hunk is a fragment, so the symbol a body edit sits inside is not knowable, which is the
+caveat this one ships with. What the pass now hands back that it did not before is the
+symbol names themselves rather than only the strongest kind, which is what step 2 needs to
+co-locate hunks.
 
 The faces are nightfox's, derived into aragonite's palette rather than exposed as
 configuration, so second-look, gh-repo-dashboard, and gh-sweep stay one visual family.

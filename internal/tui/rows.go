@@ -119,29 +119,15 @@ func (s screen) fileRows(
 		rows = append(rows, row{kind: rowHunk, text: f.Note, path: p, comment: -1})
 	}
 
-	hunk, folded, hide := 0, 0, false
-
-	// The threads and comments on one line, which follow the row that line was
-	// drawn on: side by side, that row carries two lines and both hang off it.
-	hang := func(l diff.Line) []row {
-		a := anchorOf(p, l)
-		out := make([]row, 0, len(byThread[a])+len(byLine[a]))
-
-		// What is already on GitHub comes before what this pass is adding, so a
-		// comment reads as an answer to the conversation above it.
-		for _, t := range byThread[a] {
-			out = append(out, threadRows(&ts[t], t, p, lay.width, s.numWidth)...)
-		}
-
-		for _, c := range byLine[a] {
-			placed[c] = true
-			out = append(out, commentRows(&r.Comments[c], c, p, lay, s.numWidth)...)
-		}
-
-		return out
+	if word := lay.fileWord(p); word != "" {
+		rows = append(rows, row{kind: rowHunk, text: word, path: p, comment: -1})
 	}
 
-	lines := &pairer{split: lay.split, hang: hang, path: p, out: &rows}
+	hunk, folded, hide := 0, 0, false
+	lines := &pairer{
+		split: lay.split, path: p, out: &rows,
+		hang: s.hanger(p, r, ts, byLine, byThread, placed, lay),
+	}
 
 	for _, l := range f.Lines {
 		if l.Hunk != hunk {
@@ -149,28 +135,19 @@ func (s screen) fileRows(
 			// before the next heading is drawn.
 			lines.flush()
 			lines.hunk = l.Hunk
-
-			// The test walks the file, so it is asked once per hunk rather
-			// than once per line.
 			hunk = l.Hunk
-			hide = lay.hide.skip != nil && lay.hide.skip(p, hunk)
-			shut := lay.fold.hunks[hunkAt{p, hunk}]
 
-			switch {
-			case hide:
-				folded++
-			case shut:
-				rows = append(rows, row{
-					kind: rowHunk, text: hunkHeader(d, hunk) + "  folded · za to open",
-					path: p, comment: -1, hunk: hunk, folded: true,
-				})
-			default:
-				rows = append(rows, row{
-					kind: rowHunk, text: hunkHeader(d, hunk), path: p, comment: -1, hunk: hunk,
-				})
+			// The tests walk the file, so they are asked once per hunk rather
+			// than once per line.
+			head, skipped := hunkRow(d, lay, hunkAt{p, hunk})
+			if head != nil {
+				rows = append(rows, *head)
 			}
 
-			hide = hide || shut
+			hide = skipped
+			if hide && head == nil {
+				folded++
+			}
 		}
 
 		if hide {
@@ -192,6 +169,53 @@ func (s screen) fileRows(
 	}
 
 	return rows
+}
+
+// hanger answers with the threads and comments sitting on one line, which
+// follow the row that line was drawn on: side by side, that row carries two
+// lines and both hang off it.
+func (s screen) hanger(
+	p string, r *artifact.Review, ts []threads.Thread,
+	byLine, byThread map[anchor][]int, placed []bool, lay layout,
+) func(diff.Line) []row {
+	return func(l diff.Line) []row {
+		a := anchorOf(p, l)
+		out := make([]row, 0, len(byThread[a])+len(byLine[a]))
+
+		// What is already on GitHub comes before what this pass is adding, so a
+		// comment reads as an answer to the conversation above it.
+		for _, t := range byThread[a] {
+			out = append(out, threadRows(&ts[t], t, p, lay.width, s.numWidth)...)
+		}
+
+		for _, c := range byLine[a] {
+			placed[c] = true
+			out = append(out, commentRows(&r.Comments[c], c, p, lay, s.numWidth)...)
+		}
+
+		return out
+	}
+}
+
+// hunkRow is one hunk's own row and whether its lines are held back. A hunk the
+// current fold level hides has no row at all and is counted instead; one folded
+// by hand keeps its row and says so.
+func hunkRow(d *diff.Diff, lay layout, at hunkAt) (*row, bool) {
+	if lay.hide.skip != nil && lay.hide.skip(at.path, at.hunk) {
+		return nil, true
+	}
+
+	if lay.fold.hunks[at] {
+		return &row{
+			kind: rowHunk, text: hunkHeader(d, at.hunk) + "  folded · za to open",
+			path: at.path, comment: noComment, hunk: at.hunk, folded: true,
+		}, true
+	}
+
+	return &row{
+		kind: rowHunk, comment: noComment, path: at.path, hunk: at.hunk,
+		text: hunkHeader(d, at.hunk) + lay.hunkWord(at),
+	}, false
 }
 
 // claim marks the comments anchored to a line without drawing them, so a hunk

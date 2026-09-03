@@ -112,6 +112,39 @@ type parsed struct {
 	change        structure.Change
 	kind          structure.Kind
 	gained        []structure.Class
+	// symbols is each declaration the hunk touched as "name:kind", left nil
+	// where the case is not about naming one.
+	symbols []string
+}
+
+// check compares one reading against what the case expects.
+func (c parsed) check(t *testing.T, got structure.Reading) {
+	t.Helper()
+
+	if got.Change != c.change {
+		t.Errorf("change = %v, want %v", got.Change, c.change)
+	}
+
+	if got.Kind != c.kind {
+		t.Errorf("kind = %v, want %v", got.Kind, c.kind)
+	}
+
+	if !slices.Equal(got.Gained, c.gained) {
+		t.Errorf("gained = %v, want %v", got.Gained, c.gained)
+	}
+
+	if c.symbols == nil {
+		return
+	}
+
+	named := make([]string, 0, len(got.Symbols))
+	for _, sym := range got.Symbols {
+		named = append(named, sym.Name+":"+sym.Kind.String())
+	}
+
+	if !slices.Equal(named, c.symbols) {
+		t.Errorf("symbols = %v, want %v", named, c.symbols)
+	}
 }
 
 var parsedCases = []parsed{
@@ -138,8 +171,9 @@ def total(rows):
 		after: `
 def total(rows, base):
     return sum(rows) + base`,
-		change: structure.ChangeCode,
-		kind:   structure.KindSignature,
+		change:  structure.ChangeCode,
+		kind:    structure.KindSignature,
+		symbols: []string{"def total:signature"},
 	},
 	{
 		name: "a function arrived",
@@ -155,8 +189,9 @@ func Total(rows []int) int {
 
 func Reset() {
 }`,
-		change: structure.ChangeCode,
-		kind:   structure.KindNew,
+		change:  structure.ChangeCode,
+		kind:    structure.KindNew,
+		symbols: []string{"func Reset:new"},
 	},
 	{
 		name: "a function went",
@@ -172,8 +207,9 @@ func Reset() {
 func Total(rows []int) int {
 	return 0
 }`,
-		change: structure.ChangeCode,
-		kind:   structure.KindDeleted,
+		change:  structure.ChangeCode,
+		kind:    structure.KindDeleted,
+		symbols: []string{"func Reset:deleted"},
 	},
 	{
 		name: "the body reached for a shell",
@@ -208,17 +244,7 @@ func TestReadWithAParser(t *testing.T) {
 				t.Fatalf("reading the hunk: %v", err)
 			}
 
-			if got.Change != c.change {
-				t.Errorf("change = %v, want %v", got.Change, c.change)
-			}
-
-			if got.Kind != c.kind {
-				t.Errorf("kind = %v, want %v", got.Kind, c.kind)
-			}
-
-			if !slices.Equal(got.Gained, c.gained) {
-				t.Errorf("gained = %v, want %v", got.Gained, c.gained)
-			}
+			c.check(t, got)
 		})
 	}
 }

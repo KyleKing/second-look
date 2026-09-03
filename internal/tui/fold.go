@@ -70,6 +70,7 @@ func (m *Model) skipper() hider {
 // answer is kept, so t after the first press is a redraw.
 type structureMsg struct {
 	cosmetic map[hunkAt]bool
+	shape    shape
 	score    rate.Score
 	err      error
 }
@@ -85,11 +86,16 @@ func readStructure(d *diff.Diff) tea.Cmd {
 		}
 
 		out := make(map[hunkAt]bool, len(readings))
+		at := make([]hunkAt, len(readings))
+
 		for i := range readings {
-			out[hunkAt{refs[i].Path, refs[i].Hunk}] = readings[i].Change.Cosmetic()
+			at[i] = hunkAt{refs[i].Path, refs[i].Hunk}
+			out[at[i]] = readings[i].Change.Cosmetic()
 		}
 
-		return structureMsg{cosmetic: out, score: rate.Of(readings)}
+		return structureMsg{
+			cosmetic: out, shape: readShape(readings, at), score: rate.Of(readings),
+		}
 	}
 }
 

@@ -38,36 +38,68 @@ func (k Kind) String() string {
 	return "body"
 }
 
-// kindOf compares the declarations the two sides carry.
+// Symbol is one declaration a hunk touched and what it did to it. The name is
+// the declaration head up to its first delimiter, so a changed parameter list
+// still reads as the same symbol.
+type Symbol struct {
+	Name string
+	Kind Kind
+	// Head is the declaration's first line with its whitespace squeezed out,
+	// which is what tells a symbol that moved from one that was rewritten: the
+	// same head in two places is the same declaration.
+	Head string
+}
+
+// symbolsOf compares the declarations the two sides carry, one entry per symbol
+// either side names.
 //
 // A declaration is identified by its first line, which is where every language
-// here puts the name and the parameters, and named by that line up to the first
-// delimiter. So the same symbol declared differently is a signature change,
-// while a symbol only one side declares is new or deleted. Each test is a full
-// pass, so the answer does not depend on which name is looked at first.
-func kindOf(was, now []match) Kind {
+// here puts the name and the parameters. So the same symbol declared differently
+// is a signature change, while a symbol only one side declares is new or
+// deleted.
+func symbolsOf(was, now []match) []Symbol {
 	before, after := declared(was), declared(now)
 
-	for name, heads := range after {
+	var out []Symbol
+
+	for name, at := range after {
 		prior, ok := before[name]
-		if ok && !sameHeads(prior, heads) {
-			return KindSignature
+
+		switch {
+		case !ok:
+			out = append(out, symbol(at, KindNew))
+		case !sameHeads(prior.heads, at.heads):
+			out = append(out, symbol(at, KindSignature))
 		}
 	}
 
-	for name := range after {
-		if _, ok := before[name]; !ok {
-			return KindNew
-		}
-	}
-
-	for name := range before {
+	for name, at := range before {
 		if _, ok := after[name]; !ok {
-			return KindDeleted
+			out = append(out, symbol(at, KindDeleted))
 		}
 	}
 
-	return KindBody
+	slices.SortFunc(out, func(a, b Symbol) int { return strings.Compare(a.Name, b.Name) })
+
+	return out
+}
+
+// kindOf is the strongest thing a hunk did to any symbol, which is what the
+// review-cost rating multiplies the rest by. The constants escalate in the
+// order they are declared, so it is the maximum.
+func kindOf(syms []Symbol) Kind {
+	out := KindBody
+	for _, s := range syms {
+		out = max(out, s.Kind)
+	}
+
+	return out
+}
+
+// symbol names a declaration the way a person reads it, keeping the squeezed
+// head so a symbol that moved can be told from one that was rewritten.
+func symbol(at decl, k Kind) Symbol {
+	return Symbol{Name: nameOf(at.shown), Kind: k, Head: at.heads[0]}
 }
 
 func sameHeads(a, b []string) bool {
@@ -78,36 +110,49 @@ func sameHeads(a, b []string) bool {
 	return slices.Equal(x, y)
 }
 
-// declared is the declaration heads a side carries, grouped by symbol name.
-func declared(ms []match) map[string][]string {
-	byName := map[string][]string{}
+// decl is what a side says about one symbol: every spelling of its declaration,
+// squeezed so two of them compare by their code rather than by their layout,
+// and the first line as written, which is what a screen shows.
+type decl struct {
+	heads []string
+	shown string
+}
+
+// declared is the declarations a side carries, grouped by symbol name.
+func declared(ms []match) map[string]decl {
+	byName := map[string]decl{}
 
 	for _, m := range ms {
 		if m.Rule != ruleDecl {
 			continue
 		}
 
-		if h := head(m.Text); h != "" {
-			byName[nameOf(h)] = append(byName[nameOf(h)], h)
+		line, _, _ := strings.Cut(m.Text, "\n")
+
+		h := bare(line)
+		if h == "" {
+			continue
 		}
+
+		at := byName[nameOf(h)]
+		at.heads = append(at.heads, h)
+
+		if at.shown == "" {
+			at.shown = strings.TrimSpace(line)
+		}
+
+		byName[nameOf(h)] = at
 	}
 
 	return byName
-}
-
-// head is a declaration's first line with its whitespace squeezed out.
-func head(text string) string {
-	line, _, _ := strings.Cut(text, "\n")
-
-	return bare(line)
 }
 
 // nameOf is a declaration head up to the first delimiter, so a changed
 // parameter list still reads as the same symbol.
 func nameOf(head string) string {
 	if i := strings.IndexAny(head, "({<:=[|"); i >= 0 {
-		return head[:i]
+		head = head[:i]
 	}
 
-	return head
+	return strings.TrimSpace(head)
 }

@@ -74,6 +74,29 @@ type layout struct {
 	// sides of an edit share a row. It is the one renderer that changes which
 	// rows exist rather than only how they are drawn.
 	split bool
+	// parsed is what the structural pass saw, said on each heading. It is nil
+	// for every renderer but the structural one, and until the pass lands.
+	parsed *shape
+}
+
+// hunkWord is what the parser saw of one hunk, and nothing where no pass has
+// been asked for.
+func (l layout) hunkWord(at hunkAt) string {
+	if l.parsed == nil {
+		return ""
+	}
+
+	return l.parsed.symbolWord(at)
+}
+
+// fileWord is what the parser saw of a whole file, drawn under its name so a
+// reader can decide what to open before opening any of it.
+func (l layout) fileWord(path string) string {
+	if l.parsed == nil {
+		return ""
+	}
+
+	return l.parsed.fileWord(path)
 }
 
 // header is the review's own prose. Both blocks are drawn whether or not

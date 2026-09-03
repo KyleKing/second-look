@@ -102,8 +102,10 @@ type Model struct {
 	// editing is the in-place editor, nil when nothing is being written.
 	editing *editor
 	fold    foldLevel
-	// cosmetic is the structural pass over every hunk, nil until it answers.
+	// cosmetic is the structural pass over every hunk, nil until it answers,
+	// and shape is what the same pass saw of each hunk's symbols.
 	cosmetic map[hunkAt]bool
+	shape    shape
 	// cost is what the same pass rates the change, shown in the title once it
 	// has an answer to show.
 	cost    rate.Score
@@ -311,12 +313,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		m.cosmetic, m.cost = msg.cosmetic, msg.score
+		m.cosmetic, m.shape, m.cost = msg.cosmetic, msg.shape, msg.score
 		m.keepScore()
 
 		if asked {
 			m.setFold(foldCosmetic)
+
+			return m, nil
 		}
+
+		// The structural renderer draws what this pass found, and the pass
+		// lands behind the first frame, so the headings gain their symbols the
+		// moment it answers rather than on the next keystroke.
+		m.rebuild()
 
 		return m, nil
 	case headMsg:
@@ -1764,6 +1773,9 @@ func (m *Model) applyMerge(msg mergedMsg) {
 
 func (m *Model) rebuild() {
 	lay := layout{width: m.width, hide: m.skipper(), fold: m.folded, split: m.sideBySide()}
+	if m.drawn == renderStructural {
+		lay.parsed = &m.shape
+	}
 
 	switch m.view {
 	case viewComments:

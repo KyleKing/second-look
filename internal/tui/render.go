@@ -35,10 +35,14 @@ const (
 	// Side by side: the same faces as rich, with each removal beside the
 	// addition that replaced it.
 	renderSplit
+	// The same faces as rich, with what the parser saw on every heading: which
+	// symbols a hunk touched and how, a per-file summary of the same, and a
+	// symbol that left one hunk and arrived in another drawn as a move.
+	renderStructural
 )
 
 func (r renderMode) next() renderMode {
-	if r == renderSplit {
+	if r == renderStructural {
 		return renderPlain
 	}
 
@@ -51,6 +55,8 @@ func (r renderMode) String() string {
 		return "rich"
 	case renderSplit:
 		return "split"
+	case renderStructural:
+		return "structural"
 	case renderPlain:
 	}
 
@@ -65,6 +71,8 @@ func (r renderMode) caveat() string {
 		return "a hunk is a fragment, so a grammar's state above it is lost"
 	case renderSplit:
 		return "narrower than " + strconv.Itoa(splitWidth) + " columns it draws unified"
+	case renderStructural:
+		return "a hunk is a fragment, so the symbol a body edit sits in is not knowable"
 	case renderPlain:
 	}
 
