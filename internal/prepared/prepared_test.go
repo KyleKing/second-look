@@ -236,16 +236,7 @@ func TestAllOnAnEmptyHome(t *testing.T) {
 func TestSplitGroupsAStackBottomFirst(t *testing.T) {
 	t.Parallel()
 
-	rows := []prepared.Review{
-		{Number: 4, Repository: "acme/api", HeadRef: "part-3", BaseRef: "part-2"},
-		{Number: 1, Repository: "acme/api", HeadRef: "part-1", BaseRef: "main"},
-		{Number: 3, Repository: "acme/api", HeadRef: "part-2", BaseRef: "part-1"},
-		{Number: 5, Repository: "acme/api", HeadRef: "part-2b", BaseRef: "part-1"},
-		{Number: 9, Repository: "acme/web", HeadRef: "part-2", BaseRef: "part-1"},
-		{Number: 7, Repository: "acme/api"},
-	}
-
-	stacks, alone := prepared.Split(rows)
+	stacks, alone := prepared.Split(stackRows())
 
 	if len(stacks) != 1 {
 		t.Fatalf("%d stack(s), want the one chain: %+v", len(stacks), stacks)
@@ -275,5 +266,55 @@ func TestSplitGroupsAStackBottomFirst(t *testing.T) {
 	// the branches were recorded, so neither joins anything.
 	if want := []int{9, 7}; !slices.Equal(left, want) {
 		t.Errorf("%v stand alone, want %v", left, want)
+	}
+}
+
+// stackRows is one chain, a fork off it, a same-named pair in another
+// repository, and a review staged before the branches were recorded.
+func stackRows() []prepared.Review {
+	return []prepared.Review{
+		{Number: 4, Repository: "acme/api", HeadRef: "part-3", BaseRef: "part-2"},
+		{Number: 1, Repository: "acme/api", HeadRef: "part-1", BaseRef: "main"},
+		{Number: 3, Repository: "acme/api", HeadRef: "part-2", BaseRef: "part-1"},
+		{Number: 5, Repository: "acme/api", HeadRef: "part-2b", BaseRef: "part-1"},
+		{Number: 9, Repository: "acme/web", HeadRef: "part-2", BaseRef: "part-1"},
+		{Number: 7, Repository: "acme/api"},
+	}
+}
+
+// Whatever reads the piped list reviews the rows in the order they arrive, so a
+// stack has to arrive bottom first there as well as on the screen.
+func TestOrderReadsAStackBottomFirstInThePipedList(t *testing.T) {
+	t.Parallel()
+
+	got := make([]int, 0, 6)
+	for _, r := range prepared.Order(stackRows()) {
+		got = append(got, r.Number)
+	}
+
+	// The chain stands where #4 already stood, since that is the first of it the
+	// list carried, and the two rows joining nothing keep their places.
+	if want := []int{1, 3, 4, 5, 9, 7}; !slices.Equal(got, want) {
+		t.Errorf("the list reads %v, want %v", got, want)
+	}
+}
+
+// A list with no stack in it is handed back untouched, which is what keeps
+// "newest first" true for the common case.
+func TestOrderLeavesAListWithNoStackAlone(t *testing.T) {
+	t.Parallel()
+
+	rows := []prepared.Review{
+		{Number: 2, Repository: "acme/api", HeadRef: "a", BaseRef: "main"},
+		{Number: 1, Repository: "acme/api", HeadRef: "b", BaseRef: "main"},
+	}
+
+	got := make([]int, 0, len(rows))
+	for _, r := range prepared.Order(rows) {
+		got = append(got, r.Number)
+	}
+
+	if want := []int{2, 1}; !slices.Equal(got, want) {
+		t.Errorf("the list reads %v, want %v", got, want)
 	}
 }

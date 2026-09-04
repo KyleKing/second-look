@@ -1,6 +1,9 @@
 package prepared
 
-import "sort"
+import (
+	"sort"
+	"strconv"
+)
 
 // Stack is a chain of staged reviews, bottom first: each one's base branch is
 // the head of the one before it. Reading the top of a stack before the bottom
@@ -133,3 +136,45 @@ func pick(rows []Review, chain []int) []Review {
 func key(r *Review, ref string) string {
 	return r.Repository + "\x00" + ref
 }
+
+// Order is the staged reviews in the order they are read: each stack's chain
+// contiguous and bottom first, standing where its earliest row already stood,
+// and everything else left where it was. The screen draws the chain itself, so
+// this is for the piped list, which is read by whatever reviews them in turn.
+func Order(rows []Review) []Review {
+	stacks, _ := Split(rows)
+	if len(stacks) == 0 {
+		return rows
+	}
+
+	of := make(map[string]int, len(rows))
+
+	for i := range stacks {
+		for j := range stacks[i].Rows {
+			of[id(&stacks[i].Rows[j])] = i
+		}
+	}
+
+	out := make([]Review, 0, len(rows))
+	drawn := make([]bool, len(stacks))
+
+	for i := range rows {
+		at, ok := of[id(&rows[i])]
+		if !ok {
+			out = append(out, rows[i])
+
+			continue
+		}
+
+		if !drawn[at] {
+			drawn[at] = true
+
+			out = append(out, stacks[at].Rows...)
+		}
+	}
+
+	return out
+}
+
+// id names one staged review, since a number alone repeats across repositories.
+func id(r *Review) string { return r.Repository + "\x00" + strconv.Itoa(r.Number) }

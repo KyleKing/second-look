@@ -324,6 +324,8 @@ NAMING A PULL REQUEST
 
       A pull request based on another one staged here is a stack, and the chain
       is grouped with the bottom first, which is the order the diffs read in.
+      The pipe and --json carry that order too, so whatever reviews them in turn
+      reads the bottom of a stack before what sits on it.
 
   second-look skill
       Print the instructions for an agent driving this binary, as a skill file

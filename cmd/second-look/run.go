@@ -888,6 +888,8 @@ func reviewsCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.W
 		return err
 	}
 
+	rows = prepared.Order(rows)
+
 	if asJSON == jsonArg {
 		return writeJSON(stdout, rows)
 	}
