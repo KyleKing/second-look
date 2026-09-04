@@ -38,7 +38,10 @@ const (
 // jumpMargin rows of what came before, because a heading is worth reading with
 // the content under it.
 const (
-	scrollOff  = 3
+	scrollOff = 3
+	// Overscroll is how far past the last row a deliberate scroll may sit, so
+	// the last line need not be pinned to the edge. A motion pulls it back.
+	overscroll = 3
 	jumpMargin = 1
 )
 
@@ -631,6 +634,10 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch prefix {
 	case 'z':
+		if m.frameAt(msg) {
+			return m, nil
+		}
+
 		if m.foldNote(msg) {
 			m.remember(prefix, msg)
 		}
@@ -978,9 +985,33 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 	return true
 }
 
+// frameAt puts the cursor's line at the middle, top, or bottom of the frame,
+// which is vim's zz, zt, zb. It reports whether the key named one of them.
+func (m *Model) frameAt(msg tea.KeyPressMsg) bool {
+	const middle = 2
+
+	h := m.viewHeight()
+
+	switch msg.String() {
+	case "z":
+		m.offset = m.cursor - h/middle
+	case "t":
+		m.offset = m.cursor
+	case "b":
+		m.offset = m.cursor - h + 1
+	default:
+		return false
+	}
+
+	m.offset = clamp(m.offset, len(m.screen.rows)-h+overscroll)
+	m.say("", false)
+
+	return true
+}
+
 // peek scrolls the frame by a line without moving the cursor.
 func (m *Model) peek(step int) bool {
-	m.offset = clamp(m.offset+step, len(m.screen.rows)-m.viewHeight())
+	m.offset = clamp(m.offset+step, len(m.screen.rows)-m.viewHeight()+overscroll)
 	m.say("", false)
 
 	return true

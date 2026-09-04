@@ -1,24 +1,24 @@
 kyleking/jj-diff #42                                                                  0% · 1 ready · 1 draft · 1 skipped
-                     j / k  move a line
-           ctrl+d / ctrl+u  move half a page
-           ctrl+e / ctrl+y  scroll without moving the cursor; any motion comes back to it
-                     g / G  top, bottom
-                     ] / [  go to the next, previous: d directory, f file, h hunk, c comment, t thread, u unread
-                     n / N  repeat that motion forward, backward
-                         /  search; tab in the prompt restricts it to hunks not yet read
-           tab / shift+tab  next, previous thing wanting a decision
-                         .  repeat the last change: space, m r/d/x, a fold
-                         c  the next view: both, the code as it now reads, the comments alone
-                         t  the conversations already on this pull request, each under the line it answers
-                    ctrl+r  take a head that moved: prepare the review again against it, keeping what is read
-                         v  the next renderer: plain, rich, side by side, structural; each has a caveat
-                         O  read in the diff's own order instead of gathered by symbol, and back
-                         w  hide hunks that change nothing but whitespace, and show them again
-                         W  hide hunks that change no code at all, comments and re-wraps included
-                         U  hide every hunk already marked read, so what is left is what is new since the last pass
-          H then 1 / 2 / …  hide every hunk an earlier round already carried; H again shows them
-                     space  mark the hunk read, or the whole file from a file line
-      m then r / d / t / x  mark the comment ready, draft, todo, or skipped
-                         T  write out every todo comment for an agent, and run the dispatch command if one is set
-                    ctrl+t  while writing: swap in the version an agent wrote under you, and back
+                            moving                                                                                     ┃
+                     j / k  move a line                                                                                ┃
+           ctrl+d / ctrl+u  move half a page                                                                           ┃
+           ctrl+e / ctrl+y  scroll without moving the cursor; any motion comes back to it                              ┃
+                     g / G  top, bottom                                                                                ┃
+          z then z / t / b  put the cursor's line at the middle, top, bottom of the frame                              ┃
+                     ] / [  go to the next, previous: d directory, f file, h hunk, c comment, t thread, u unread       ┃
+                     n / N  repeat that motion forward, backward                                                       ┃
+                         /  search; tab in the prompt restricts it to hunks not yet read                               ┃
+           tab / shift+tab  next, previous thing wanting a decision                                                    │
+                         .  repeat the last change: space, m r/d/x, a fold                                             │
+                                                                                                                       │
+                            what is shown                                                                              │
+                         c  the next view: both, the code as it now reads, the comments alone                          │
+                         t  the conversations already on this pull request, each under the line it answers             │
+                         v  the next renderer: plain, rich, side by side, structural; each has a caveat                │
+                         O  read in the diff's own order instead of gathered by symbol, and back                       │
+      z then a / i / R / M  fold what is here, or all of it; invert; open all; fold to the file names                  │
+                         w  hide hunks that change nothing but whitespace, and show them again                         │
+                         W  hide hunks that change no code at all, comments and re-wraps included                      │
+                         U  hide every hunk already marked read, so what is left is what is new since the last pass    │
+          H then 1 / 2 / …  hide every hunk an earlier round already carried; H again shows them                       │
  [j/k] line  []] go to  [c]ode  writ[e]  [S]ubmit  [?] help  [q]uit

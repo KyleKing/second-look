@@ -324,16 +324,20 @@ func (m *Model) onCode() bool {
 }
 
 func (m *Model) helpLines() []string {
-	out := helpBlock(m.styles, helpLines(), m.width)
+	h := m.viewHeight()
+	rows := helpLines()
+	bar := scrollbar(h, len(rows), m.helpAt)
+
+	out := helpBlock(m.styles, rows, bodyWidth(m.width, bar))
 	if m.helpAt < len(out) {
 		out = out[m.helpAt:]
 	}
 
-	for len(out) < m.viewHeight() {
+	for len(out) < h {
 		out = append(out, "")
 	}
 
-	return out[:m.viewHeight()]
+	return alongside(out[:h], bar, m.styles, m.width)
 }
 
 // rowLines is the frame's body, with the editor standing in for the block it

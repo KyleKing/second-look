@@ -39,6 +39,7 @@ type styles struct {
 	body     lipgloss.Style
 	note     lipgloss.Style
 	footer   lipgloss.Style
+	head     lipgloss.Style
 	key      lipgloss.Style
 	warn     lipgloss.Style
 	fail     lipgloss.Style
@@ -72,6 +73,7 @@ func newStyles() styles {
 		body:     sk.Body,
 		note:     sk.Muted.Italic(true),
 		footer:   sk.Subtitle,
+		head:     sk.Heading,
 		key:      sk.Key,
 		warn:     sk.Warning,
 		fail:     sk.Error,

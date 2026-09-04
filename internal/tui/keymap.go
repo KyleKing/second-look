@@ -171,44 +171,77 @@ func events() [][2]string {
 // helpLines is the full help overlay, one row per line, so the footer can stay
 // a single line.
 func helpLines() [][2]string {
-	return [][2]string{
-		{"j / k", "move a line"},
-		{"ctrl+d / ctrl+u", "move half a page"},
-		{"ctrl+e / ctrl+y", "scroll without moving the cursor; any motion comes back to it"},
-		{"g / G", "top, bottom"},
-		{"] / [", "go to the next, previous: d directory, f file, h hunk, c comment, t thread, u unread"},
-		{"n / N", "repeat that motion forward, backward"},
-		{"/", "search; tab in the prompt restricts it to hunks not yet read"},
-		{"tab / shift+tab", "next, previous thing wanting a decision"},
-		{".", "repeat the last change: space, m r/d/x, a fold"},
-		{"c", "the next view: both, the code as it now reads, the comments alone"},
-		{"t", "the conversations already on this pull request, each under the line it answers"},
-		{refreshKey, "take a head that moved: prepare the review again against it, keeping what is read"},
-		{"v", "the next renderer: plain, rich, side by side, structural; each has a caveat"},
-		{"O", "read in the diff's own order instead of gathered by symbol, and back"},
-		{"w", "hide hunks that change nothing but whitespace, and show them again"},
-		{"W", "hide hunks that change no code at all, comments and re-wraps included"},
-		{"U", "hide every hunk already marked read, so what is left is what is new since the last pass"},
-		{"H then 1 / 2 / …", "hide every hunk an earlier round already carried; H again shows them"},
-		{spaceKey, "mark the hunk read, or the whole file from a file line"},
-		{"m then r / d / t / x", "mark the comment ready, draft, todo, or skipped"},
-		{"T", "write out every todo comment for an agent, and run the dispatch command if one is set"},
-		{"ctrl+t", "while writing: swap in the version an agent wrote under you, and back"},
-		{"ctrl+n", "while writing: complete the word from the files, symbols, and people in this review"},
-		{"z then a / i / R / M", "fold what is here, or all of it; invert; open all; fold to the file names"},
-		{"a then b / m / n / t / ?", "write a comment on this line, ranked blocker to question"},
-		{"s", "suggest a replacement for this line, opened on the line's own text"},
-		{"V", "open a range here; move to its other end, then a or s covers every line of it"},
-		{"+ / -", "grow or shrink the file's own context around this hunk, read from the checkout or the API"},
-		{"e", "write here: a comment, an answer to a thread, the review's body or note"},
-		{"E", "edit the comment's local note, which never posts"},
-		{"!", "run a shell here and attach what it printed to the note"},
-		{"C", "move the checkout onto this pull request"},
-		{"P", "post the comment under the cursor on its own, now"},
-		{"S then a / r / c", "submit, approving, requesting changes, or commenting"},
-		{"o", "open the pull request on GitHub"},
-		{"M", "squash-merge the pull request, M again to confirm"},
-		{"? / esc", "this help, back"},
-		{"q", quitWord},
+	var out [][2]string
+
+	for i, g := range helpGroups() {
+		if i > 0 {
+			out = append(out, [2]string{})
+		}
+
+		out = append(out, headRow(g.name))
+		out = append(out, g.rows...)
+	}
+
+	return out
+}
+
+type helpGroup struct {
+	name string
+	rows [][2]string
+}
+
+func helpGroups() []helpGroup {
+	return []helpGroup{
+		{"moving", [][2]string{
+			{"j / k", "move a line"},
+			{"ctrl+d / ctrl+u", "move half a page"},
+			{"ctrl+e / ctrl+y", "scroll without moving the cursor; any motion comes back to it"},
+			{"g / G", "top, bottom"},
+			{"z then z / t / b", "put the cursor's line at the middle, top, bottom of the frame"},
+			{"] / [", "go to the next, previous: d directory, f file, h hunk, c comment, t thread, u unread"},
+			{"n / N", "repeat that motion forward, backward"},
+			{"/", "search; tab in the prompt restricts it to hunks not yet read"},
+			{"tab / shift+tab", "next, previous thing wanting a decision"},
+			{".", "repeat the last change: space, m r/d/x, a fold"},
+		}},
+		{"what is shown", [][2]string{
+			{"c", "the next view: both, the code as it now reads, the comments alone"},
+			{"t", "the conversations already on this pull request, each under the line it answers"},
+			{"v", "the next renderer: plain, rich, side by side, structural; each has a caveat"},
+			{"O", "read in the diff's own order instead of gathered by symbol, and back"},
+			{"z then a / i / R / M", "fold what is here, or all of it; invert; open all; fold to the file names"},
+			{"w", "hide hunks that change nothing but whitespace, and show them again"},
+			{"W", "hide hunks that change no code at all, comments and re-wraps included"},
+			{"U", "hide every hunk already marked read, so what is left is what is new since the last pass"},
+			{"H then 1 / 2 / …", "hide every hunk an earlier round already carried; H again shows them"},
+		}},
+		{"marking", [][2]string{
+			{spaceKey, "mark the hunk read, or the whole file from a file line"},
+			{"m then r / d / t / x", "mark the comment ready, draft, todo, or skipped"},
+		}},
+		{"writing", [][2]string{
+			{"a then b / m / n / t / ?", "write a comment on this line, ranked blocker to question"},
+			{"s", "suggest a replacement for this line, opened on the line's own text"},
+			{"V", "open a range here; move to its other end, then a or s covers every line of it"},
+			{"+ / -", "grow or shrink the file's own context around this hunk, read from the checkout or the API"},
+			{"e", "write here: a comment, an answer to a thread, the review's body or note"},
+			{"E", "edit the comment's local note, which never posts"},
+			{"!", "run a shell here and attach what it printed to the note"},
+			{"ctrl+t", "while writing: swap in the version an agent wrote under you, and back"},
+			{"ctrl+n", "while writing: complete the word from the files, symbols, and people in this review"},
+			{"T", "write out every todo comment for an agent, and run the dispatch command if one is set"},
+		}},
+		{"the pull request", [][2]string{
+			{refreshKey, "take a head that moved: prepare the review again against it, keeping what is read"},
+			{"C", "move the checkout onto this pull request"},
+			{"P", "post the comment under the cursor on its own, now"},
+			{"S then a / r / c", "submit, approving, requesting changes, or commenting"},
+			{"o", "open the pull request on GitHub"},
+			{"M", "squash-merge the pull request, M again to confirm"},
+		}},
+		{"leaving", [][2]string{
+			{"? / esc", "this help, back"},
+			{"q", quitWord},
+		}},
 	}
 }

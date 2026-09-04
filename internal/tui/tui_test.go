@@ -2397,3 +2397,80 @@ func TestTabAtTheEdgeSaysThereIsNothingFurther(t *testing.T) {
 		t.Errorf("tab at the last one said nothing:\n%s", got)
 	}
 }
+
+// cursorRow is which line of the frame carries the cursor, counting the body
+// from zero, or -1 where the frame does not draw it.
+func cursorRow(frame string) int {
+	body := strings.Split(plain(frame), "\n")
+	for i, line := range body {
+		if strings.HasPrefix(line, "▌") {
+			return i - 1
+		}
+	}
+
+	return -1
+}
+
+// zz, zt, and zb place the cursor's line in the frame the way vim does, which
+// is what makes a hunk readable with its context above or below it.
+func TestTheFrameCanBePlacedAroundTheCursor(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := fixtureWith(t, tallPatch(60))
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+
+	// Halfway down, so every placement has rows on both sides of it.
+	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+	for range 20 {
+		press(m, tea.KeyPressMsg{Code: 'k', Text: "k"})
+	}
+
+	place := func(second rune) int {
+		pressKey(m, 'z')
+		pressKey(m, second)
+
+		return cursorRow(m.Frame())
+	}
+
+	top, middle, bottom := place('t'), place('z'), place('b')
+
+	if top != 0 {
+		t.Errorf("zt put the cursor on body row %d, want 0", top)
+	}
+
+	if middle <= top || bottom <= middle {
+		t.Errorf("zt, zz, zb put the cursor on rows %d, %d, %d, which is not top to bottom",
+			top, middle, bottom)
+	}
+
+	// ctrl+e keeps going a little past the last row, so the end of a review is
+	// readable rather than pinned to the bottom edge.
+	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+	for range 10 {
+		press(m, tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+	}
+
+	// The scrollbar keeps its column on every row, so it is not content.
+	body := strings.Split(strings.TrimRight(plain(m.Frame()), "\n"), "\n")
+	if last := strings.Trim(body[len(body)-2], " │┃"); last != "" {
+		t.Errorf("the frame would not scroll past the last row; its last line is %q", last)
+	}
+}
+
+// tallPatch is one hunk of n context lines, for the frames that need a review
+// longer than the terminal.
+func tallPatch(n int) string {
+	var b strings.Builder
+
+	b.WriteString("diff --git a/" + parsed + " b/" + parsed + "\n")
+	b.WriteString("--- a/" + parsed + "\n+++ b/" + parsed + "\n")
+	fmt.Fprintf(&b, "@@ -1,%d +1,%d @@\n", n, n)
+
+	for i := range n {
+		fmt.Fprintf(&b, " line %d\n", i)
+	}
+
+	return b.String()
+}
