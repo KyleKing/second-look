@@ -1,6 +1,9 @@
 package main
 
-import "github.com/kyleking/second-look/internal/prepared"
+import (
+	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/prepared"
+)
 
 // RefString parses a pull request reference and renders it back, which is both
 // halves of the parser without exporting its type.
@@ -21,4 +24,10 @@ func StagedRow(review prepared.Review, repo, head string) (string, bool) {
 	_, _, err := s.checkout(review.Where())
 
 	return s.tail(&s.rows[0]), err == nil
+}
+
+// Holding renders what a review staged here carries, which is the queue's only
+// sign that a row was started.
+func StagedMark(ready, draft, replies int) string {
+	return holding(inbox.Known{Reviewed: true, Ready: ready, Draft: draft, Replies: replies})
 }

@@ -56,6 +56,11 @@ func (l *List) header() string {
 	// for the wrong reason is the worst thing narrowing it can do.
 	if l.focused != "" {
 		left += l.styles.file.Render("  " + l.focused)
+
+		if l.focusNote != "" {
+			left += l.styles.subtitle.Render("  " + l.focusNote)
+		}
+
 		right = l.styles.subtitle.Render(l.counted() + " ")
 	}
 

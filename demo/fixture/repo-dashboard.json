@@ -1,0 +1,13 @@
+{
+  "repos": [
+    {
+      "path": "/Users/you/Developer/kyleking/aragonite",
+      "branch": "main",
+      "remote": "kyleking/aragonite",
+      "dirty": false,
+      "worktrees": [
+        {"path": "/Users/you/Developer/kyleking/aragonite-wt", "branch": "read-the-head", "dirty": false}
+      ]
+    }
+  ]
+}

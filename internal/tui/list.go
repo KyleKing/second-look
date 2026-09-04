@@ -169,9 +169,12 @@ type List struct {
 	expanded map[string]bool
 	filter   filter
 	// focused is the repository the whole screen is narrowed to, which every
-	// tab shares and a refresh keeps.
-	focused string
-	loader  Loader
+	// tab shares and a refresh keeps, and focusNote is what the caller said
+	// about it.
+	focused   string
+	focusNote string
+	onFocus   func(repo string) tea.Cmd
+	loader    Loader
 	// onRest is called with the row the cursor has stopped on, and moves counts
 	// the moves so far, so an answer about a row already left is dropped.
 	onRest func(row string) tea.Cmd
@@ -357,6 +360,12 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := l.settled(msg.at)
 
 		return l, cmd
+	case FocusNote:
+		if msg.Repo == l.focused {
+			l.focusNote = msg.Note
+		}
+
+		return l, nil
 	}
 
 	// Every tab's loader is fed, not only the one being read: a queue switched
@@ -422,8 +431,8 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return l, nil
 	}
 
-	if l.focusKey(msg) {
-		return l, nil
+	if cmd, mine := l.focusKey(msg); mine {
+		return l, cmd
 	}
 
 	if cmd, ok := l.tabKey(msg); ok {

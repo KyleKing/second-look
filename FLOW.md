@@ -20,8 +20,8 @@ request inside it.
 | --- | --- | --- |
 | Open on what is owed | three buckets or configured sections, drawn as each search lands | nothing |
 | Narrow to one repository | `f` focuses the cursor row's repository across all three tabs, `F` clears it | the clone it would use in the header, and a motion to the next repository |
-| Take the ordering advice | `inbox.Rank`, and `inbox --json` carries it | why a row sits where it does, `s` to sort another way, and the stack drawn as a stack |
-| Get a checkout | `C` where the cwd is a clone of that repository | the `internal/checkouts` ranking, a lease, and a column saying which clone is free |
+| Take the ordering advice | `inbox.Rank`, `inbox --json` carries it, and a started row says what it holds | why a row sits where it does, `s` to sort another way, and the stack drawn as a stack |
+| Get a checkout | `C` where the cwd is a clone of that repository, and the header says which clone is free | the `internal/checkouts` ranking behind `C` itself, and a lease |
 | Stage the batch | `get` with no clone, prefetch ahead of the cursor, `reviews --json` | nothing |
 | Ask Claude Code | `T` writes the todo set and runs `dispatch` one-shot | a conversation that outlives one question, and a key that asks one |
 | Read and answer | the review screen, the conversation queue, notes, threads | the narrative pass, which is its own problem |
@@ -47,11 +47,11 @@ back, and the header carries it beside how much of the queue is left. A row stan
 a search that failed names no repository, so it survives the narrowing: the reason a
 section is short is the one thing this must not hide.
 
-Two things it still wants. The header should say which clone it would use and what state
-that clone is in, which is step 4's to add. And a motion to the next repository in the
-queue is how a sitting ends one and starts the next, where today that is `F`, a move, and
-`f` again; `]` and `[` already switch tabs, so the motion needs a key of its own rather
-than the repository object.
+The header also says which clone `C` would move and whether it is clean, asked of
+gh-repo-dashboard once per focus rather than per frame. What focus still wants is a motion
+to the next repository in the queue, which is how a sitting ends one and starts the next;
+today that is `F`, a move, and `f` again, and since `]` and `[` already switch tabs the
+motion needs a key of its own rather than the repository object.
 
 Focus is what makes the lease and the agent single-valued. Without it both are per-row
 and the laptop cannot honour either: of six clones of one repository here, one is clean.
@@ -84,9 +84,8 @@ What the step needs:
 
 - `C` asks `checkouts.Find` for the focused repository rather than reading the cwd, and
   moves the best-ranked clone, asking before it stashes, which is the question
-  `get.Prepare` already knows how to ask
-- a clone column in the header while focus is on, saying which clone it would use and
-  what state it is in, so `C` is not a surprise
+  `get.Prepare` already knows how to ask. The header already names that clone, so half of
+  this is the same call moved behind the key
 - a lease, held for the focused repository and released when focus moves, written where
   a second second-look and a dispatched agent can both see it. Two agents claiming the
   one clean clone is the failure this exists to stop

@@ -10,6 +10,7 @@ import (
 
 	"github.com/kyleking/aragonite/ghcassette"
 
+	main "github.com/kyleking/second-look/cmd/second-look"
 	"github.com/kyleking/second-look/internal/artifact"
 )
 
@@ -87,7 +88,9 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 
 	root := storeFor(t, testHome(t, dir), "kyleking", "gh-sweep")
 	staged := fmt.Sprintf("version = 1\nhost = 'github.com'\nowner = 'kyleking'\n"+
-		"repo = 'gh-sweep'\nnumber = 102\nhead_sha = '%s'\n", sha)
+		"repo = 'gh-sweep'\nnumber = 102\nhead_sha = '%s'\n"+
+		"[[comment]]\nid = 'c1'\npath = 'a.go'\nline = 3\nside = 'RIGHT'\n"+
+		"status = 'ready'\nseverity = 'nit'\nbody = 'name it'\n", sha)
 
 	write(t, artifact.Path(root, 102), []byte(staged))
 
@@ -109,6 +112,7 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 			Cost       int    `json:"cost"`
 			Rated      bool   `json:"rated"`
 			Added      int    `json:"added"`
+			Ready      int    `json:"ready"`
 		} `json:"items"`
 	}
 
@@ -128,6 +132,12 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 
 	if !first.Reviewed || !first.Rated || first.Cost != cost || first.Added != 12 {
 		t.Errorf("the row carries %+v, want the rating read off disk", first)
+	}
+
+	// What the review already holds is what says how far the last sitting got,
+	// and the screen draws it beside the row.
+	if first.Ready != 1 {
+		t.Errorf("the row carries %d ready comment(s), want the one staged here", first.Ready)
 	}
 }
 
@@ -360,4 +370,28 @@ func TestInboxWithABrokenConfig(t *testing.T) {
 	}
 
 	s.RequireAllPlayed(t)
+}
+
+// The mark says a row was started before the counts say how far, since the
+// queue already ranks started work first and never said so.
+func TestTheQueueSaysWhatAStagedReviewHolds(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		name                  string
+		ready, draft, replies int
+		want                  string
+	}{
+		{"nothing yet", 0, 0, 0, "● staged  "},
+		{"one of each", 1, 1, 1, "● 1 ready 1 draft 1 reply  "},
+		{"several", 4, 0, 2, "● 4 ready 2 replies  "},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := main.StagedMark(c.ready, c.draft, c.replies); got != c.want {
+				t.Errorf("StagedMark() is %q, want %q", got, c.want)
+			}
+		})
+	}
 }

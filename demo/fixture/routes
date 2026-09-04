@@ -4,6 +4,7 @@
 # match --review-requested.
 #
 # The first matching route wins, so a narrower one goes above a wider one.
+repo-dashboard --cli                 repo-dashboard.json
 pr view                              pr-view.json
 pr diff                              pr-diff.patch
 api rate_limit                       rate-limit.json

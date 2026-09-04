@@ -724,9 +724,21 @@ func focusQueues() []tui.Tab {
 func TestFocusNarrowsEveryQueueAndSurvivesAHandoff(t *testing.T) {
 	t.Parallel()
 
-	before := tui.NewTabs(focusQueues(), 0)
+	before := tui.NewTabs(focusQueues(), 0).
+		WithFocusNote(func(repo string) tea.Cmd {
+			return func() tea.Msg { return tui.FocusNote{Repo: repo, Note: "app-wt clean"} }
+		})
 	before.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
-	before.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})
+
+	_, cmd := before.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})
+	if cmd == nil {
+		t.Fatal("focusing asked the caller nothing about the repository")
+	}
+
+	before.Update(cmd())
+
+	// An answer about a repository no longer in focus is drawn against none.
+	before.Update(tui.FocusNote{Repo: "kyleking/wavez", Note: "somewhere else"})
 
 	if got := before.Focused(); got != "kyleking/tlr" {
 		t.Fatalf("focused %q, want kyleking/tlr", got)
@@ -734,8 +746,8 @@ func TestFocusNarrowsEveryQueueAndSurvivesAHandoff(t *testing.T) {
 
 	// The failed search stays: the reason a section is short is the one thing
 	// narrowing a queue must not hide.
-	shows(t, before, []string{"kyleking/tlr#118", "could not be read"},
-		[]string{"kyleking/wavez#7"})
+	shows(t, before, []string{"kyleking/tlr#118", "app-wt clean", "could not be read"},
+		[]string{"kyleking/wavez#7", "somewhere else"})
 
 	before.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
 	shows(t, before, []string{"kyleking/tlr#118"}, []string{"kyleking/other#3"})

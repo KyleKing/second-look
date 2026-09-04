@@ -20,6 +20,11 @@ type Known struct {
 	// one to read. A pull request nobody has opened has neither.
 	Cost  int  `json:"cost,omitempty"`
 	Rated bool `json:"rated,omitempty"`
+	// Ready, Draft, and Replies are what a review staged here holds, which is
+	// how far into it the last sitting got.
+	Ready   int `json:"ready,omitempty"`
+	Draft   int `json:"draft,omitempty"`
+	Replies int `json:"replies,omitempty"`
 	// Added and Removed are how many lines the same read counted. They are
 	// shown and never sorted on: a row no grammar answered for is one nobody
 	// can rank, and ordering it by line count is the signal the rating exists

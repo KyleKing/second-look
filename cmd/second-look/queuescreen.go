@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/kyleking/second-look/internal/config"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/tui"
@@ -88,7 +90,7 @@ func queueOnce(
 			Sections: rv.sections, Act: rv.act, Subtitle: rv.counts,
 			Hints: reviewsHints, Help: reviewsHelp,
 		},
-	}, at)
+	}, at).WithFocusNote(func(repo string) tea.Cmd { return cloneNote(ctx, repo) })
 	list.Restore(where)
 
 	_, runErr := tui.RunList(list)

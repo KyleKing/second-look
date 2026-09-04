@@ -558,6 +558,7 @@ func localKnowledge() map[string]inbox.Known {
 		out[artifact.RatingKey(r.Repository, r.Number)] = inbox.Known{
 			Reviewed: true, Cost: was.Total, Rated: rated,
 			Added: was.Added, Removed: was.Removed,
+			Ready: r.Ready, Draft: r.Draft, Replies: r.Replies,
 		}
 	}
 
@@ -669,7 +670,7 @@ func (s *inboxScreen) sections() []tui.Section {
 				Cost:    rated(s.local[key]),
 				Added:   added(s.local[key]),
 				Removed: removed(s.local[key]),
-				Tail:    waiting(p),
+				Tail:    holding(s.local[key]) + waiting(p),
 			})
 		}
 
@@ -715,6 +716,36 @@ func removed(k inbox.Known) string {
 // a diff of nothing but a re-indent counts zero on both sides and is still
 // something somebody looked at.
 func measured(k inbox.Known) bool { return k.Added > 0 || k.Removed > 0 }
+
+// holding is what a review staged here already carries, which is the queue's
+// only sign that a row was started. The mark leads, because a row with work in
+// it is the one to come back to rather than one to pick up cold.
+func holding(k inbox.Known) string {
+	if !k.Reviewed {
+		return ""
+	}
+
+	parts := make([]string, 0, 3)
+
+	for _, c := range []struct {
+		n           int
+		one, plural string
+	}{
+		{k.Ready, "ready", "ready"},
+		{k.Draft, "draft", "drafts"},
+		{k.Replies, "reply", "replies"},
+	} {
+		if c.n > 0 {
+			parts = append(parts, humanize.Plural(c.n, c.one, c.plural))
+		}
+	}
+
+	if len(parts) == 0 {
+		return "● staged  "
+	}
+
+	return "● " + strings.Join(parts, " ") + "  "
+}
 
 // waiting is what the row says past the columns: whether it is a draft, its
 // labels, and the title.
