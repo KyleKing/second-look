@@ -110,9 +110,12 @@ open each as a live review off a TOML file to edit, which is how the shape gets 
 with:
 
 - Several comments on one line do not break the layout, and three things about a run of
-  them read badly: nothing says the comments are a run rather than three consecutive
-  lines, the anchor scrolls off the top before the last of them is read, and a skip in
-  the run costs a live comment's room
+  them read badly. The first is fixed: a run opens on a heading naming how many comments
+  it holds and which line they answer, and each one is numbered inside it, so two blocks
+  separated by a blank row no longer read as comments on consecutive lines. The anchor
+  still scrolls off the top before the last of them is read, and a skip in the run still
+  costs a live comment's room; both were left, because a sticky anchor row and a
+  run-only fold are each a change to a settled shape rather than a label on it
 - A skipped comment already draws as an ordinary comment carrying its body and note,
   marked skipped, everywhere except the comment view, where it is counted rather than
   listed. That is the settled decision recorded below, so what is left is whether a run

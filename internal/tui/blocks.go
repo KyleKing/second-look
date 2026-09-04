@@ -187,19 +187,63 @@ func prose(index int, title, text string, kind rowKind, avail int, lay layout) [
 	return rows
 }
 
+// inRun is where a comment sits among the ones anchored to the same line. The
+// zero value is a comment standing alone.
+type inRun struct{ at, of int }
+
+// aRun is how many comments on one line read as a run rather than as one.
+const aRun = 2
+
+// runWord numbers a comment inside its run, so the second of five reads as one
+// of a set rather than as a comment on the next line down.
+func (r inRun) runWord() string {
+	if r.of < aRun {
+		return ""
+	}
+
+	return fmt.Sprintf("  (%d of %d)", r.at, r.of)
+}
+
+// opens reports whether the run's own heading is the row above, which only the
+// first of several is.
+func (r inRun) opens() bool { return r.of >= aRun && r.at == 1 }
+
+// runHead opens a group of comments anchored to one line. Three blocks
+// separated by blank rows read as three comments on three consecutive lines,
+// and the line they all answer has scrolled off the top by the last of them.
+func runHead(a anchor, index, n int) []row {
+	side := "LINE"
+	if a.side == "LEFT" {
+		side = "LEFT LINE"
+	}
+
+	return []row{
+		{kind: rowBlank, path: a.path, comment: index},
+		{
+			kind: rowComment, path: a.path, comment: index, head: true,
+			text: fmt.Sprintf("%s ON %s %d", strings.ToUpper(plural(n, "comment")), side, a.line),
+		},
+	}
+}
+
 // commentRows is one prepared comment: a heading naming what it is and whether
 // it will post, the body at the contrast of the code it is about, and the local
 // note under it.
-func commentRows(c *artifact.Comment, index int, path string, lay layout, numWidth int) []row {
+func commentRows(c *artifact.Comment, index int, path string, lay layout, numWidth int, run inRun) []row {
 	avail := proseCols(lay.width, numWidth)
 	body := wrap(c.Body, avail)
 
 	rows := make([]row, 0, len(body)+3)
+
+	// The run's heading is the row above, so a blank here would detach it.
+	if !run.opens() {
+		rows = append(rows, row{kind: rowBlank, path: path, comment: index})
+	}
+
 	rows = append(rows,
-		row{kind: rowBlank, path: path, comment: index},
 		row{
 			kind: rowComment, path: path, comment: index, head: true,
-			text: commentHead(c) + driftWord(lay.drifted[c.ID]),
+			text: commentHead(c) + run.runWord() + driftWord(lay.drifted[c.ID]),
 		})
 
 	for _, line := range body {

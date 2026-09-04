@@ -284,7 +284,7 @@ func codeHeader(d *diff.Diff, hunk int) string {
 // commentMarker is one comment as a single row, unless it has been opened.
 func commentMarker(c *artifact.Comment, index int, path string, lay layout, numWidth int) []row {
 	if lay.fold.notes[index] {
-		return commentRows(c, index, path, lay, numWidth)
+		return commentRows(c, index, path, lay, numWidth, inRun{})
 	}
 
 	return []row{{

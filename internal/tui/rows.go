@@ -252,9 +252,15 @@ func (s screen) hanger(
 			out = append(out, threadRows(&ts[t], t, p, s.numWidth, lay)...)
 		}
 
+		run := inRun{of: len(byLine[a])}
+		if run.of >= aRun {
+			out = append(out, runHead(a, byLine[a][0], run.of)...)
+		}
+
 		for _, c := range byLine[a] {
 			placed[c] = true
-			out = append(out, commentRows(&r.Comments[c], c, p, lay, s.numWidth)...)
+			run.at++
+			out = append(out, commentRows(&r.Comments[c], c, p, lay, s.numWidth, run)...)
 		}
 
 		return out
@@ -325,7 +331,7 @@ func (s screen) appendUnanchored(r *artifact.Review, placed []bool, lay layout) 
 		s.rows = append(s.rows, row{
 			kind: rowHunk, text: fmt.Sprintf("%s %s %d", c.Path, c.Side, c.Line), comment: -1,
 		})
-		s.rows = append(s.rows, commentRows(c, i, c.Path, lay, s.numWidth)...)
+		s.rows = append(s.rows, commentRows(c, i, c.Path, lay, s.numWidth, inRun{})...)
 	}
 
 	return s
@@ -384,7 +390,7 @@ func buildList(r *artifact.Review, d *diff.Diff, lay layout) screen {
 				continue
 			}
 
-			s.rows = append(s.rows, commentRows(&r.Comments[i], i, path, lay, s.numWidth)...)
+			s.rows = append(s.rows, commentRows(&r.Comments[i], i, path, lay, s.numWidth, inRun{})...)
 		}
 	}
 
