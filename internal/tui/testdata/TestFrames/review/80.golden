@@ -21,4 +21,4 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
  
       ┃ ○ NIT  skip  Out of scope for this change.
       ┃ Rename this to headSHA.
- [j/k] line  []] go to  [c]ode  writ[e]  [S]ubmit  [?] help  [q]uit
+ [j/k] line  []] go to  [c]ode  writ[e]  [i] context  [S]ubmit  [?] help  [q]uit

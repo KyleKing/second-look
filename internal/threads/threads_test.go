@@ -42,9 +42,15 @@ func TestFetchReadsTheOpenThreads(t *testing.T) {
 
 	t.Setenv("PATH", filepath.Dir(s.GH())+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	open, err := threads.Fetch(t.Context(), t.TempDir(), "KyleKing", "second-look", 2)
+	open, about, err := threads.Fetch(t.Context(), t.TempDir(), "KyleKing", "second-look", 2)
 	if err != nil {
 		t.Fatalf("fetching the threads on #2: %v", err)
+	}
+
+	// The pull request's own context rides in the same query, which is what
+	// makes showing it cost nothing.
+	if about.Title == "" || about.Author == "" {
+		t.Errorf("the pull request says nothing about itself: %+v", about)
 	}
 
 	if len(open) == 0 {

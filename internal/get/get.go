@@ -114,7 +114,7 @@ func cacheDiff(ctx context.Context, t Target, sha string) error {
 // second pass can answer them. Every run refreshes them, which is what makes
 // get the way to pick up what was said since.
 func cacheThreads(ctx context.Context, out io.Writer, t Target, sha string) error {
-	open, err := threads.Fetch(ctx, t.Dir(), t.Owner, t.Repo, t.Number)
+	open, about, err := threads.Fetch(ctx, t.Dir(), t.Owner, t.Repo, t.Number)
 	if err != nil {
 		//nolint:wrapcheck // Fetch's own error already names the pull request
 		return err
@@ -122,6 +122,10 @@ func cacheThreads(ctx context.Context, out io.Writer, t Target, sha string) erro
 
 	if err := artifact.SaveThreads(t.Store, sha, open); err != nil {
 		return fmt.Errorf("caching the review threads: %w", err)
+	}
+
+	if err := artifact.SaveAbout(t.Store, sha, about); err != nil {
+		return fmt.Errorf("caching the pull request's context: %w", err)
 	}
 
 	if len(open) == 0 {

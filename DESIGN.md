@@ -268,7 +268,11 @@ actions the caller supplies. They are the same shape, and three screens would dr
 
 ### Review
 
-The default screen. Diff fills the frame, comments render inline where they anchor.
+The default screen. Diff fills the frame, comments render inline where they anchor. `i`
+opens what the pull request says about itself over the diff: its description, its labels,
+and the comments left on the pull request rather than on a line of it, which is where a
+coverage report, a preview build, and an agent's summary all arrive. It reads the context
+`second-look get` cached in the threads' own query, so it costs no request of its own.
 
 ```
  kyleking/jj-diff #42          internal/vcs/diff.go     hunk 2/5  ● 3 unseen
@@ -363,7 +367,7 @@ Layered so the footer stays short.
 | --- | --- |
 | Universal | `q` quit, `esc` back, `enter` select, `/` search, `?` help, `:` command |
 | Motion | `j`/`k` line, `n`/`p` hunk, `}`/`{` file, `g`/`G` top and bottom |
-| Review | `space` seen, `c` comment, `a` then a severity writes one, `S` then `a`/`r`/`c` submit, `o` on GitHub, `u` unresolved only |
+| Review | `space` seen, `c` comment, `a` then a severity writes one, `S` then `a`/`r`/`c` submit, `i` what the pull request says, `o` on GitHub, `u` unresolved only |
 | Fold | `z` then `a` here, `i` invert all, `R` open all, `M` to the file names |
 | Queue | `1`/`2`/`3` and `]`/`[` the tab, `tab` the next group, `f`/`F` focus one repository |
 | View | `-` file overlay, `g` context pane, `s` split, `w` whitespace, `t` syntax-aware |

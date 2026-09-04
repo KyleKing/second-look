@@ -23,6 +23,25 @@ type Note struct {
 	Body   string `json:"body"`
 }
 
+// About is the pull request's own context: what the change is called, who wrote
+// it, the description they wrote, and the comments left on the pull request
+// rather than on a line of it. It answers "what am I reading and why", which
+// the diff cannot.
+//
+// It comes back from the same query the threads do, so it costs no extra read.
+type About struct {
+	Title   string   `json:"title,omitempty"`
+	Author  string   `json:"author,omitempty"`
+	Body    string   `json:"body,omitempty"`
+	Labels  []string `json:"labels,omitempty"`
+	Added   int      `json:"added,omitempty"`
+	Removed int      `json:"removed,omitempty"`
+	// Comments are the pull request's own, newest last. A bot's coverage
+	// report, a preview build, and an agent's summary all arrive here rather
+	// than in a review thread.
+	Comments []Note `json:"comments,omitempty"`
+}
+
 // Thread is one unresolved conversation anchored in the current diff.
 type Thread struct {
 	Path  string `json:"path"`
@@ -62,10 +81,18 @@ func Replyable(ts []Thread) []ForReply {
 }
 
 // query asks for the threads and everything needed to place one: where it
-// anchors, whether it is still live, and the database ids a reply needs.
+// anchors, whether it is still live, and the database ids a reply needs, plus
+// the pull request's own context, which is free in the same round trip.
 const query = `query($owner:String!,$repo:String!,$number:Int!){
   repository(owner:$owner,name:$repo){
     pullRequest(number:$number){
+      title
+      body
+      additions
+      deletions
+      author{login}
+      labels(first:20){nodes{name}}
+      comments(last:20){nodes{databaseId body author{login}}}
       reviewThreads(first:100){
         nodes{
           isResolved
@@ -85,7 +112,7 @@ const query = `query($owner:String!,$repo:String!,$number:Int!){
 // Resolved and outdated threads are dropped: a second pass is about what is
 // still open, and an outdated thread anchors to a line the diff no longer
 // carries, so it has nowhere to render and nothing to answer.
-func Fetch(ctx context.Context, root, owner, repo string, number int) ([]Thread, error) {
+func Fetch(ctx context.Context, root, owner, repo string, number int) ([]Thread, About, error) {
 	//nolint:gosec // every argument is a constant or a value read off the pull request
 	cmd := exec.CommandContext(ctx, "gh", "api", "graphql",
 		"-F", "owner="+owner, "-F", "repo="+repo, "-F", "number="+strconv.Itoa(number),
@@ -94,15 +121,15 @@ func Fetch(ctx context.Context, root, owner, repo string, number int) ([]Thread,
 
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("reading the review threads on #%d: %w", number, ghError(err))
+		return nil, About{}, fmt.Errorf("reading the review threads on #%d: %w", number, ghError(err))
 	}
 
-	open, err := Decode(out)
+	open, about, err := Decode(out)
 	if err != nil {
-		return nil, fmt.Errorf("on #%d: %w", number, err)
+		return nil, About{}, fmt.Errorf("on #%d: %w", number, err)
 	}
 
-	return open, nil
+	return open, about, nil
 }
 
 // ghError puts gh's own stderr in the message, which is where its reason for

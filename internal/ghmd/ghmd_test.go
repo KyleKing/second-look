@@ -182,3 +182,22 @@ func same(a, b []ghmd.Kind) bool {
 
 	return true
 }
+
+// A bot writes <details><summary>…</summary> on one line as often as on two,
+// and a section folded to nothing tells a reader nothing about what is in it.
+func TestASummaryOnTheDetailsLineIsStillTheSummary(t *testing.T) {
+	t.Parallel()
+
+	got := ghmd.Parse("<details><summary>the numbers</summary>\n\none\ntwo\n</details>")
+	if len(got) != 1 || got[0].Kind != ghmd.Details {
+		t.Fatalf("read as %v, wanted one collapsed section", kinds(got))
+	}
+
+	if got[0].Summary != "the numbers" {
+		t.Errorf("the section is folded to %q", got[0].Summary)
+	}
+
+	if len(got[0].Blocks) == 0 {
+		t.Error("the section holds nothing, so opening it would show nothing")
+	}
+}

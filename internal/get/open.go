@@ -33,6 +33,10 @@ type Review struct {
 	// head they anchor to. What is shown, never what is posted: an answer to
 	// one is a comment staged like any other.
 	Threads []threads.Thread
+	// About is what the pull request says about itself: its title, its author,
+	// its description, and the comments left on it rather than on a line of
+	// it. It arrives in the threads' own query, so it costs no extra read.
+	About threads.About
 	// Read is which hunks have been read, and SeenPath is where that is written
 	// back. It is keyed by hunk content rather than by head commit, so it
 	// outlives a force-push on its own.
@@ -86,7 +90,7 @@ func Open(ctx context.Context, t Target) (*Review, error) {
 			ErrStaleReview, short(review.HeadSHA), short(pr.HeadSHA), t.Number)
 	}
 
-	patch, open, err := fetchBoth(ctx, t, review.HeadSHA)
+	patch, open, about, err := fetchBoth(ctx, t, review.HeadSHA)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +101,7 @@ func Open(ctx context.Context, t Target) (*Review, error) {
 	}
 
 	return &Review{
-		Review: review, Diff: diff.Parse(patch), Threads: open,
+		Review: review, Diff: diff.Parse(patch), Threads: open, About: about,
 		Read: read, SeenPath: seenPath, Path: path, HeadSHA: pr.HeadSHA,
 		Work: t.Work, OnHead: standing,
 	}, nil
@@ -143,7 +147,9 @@ func cached(ctx context.Context, t Target) (*Review, bool, error) {
 
 	return &Review{
 		Review: review, Diff: diff.Parse(patch), Threads: open,
-		Read: read, SeenPath: seenPath, Path: path, HeadSHA: review.HeadSHA,
+		About:    aboutFor(t.Store, review.HeadSHA),
+		Read:     read,
+		SeenPath: seenPath, Path: path, HeadSHA: review.HeadSHA,
 		Work: t.Work, OnHead: standing, Unverified: true,
 	}, true, nil
 }
@@ -177,10 +183,11 @@ func cachedDiff(root, sha string) ([]byte, bool) {
 // fetchBoth reads the diff and the threads at once. They are two calls to the
 // same API that need nothing from each other, and running them one after the
 // other is half the wait a first open costs.
-func fetchBoth(ctx context.Context, t Target, sha string) ([]byte, []threads.Thread, error) {
+func fetchBoth(ctx context.Context, t Target, sha string) ([]byte, []threads.Thread, threads.About, error) {
 	var (
 		patch []byte
 		open  []threads.Thread
+		about threads.About
 	)
 
 	group, ctx := errgroup.WithContext(ctx)
@@ -194,17 +201,17 @@ func fetchBoth(ctx context.Context, t Target, sha string) ([]byte, []threads.Thr
 
 	group.Go(func() error {
 		var err error
-		open, err = threadsFor(ctx, t, sha)
+		open, about, err = threadsFor(ctx, t, sha)
 
 		return err
 	})
 
 	//nolint:wrapcheck // both goroutines return an error this package already wrapped
 	if err := group.Wait(); err != nil {
-		return nil, nil, err
+		return nil, nil, threads.About{}, err
 	}
 
-	return patch, open, nil
+	return patch, open, about, nil
 }
 
 func readMarks(t Target) (*seen.Set, string, error) {
@@ -233,27 +240,43 @@ func CurrentHead(ctx context.Context, t Target) (string, error) {
 // threadsFor reads the conversations open on the pull request, fetching them
 // only when the cache has none. A review reached without a get would otherwise
 // show an empty diff where a second pass has answers waiting.
-func threadsFor(ctx context.Context, t Target, want string) ([]threads.Thread, error) {
+func threadsFor(ctx context.Context, t Target, want string) ([]threads.Thread, threads.About, error) {
 	if _, err := os.Stat(artifact.ThreadsPath(t.Store, want)); err == nil {
 		var open []threads.Thread
 		if err := artifact.LoadThreads(t.Store, want, &open); err != nil {
-			return nil, fmt.Errorf("reading the cached review threads: %w", err)
+			return nil, threads.About{}, fmt.Errorf("reading the cached review threads: %w", err)
 		}
 
-		return open, nil
+		return open, aboutFor(t.Store, want), nil
 	}
 
-	open, err := threads.Fetch(ctx, t.Dir(), t.Owner, t.Repo, t.Number)
+	open, about, err := threads.Fetch(ctx, t.Dir(), t.Owner, t.Repo, t.Number)
 	if err != nil {
 		//nolint:wrapcheck // Fetch's own error already names the pull request
-		return nil, err
+		return nil, threads.About{}, err
 	}
 
 	if err := artifact.SaveThreads(t.Store, want, open); err != nil {
-		return nil, fmt.Errorf("caching the review threads: %w", err)
+		return nil, threads.About{}, fmt.Errorf("caching the review threads: %w", err)
 	}
 
-	return open, nil
+	if err := artifact.SaveAbout(t.Store, want, about); err != nil {
+		return nil, threads.About{}, fmt.Errorf("caching the pull request's context: %w", err)
+	}
+
+	return open, about, nil
+}
+
+// aboutFor is what the pull request said about itself when it was staged. A
+// review prepared before this was cached has none, and the screen says so
+// rather than refusing to open.
+func aboutFor(root, sha string) threads.About {
+	var about threads.About
+	if err := artifact.LoadAbout(root, sha, &about); err != nil {
+		return threads.About{}
+	}
+
+	return about
 }
 
 // Current reports the pull request for the branch the checkout is on. Being on

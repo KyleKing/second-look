@@ -14,7 +14,7 @@ import (
 // cached names the directories holding one file per head commit. Everything in
 // them is rebuilt from the pull request, so a file no staged review points at
 // is a file nothing will read again.
-var cached = []string{"diff", "threads", "score"}
+var cached = []string{"about", "diff", "threads", "score"}
 
 // Root is the checkout or state directory the review is staged under, which is
 // where its caches live.

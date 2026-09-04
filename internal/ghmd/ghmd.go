@@ -211,9 +211,8 @@ func (s *scan) fence() Block {
 // is whatever the <summary> tag held, and a section without one is folded to a
 // count of what it holds rather than to nothing.
 func (s *scan) details() Block {
+	summary := summaryIn(s.line())
 	s.at++
-
-	summary := ""
 
 	var inner []string
 
@@ -244,6 +243,22 @@ func (s *scan) details() Block {
 	}
 
 	return Block{Kind: Details, Summary: summary, Blocks: blocks(inner)}
+}
+
+// summaryIn is the summary a <details> line carries on the line itself, which
+// is how the review bots write one.
+func summaryIn(line string) string {
+	_, rest, ok := strings.Cut(line, "<summary>")
+	if !ok {
+		return ""
+	}
+
+	text, _, ok := strings.Cut(rest, "</summary>")
+	if !ok {
+		return ""
+	}
+
+	return emphasis(strings.TrimSpace(text))
 }
 
 // fenceOf is the fence a line opens or closes, and empty where it is neither.

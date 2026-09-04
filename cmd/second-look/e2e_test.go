@@ -362,13 +362,17 @@ func seedThreads(t *testing.T, dir, sha string) {
 		t.Fatalf("reading the recorded thread query: %v", err)
 	}
 
-	open, err := threads.Decode([]byte(out))
+	open, about, err := threads.Decode([]byte(out))
 	if err != nil {
 		t.Fatalf("reading the recorded thread query: %v", err)
 	}
 
 	if err := artifact.SaveThreads(stored(t, dir), sha, open); err != nil {
 		t.Fatalf("caching the threads: %v", err)
+	}
+
+	if err := artifact.SaveAbout(stored(t, dir), sha, about); err != nil {
+		t.Fatalf("caching the pull request's context: %v", err)
 	}
 }
 

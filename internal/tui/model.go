@@ -161,6 +161,12 @@ type Model struct {
 	// helpAt is how far the legend is scrolled, which a short frame needs
 	// because the keys that leave it are at the bottom of it.
 	helpAt int
+	// about is what the pull request says about itself, aboutOpen is whether
+	// the overlay holding it has the frame, and aboutAt is how far that is
+	// scrolled.
+	about     threads.About
+	aboutOpen bool
+	aboutAt   int
 	// checkout is C, answered by the caller once the screen has closed.
 	checkout bool
 	// newHead is the head the pull request is on now, set only when it is not
@@ -189,6 +195,10 @@ func WithStore(root string) Option {
 func WithSeen(read *seen.Set, path string) Option {
 	return func(m *Model) { m.read, m.seenAt = read, path }
 }
+
+// About is what the pull request says about itself, which the caller reads back
+// so a screen reopened at another head does not lose it.
+func (m *Model) About() threads.About { return m.about }
 
 // WithThreads shows the conversations already open on the pull request, which
 // `second-look get` cached. Without it the screen shows the diff and the
@@ -450,6 +460,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.readHelp(msg)
 	}
 
+	if m.aboutOpen {
+		return m.readAbout(msg)
+	}
+
 	if handled, model, cmd := m.mode(msg); handled {
 		return model, cmd
 	}
@@ -575,6 +589,8 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		return true, m, tea.Quit
 	case key.Matches(msg, m.keys.Help):
 		m.help = !m.help
+	case key.Matches(msg, m.keys.About):
+		m.aboutOpen, m.aboutAt = true, 0
 	case key.Matches(msg, m.keys.More), key.Matches(msg, m.keys.Less):
 		by := step
 		if key.Matches(msg, m.keys.Less) {

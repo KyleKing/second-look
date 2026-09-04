@@ -2518,3 +2518,71 @@ func tallPatch(n int) string {
 
 	return b.String()
 }
+
+// The diff says what changed and never why. The overlay is where the pull
+// request's own description and the comments left on it live: a coverage
+// report, a preview build, and an agent's summary all arrive as those.
+func TestTheContextOverlayCarriesWhatTheDiffCannot(t *testing.T) {
+	t.Parallel()
+
+	body := "Reads the head through the cache.\n\n" +
+		"<details><summary>the numbers</summary>\n\n" +
+		"one\ntwo\n</details>\n"
+
+	_, path, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 14, "check err"))
+	m := tui.New(t.Context(), reviewAt(t, path), diff.Parse([]byte(patch)), path,
+		func(context.Context, *artifact.Review) (string, error) { return "", nil },
+		tui.WithAbout(threads.About{
+			Title: "feat(vcs): read the head through the cache", Author: "octocat",
+			Body: body, Labels: []string{"needs-review"}, Added: 57, Removed: 3,
+			Comments: []threads.Note{{ID: 1, Author: "github-actions", Body: "coverage is 84.2%"}},
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 160, Height: 30})
+
+	// The header carries as much of the title and the author as the frame has
+	// room for after the file and the counts.
+	if got := plain(m.Frame()); !strings.Contains(got, "read the head") {
+		t.Errorf("the header says nothing about the change:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'i', Text: "i"})
+
+	frame := plain(m.Frame())
+	for _, want := range []string{
+		"feat(vcs): read the head through the cache",
+		"octocat", "+57 -3", "needs-review",
+		"Reads the head through the cache.",
+		"github-actions", "coverage is 84.2%",
+		// A collapsed section stays collapsed: it is folded for a reason.
+		"the numbers",
+	} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the overlay is missing %q:\n%s", want, frame)
+		}
+	}
+
+	if strings.Contains(frame, "\n  one") {
+		t.Errorf("the overlay opened a collapsed section:\n%s", frame)
+	}
+
+	// It changes nothing, so any key leaves it.
+	press(m, tea.KeyPressMsg{Code: 'x', Text: "x"})
+
+	if got := plain(m.Frame()); strings.Contains(got, "coverage is 84.2%") {
+		t.Errorf("the overlay outstayed its key:\n%s", got)
+	}
+}
+
+// A review staged before the context was cached has none, and says so rather
+// than drawing an empty box.
+func TestTheContextOverlaySaysWhenNothingWasCached(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+	press(m, tea.KeyPressMsg{Code: 'i', Text: "i"})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "second-look get") {
+		t.Errorf("the overlay does not say how to read the context:\n%s", got)
+	}
+}

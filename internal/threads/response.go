@@ -13,12 +13,36 @@ type response struct {
 	Data struct {
 		Repository struct {
 			PullRequest struct {
+				Title  string `json:"title"`
+				Body   string `json:"body"`
+				Author struct {
+					Login string `json:"login"`
+				} `json:"author"`
+				Labels struct {
+					Nodes []struct {
+						Name string `json:"name"`
+					} `json:"nodes"`
+				} `json:"labels"`
+				Comments struct {
+					Nodes []comment `json:"nodes"`
+				} `json:"comments"`
 				ReviewThreads struct {
 					Nodes []node `json:"nodes"`
 				} `json:"reviewThreads"`
+				Additions int `json:"additions"`
+				Deletions int `json:"deletions"`
 			} `json:"pullRequest"`
 		} `json:"repository"`
 	} `json:"data"`
+}
+
+//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
+type comment struct {
+	DatabaseID int64  `json:"databaseId"`
+	Body       string `json:"body"`
+	Author     struct {
+		Login string `json:"login"`
+	} `json:"author"`
 }
 
 //nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
@@ -29,26 +53,39 @@ type node struct {
 	Line       int    `json:"line"`
 	DiffSide   string `json:"diffSide"`
 	Comments   struct {
-		Nodes []struct {
-			DatabaseID int64  `json:"databaseId"`
-			Body       string `json:"body"`
-			Author     struct {
-				Login string `json:"login"`
-			} `json:"author"`
-		} `json:"nodes"`
+		Nodes []comment `json:"nodes"`
 	} `json:"comments"`
 }
 
 // Decode reads what the GraphQL query answered. It is exported because a test
 // that seeds a cached thread reads the same recording the fetcher does, and two
 // copies of GitHub's shape would drift.
-func Decode(body []byte) ([]Thread, error) {
+func Decode(body []byte) ([]Thread, About, error) {
 	var r response
 	if err := json.Unmarshal(body, &r); err != nil {
-		return nil, fmt.Errorf("reading the review threads: %w", err)
+		return nil, About{}, fmt.Errorf("reading the review threads: %w", err)
 	}
 
-	return r.threads(), nil
+	return r.threads(), r.about(), nil
+}
+
+func (r *response) about() About {
+	pr := &r.Data.Repository.PullRequest
+
+	out := About{
+		Title: pr.Title, Author: pr.Author.Login, Body: pr.Body,
+		Added: pr.Additions, Removed: pr.Deletions,
+	}
+
+	for _, l := range pr.Labels.Nodes {
+		out.Labels = append(out.Labels, l.Name)
+	}
+
+	for _, c := range pr.Comments.Nodes {
+		out.Comments = append(out.Comments, Note{ID: c.DatabaseID, Author: c.Author.Login, Body: c.Body})
+	}
+
+	return out
 }
 
 func (r *response) threads() []Thread {

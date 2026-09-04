@@ -70,6 +70,7 @@ type keyMap struct {
 	Submit    key.Binding
 	Open      key.Binding
 	Merge     key.Binding
+	About     key.Binding
 	Help      key.Binding
 	// Back leaves whatever has the keyboard without leaving the screen. It is
 	// esc alone: q shares Quit's binding, and a prompt that reads q as a cancel
@@ -127,6 +128,7 @@ func defaultKeyMap() keyMap {
 		Submit:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
 		Open:      key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "on GitHub")),
 		Merge:     key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
+		About:     key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "context")),
 		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 		Quit:      key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", quitWord)),
@@ -236,6 +238,7 @@ func helpGroups() []helpGroup {
 			{"C", "move the checkout onto this pull request"},
 			{"P", "post the comment under the cursor on its own, now"},
 			{"S then a / r / c", "submit, approving, requesting changes, or commenting"},
+			{"i", "what the pull request says about itself: its description and the comments on it"},
 			{"o", "open the pull request on GitHub"},
 			{"M", "squash-merge the pull request, M again to confirm"},
 		}},

@@ -260,7 +260,8 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 	var log strings.Builder
 
 	opts := []tui.Option{
-		tui.WithThreads(opened.Threads), tui.WithSeen(opened.Read, opened.SeenPath),
+		tui.WithThreads(opened.Threads), tui.WithAbout(opened.About),
+		tui.WithSeen(opened.Read, opened.SeenPath),
 		tui.WithSender(sender(t, opened.Path, &log)), tui.WithTree(tree(opened)),
 		tui.WithMerger(merger(t)), tui.WithStore(t.Store), tui.WithOpener(opener(t)),
 		// A config that will not parse leaves the built-in patterns rather than

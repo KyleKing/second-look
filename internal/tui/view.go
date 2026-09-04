@@ -32,8 +32,12 @@ func (m *Model) render() string {
 	}
 
 	body := m.rowLines()
-	if m.help {
+
+	switch {
+	case m.help:
 		body = m.helpLines()
+	case m.aboutOpen:
+		body = m.aboutLines()
 	}
 
 	return strings.Join(append(append([]string{m.title()}, body...), m.footerLines()...), "\n")
@@ -62,6 +66,11 @@ func (m *Model) title() string {
 	if path := fitPath(m.rowPath(), m.width-textWidth(right)-textWidth(left)-indent); path != "" {
 		left += "  " + path
 	}
+
+	// The title and the author are what the frame has room for after the file
+	// and the counts, which are what a reader needs on every row. i has the
+	// rest of it whatever the width.
+	left += m.aboutWord(m.width - textWidth(right) - textWidth(left) - indent)
 
 	// The counts and the position are fixed width, so the path yields to them
 	// rather than pushing the line past the frame.
@@ -314,7 +323,8 @@ func (m *Model) hints() [][2]string {
 	hints = append(hints, [2]string{"j/k", "line"}, [2]string{"]", "go to"}, view)
 	hints = append(hints, middle...)
 
-	return append(hints, [2]string{"S", "submit"}, [2]string{"?", "help"}, [2]string{"q", quitWord})
+	return append(hints, [2]string{"i", "context"},
+		[2]string{"S", "submit"}, [2]string{"?", "help"}, [2]string{"q", quitWord})
 }
 
 // onCode reports whether the cursor is on a line of the diff, which is the one

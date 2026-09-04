@@ -1,0 +1,25 @@
+{
+  "title": "fix(cache): key the parsed diff by head rather than by number",
+  "author": "hubot",
+  "body": "The dashboard re-parsed every diff on every refresh, so a queue of eighty rows spent most of a second in the parser.\n\nKeying the cache by head commit means a pull request nobody pushed to is parsed once. A force-push invalidates its own entry, which is what the old key could not express.\n\n<details><summary>the numbers, on this laptop</summary>\n\n| rows | before | after |\n|---|---|---|\n| 80 | 940ms | 60ms |\n</details>\n",
+  "labels": ["needs-review", "performance"],
+  "added": 57,
+  "removed": 12,
+  "comments": [
+    {
+      "id": 1,
+      "author": "github-actions",
+      "body": "**Coverage** 84.2% (+0.4%). No file dropped below the 70% floor."
+    },
+    {
+      "id": 2,
+      "author": "chromatic",
+      "body": "2 stories changed, 0 need review. [Open the build](https://example.test/build/1)"
+    },
+    {
+      "id": 3,
+      "author": "hubot",
+      "body": "AI Summary: keys the parsed-diff cache by head commit. The measurement above is on 80 rows of a warm cache.\n\n<details><summary>what was rejected</summary>\n\nA TTL keeps re-parsing a diff nobody touched, and a force-push still serves a stale entry inside the window.\n</details>\n"
+    }
+  ]
+}
