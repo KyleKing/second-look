@@ -147,15 +147,24 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 }
 
 // reviewCurrent opens the review for whatever the checkout is standing on.
-// There is no default: on a branch with no pull request the answer is an error,
-// not a guess at which one was meant.
+// Which review a branch means is never guessed: standing somewhere that names
+// none opens the queue on what is staged, and every other failure is the read
+// going wrong and is reported. A pipe gets the error, having no screen.
 func reviewCurrent(ctx context.Context, stdin io.Reader, stdout io.Writer) error {
 	number, err := get.Current(ctx, ".")
 	if err != nil {
+		if namesNothing(err) && onATerminal() {
+			return openQueue(ctx, tabReviews, stdin, stdout)
+		}
+
 		return fmt.Errorf("opening this branch's review: %w", err)
 	}
 
 	return openRef(ctx, ref{number: number}, stdin, stdout)
+}
+
+func namesNothing(err error) bool {
+	return errors.Is(err, get.ErrNoPRForBranch) || errors.Is(err, get.ErrNotARepo)
 }
 
 func reviewCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {

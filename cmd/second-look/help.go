@@ -150,8 +150,11 @@ NAMING A PULL REQUEST
       against.
 
   second-look
-      The same, for the pull request the current branch belongs to. A branch
-      with no pull request is an error, not a guess.
+      The same, for the pull request the current branch belongs to. Which
+      review a branch means is never guessed: a branch with no pull request
+      behind it, and a directory that is no checkout at all, name nothing, so
+      the queue opens on what is already staged instead. A pipe gets the error,
+      since there is no screen to send it to.
 
   second-look get <pr>
       Read the pull request, write the prepared review, and cache the diff under
@@ -241,7 +244,8 @@ NAMING A PULL REQUEST
       one screen. Each command opens on its own tab, 1, 2, and 3 pick one, and ]
       and [ step through them. Every tab keeps its own cursor and filter, and a
       tab loads when it is first looked at, so opening on one costs what that
-      one costs.
+      one costs. Reading a review comes back to the row it was opened from, or
+      to the row that took its place where the review has since posted.
 
       Each bucket is ordered for triage rather than by recency: what you have
       already started here, then the smallest of what an earlier read rated,
