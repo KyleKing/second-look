@@ -48,6 +48,10 @@ type Outcome struct {
 	// pull request. The screen closes first: the move asks about uncommitted
 	// work, and two programs cannot own the terminal at once.
 	Checkout bool
+	// Next reports that the review posted and the reviewer asked for the next
+	// one staged. Twenty-five reviews is one sitting, and stopping to find the
+	// next row by hand is what makes it feel like twenty-five errands.
+	Next bool
 }
 
 // Sender posts one comment on its own, outside any review. It is a separate
@@ -161,7 +165,7 @@ func Run(
 	}
 
 	if m, ok := final.(*Model); ok {
-		return Outcome{Checkout: m.checkout}, m.failure
+		return Outcome{Checkout: m.checkout, Next: m.next}, m.failure
 	}
 
 	return Outcome{}, nil

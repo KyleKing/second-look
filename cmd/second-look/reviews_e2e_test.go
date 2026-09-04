@@ -219,3 +219,47 @@ func TestAStagedRowSaysWhetherThisDirectoryHoldsItsCode(t *testing.T) {
 		})
 	}
 }
+
+// Posting one review moves to the next, and the next is the same repository's
+// where it has another staged: a sitting is one repository at a time and the
+// clone is already standing on it.
+func TestTheNextReviewAfterAPostPrefersTheSameRepository(t *testing.T) {
+	t.Parallel()
+
+	rows := []prepared.Review{
+		{Repository: "acme/platform", Number: 904},
+		{Repository: "kyleking/tlr", Number: 121},
+		{Repository: "kyleking/tlr", Number: 118},
+		{Repository: "kyleking/broken", Number: 7, Broken: "this file no longer parses"},
+	}
+
+	for _, c := range []struct {
+		name string
+		repo string
+		was  int
+		want string
+	}{
+		{"another in the repository just posted", "kyleking/tlr", 118, "kyleking/tlr#121"},
+		{"nothing left in it", "acme/platform", 904, "kyleking/tlr#121"},
+		{"a repository with nothing staged", "acme/other", 1, "acme/platform#904"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := main.NextStaged(rows, c.repo, c.was)
+			if !ok {
+				t.Fatalf("nothing came next after %s#%d", c.repo, c.was)
+			}
+
+			if got != c.want {
+				t.Errorf("next is %s, want %s", got, c.want)
+			}
+		})
+	}
+
+	// A review whose file no longer parses is not something to open, and one
+	// staged review posted leaves nothing to move to.
+	if _, ok := main.NextStaged(rows[3:], "kyleking/broken", 7); ok {
+		t.Error("a review that cannot be read was offered as the next one")
+	}
+}

@@ -168,6 +168,8 @@ type Model struct {
 	about     threads.About
 	aboutOpen bool
 	aboutAt   int
+	// next is enter on a posted review: the caller opens the next one staged.
+	next bool
 	// checkout is C, answered by the caller once the screen has closed.
 	checkout bool
 	// newHead is the head the pull request is on now, set only when it is not
@@ -587,6 +589,28 @@ func (m *Model) overlayKey(msg tea.KeyPressMsg) bool {
 	return true
 }
 
+// leaves answers the two keys that end the screen: q, which closes the legend
+// first where it is open, and enter on a review that has posted, which carries
+// the sitting on to the next one staged rather than ending on each review.
+func (m *Model) leaves(msg tea.KeyPressMsg) (tea.Cmd, bool) {
+	switch {
+	case key.Matches(msg, m.keys.Quit):
+		if m.help {
+			m.help = false
+
+			return nil, true
+		}
+
+		return tea.Quit, true
+	case m.posted && key.Matches(msg, m.keys.Accept):
+		m.next = true
+
+		return tea.Quit, true
+	}
+
+	return nil, false
+}
+
 // mode handles the keys that change what the screen is showing rather than what
 // the review says, and reports whether one of them matched.
 func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
@@ -594,15 +618,11 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		return true, m, cmd
 	}
 
+	if cmd, ok := m.leaves(msg); ok {
+		return true, m, cmd
+	}
+
 	switch {
-	case key.Matches(msg, m.keys.Quit):
-		if m.help {
-			m.help = false
-
-			return true, m, nil
-		}
-
-		return true, m, tea.Quit
 	case m.overlayKey(msg):
 	case key.Matches(msg, m.keys.More), key.Matches(msg, m.keys.Less):
 		by := step
@@ -2072,7 +2092,7 @@ func (m *Model) applySubmit(msg submittedMsg) {
 	}
 
 	m.posted = true
-	m.say(msg.summary+", o opens it on GitHub, q leaves", false)
+	m.say(msg.summary+"; enter reviews the next one staged, o opens it on GitHub, q leaves", false)
 }
 
 // applyMerge reports the merge. A failure is carried out of the screen the way

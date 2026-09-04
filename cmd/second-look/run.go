@@ -234,9 +234,28 @@ func openRef(ctx context.Context, r ref, stdin io.Reader, stdout io.Writer) erro
 // terminal at once.
 func openReview(ctx context.Context, t get.Target, stdin io.Reader, stdout io.Writer) error {
 	for {
-		again, err := review(ctx, t, stdout)
-		if err != nil || !again {
+		out, err := review(ctx, t, stdout)
+		if err != nil {
 			return err
+		}
+
+		if out.Next {
+			next, ok, err := afterPosting(ctx, t, stdout)
+			if err != nil || !ok {
+				return err
+			}
+
+			t = next
+		}
+
+		if !out.Checkout && !out.Next {
+			return nil
+		}
+
+		// A review with no clone of its repository is read from the API, and
+		// there is nothing to move.
+		if t.Detached() {
+			continue
 		}
 
 		if err := get.Prepare(ctx, stdout, t, confirm(stdin, stdout)); err != nil {
@@ -245,15 +264,77 @@ func openReview(ctx context.Context, t get.Target, stdin io.Reader, stdout io.Wr
 	}
 }
 
-// review draws the screen once and reports whether it was left through C.
-func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
+// afterPosting is the next review to read once one has posted: the same
+// repository's if it has another staged, and the most recent of the rest
+// otherwise. The order is the staged list's own, so what a sitting works
+// through is what `second-look reviews` says is left.
+func afterPosting(ctx context.Context, was get.Target, stdout io.Writer) (get.Target, bool, error) {
+	rows, err := staged()
+	if err != nil {
+		return get.Target{}, false, fmt.Errorf("finding the next review: %w", err)
+	}
+
+	repo := was.Owner + "/" + was.Repo
+
+	at, ok := nextStaged(rows, repo, was.Number)
+	if !ok {
+		return get.Target{}, false, write(stdout, "nothing else is staged\n")
+	}
+
+	next, err := get.Resolve(ctx, ".", at.owner, at.repo, at.number)
+	if err != nil {
+		return get.Target{}, false, fmt.Errorf("opening %s: %w", at, err)
+	}
+
+	if err := write(stdout, "next: "+at.String()+"\n"); err != nil {
+		return get.Target{}, false, err
+	}
+
+	return next, true, nil
+}
+
+// nextStaged picks the row to read next, preferring the repository already in
+// hand: a sitting is one repository at a time, and the clone is already on it.
+func nextStaged(rows []prepared.Review, repo string, was int) (ref, bool) {
+	var other *prepared.Review
+
+	for i := range rows {
+		r := &rows[i]
+		if r.Broken != "" || (strings.EqualFold(r.Repository, repo) && r.Number == was) {
+			continue
+		}
+
+		if strings.EqualFold(r.Repository, repo) {
+			return refOf(r), true
+		}
+
+		if other == nil {
+			other = r
+		}
+	}
+
+	if other == nil {
+		return ref{}, false
+	}
+
+	return refOf(other), true
+}
+
+func refOf(r *prepared.Review) ref {
+	owner, name, _ := strings.Cut(r.Repository, "/")
+
+	return ref{owner: owner, repo: name, number: r.Number}
+}
+
+// review draws the screen once and reports what it was left through.
+func review(ctx context.Context, t get.Target, stdout io.Writer) (tui.Outcome, error) {
 	if !term.IsTerminal(os.Stdin.Fd()) && !term.IsTerminal(os.Stdout.Fd()) {
-		return false, errNoTerminal
+		return tui.Outcome{}, errNoTerminal
 	}
 
 	opened, err := get.Open(ctx, t)
 	if err != nil {
-		return false, fmt.Errorf("opening #%d: %w", t.Number, err)
+		return tui.Outcome{}, fmt.Errorf("opening #%d: %w", t.Number, err)
 	}
 
 	// The alternate screen owns the terminal until the screen exits, so what the
@@ -295,14 +376,14 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 	// names the endpoints it reached, which is what says whether anything
 	// landed on GitHub.
 	if err := write(stdout, log.String()); err != nil {
-		return false, err
+		return tui.Outcome{}, err
 	}
 
 	if runErr != nil {
-		return false, fmt.Errorf("reviewing #%d: %w", t.Number, runErr)
+		return tui.Outcome{}, fmt.Errorf("reviewing #%d: %w", t.Number, runErr)
 	}
 
-	return out.Checkout, nil
+	return out, nil
 }
 
 // tree is where the working copy stands, which is what the shell key can use
