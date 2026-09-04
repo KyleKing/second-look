@@ -2,7 +2,7 @@ kyleking/jj-diff #42  code                                                  0% �
 ▌     ┃ REVIEW  no body, no note · e to write one
  
  internal/vcs  2 files · 2 hunks
-   internal/vcs/diff.go
+   internal/vcs/diff.go ────────────────────────────────────────────────────────────────────────────────────────────────
    line 14  func Parse(r io.Reader) ([]Hunk, error) {
   14       first := 1
       ┃ ▸ ◐ QUESTION  draft  Is first still 1 after the change?
@@ -11,7 +11,7 @@ kyleking/jj-diff #42  code                                                  0% �
       ┃ ▸ ● MAJOR  ready  split can fail now, so this has to check err.
   16 +     if err != nil {
   17       last := 4
-   internal/vcs/git.go
+   internal/vcs/git.go ─────────────────────────────────────────────────────────────────────────────────────────────────
    line 201  func Head() string {
  201       return head
       ┃ ▸ ○ NIT  skip  Out of scope for this change.  Rename this to headSHA.

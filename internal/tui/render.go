@@ -106,19 +106,27 @@ type depth struct {
 // text is colored by grammar, so the side has to be said by something that
 // leaves the foreground alone.
 //
-// A terminal that can mix its own colors gets them held well back, because a
-// band is read past rather than read and one at the accent's own saturation
-// competes with the code sitting on it. A 256-color terminal gets them deeper,
-// since the cube carries almost no dark tints: held back there, added and
-// removed both quantize into the grey ramp and the band says nothing.
+// The mark cannot go deeper than this. Moving it away from the band's lightness
+// moves it toward the text's, and the code on it stops being readable before the
+// two backgrounds are far enough apart to see, which is why the mark is
+// underlined as well.
+//
+// A 256-color terminal gets deeper values, since the cube carries almost no
+// dark tints: held back there, added and removed both quantize into the grey
+// ramp and the band says nothing.
 const (
 	// What a terminal that mixes its own colors gets.
-	trueBandLift, trueBandSat = 0.09, 0.45
-	trueMarkLift, trueMarkSat = 0.20, 0.85
+	trueBandLift, trueBandSat = 0.12, 0.60
+	trueMarkLift, trueMarkSat = 0.32, 1.0
 	// What a 256-color terminal gets, deep enough to survive the cube.
 	cubeBandLift, cubeMarkLift = 0.14, 0.34
 	cubeSat                    = 1.0
 )
+
+// quietShare is how much of a context line's saturation is taken away. It has
+// to be saturation rather than lightness, which is what keeps every class as
+// legible against the frame as it was.
+const quietShare = 0.5
 
 var (
 	bandMix, markMix = depths(supportsMillions())
@@ -148,29 +156,43 @@ func supportsMillions() bool {
 // gh-sweep stay one visual family rather than each carrying a theme.
 type richStyles struct {
 	class map[highlight.Class]lipgloss.Style
+	// quiet is the same classes with half their saturation, which is what a
+	// context line is drawn in.
+	quiet map[highlight.Class]lipgloss.Style
 	// band and mark are the two depths of each side, indexed by the diff's own
 	// spelling of the line kind. A context line is in neither, which is what
 	// says it has no side.
 	band map[byte]color.Color
 	mark map[byte]color.Color
+	// sign is the one cell of full accent that says which side a line is on,
+	// painted in the column the +/- was already spending.
+	sign map[byte]lipgloss.Style
 	// gutter is the two line numbers, dimmer than the code they index.
 	gutter lipgloss.Style
 }
 
 func newRichStyles(s styles) richStyles {
 	p, base := s.palette, lipgloss.NewStyle()
+	chip := base.Foreground(p.Base).Bold(true)
+
+	faces := map[highlight.Class]lipgloss.Style{
+		highlight.Comment:     base.Foreground(p.Overlay1).Italic(true),
+		highlight.Keyword:     base.Foreground(p.Mauve),
+		highlight.String:      base.Foreground(p.Green),
+		highlight.Number:      base.Foreground(p.Peach),
+		highlight.Function:    base.Foreground(p.Blue),
+		highlight.Type:        base.Foreground(p.Yellow),
+		highlight.Name:        base.Foreground(p.Text),
+		highlight.Punctuation: base.Foreground(p.Overlay2),
+		highlight.Plain:       base.Foreground(p.Text),
+	}
 
 	return richStyles{
-		class: map[highlight.Class]lipgloss.Style{
-			highlight.Comment:     base.Foreground(p.Overlay1).Italic(true),
-			highlight.Keyword:     base.Foreground(p.Mauve),
-			highlight.String:      base.Foreground(p.Green),
-			highlight.Number:      base.Foreground(p.Peach),
-			highlight.Function:    base.Foreground(p.Blue),
-			highlight.Type:        base.Foreground(p.Yellow),
-			highlight.Name:        base.Foreground(p.Text),
-			highlight.Punctuation: base.Foreground(p.Overlay2),
-			highlight.Plain:       base.Foreground(p.Text),
+		class: faces,
+		quiet: quieted(faces),
+		sign: map[byte]lipgloss.Style{
+			diff.KindAdd:    chip.Background(p.Green),
+			diff.KindRemove: chip.Background(p.Red),
 		},
 		band: map[byte]color.Color{
 			diff.KindAdd:    blend(p.Base, p.Green, bandMix),
@@ -182,6 +204,25 @@ func newRichStyles(s styles) richStyles {
 		},
 		gutter: base.Foreground(p.Overlay0),
 	}
+}
+
+// quieted is the faces a context line is drawn in.
+func quieted(faces map[highlight.Class]lipgloss.Style) map[highlight.Class]lipgloss.Style {
+	out := make(map[highlight.Class]lipgloss.Style, len(faces))
+
+	for class := range faces {
+		face := faces[class]
+		out[class] = face.Foreground(dull(face.GetForeground()))
+	}
+
+	return out
+}
+
+func dull(c color.Color) color.Color {
+	from, _ := colorful.MakeColor(c)
+	hue, sat, light := from.Hsl()
+
+	return colorful.Hsl(hue, sat*quietShare, light).Clamped()
 }
 
 // richCode draws one line of the diff at exactly width cells: both line
@@ -202,21 +243,38 @@ func (m *Model) richCode(r row, width int) string {
 	return m.richGutter(r.line) + cut(body, room)
 }
 
+// rule closes the gutter, so the code has a left edge to run down.
+const rule = "\u2502"
+
 // gutterWidth is what both numbers and the sign take, which every rich row
 // spends whether or not it carries either number: the two numbers, a space
-// between them, then the sign with a space either side.
+// between them, then the sign, the rule, and one space before the code.
 func (m *Model) gutterWidth() int {
-	const signAndSpaces = 4
+	const signRuleAndSpaces = 5
 
-	return m.screen.numWidth*2 + signAndSpaces
+	return m.screen.numWidth*2 + signRuleAndSpaces
 }
 
-// richGutter is the old and the new number together. A line on one side leaves
-// the other blank rather than repeating itself, so the column of numbers says
-// at a glance which side each line is on even where color is gone.
+// richGutter is the old and the new number, the rule, and then the sign, which
+// sits against the code so it reads as the code's own left edge. A line on one
+// side leaves the other number blank rather than repeating itself, so the column
+// of numbers says at a glance which side each line is on even where color is
+// gone.
 func (m *Model) richGutter(l diff.Line) string {
-	return m.rich.gutter.Render(fmt.Sprintf("%s %s %c ",
-		number(l.Old, m.screen.numWidth), number(l.New, m.screen.numWidth), l.Kind))
+	return m.rich.gutter.Render(fmt.Sprintf("%s %s %s",
+		number(l.Old, m.screen.numWidth), number(l.New, m.screen.numWidth), rule)) +
+		m.signCell(l.Kind) + " "
+}
+
+// signCell is the +/- on its own accent. The glyph stays, so a monochrome
+// terminal loses the emphasis and keeps the meaning.
+func (m *Model) signCell(kind byte) string {
+	style, ok := m.rich.sign[kind]
+	if !ok {
+		return " "
+	}
+
+	return style.Render(string(kind))
 }
 
 func number(n, width int) string {
@@ -263,6 +321,10 @@ func (m *Model) richText(r row, l diff.Line, width int) (string, int) {
 	// A hunk already read keeps its band and loses its grammar: what the code
 	// says has been read, and what is left to read is the question.
 	faces := m.rich.class
+	if !ok {
+		faces = m.rich.quiet
+	}
+
 	if m.behind(r) {
 		faces = nil
 	}
@@ -275,7 +337,7 @@ func (m *Model) richText(r row, l diff.Line, width int) (string, int) {
 
 		style := under(face, band, ok)
 		if ok && covered(marked, piece.from) {
-			style = under(face, mark, true).Bold(true)
+			style = under(face, mark, true).Bold(true).Underline(true)
 		}
 
 		text, spent := expandFrom(l.Text[piece.from:piece.to], cols)
@@ -533,6 +595,6 @@ func (m *Model) halfCode(r row, l diff.Line, at, width int) string {
 		body += m.padTo(l.Kind, over)
 	}
 
-	return m.rich.gutter.Render(fmt.Sprintf("%s %c ", number(at, m.screen.numWidth), l.Kind)) +
-		cut(body, room)
+	return m.rich.gutter.Render(number(at, m.screen.numWidth)+rule) + m.signCell(l.Kind) +
+		" " + cut(body, room)
 }

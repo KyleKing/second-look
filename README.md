@@ -277,6 +277,16 @@ says which side a line is on with a band behind it instead, marks the runs that 
 differ from the line the change paired it with, and carries both line numbers in the
 gutter, so a one-word edit reads as one word.
 
+Four things carry a change in `rich`, because no one of them survives every terminal. The
+`+` or `-` sits against the code on a cell of full accent, which is the loudest thing on
+the row and costs no width. A rule closes the gutter, so the code has a left edge to run
+down. The runs that actually differ are underlined as well as deepened, because a
+background can only get so far from the band under it before the code sitting on it stops
+being readable. And a context line is drawn at half saturation, so a changed line is the
+vivid one rather than merely the banded one. The separations are measured in CIEDE2000 and
+WCAG contrast by a test, on both palettes and at both color depths, so a palette change
+that flattens the diff fails a build rather than a review.
+
 `split` is the same faces side by side, each removal beside the addition that replaced it,
 so an edit reads as one row rather than as two. Each half numbers the file it is showing,
 which for a context line means two different numbers the moment anything above it was

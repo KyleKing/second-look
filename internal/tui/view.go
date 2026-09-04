@@ -392,7 +392,29 @@ func (m *Model) rowBody(r row, width int) string {
 		style = m.styles.behind
 	}
 
+	if r.kind == rowFile {
+		return m.ruledFile(text, width)
+	}
+
 	return style.Render(cut(text, width))
+}
+
+// ruleFloor is the shortest run of rule worth drawing. A file heading that
+// nearly fills the frame ends at its name rather than at a dash or two.
+const ruleFloor = 4
+
+// ruledFile is a file heading with a rule out to the frame's edge. A file is
+// the largest boundary the screen draws and one that stops where its name stops
+// does not read as a boundary at all.
+func (m *Model) ruledFile(text string, width int) string {
+	head := m.styles.file.Render(cut(text, width))
+
+	rest := width - textWidth(text) - 1
+	if rest < ruleFloor {
+		return head
+	}
+
+	return head + m.styles.hunk.Render(" "+strings.Repeat("\u2500", rest))
 }
 
 func (m *Model) rowContent(r row) (string, lipgloss.Style) {

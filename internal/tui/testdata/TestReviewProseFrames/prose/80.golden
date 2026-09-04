@@ -17,7 +17,7 @@ kyleking/jj-diff #42                0% · on head · 0 ready · 0 draft · 0 ski
       ┃       source                                                           ┃
                                                                                ┃
  internal/vcs  2 files · 2 hunks                                               │
-   internal/vcs/diff.go                                                        │
+   internal/vcs/diff.go ───────────────────────────────────────────────────────│
    @@ -14,6 +14,7 @@ func Parse(r io.Reader) ([]Hunk, error) {                 │
   14       first := 1                                                          │
   15 -     lines := split(r)                                                   │

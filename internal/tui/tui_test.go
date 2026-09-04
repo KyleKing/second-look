@@ -982,8 +982,10 @@ func TestSideBySidePairsAnEditOntoOneRow(t *testing.T) {
 	}
 
 	// package main is line 1 of both files; func run is line 3 of the old and 4
-	// of the new, because a line was added above it.
-	for _, want := range []string{"1 ", "3 ", "4 "} {
+	// of the new, because a line was added above it. Each number is looked for
+	// against the rule that closes its gutter, so a number in the code itself
+	// cannot answer for one.
+	for _, want := range []string{"1\u2502", "3\u2502", "4\u2502"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("no half carries a line numbered %q:\n%s", want, frame)
 		}

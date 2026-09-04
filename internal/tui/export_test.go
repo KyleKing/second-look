@@ -1,6 +1,10 @@
 package tui
 
-import "image/color"
+import (
+	"image/color"
+
+	"github.com/kyleking/aragonite/tui/theme"
+)
 
 // Frame returns one rendered screen, so a test can check the layout without a
 // terminal.
@@ -45,14 +49,16 @@ func (l *List) CursorKey() string {
 // WantsCheckout is C, which the caller answers once the screen has closed.
 func (m *Model) WantsCheckout() bool { return m.checkout }
 
-// BandColors is the four backgrounds the rich renderer paints a change with, at
-// the depths a terminal of the given kind gets, so a test can check the terminal
-// can actually tell them apart.
-func BandColors(millions bool) map[string]color.Color {
-	p := newStyles().palette
+// DiffColors is everything a change is drawn out of: the frame the bands sit
+// on, the color the code is written in, and the four backgrounds themselves at
+// the depths a terminal of the given kind gets. A test measures them against
+// each other, which is the only way to know a band says anything.
+func DiffColors(p theme.Palette, millions bool) map[string]color.Color {
 	band, mark := depths(millions)
 
 	return map[string]color.Color{
+		"page":         p.Base,
+		"text":         p.Text,
 		"added band":   blend(p.Base, p.Green, band),
 		"removed band": blend(p.Base, p.Red, band),
 		"added mark":   blend(p.Base, p.Green, mark),
