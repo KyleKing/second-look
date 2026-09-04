@@ -48,6 +48,7 @@ type keyMap struct {
 	Skip      key.Binding
 	Todo      key.Binding
 	Dispatch  key.Binding
+	Threads   key.Binding
 	Seen      key.Binding
 	Search    key.Binding
 	List      key.Binding
@@ -105,10 +106,11 @@ func defaultKeyMap() keyMap {
 		Search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 		List:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
 		Renderer:  key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "renderer")),
+		Threads:   key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "conversations")),
 		Order:     key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
 		Fold:      key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
 		Zed:       key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
-		Structure: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "no code changed")),
+		Structure: key.NewBinding(key.WithKeys("W"), key.WithHelp("W", "no code changed")),
 		OnlyNew:   key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "only what is new")),
 		Suggest:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "suggest")),
 		More:      key.NewBinding(key.WithKeys("+"), key.WithHelp("+", "more context")),
@@ -173,10 +175,11 @@ func helpLines() [][2]string {
 		{"tab / shift+tab", "next, previous thing wanting a decision"},
 		{".", "repeat the last change: space, m r/d/x, a fold"},
 		{"c", "the next view: both, the code as it now reads, the comments alone"},
+		{"t", "the conversations already on this pull request, each under the line it answers"},
 		{"v", "the next renderer: plain, rich, side by side, structural; each has a caveat"},
 		{"O", "read in the diff's own order instead of gathered by symbol, and back"},
 		{"w", "hide hunks that change nothing but whitespace, and show them again"},
-		{"t", "hide hunks that change no code at all, comments and re-wraps included"},
+		{"W", "hide hunks that change no code at all, comments and re-wraps included"},
 		{"U", "hide every hunk already marked read, so what is left is what is new since the last pass"},
 		{spaceKey, "mark the hunk read, or the whole file from a file line"},
 		{"m then r / d / t / x", "mark the comment ready, draft, todo, or skipped"},

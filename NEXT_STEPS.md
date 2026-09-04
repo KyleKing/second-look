@@ -259,10 +259,16 @@ file and names it: starting an agent is not something to do on a keystroke nobod
 configured. `second-look todo <pr>` prints the same set, so the loop works from the shell
 as well as from the screen.
 
-Still outstanding: the threads tab taking on what GitHub's conversations list makes
-unreadable, with gh-dash's row density and inbox-style processing of what moved. The
-conversation queue already does most of that job, so what is left is the review screen's
-own threads view rather than a new surface.
+**The threads view** is built, as `t` in the review screen: every open conversation on the
+pull request, each under the line it answers, with the rest of the diff left out. GitHub's
+own list interleaves the diff, so what is still being asked spreads through a page of code
+nobody is rereading; here the code is the one line the thread hangs from, drawn as a line
+of the diff so it keeps its number and its grammar.
+
+It is off the `c` cycle rather than a fourth stop on it, because a conversation is what the
+forge already holds rather than what this pass is staging, and putting it on the cycle
+would have cost the settled one-press return from the comment view to the diff. `t` was the
+syntax-aware whitespace filter, which moved to `W` beside `w`, since `T` is batch dispatch.
 
 ### 6. The session for twenty-five reviews — half done
 
@@ -386,19 +392,18 @@ Linear and other context on a queue row, which is the thing gh-dash cannot do at
 Lockfile cards, which have their own section below. Issues beside pull requests, still
 waiting for a real gap rather than parity.
 
-## Broken today: jj colocated repositories
+## jj colocated repositories — fixed upstream
 
-`second-look <pr>` fails in any repository with a `.jj` directory, including this one:
+`second-look <pr>` used to fail in any repository with a `.jj` directory, including this
+one, because `vcs.HeadSHA` asked `jj log -r 'git_head()'` and jj 0.44 answers "Function
+`git_head` doesn't exist".
 
-```
-opening #2: reading the checkout: resolving the jj git head: running jj: exit status 1
-```
-
-`vcs.HeadSHA` in aragonite asks `jj log -r 'git_head()'`, and jj 0.44 answers
-"Function `git_head` doesn't exist". A colocated repository's `git rev-parse HEAD` is the
-same commit, so the fix is upstream in
-[aragonite](https://github.com/kyleking/aragonite): fall back to git where the revset does
-not resolve, rather than pinning a jj version.
+[aragonite](https://github.com/kyleking/aragonite) v0.11.0 reads a colocated repository
+through its own `.git` instead, which answers the same commit with nothing left to rename
+and does not snapshot the working copy the way every jj command does. A jj repository with
+no `.git` has no commit a code host knows about, so the working copy's first parent stands
+in, which is what jj names as `git_head()`'s replacement. Verified here: `second-look
+reviews` and `second-look show` both read this checkout.
 
 ## Beyond alpha: replace gh-dash
 

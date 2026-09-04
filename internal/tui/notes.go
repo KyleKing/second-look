@@ -65,7 +65,7 @@ func noted(ts []threads.Thread) map[noteAt][]ghmd.Block {
 // threadRows renders one conversation already on GitHub: who said what, in
 // order, under the line it hangs from. It is read-only, and answering it stages
 // a comment in the prepared review like any other.
-func threadRows(t *threads.Thread, index int, path string, numWidth int, lay layout) []row {
+func threadRows(t *threads.Thread, index int, path string, numWidth int, lay layout, where string) []row {
 	s := scribe{
 		at: index, path: path, lay: lay,
 		// bodyIndent is applied after wrapping, so it comes off the width first.
@@ -74,7 +74,7 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 
 	rows := make([]row, 0, len(t.Notes)*2+1)
 	rows = append(rows, row{
-		kind: rowThread, text: "⤷ open thread · " + plural(len(t.Notes), "comment"),
+		kind: rowThread, text: "⤷ " + lead(where) + " · " + plural(len(t.Notes), "comment"),
 		path: path, comment: -1, thread: index, head: true,
 	})
 
@@ -341,4 +341,14 @@ func sectionWord(b *ghmd.Block) string {
 	}
 
 	return plural(len(b.Blocks), "hidden block")
+}
+
+// lead names what a thread head says it is. The diff view draws a thread under
+// the line it answers, so there it says only that it is open.
+func lead(where string) string {
+	if where == "" {
+		return "open thread"
+	}
+
+	return where
 }

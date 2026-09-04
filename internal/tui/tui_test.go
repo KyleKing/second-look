@@ -526,9 +526,9 @@ func TestCosmeticHunksFoldAway(t *testing.T) {
 
 	// The pass costs a subprocess per hunk side, which is more than the shared
 	// helper's patience, so the command is waited on here.
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'W', Text: "W"})
 	if cmd == nil {
-		t.Fatal("t started no structural pass")
+		t.Fatal("W started no structural pass")
 	}
 
 	m.Update(cmd())
@@ -543,13 +543,13 @@ func TestCosmeticHunksFoldAway(t *testing.T) {
 	}
 
 	if !strings.Contains(frame, "return 1") {
-		t.Errorf("t hid a hunk that changes something:\n%s", frame)
+		t.Errorf("W hid a hunk that changes something:\n%s", frame)
 	}
 
-	pressKey(m, 't')
+	pressKey(m, 'W')
 
 	if !strings.Contains(plain(m.Frame()), "new wording") {
-		t.Error("t did not bring the hunk back")
+		t.Error("W did not bring the hunk back")
 	}
 }
 
@@ -1061,13 +1061,13 @@ func TestStructuralNamesWhatEachHunkTouched(t *testing.T) {
 
 	// The pass costs a subprocess per hunk side, which is more than the shared
 	// helper's patience, so the command is waited on here.
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'W', Text: "W"})
 	if cmd == nil {
-		t.Fatal("t started no structural pass")
+		t.Fatal("W started no structural pass")
 	}
 
 	m.Update(cmd())
-	pressKey(m, 't')
+	pressKey(m, 'W')
 
 	for range 3 {
 		pressKey(m, 'v')
@@ -1128,13 +1128,13 @@ func TestStructuralDoesNotCallARewriteAMove(t *testing.T) {
 	m, _, _ := fixtureWith(t, patch)
 	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
 
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'W', Text: "W"})
 	if cmd == nil {
-		t.Fatal("t started no structural pass")
+		t.Fatal("W started no structural pass")
 	}
 
 	m.Update(cmd())
-	pressKey(m, 't')
+	pressKey(m, 'W')
 
 	for range 3 {
 		pressKey(m, 'v')
@@ -1358,13 +1358,13 @@ func gathered(t *testing.T, patch string) *tui.Model {
 
 	// The pass costs a subprocess per hunk side, which is more than the shared
 	// helper's patience, so the command is waited on here.
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'W', Text: "W"})
 	if cmd == nil {
-		t.Fatal("t started no structural pass")
+		t.Fatal("W started no structural pass")
 	}
 
 	m.Update(cmd())
-	pressKey(m, 't')
+	pressKey(m, 'W')
 
 	return m
 }

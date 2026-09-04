@@ -8,9 +8,14 @@ import (
 	"github.com/kyleking/second-look/internal/threads"
 )
 
-// viewMode is which of the three the screen is showing. They are the same rows
+// viewMode is which of the four the screen is showing. They are the same rows
 // in every case, so every motion, the search, and every action work in all
-// three unchanged.
+// four unchanged.
+//
+// Only the first three are a cycle. The conversations are what the forge
+// already holds rather than what this pass is staging, which is a different
+// axis from how the change itself is drawn, so t reaches them and c leaves
+// them alone.
 type viewMode int
 
 const (
@@ -21,11 +26,15 @@ const (
 	viewCode
 	// What will post, by file, with the diff left out.
 	viewComments
+	// Every open conversation on the pull request, each under the line it
+	// anchors to, with the rest of the diff left out.
+	viewThreads
 )
 
-// next cycles the views: both, then the code, then the comments.
+// next cycles the views: both, the code, then the comments. The conversations
+// are off the cycle, so leaving them goes back to the diff.
 func (v viewMode) next() viewMode {
-	if v == viewComments {
+	if v == viewComments || v == viewThreads {
 		return viewDiff
 	}
 
@@ -38,6 +47,8 @@ func (v viewMode) String() string {
 		return "code"
 	case viewComments:
 		return "comments"
+	case viewThreads:
+		return "threads"
 	case viewDiff:
 	}
 

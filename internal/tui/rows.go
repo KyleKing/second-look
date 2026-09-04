@@ -249,7 +249,7 @@ func (s screen) hanger(
 		// What is already on GitHub comes before what this pass is adding, so a
 		// comment reads as an answer to the conversation above it.
 		for _, t := range byThread[a] {
-			out = append(out, threadRows(&ts[t], t, p, s.numWidth, lay)...)
+			out = append(out, threadRows(&ts[t], t, p, s.numWidth, lay, "")...)
 		}
 
 		run := inRun{of: len(byLine[a])}

@@ -226,11 +226,11 @@ piped run never has its working tree moved.
 `P` posts one comment on its own for the thing that should not wait, and
 `second-look post 42 --only <id>` does the same from the shell.
 
-`w` hides hunks that change nothing but whitespace, and says how many it hid. `t`
+`w` hides hunks that change nothing but whitespace, and says how many it hid. `W`
 hides every hunk a parser says changed no code, so a re-wrap across lines and a
 reworded comment go too. That needs [ast-grep](https://ast-grep.github.io) on the
 path, because every tree-sitter binding for Go needs cgo and the release builds
-ten platforms without it; `t` says so when it is missing and `w` never needs it.
+ten platforms without it; `W` says so when it is missing and `w` never needs it.
 
 The same pass rates the change, which is the `cost` in the title bar. A signature
 change outweighs anything a body does, because every caller of the symbol is in
@@ -249,6 +249,13 @@ stands as one line saying how much came out and a comment stands as one row, bot
 `za` opens where they are, because a +/- pair leaves working out what the code now says to
 the reader and four comments on one hunk bury it. The comments are what will post, by file. The cursor keeps
 its comment across the change.
+
+`t` is the fourth view and is off that cycle: every open conversation on the pull request,
+each under the line it answers, with the rest of the diff left out. A conversation is what
+the forge already holds rather than what this pass is staging, which is a different axis
+from how the change itself is drawn, so a second `t` goes back to the diff however the view
+was reached. GitHub's own list interleaves the diff, which spreads what is still being
+asked through a page of code nobody is rereading.
 
 Hunks are gathered by symbol rather than left in the diff's order. A group is a symbol
 some hunk declares together with every hunk that calls it, wherever in the diff they came

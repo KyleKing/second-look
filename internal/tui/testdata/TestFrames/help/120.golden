@@ -9,10 +9,11 @@ kyleking/jj-diff #42                                                        0% Â
            tab / shift+tab  next, previous thing wanting a decision
                          .  repeat the last change: space, m r/d/x, a fold
                          c  the next view: both, the code as it now reads, the comments alone
+                         t  the conversations already on this pull request, each under the line it answers
                          v  the next renderer: plain, rich, side by side, structural; each has a caveat
                          O  read in the diff's own order instead of gathered by symbol, and back
                          w  hide hunks that change nothing but whitespace, and show them again
-                         t  hide hunks that change no code at all, comments and re-wraps included
+                         W  hide hunks that change no code at all, comments and re-wraps included
                          U  hide every hunk already marked read, so what is left is what is new since the last pass
                      space  mark the hunk read, or the whole file from a file line
       m then r / d / t / x  mark the comment ready, draft, todo, or skipped
@@ -20,5 +21,4 @@ kyleking/jj-diff #42                                                        0% Â
                     ctrl+t  while writing: swap in the version an agent wrote under you, and back
                     ctrl+n  while writing: complete the word from the files, symbols, and people in this review
       z then a / i / R / M  fold what is here, or all of it; invert; open all; fold to the file names
-  a then b / m / n / t / ?  write a comment on this line, ranked blocker to question
  [j/k] line  []] go to  [c]ode  writ[e]  [S]ubmit  [?] help  [q]uit

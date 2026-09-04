@@ -930,6 +930,32 @@ func (m *Model) peek(step int) bool {
 	return true
 }
 
+// showThreads opens the conversations, and a second press leaves them.
+//
+// It is off the view cycle, so what it goes back to is the diff however it was
+// reached.
+func (m *Model) showThreads() {
+	was := m.view
+
+	m.view = viewThreads
+	if was == viewThreads {
+		m.view = viewDiff
+	}
+
+	m.rebuild()
+
+	m.cursor = 0
+	m.reveal()
+
+	if m.view == viewDiff {
+		m.say("the diff", false)
+
+		return
+	}
+
+	m.say(m.view.String(), false)
+}
+
 // cycleView walks the three views, keeping the cursor on the same comment
 // across the change. Losing your place is what makes another view a detour
 // rather than a shortcut.
@@ -1268,6 +1294,8 @@ func (m *Model) reshapes(msg tea.KeyPressMsg) bool {
 		m.setFold(foldWhitespace)
 	case key.Matches(msg, m.keys.OnlyNew):
 		m.narrow()
+	case key.Matches(msg, m.keys.Threads):
+		m.showThreads()
 	default:
 		return false
 	}
@@ -1946,6 +1974,8 @@ func (m *Model) rebuild() {
 		m.screen = buildList(m.review, m.diff, lay)
 	case viewCode:
 		m.screen = buildCode(m.review, m.diff, m.threads, lay)
+	case viewThreads:
+		m.screen = buildThreads(m.diff, m.threads, lay)
 	case viewDiff:
 		m.screen = build(m.review, m.diff, m.threads, lay)
 	}
