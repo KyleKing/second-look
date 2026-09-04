@@ -2,7 +2,8 @@
 
 What is open, in the order it wants doing. Why the tool is shaped the way it is lives in
 [requirements.md](requirements.md), the screens and the keymap in [DESIGN.md](DESIGN.md),
-and what shipped in which release in [CHANGELOG.md](CHANGELOG.md). This file holds only
+the motion a whole sitting follows in [FLOW.md](FLOW.md), and what shipped in which
+release in [CHANGELOG.md](CHANGELOG.md). This file holds only
 what nobody has built yet, plus the decisions that are waiting on a week of use rather
 than on code.
 
@@ -71,6 +72,13 @@ This is the largest refactor on the list and it takes away the thing every pty t
 every scene relies on, which is that the review screen runs on its own. Take it first
 anyway, because the alternative is building five features against a handoff that is about
 to go.
+
+[FLOW.md](FLOW.md) is what the shell is for: the whole motion from opening the queue to
+posting the last review, one repository at a time. Three of its eight steps are unbuilt,
+and each of them is a thing the shell either enables or is not worth doing without.
+Focusing one repository, leasing a checkout for it, and holding one resumable Claude Code
+session per pull request are the three, and the last of them is where the notification
+boundary finally has a source.
 
 ### 4. A lockfile is not a diff worth reading
 
