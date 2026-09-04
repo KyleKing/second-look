@@ -781,3 +781,34 @@ func TestFocusNarrowsEveryQueueAndSurvivesAHandoff(t *testing.T) {
 
 	shows(t, after, []string{"belongs to no repository", "kyleking/wavez#7"}, nil)
 }
+
+// A conversation queue holds three kinds of row, and answering a review thread
+// is different work from answering a comment on the pull request itself. The
+// rows' own words cannot tell them apart: "review" appears in half of them.
+func TestTheFilterKeepsOneKindOfRow(t *testing.T) {
+	t.Parallel()
+
+	sections := func() []tui.Section {
+		return []tui.Section{{Name: "your conversations", Rows: []tui.Row{
+			{Key: "a", Left: "kyleking/tlr#118", Kind: "thread", Tail: "alice  add a TTL to the pool"},
+			{Key: "b", Left: "kyleking/tlr#118", Kind: "comment", Tail: "bob  the review body says"},
+			{Key: "c", Left: "kyleking/wavez#7", Kind: "review", Tail: "carol  pool leases"},
+		}}}
+	}
+
+	l := tui.NewList("second-look conversations", sections,
+		func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil })
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+
+	typeList(l, "/kind:thread")
+	shows(t, l, []string{"kyleking/tlr#118", "showing 1 of 3"}, []string{"kyleking/wavez#7"})
+
+	// A kind and a word narrow at once, and the kind is not matched as text.
+	l.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	typeList(l, "/kind:comment pool")
+	shows(t, l, []string{"showing 0 of 3"}, nil)
+
+	l.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	typeList(l, "/kind:review pool")
+	shows(t, l, []string{"kyleking/wavez#7", "showing 1 of 3"}, []string{"kyleking/tlr#118"})
+}

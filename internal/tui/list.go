@@ -20,6 +20,10 @@ type Row struct {
 	Left string
 	Mid  string
 	Age  string
+	// Kind is what sort of row this is, matched by a kind: word in the filter.
+	// A queue of conversations holds three kinds, and answering a review thread
+	// is different work from answering a comment on the pull request itself.
+	Kind string
 	// Repo is the repository the row belongs to, which is what focus narrows
 	// on. A row standing for something other than a pull request carries none.
 	Repo string

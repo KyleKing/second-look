@@ -12,6 +12,7 @@ import (
 	"github.com/kyleking/second-look/internal/conversations"
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
+	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/resolve"
 	"github.com/kyleking/second-look/internal/tui"
 )
@@ -38,6 +39,10 @@ type threadsScreen struct {
 	// reading as a queue with nothing in it.
 	waiting bool
 	failed  error
+	// local is what this laptop already holds for each pull request, read off
+	// disk when the queue opens. A thread on a pull request with a review
+	// staged here is work already started, which is what the inbox says too.
+	local map[string]inbox.Known
 }
 
 // newThreadsScreen reads the read marks, which are local, and leaves the queue
@@ -71,6 +76,7 @@ type queueMsg struct {
 // opens now and a tab nobody switches to that costs nothing.
 func (s *threadsScreen) Start() tea.Cmd {
 	s.waiting = true
+	s.local = localKnowledge()
 
 	return func() tea.Msg {
 		queue, err := conversations.Fetch(s.ctx, ".", conversations.DefaultLimit)
@@ -131,7 +137,8 @@ var threadsHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	{"o", "open it on GitHub"},
 	{refreshKey, "read the queue again"},
 }, helpLeave(), prose(
-	"● marks a conversation that moved since you last read it.",
+	"● marks a conversation that moved since you last read it, and a second ●",
+	"before the author says a review of that pull request is already staged here.",
 	"A reply is staged into that pull request's prepared review and posts with it,",
 	"so r leaves the queue and opens the review screen for it. Any repository will",
 	"do, cloned here or not: gh-repo-dashboard says which clones are on this laptop,",
@@ -182,9 +189,10 @@ func (s *threadsScreen) sections() []tui.Section {
 				Key:    c.Key(),
 				Left:   c.Where(),
 				Repo:   c.Repository,
+				Kind:   string(c.Kind),
 				Mid:    c.Anchor(),
 				Age:    humanize.Ago(c.Updated(), now),
-				Tail:   tail(c),
+				Tail:   holding(s.local[c.Where()]) + tail(c),
 				Under:  humanize.FirstLine(c.Last().Body),
 				Unread: !s.looked.Since(c),
 				Detail: detail(c),
