@@ -56,6 +56,17 @@ type Outcome struct {
 // rest of the review is still staged.
 type Sender func(ctx context.Context, r *artifact.Review, id string) (string, error)
 
+// Reactor leaves an emoji on a comment, or takes it back when mine says it is
+// already yours. It is a seam like the rest: the screen decides what to react
+// to and nothing about how the forge is reached.
+type Reactor func(ctx context.Context, nodeID, content string, mine bool) error
+
+// WithReactor allows reacting from inside the screen. Without one, the key says
+// so rather than appearing to work.
+func WithReactor(r Reactor) Option {
+	return func(m *Model) { m.reactor = r }
+}
+
 // Merger merges the pull request under review. It is a separate seam from
 // Submitter because it is a different consequence: a review can be taken back
 // by deleting it on GitHub and a merge cannot.

@@ -38,11 +38,38 @@ type response struct {
 
 //nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 type comment struct {
+	NodeID     string `json:"id"`
 	DatabaseID int64  `json:"databaseId"`
 	Body       string `json:"body"`
 	Author     struct {
 		Login string `json:"login"`
 	} `json:"author"`
+	ReactionGroups []struct {
+		Content          string `json:"content"`
+		ViewerHasReacted bool   `json:"viewerHasReacted"`
+		Reactors         struct {
+			TotalCount int `json:"totalCount"`
+		} `json:"reactors"`
+	} `json:"reactionGroups"`
+}
+
+// note is the comment as this package answers it, with the reactions nobody
+// left dropped: GitHub answers a group for every emoji whether or not anyone
+// used it.
+func (c *comment) note() Note {
+	out := Note{ID: c.DatabaseID, NodeID: c.NodeID, Author: c.Author.Login, Body: c.Body}
+
+	for _, g := range c.ReactionGroups {
+		if g.Reactors.TotalCount == 0 {
+			continue
+		}
+
+		out.Reactions = append(out.Reactions, Reaction{
+			Content: g.Content, Count: g.Reactors.TotalCount, Mine: g.ViewerHasReacted,
+		})
+	}
+
+	return out
 }
 
 //nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
@@ -82,7 +109,7 @@ func (r *response) about() About {
 	}
 
 	for _, c := range pr.Comments.Nodes {
-		out.Comments = append(out.Comments, Note{ID: c.DatabaseID, Author: c.Author.Login, Body: c.Body})
+		out.Comments = append(out.Comments, c.note())
 	}
 
 	return out
@@ -100,7 +127,7 @@ func (r *response) threads() []Thread {
 
 		t := Thread{Path: n.Path, Side: n.DiffSide, Line: n.Line}
 		for _, c := range n.Comments.Nodes {
-			t.Notes = append(t.Notes, Note{ID: c.DatabaseID, Author: c.Author.Login, Body: c.Body})
+			t.Notes = append(t.Notes, c.note())
 		}
 
 		out = append(out, t)

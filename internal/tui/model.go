@@ -93,6 +93,7 @@ type Model struct {
 	wrote   stamp
 	submit  Submitter
 	send    Sender
+	reactor Reactor
 	merge   Merger
 	head    HeadCheck
 	browser Opener
@@ -571,6 +572,21 @@ func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	return nil, false
 }
 
+// overlayKey answers the two keys that put something over the diff: the legend
+// and what the pull request says about itself. Neither changes the review.
+func (m *Model) overlayKey(msg tea.KeyPressMsg) bool {
+	switch {
+	case key.Matches(msg, m.keys.Help):
+		m.help = !m.help
+	case key.Matches(msg, m.keys.About):
+		m.aboutOpen, m.aboutAt = true, 0
+	default:
+		return false
+	}
+
+	return true
+}
+
 // mode handles the keys that change what the screen is showing rather than what
 // the review says, and reports whether one of them matched.
 func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
@@ -587,10 +603,7 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		}
 
 		return true, m, tea.Quit
-	case key.Matches(msg, m.keys.Help):
-		m.help = !m.help
-	case key.Matches(msg, m.keys.About):
-		m.aboutOpen, m.aboutAt = true, 0
+	case m.overlayKey(msg):
 	case key.Matches(msg, m.keys.More), key.Matches(msg, m.keys.Less):
 		by := step
 		if key.Matches(msg, m.keys.Less) {
@@ -610,6 +623,10 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		m.pending = 'm'
 
 		m.say(m.chord("m", states()), false)
+	case key.Matches(msg, m.keys.React):
+		m.pending = ','
+
+		m.say(m.chord(",", reactObjects()), false)
 	case key.Matches(msg, m.keys.Search):
 		cmd := m.begin()
 
@@ -667,6 +684,10 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.submitAs(msg)
 	case 'H':
 		m.sinceRound(msg.String())
+
+		return m, nil
+	case ',':
+		m.reactTo(msg)
 
 		return m, nil
 	case 'm':
@@ -775,6 +796,8 @@ func (m *Model) foldHere(open bool) {
 	switch {
 	case r.kind == rowTurn:
 		m.folded.turns[r.comment] = open
+	case r.kind == rowThread && r.head:
+		m.folded.threads[r.thread] = !open
 	case r.kind == rowThread:
 		at, ok := foldKey(r)
 		if !ok {
@@ -810,6 +833,8 @@ func (m *Model) openHere() bool {
 	switch {
 	case r.kind == rowTurn:
 		return m.folded.turns[r.comment]
+	case r.kind == rowThread && r.head:
+		return !m.folded.threads[r.thread]
 	case r.kind == rowThread:
 		at, ok := foldKey(r)
 
@@ -879,6 +904,10 @@ func (m *Model) foldAll(open bool) {
 	if !open {
 		for i := range m.diff.Files {
 			m.folded.files[filePath(&m.diff.Files[i])] = true
+		}
+
+		for i := range m.threads {
+			m.folded.threads[i] = true
 		}
 	}
 

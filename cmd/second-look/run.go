@@ -28,6 +28,7 @@ import (
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/prepared"
+	"github.com/kyleking/second-look/internal/react"
 	"github.com/kyleking/second-look/internal/skill"
 	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
@@ -263,6 +264,7 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 		tui.WithThreads(opened.Threads), tui.WithAbout(opened.About),
 		tui.WithSeen(opened.Read, opened.SeenPath),
 		tui.WithSender(sender(t, opened.Path, &log)), tui.WithTree(tree(opened)),
+		tui.WithReactor(reactor(t)),
 		tui.WithMerger(merger(t)), tui.WithStore(t.Store), tui.WithOpener(opener(t)),
 		// A config that will not parse leaves the built-in patterns rather than
 		// stopping a review, the same as it leaves the built-in buckets.
@@ -1100,5 +1102,19 @@ func restager(t get.Target) tui.Restager {
 			Review: opened.Review, Diff: opened.Diff, Threads: opened.Threads,
 			Read: opened.Read, HeadSHA: opened.Review.HeadSHA,
 		}, nil
+	}
+}
+
+// reactor leaves an emoji on a comment from inside the review screen. The
+// mutation is addressed by node id, so it needs nothing from the checkout but a
+// directory to run gh in.
+func reactor(t get.Target) tui.Reactor {
+	return func(ctx context.Context, nodeID, content string, mine bool) error {
+		e, ok := react.ByContent(content)
+		if !ok {
+			return fmt.Errorf("%w: %s", react.ErrNoSuchEmoji, content)
+		}
+
+		return react.Set(ctx, ghrun.GH(), t.Dir(), nodeID, e, mine)
 	}
 }

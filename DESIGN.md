@@ -371,7 +371,7 @@ Layered so the footer stays short.
 | Fold | `z` then `a` here, `i` invert all, `R` open all, `M` to the file names |
 | Queue | `1`/`2`/`3` and `]`/`[` the tab, `tab` the next group, `f`/`F` focus one repository |
 | View | `-` file overlay, `g` context pane, `s` split, `w` whitespace, `t` syntax-aware |
-| Thread | `ctrl+j`/`ctrl+k` scroll, `tab` complete, `r` reply, `R` resolve |
+| Thread | `ctrl+j`/`ctrl+k` scroll, `tab` complete, `r` reply, `R` resolve, `,` then an emoji reacts, `z` then `a` folds the conversation |
 
 `space` marks the hunk under the cursor seen and advances, because marking and moving on
 are one motion in practice.

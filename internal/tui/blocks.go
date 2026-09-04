@@ -70,6 +70,10 @@ type folded struct {
 	skips map[anchor]bool
 	files map[string]bool
 	gone  map[goneAt]bool
+	// threads is a whole conversation folded to its heading by hand. It is the
+	// one fold whose default depends on nothing: a thread is drawn in full
+	// until somebody puts it away.
+	threads map[int]bool
 	// blocks default the same way turns do. A <details> is collapsed on the web
 	// and a screenful of tool output between two sentences is worse in a
 	// terminal than it is there, so both stay shut until somebody asks.
@@ -81,6 +85,7 @@ func newFolded() folded {
 		notes: folds{}, turns: map[int]bool{}, hunks: map[hunkAt]bool{},
 		skips: map[anchor]bool{}, files: map[string]bool{},
 		gone: map[goneAt]bool{}, blocks: map[blockAt]bool{},
+		threads: map[int]bool{},
 	}
 }
 

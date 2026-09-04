@@ -18,9 +18,24 @@ import (
 type Note struct {
 	// ID is the REST database id, which is what in_reply_to takes. The GraphQL
 	// node id names the same comment and the replies endpoint refuses it.
-	ID     int64  `json:"id"`
-	Author string `json:"author"`
-	Body   string `json:"body"`
+	ID int64 `json:"id"`
+	// NodeID is the GraphQL id addReaction takes. A review comment has no REST
+	// reactions endpoint worth using and a review body has none at all, so the
+	// node id is what a reaction needs.
+	NodeID    string     `json:"node_id,omitempty"`
+	Author    string     `json:"author"`
+	Body      string     `json:"body"`
+	Reactions []Reaction `json:"reactions,omitempty"`
+}
+
+// Reaction is one emoji left on a comment, how many people left it, and whether
+// you are one of them. Seeing your own is what stops a second sitting leaving a
+// second thumbs-up on the same finding.
+type Reaction struct {
+	// Content is GitHub's name for the emoji (THUMBS_UP, EYES).
+	Content string `json:"content"`
+	Count   int    `json:"count"`
+	Mine    bool   `json:"mine"`
 }
 
 // About is the pull request's own context: what the change is called, who wrote
@@ -92,7 +107,10 @@ const query = `query($owner:String!,$repo:String!,$number:Int!){
       deletions
       author{login}
       labels(first:20){nodes{name}}
-      comments(last:20){nodes{databaseId body author{login}}}
+      comments(last:20){nodes{
+        id databaseId body author{login}
+        reactionGroups{content viewerHasReacted reactors{totalCount}}
+      }}
       reviewThreads(first:100){
         nodes{
           isResolved
@@ -100,7 +118,10 @@ const query = `query($owner:String!,$repo:String!,$number:Int!){
           path
           line
           diffSide
-          comments(first:50){nodes{databaseId body author{login}}}
+          comments(first:50){nodes{
+            id databaseId body author{login}
+            reactionGroups{content viewerHasReacted reactors{totalCount}}
+          }}
         }
       }
     }

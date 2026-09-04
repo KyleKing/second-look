@@ -2586,3 +2586,106 @@ func TestTheContextOverlaySaysWhenNothingWasCached(t *testing.T) {
 		t.Errorf("the overlay does not say how to read the context:\n%s", got)
 	}
 }
+
+// A second sitting used to leave a second thumbs-up on the same finding,
+// because nothing on screen said the first one was yours. So the reaction is
+// drawn with a mark, and the same key takes it back rather than repeating a
+// mutation GitHub refuses.
+func TestReactingToAConversationAndTakingItBack(t *testing.T) {
+	t.Parallel()
+
+	type left struct {
+		node, content string
+		mine          bool
+	}
+
+	var sent []left
+
+	open := threads.Thread{
+		Path: parsed, Side: artifact.SideRight, Line: 15,
+		Notes: []threads.Note{{
+			ID: 77, NodeID: "PRRC_1", Author: "coderabbitai", Body: "wrap the error",
+			Reactions: []threads.Reaction{{Content: "EYES", Count: 1}},
+		}},
+	}
+
+	_, path, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 14, "check err"))
+	m := tui.New(t.Context(), reviewAt(t, path), diff.Parse([]byte(patch)), path,
+		func(context.Context, *artifact.Review) (string, error) { return "", nil },
+		tui.WithThreads([]threads.Thread{open}),
+		tui.WithReactor(func(_ context.Context, node, content string, mine bool) error {
+			sent = append(sent, left{node: node, content: content, mine: mine})
+
+			return nil
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	go2(m, ']', 't')
+
+	// Somebody else's reaction is on screen and carries no mark.
+	if got := plain(m.Frame()); !strings.Contains(got, "👀 1") || strings.Contains(got, "👀 1 ✓") {
+		t.Fatalf("the reaction already on the comment is not drawn as somebody else's:\n%s", got)
+	}
+
+	go2(m, ',', 't')
+
+	if len(sent) != 1 || sent[0].node != "PRRC_1" || sent[0].content != "THUMBS_UP" || sent[0].mine {
+		t.Fatalf("the mutation was %+v", sent)
+	}
+
+	if got := plain(m.Frame()); !strings.Contains(got, "👍 1 ✓") {
+		t.Errorf("your own reaction is not marked as yours:\n%s", got)
+	}
+
+	// The same key again undoes it, since addReaction refuses a duplicate.
+	go2(m, ',', 't')
+
+	if len(sent) != 2 || !sent[1].mine {
+		t.Fatalf("the second press did not take it back: %+v", sent)
+	}
+
+	// The footer says what was undone; the comment no longer carries a count.
+	if got := plain(m.Frame()); strings.Contains(got, "👍 1") {
+		t.Errorf("the reaction taken back is still drawn:\n%s", got)
+	}
+
+	// A key that names no emoji says which ones do.
+	go2(m, ',', 'q')
+}
+
+// za on a conversation's heading puts the whole thing away, and the heading
+// says how much it is holding back: a folded thread that looks like an open one
+// is a thread nobody trusts is complete.
+func TestFoldingAConversationSaysSo(t *testing.T) {
+	t.Parallel()
+
+	open := threads.Thread{
+		Path: parsed, Side: artifact.SideRight, Line: 15,
+		Notes: []threads.Note{
+			{ID: 77, Author: "coderabbitai", Body: "wrap the error with the path"},
+			{ID: 78, Author: "KyleKing", Body: "agreed"},
+		},
+	}
+
+	_, path, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 14, "check err"))
+	m := tui.New(t.Context(), reviewAt(t, path), diff.Parse([]byte(patch)), path,
+		func(context.Context, *artifact.Review) (string, error) { return "", nil },
+		tui.WithThreads([]threads.Thread{open}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	go2(m, ']', 't')
+	go2(m, 'z', 'a')
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "folded") || strings.Contains(frame, "wrap the error") {
+		t.Fatalf("the conversation is not folded, or does not say it is:\n%s", frame)
+	}
+
+	go2(m, 'z', 'a')
+
+	if got := plain(m.Frame()); !strings.Contains(got, "wrap the error") {
+		t.Errorf("za did not put the conversation back:\n%s", got)
+	}
+}

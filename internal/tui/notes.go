@@ -72,17 +72,35 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 		avail: proseCols(lay.width, numWidth) - bodyIndent,
 	}
 
-	rows := make([]row, 0, len(t.Notes)*2+1)
-	rows = append(rows, row{
+	head := row{
 		kind: rowThread, text: "⤷ " + lead(where) + " · " + plural(len(t.Notes), "comment"),
 		path: path, comment: -1, thread: index, head: true,
-	})
+	}
+
+	rows := make([]row, 0, len(t.Notes)*2+1)
+	rows = append(rows, head)
 
 	for i := range t.Notes {
 		rows = append(rows, row{
 			kind: rowThread, text: "@" + t.Notes[i].Author, path: path, comment: -1, thread: index,
 		})
 		rows = append(rows, s.note(i)...)
+
+		if line := reactionLine(&t.Notes[i]); line != "" {
+			rows = append(rows, row{
+				kind: rowThread, text: line, path: path, comment: -1, thread: index,
+			})
+		}
+	}
+
+	// A folded conversation says so and says how much it is holding back, since
+	// a heading that looks the same either way is one nobody trusts.
+	if lay.fold.threads[index] {
+		head.text = arrow(false) + " " + lead(where) + " · " +
+			plural(len(t.Notes), "comment") + " · " + plural(len(rows)-1, "line") + " folded"
+		head.folded = true
+
+		return []row{head}
 	}
 
 	return rows

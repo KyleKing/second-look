@@ -70,6 +70,7 @@ type keyMap struct {
 	Submit    key.Binding
 	Open      key.Binding
 	Merge     key.Binding
+	React     key.Binding
 	About     key.Binding
 	Help      key.Binding
 	// Back leaves whatever has the keyboard without leaving the screen. It is
@@ -128,6 +129,7 @@ func defaultKeyMap() keyMap {
 		Submit:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
 		Open:      key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "on GitHub")),
 		Merge:     key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
+		React:     key.NewBinding(key.WithKeys(","), key.WithHelp(",", "react")),
 		About:     key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "context")),
 		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
@@ -232,6 +234,10 @@ func helpGroups() []helpGroup {
 			{"ctrl+t", "while writing: swap in the version an agent wrote under you, and back"},
 			{"ctrl+n", "while writing: complete the word from the files, symbols, and people in this review"},
 			{"T", "write out every todo comment for an agent, and run the dispatch command if one is set"},
+		}},
+		{"conversations", [][2]string{
+			{", then t / d / l / p / c / h / r / e", "react 👍 👎 😄 🎉 😕 ❤️ 🚀 👀; the same key again takes it back"},
+			{"z then a", "fold the whole conversation away, and put it back"},
 		}},
 		{"the pull request", [][2]string{
 			{refreshKey, "take a head that moved: prepare the review again against it, keeping what is read"},
