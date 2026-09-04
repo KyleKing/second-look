@@ -12,6 +12,7 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/prepared"
 )
 
 // howManyAhead is how far ahead of the cursor the queue prepares by default.
@@ -150,4 +151,54 @@ func (s *inboxScreen) readyWord() string {
 
 func keyOf(p *inbox.PullRequest) string {
 	return artifact.RatingKey(p.Repository, p.Number)
+}
+
+// prunePrefetched discards the reviews this session staged ahead that the queue
+// no longer holds, which is what a row that merged or was reviewed elsewhere
+// leaves behind.
+//
+// Only what this session staged and nobody has written into goes. A review
+// carrying a comment, a body, or a note is work however it got there, and
+// losing it would be far worse than keeping a stale one.
+func (s *inboxScreen) prunePrefetched() {
+	if len(s.fetched) == 0 {
+		return
+	}
+
+	rows, err := staged()
+	if err != nil {
+		return
+	}
+
+	holds := s.inTheQueue()
+
+	for i := range rows {
+		r := &rows[i]
+		key := artifact.RatingKey(r.Repository, r.Number)
+
+		if !s.fetched[key] || holds[key] || r.Total() > 0 || r.Body || r.Broken != "" {
+			continue
+		}
+
+		if err := prepared.Discard(r); err == nil {
+			delete(s.fetched, key)
+
+			s.ready = max(0, s.ready-1)
+		}
+	}
+}
+
+// inTheQueue is every pull request the searches answered with, which is what a
+// prefetched review has to still be one of to be worth keeping.
+func (s *inboxScreen) inTheQueue() map[string]bool {
+	out := map[string]bool{}
+
+	for i := range s.buckets {
+		items := s.buckets[i].Items
+		for j := range items {
+			out[keyOf(&items[j])] = true
+		}
+	}
+
+	return out
 }

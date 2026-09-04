@@ -297,6 +297,8 @@ func (s *inboxScreen) absorbBucket(answered bucketMsg) tea.Cmd {
 		return rate
 	}
 
+	s.prunePrefetched()
+
 	return tea.Batch(rate, s.prefetch())
 }
 

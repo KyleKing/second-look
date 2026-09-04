@@ -288,12 +288,22 @@ Leaving a review comes back to the queue rather than ending the session, which i
 cheap half of the navigation the step asks for: quitting the program to reach the next row
 makes the queue a list to consult rather than one to work through.
 
-Still outstanding, and each wants living with before it is built: the session cutoff line,
-reordering rows by hand, holding new and reordered rows out of the sort with a count on
-the tab, notification at a boundary, the recently-opened list, the checkout indicator, and
-the review screen as a view inside the tabbed shell rather than a program the shell hands
-off to. Pruning on action is partly there already, since posting and merging both discard
-what was staged; what is missing is pruning a prefetched review the queue no longer holds.
+Pruning is finished. Posting and merging already discarded what they staged, and a
+prefetched review the queue no longer holds is now discarded once every search has
+answered: a row that merged, or that somebody else reviewed, used to leave one on disk
+forever, invisible until the staged list was opened weeks later. Only what this session
+staged and nobody has written into goes. A review carrying a comment, a body, or a note is
+work however it got there, so it is kept however stale it is, and losing one would be far
+worse than keeping one.
+
+Still outstanding, and each wants living with before it is built, because each encodes a
+decision rather than a gap: the session cutoff line (what defines a session), reordering
+rows by hand and holding the reordered ones out of the sort with a count on the tab (what
+a hand-placed row means when the rating re-sorts under it), notification at a boundary
+(which boundary), the recently-opened list, the checkout indicator (gh-repo-dashboard owns
+disk, so what second-look may say about a clone without duplicating it), and the review
+screen as a view inside the tabbed shell rather than a program the shell hands off to.
+`demo/scene.sh` now opens each queue on seed data, which is where those get argued with.
 
 ### 7. What changed since I read it — the filter and the detection, not the picker
 
