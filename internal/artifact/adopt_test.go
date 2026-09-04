@@ -45,9 +45,10 @@ func TestAdoptMovesAWorkingCopyIntoTheStore(t *testing.T) {
 	}
 }
 
-// A file on both sides is staged work in two places, and picking one would drop
-// the other, so the whole migration stops and neither side is touched.
-func TestAdoptRefusesRatherThanChoosing(t *testing.T) {
+// A file on both sides is staged work in two places and picking one would drop
+// the other, so it stays put. It used to stop the whole migration with it,
+// which hid every other review behind one duplicate.
+func TestAdoptLeavesATwiceStagedFileAndMovesTheRest(t *testing.T) {
 	t.Parallel()
 
 	from, to := t.TempDir(), t.TempDir()
@@ -56,7 +57,7 @@ func TestAdoptRefusesRatherThanChoosing(t *testing.T) {
 	seed(t, filepath.Join(to, artifact.Dir, "pr-2.toml"), "from the store\n")
 	seed(t, filepath.Join(from, artifact.Dir, "pr-3.toml"), "only here\n")
 
-	if err := artifact.Adopt(from, to); !errors.Is(err, artifact.ErrTwoCopies) {
+	if err := artifact.Adopt(from, to); err != nil {
 		t.Fatalf("adopting over a staged review: %v", err)
 	}
 
@@ -64,8 +65,21 @@ func TestAdoptRefusesRatherThanChoosing(t *testing.T) {
 		t.Errorf("the store's copy was overwritten with %q", body)
 	}
 
-	if _, err := os.Stat(filepath.Join(from, artifact.Dir, "pr-3.toml")); err != nil {
-		t.Errorf("the refusal moved something anyway: %v", err)
+	if body := read(t, filepath.Join(from, artifact.Dir, "pr-2.toml")); body != "from the checkout\n" {
+		t.Errorf("the checkout's copy became %q rather than being left alone", body)
+	}
+
+	if _, err := os.Stat(filepath.Join(from, artifact.Dir, "pr-3.toml")); !os.IsNotExist(err) {
+		t.Error("the review with no copy in the store was held back by the duplicate")
+	}
+
+	if body := read(t, filepath.Join(to, artifact.Dir, "pr-3.toml")); body != "only here\n" {
+		t.Errorf("pr-3 reached the store as %q", body)
+	}
+
+	// Saying nothing here is read any more would be wrong while pr-2 still is.
+	if _, err := os.Stat(filepath.Join(from, artifact.Dir, artifact.Pointer)); !os.IsNotExist(err) {
+		t.Error("a directory still holding staged work was marked as moved")
 	}
 }
 

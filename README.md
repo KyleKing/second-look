@@ -228,7 +228,10 @@ with 77 rows where 13 were real.
 Every review, read mark, cached diff, and rating lives in one store under the user state
 directory, keyed by owner, repository, and number, so a pull request read from two clones
 is one review rather than two. An artifact directory left in a working copy is moved there
-the first time that review is opened, and a pointer is left saying where it went.
+the first time that review is opened, and a pointer is left saying where it went. A review
+the store already holds stays in the working copy instead, since two copies of one pull
+request can carry different staged work and overwriting either would lose it; `reviews`
+lists what stayed under "left in a working copy" for a person to settle.
 
 `second-look reviews` lists what is staged, newest first. `enter` opens one. Everything it lists is unfinished, because the artifact is deleted the moment a
 review posts. `d`, twice, throws one away along with the diff, threads, rating, and read

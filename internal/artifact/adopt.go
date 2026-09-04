@@ -16,10 +16,6 @@ import (
 // looks in the checkout and finds the directory nearly empty.
 const Pointer = "WHERE.md"
 
-// ErrTwoCopies reports the same file on both sides of a move. Choosing between
-// them would drop staged work, so the migration stops and names both.
-var ErrTwoCopies = errors.New("this file is staged in both places")
-
 // ErrTwoRepos reports a directory staging reviews for more than one repository,
 // which no single store answers for.
 var ErrTwoRepos = errors.New("reviews here name more than one repository")
@@ -28,8 +24,9 @@ var ErrTwoRepos = errors.New("reviews here name more than one repository")
 // request read from two clones is one review rather than two.
 //
 // It is safe to run on every open: a tree already moved is nothing to move, and
-// a file that exists on both sides stops the whole migration rather than
-// picking one.
+// a file the store already holds stays where it is rather than overwriting a
+// copy that may carry different staged work. What stays keeps the directory
+// live, so `reviews` lists it as a stray for a person to settle by hand.
 func Adopt(from, to string) error {
 	src, dst := filepath.Join(from, Dir), filepath.Join(to, Dir)
 
@@ -37,9 +34,13 @@ func Adopt(from, to string) error {
 		return nil
 	}
 
-	moves, err := movable(src, dst)
-	if err != nil || len(moves) == 0 {
+	moves, kept, err := movable(src, dst)
+	if err != nil {
 		return err
+	}
+
+	if len(moves) == 0 && len(kept) == 0 {
+		return nil
 	}
 
 	if err := ensureDir(dst); err != nil {
@@ -53,6 +54,11 @@ func Adopt(from, to string) error {
 	}
 
 	prune(src)
+
+	// A directory still holding staged work must not say nothing here is read.
+	if len(kept) > 0 {
+		return nil
+	}
 
 	return pointAt(src, to)
 }
@@ -105,10 +111,11 @@ func hostOf(r *Review) string {
 	return r.Host
 }
 
-// movable is every file under src, relative to it, refusing the whole move when
-// one of them is already in the store.
-func movable(src, dst string) ([]string, error) {
-	var out []string
+// movable splits the files under src, relative to it, into the ones to move and
+// the ones the store already holds. One of the second kind used to stop the
+// whole migration, which hid every other review behind a single duplicate.
+func movable(src, dst string) ([]string, []string, error) {
+	var out, kept []string
 
 	err := filepath.WalkDir(src, func(path string, e fs.DirEntry, err error) error {
 		switch {
@@ -130,7 +137,9 @@ func movable(src, dst string) ([]string, error) {
 		}
 
 		if _, err := os.Stat(filepath.Join(dst, rel)); err == nil {
-			return fmt.Errorf("%s and %s: %w", path, filepath.Join(dst, rel), ErrTwoCopies)
+			kept = append(kept, rel)
+
+			return nil
 		}
 
 		out = append(out, rel)
@@ -139,14 +148,14 @@ func movable(src, dst string) ([]string, error) {
 	})
 
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", src, err)
+		return nil, nil, fmt.Errorf("reading %s: %w", src, err)
 	}
 
-	return out, nil
+	return out, kept, nil
 }
 
 // move renames a file, copying it when the two sit on different filesystems.
