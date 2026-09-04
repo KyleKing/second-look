@@ -10,17 +10,22 @@ import (
 	"github.com/kyleking/second-look/internal/threads"
 )
 
-const patch = `diff --git a/pkg/read.go b/pkg/read.go
---- a/pkg/read.go
-+++ b/pkg/read.go
-@@ -1,4 +1,5 @@
- package pkg
- 
--func Read() error { return nil }
-+func Read(path string) error {
-+	return open(path)
-+}
-`
+// The blank context line is a single space, so the patch is built from a list
+// rather than written as a literal: a fixer strips a trailing space and the
+// diff would stop parsing.
+var patch = strings.Join([]string{
+	"diff --git a/pkg/read.go b/pkg/read.go",
+	"--- a/pkg/read.go",
+	"+++ b/pkg/read.go",
+	"@@ -1,4 +1,5 @@",
+	" package pkg",
+	" ",
+	"-func Read() error { return nil }",
+	"+func Read(path string) error {",
+	"+\treturn open(path)",
+	"+}",
+	"",
+}, "\n")
 
 func review() *artifact.Review {
 	return &artifact.Review{

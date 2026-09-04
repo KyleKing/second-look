@@ -30,6 +30,7 @@ const (
 	rowCode
 	rowComment
 	rowNote
+	rowTurn
 	rowGone
 	rowThread
 	rowBlank
@@ -268,7 +269,7 @@ func claim(byLine map[anchor][]int, placed []bool, p string, l diff.Line) {
 // make the outline the one view that cannot be trusted.
 func staged(r *artifact.Review, path string) string {
 	c := countFor(r, path)
-	if n := c.ready + c.draft; n > 0 {
+	if n := c.ready + c.draft + c.todo; n > 0 {
 		return " · " + plural(n, "comment")
 	}
 
@@ -348,7 +349,8 @@ func buildList(r *artifact.Review, d *diff.Diff, lay layout) screen {
 		c := countFor(r, path)
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1}, row{
 			kind: rowFile, path: path, comment: -1,
-			text: fmt.Sprintf("%s  %d ready · %d draft · %d skipped", path, c.ready, c.draft, c.skip),
+			text: fmt.Sprintf("%s  %d ready · %d draft · %d skipped%s",
+				path, c.ready, c.draft, c.skip, todoCount(c)),
 		})
 
 		for i := range r.Comments {
@@ -401,6 +403,8 @@ func countFor(r *artifact.Review, path string) tally {
 			out.draft++
 		case artifact.StatusSkip:
 			out.skip++
+		case artifact.StatusTodo:
+			out.todo++
 		}
 	}
 

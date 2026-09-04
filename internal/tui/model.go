@@ -57,13 +57,16 @@ type Model struct {
 	path    string
 	// store is the directory this review's caches live in, which is where the
 	// rating is left for the queue to read.
-	store   string
-	submit  Submitter
-	send    Sender
-	merge   Merger
-	head    HeadCheck
-	browser Opener
-	tree    Tree
+	store string
+	// dispatcher hands the todo set to an agent, and is nil where nothing is
+	// configured to receive it.
+	dispatcher Dispatcher
+	submit     Submitter
+	send       Sender
+	merge      Merger
+	head       HeadCheck
+	browser    Opener
+	tree       Tree
 
 	screen screen
 	cursor int
@@ -307,6 +310,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applySent(msg)
 
 		return m, tea.ClearScreen
+	case dispatchedMsg:
+		m.dispatched(msg)
+
+		return m, nil
 	case structureMsg:
 		asked := m.reading
 		m.reading = false
@@ -557,7 +564,7 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.submitAs(msg)
 	case 'm':
 		if !m.stateKey(msg) {
-			m.say("no state for "+msg.String()+"; r ready, d draft, x skip", false)
+			m.say("no state for "+msg.String()+"; r ready, d draft, t todo, x skip", false)
 
 			return m, nil
 		}
@@ -590,9 +597,25 @@ func (m *Model) write(msg tea.KeyPressMsg) tea.Cmd {
 
 // stateKey reports whether a key names one of the three comment states.
 func (m *Model) stateKey(msg tea.KeyPressMsg) bool {
-	return key.Matches(msg, m.keys.Ready) ||
-		key.Matches(msg, m.keys.Draft) ||
-		key.Matches(msg, m.keys.Skip)
+	_, ok := m.stateOf(msg)
+
+	return ok
+}
+
+// stateOf is the status a key names, and false for a key that names none.
+func (m *Model) stateOf(msg tea.KeyPressMsg) (string, bool) {
+	switch {
+	case key.Matches(msg, m.keys.Ready):
+		return artifact.StatusReady, true
+	case key.Matches(msg, m.keys.Draft):
+		return artifact.StatusDraft, true
+	case key.Matches(msg, m.keys.Skip):
+		return artifact.StatusSkip, true
+	case key.Matches(msg, m.keys.Todo):
+		return artifact.StatusTodo, true
+	}
+
+	return "", false
 }
 
 // foldNote answers the z chord: za inverts what the cursor is standing on, zo
@@ -643,6 +666,8 @@ func (m *Model) foldHere(open bool) {
 	r := m.screen.rows[m.cursor]
 
 	switch {
+	case r.kind == rowTurn:
+		m.folded.turns[r.comment] = open
 	case r.kind == rowFile && r.path != "":
 		m.folded.files[r.path] = !open
 	case r.gone > 0:
@@ -665,6 +690,8 @@ func (m *Model) openHere() bool {
 	r := m.screen.rows[m.cursor]
 
 	switch {
+	case r.kind == rowTurn:
+		return m.folded.turns[r.comment]
 	case r.kind == rowFile:
 		return !m.folded.files[r.path]
 	case r.gone > 0:
@@ -1075,13 +1102,17 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if status, ok := m.stateOf(msg); ok {
+		m.setStatus(status)
+
+		return m, nil
+	}
+
 	switch {
-	case key.Matches(msg, m.keys.Ready):
-		m.setStatus(artifact.StatusReady)
-	case key.Matches(msg, m.keys.Draft):
-		m.setStatus(artifact.StatusDraft)
-	case key.Matches(msg, m.keys.Skip):
-		m.setStatus(artifact.StatusSkip)
+	case key.Matches(msg, m.keys.Dispatch):
+		cmd := m.dispatch()
+
+		return m, cmd
 	case key.Matches(msg, m.keys.Seen):
 		m.markRead()
 	case key.Matches(msg, m.keys.Send):
@@ -1127,6 +1158,7 @@ func (m *Model) changes(msg tea.KeyPressMsg) bool {
 	return key.Matches(msg, m.keys.Ready) ||
 		key.Matches(msg, m.keys.Draft) ||
 		key.Matches(msg, m.keys.Skip) ||
+		key.Matches(msg, m.keys.Todo) ||
 		key.Matches(msg, m.keys.Edit) ||
 		key.Matches(msg, m.keys.Write)
 }

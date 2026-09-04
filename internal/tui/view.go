@@ -41,8 +41,9 @@ func (m *Model) render() string {
 func (m *Model) title() string {
 	c := m.counts()
 	left := fmt.Sprintf("%s/%s #%d", m.review.Owner, m.review.Repo, m.review.Number)
-	right := cut(fmt.Sprintf("%s · %s · %s%s%d ready · %d draft · %d skipped",
-		m.position(), m.treeWord(), m.costCount(), m.readCount(), c.ready, c.draft, c.skip), m.width)
+	right := cut(fmt.Sprintf("%s · %s · %s%s%d ready · %d draft · %d skipped%s",
+		m.position(), m.treeWord(), m.costCount(), m.readCount(),
+		c.ready, c.draft, c.skip, todoCount(c)), m.width)
 
 	if word := m.view.String(); word != "" {
 		left += "  " + word
@@ -187,6 +188,7 @@ type tally struct {
 	ready int
 	draft int
 	skip  int
+	todo  int
 }
 
 func (m *Model) counts() tally {
@@ -200,6 +202,8 @@ func (m *Model) counts() tally {
 			out.draft++
 		case artifact.StatusSkip:
 			out.skip++
+		case artifact.StatusTodo:
+			out.todo++
 		}
 	}
 
@@ -401,7 +405,7 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 		return "  " + r.text, m.styles.file
 	case rowHunk:
 		return "  " + m.readGlyph(r) + r.text, m.styles.hunk
-	case rowComment, rowNote:
+	case rowComment, rowNote, rowTurn:
 		return m.commentRow(r)
 	case rowGone:
 		// It sits in the column the sign of a kept line sits in, so what came
@@ -424,7 +428,7 @@ func (m *Model) commentRow(r row) (string, lipgloss.Style) {
 	text := strings.Repeat(" ", m.screen.numWidth+indent) + "┃ " + r.text
 
 	switch {
-	case r.kind == rowNote:
+	case r.kind == rowNote, r.kind == rowTurn:
 		return text, m.styles.note
 	case !r.head:
 		return text, m.styles.body
@@ -550,4 +554,14 @@ func lpad(s string, width int) string {
 	}
 
 	return s
+}
+
+// todoCount is absent from the counts until there is one, since a review with
+// no agent work waiting should not spend the width saying so.
+func todoCount(c tally) string {
+	if c.todo == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf(" · %d todo", c.todo)
 }

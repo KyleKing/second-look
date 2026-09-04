@@ -120,3 +120,112 @@ func TestTheAgentReadsTheDiffAndOneCommentInContext(t *testing.T) {
 		t.Error("an unknown comment id was accepted")
 	}
 }
+
+// The agent loop: a comment handed back is written out with its context, the
+// agent answers it as a turn, and the answer comes back as a draft for the
+// author to rule on. Posting refuses while any of it is outstanding.
+func TestWorkHandedToAnAgentComesBackAsATurn(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	seedReview(t, dir, sha)
+	seedDiffAt(t, dir, sha)
+
+	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "agent-loop", func(c *ghcassette.Cassette) {
+		inCheckout(c)
+		c.Interactions = nil
+	}))
+
+	path := artifact.Path(stored(t, dir), 2)
+
+	r, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r.Find("unwrapped-read-error").Status = artifact.StatusTodo
+
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	res := runCLI(t, s, dir, "todo", "2")
+	if res.code != 0 {
+		t.Fatalf("todo failed: %s%s", res.stdout, res.stderr)
+	}
+
+	for _, want := range []string{"1 comment(s) waiting on you", "unwrapped-read-error", "return 0, err"} {
+		if !strings.Contains(res.stdout, want) {
+			t.Errorf("%q is missing from the todo set:\n%s", want, res.stdout)
+		}
+	}
+
+	batch := `{"comments":[{"id":"unwrapped-read-error","path":"testdata/fixture/sample.go",` +
+		`"line":19,"side":"RIGHT","body":"Wrap it with the path.","severity":"major",` +
+		`"status":"ready","turn":[{"author":"claude","body":"Rewrote it to name the file."}]}]}`
+
+	res = runCLIStdin(t, s, dir, batch, "comment", "add", "2")
+	if res.code != 0 {
+		t.Fatalf("comment add failed: %s%s", res.stdout, res.stderr)
+	}
+
+	back, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c := back.Find("unwrapped-read-error")
+
+	if c.Status != artifact.StatusDraft {
+		t.Errorf("the agent's answer is %q, want a draft for the author to rule on", c.Status)
+	}
+
+	if len(c.Turns) != 1 || c.Turns[0].Author != "claude" {
+		t.Errorf("the turn did not land: %+v", c.Turns)
+	}
+
+	// A second answer appends rather than replacing, so the exchange is kept.
+	res = runCLIStdin(t, s, dir, batch, "comment", "add", "2")
+	if res.code != 0 {
+		t.Fatalf("the second comment add failed: %s%s", res.stdout, res.stderr)
+	}
+
+	if back, err = artifact.Load(path); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := len(back.Find("unwrapped-read-error").Turns); got != 2 {
+		t.Errorf("%d turn(s) after two answers, want both kept", got)
+	}
+}
+
+// Posting refuses while an agent still owes work, for the same reason it
+// refuses a draft: it is unfinished.
+func TestPostRefusesWhileWorkIsOutstanding(t *testing.T) {
+	t.Parallel()
+
+	dir := workspace(t, "triaged.toml")
+	path := artifact.Path(stored(t, dir), 2)
+
+	r, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r.Comments[0].Status = artifact.StatusTodo
+
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	s := ghcassette.Replay(t, derive(t, "todo-blocks", guardOnly))
+
+	res := runCLI(t, s, dir, "post", "2")
+	if res.code == 0 {
+		t.Fatalf("a review with work outstanding posted:\n%s", res.stdout)
+	}
+
+	if !strings.Contains(res.stderr, "still todo") {
+		t.Errorf("the refusal did not name the reason: %s", res.stderr)
+	}
+}

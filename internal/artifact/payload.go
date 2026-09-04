@@ -41,6 +41,15 @@ func (e *DraftError) Error() string {
 		" still draft; each has to be ready or skipped before this posts"
 }
 
+// TodoError reports comments an agent still owes work on, which posting refuses
+// for the same reason a draft does: it is unfinished.
+type TodoError struct{ Comments []Comment }
+
+func (e *TodoError) Error() string {
+	return humanize.Plural(len(e.Comments), "comment") +
+		" still todo; each has to be ready or skipped before this posts"
+}
+
 // ErrNothingToPost is a review that would reach GitHub carrying nothing: no
 // body, no comment, and no reply. An approval says something on its own, so
 // only a COMMENT review is refused this way.
@@ -116,12 +125,27 @@ func (r *Review) Remove(id string) bool {
 	return false
 }
 
+// Find is the comment carrying an id, or nil.
+func (r *Review) Find(id string) *Comment {
+	for i := range r.Comments {
+		if r.Comments[i].ID == id {
+			return &r.Comments[i]
+		}
+	}
+
+	return nil
+}
+
 // Payload builds what gets posted: the review itself, and the replies that have
 // to go to their own endpoint. Skipped comments and every local field are absent
 // by construction, since nothing here reads them.
 func (r *Review) Payload() (any, []ReplyPayload, error) {
 	if drafts := r.Drafts(); len(drafts) > 0 {
 		return nil, nil, &DraftError{Comments: drafts}
+	}
+
+	if todos := r.Todos(); len(todos) > 0 {
+		return nil, nil, &TodoError{Comments: todos}
 	}
 
 	if r.Empty() {

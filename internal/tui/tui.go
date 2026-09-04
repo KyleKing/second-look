@@ -88,6 +88,17 @@ func WithHeadCheck(check HeadCheck) Option {
 // not something a terminal can find out.
 type Opener func(ctx context.Context, r *artifact.Review) error
 
+// Dispatcher hands the written-out todo set to an agent. It is given the file
+// holding the set and answers with the one line the footer shows.
+type Dispatcher func(ctx context.Context, path string) (string, error)
+
+// WithDispatcher lets T run an agent over the todo set. Without one, T still
+// writes the set out and names the file, because starting an agent is not
+// something to do on a keystroke nobody configured.
+func WithDispatcher(d Dispatcher) Option {
+	return func(m *Model) { m.dispatcher = d }
+}
+
 // WithOpener allows o to open the pull request in a browser. Without one, the
 // key says so rather than appearing to work.
 func WithOpener(open Opener) Option {

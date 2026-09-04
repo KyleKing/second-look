@@ -21,6 +21,7 @@ remembered shape of the schema.
 second-look get <pr>                       # check out the head, cache the diff
 second-look show <pr>                      # what is already staged
 second-look show <pr> --diff               # the diff, with every comment marked on it
+second-look todo <pr>                      # what the author handed back for work
 second-look context <pr> <id>              # one comment with its hunk, note, and thread
 second-look comment add <pr> < batch.json  # stage a batch
 second-look show <pr> --payload            # exactly what would leave the laptop
@@ -74,6 +75,17 @@ rather than missed.
 
 `severity` is blocker, major, minor, nit, or question. It orders what the user reads
 first.
+
+## Work handed back to you
+
+A comment whose status is `todo` is one the author has handed back: they read it and want
+something done. `second-look todo <pr>` prints every one of them with the hunk, the note,
+and the exchange so far.
+
+Answer with a turn rather than by rewriting the comment silently. Stage the comment again
+carrying `"turn": [{"author": "<you>", "body": "<what you did and what changed>"}]`. Turns
+append to what is already on disk, so send only what is new. The comment is held as a
+draft, which puts it back in front of the author.
 
 ## Replies
 

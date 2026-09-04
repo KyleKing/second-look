@@ -61,6 +61,19 @@ whatever the working directory happens to be.
 `second-look skill` prints the instructions an agent needs to drive it, ready to write
 into a skills directory.
 
+A comment can be handed back rather than ruled on. `m` then `t` marks it todo, which is
+the fifth state beside ready, draft, and skipped: it means an agent owes work here, and
+posting refuses while any remains for the same reason it refuses a draft. `T` writes every
+todo comment out with its context and runs whatever `dispatch` in `config.toml` names,
+which is nothing by default, because starting an agent is not something to do on a
+keystroke nobody configured. The answer comes back as a turn on the comment, and the
+comment comes back as a draft for you to rule on.
+
+Turns are the exchange about one comment rather than one mutating note, and they render
+collapsed: the last turn trimmed, one line of the one before it, and a count of everything
+older, with `za` opening the lot. A comment three rounds deep is otherwise a page of prose
+between you and the next hunk.
+
 An agent reads the code as well as the review. `second-look show <pr> --diff` prints the
 cached diff with every staged comment marked on the line it anchors to, and
 `second-look context <pr> <id>` prints one comment with its hunk, the note that never

@@ -67,6 +67,12 @@ func Path(root string, number int) string {
 	return filepath.Join(root, Dir, fmt.Sprintf("pr-%d.toml", number))
 }
 
+// TodoPath is where the set of comments waiting on an agent is written, so the
+// agent reads a file rather than being handed a screenful through a pipe.
+func TodoPath(root string, number int) string {
+	return filepath.Join(root, Dir, "todo", fmt.Sprintf("pr-%d.md", number))
+}
+
 // Load reads and validates a review. An unknown key is an error rather than a
 // silent drop: a hand-edit that misspells a field should say so, and a field the
 // schema does not know is a field the posting allowlist cannot classify.
@@ -165,11 +171,18 @@ func (r *Review) Upsert(c Comment) {
 
 // Drafts returns the comments still marked draft. Posting refuses while any
 // remain, so an unfinished thought is never published and never quietly dropped.
-func (r *Review) Drafts() []Comment {
+func (r *Review) Drafts() []Comment { return r.withStatus(StatusDraft) }
+
+// Todos returns the comments an agent still owes work on. Posting refuses while
+// any remain for the same reason a draft refuses, and handing work to an agent
+// does not, because that is not posting.
+func (r *Review) Todos() []Comment { return r.withStatus(StatusTodo) }
+
+func (r *Review) withStatus(status string) []Comment {
 	var out []Comment
 
 	for i := range r.Comments {
-		if r.Comments[i].Status == StatusDraft {
+		if r.Comments[i].Status == status {
 			out = append(out, r.Comments[i])
 		}
 	}

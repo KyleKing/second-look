@@ -53,6 +53,9 @@ func (f folds) shown(index int) bool {
 // except a comment in the code view, which the marker folds by default.
 type folded struct {
 	notes folds
+	// turns default the other way: an exchange is history and the comment as it
+	// now reads is the thing being reviewed, so it is collapsed until asked for.
+	turns map[int]bool
 	hunks map[hunkAt]bool
 	files map[string]bool
 	gone  map[goneAt]bool
@@ -60,7 +63,7 @@ type folded struct {
 
 func newFolded() folded {
 	return folded{
-		notes: folds{}, hunks: map[hunkAt]bool{},
+		notes: folds{}, turns: map[int]bool{}, hunks: map[hunkAt]bool{},
 		files: map[string]bool{}, gone: map[goneAt]bool{},
 	}
 }
@@ -187,6 +190,8 @@ func commentRows(c *artifact.Comment, index int, path string, lay layout, numWid
 		rows = append(rows, row{kind: rowComment, text: line, path: path, comment: index})
 	}
 
+	rows = append(rows, turnRows(c, index, path, avail, lay)...)
+
 	return append(rows, noteRows(c.Note, index, path, avail, lay)...)
 }
 
@@ -250,4 +255,87 @@ func span(c *artifact.Comment) string {
 	}
 
 	return fmt.Sprintf("  lines %d-%d", c.StartLine, c.Line)
+}
+
+const turnLabel = "TURNS  "
+
+// Collapsed, an exchange shows its last turn trimmed to lastLines and one line
+// of the turn before it. Length is what makes a turn thread unreadable, so the
+// collapsed shape is the design and za is the affordance.
+const (
+	lastLines   = 2
+	beforeLines = 1
+)
+
+// turnRows is the exchange about a comment: what the author asked for and what
+// the agent answered.
+//
+// It renders progressively because a comment three rounds deep is a page of
+// prose sitting between the reader and the next hunk. The last thing said is
+// what matters, the one before it says what it answers, and everything older is
+// a count until it is asked for.
+func turnRows(c *artifact.Comment, index int, path string, avail int, lay layout) []row {
+	if len(c.Turns) == 0 {
+		return nil
+	}
+
+	if lay.fold.turns[index] {
+		rows := []row{{
+			kind: rowTurn, path: path, comment: index,
+			text: turnLabel + plural(len(c.Turns), "turn") + " · za to fold",
+		}}
+
+		for i := range c.Turns {
+			rows = append(rows, turnLines(&c.Turns[i], index, path, avail, 0)...)
+		}
+
+		return rows
+	}
+
+	head := row{kind: rowTurn, path: path, comment: index, folded: true, text: turnLabel + turnHead(c)}
+	rows := []row{head}
+
+	at := len(c.Turns) - 1
+	if at > 0 {
+		rows = append(rows, turnLines(&c.Turns[at-1], index, path, avail, beforeLines)...)
+	}
+
+	return append(rows, turnLines(&c.Turns[at], index, path, avail, lastLines)...)
+}
+
+func turnHead(c *artifact.Comment) string {
+	// The head counts what is not on screen: the last turn and the one before it
+	// are drawn, so everything older is what the count is for.
+	const drawn = 2
+
+	if n := len(c.Turns) - drawn; n > 0 {
+		return fmt.Sprintf("%s · %s earlier · za to read", plural(len(c.Turns), "turn"), plural(n, "turn"))
+	}
+
+	return plural(len(c.Turns), "turn") + " · za to read"
+}
+
+// turnLines is one turn under its author, trimmed to at most keep lines, where
+// zero keeps all of them.
+func turnLines(t *artifact.Turn, index int, path string, avail, keep int) []row {
+	lines := wrap(t.Body, avail-bodyIndent)
+
+	trimmed := false
+	if keep > 0 && len(lines) > keep {
+		lines, trimmed = lines[:keep], true
+	}
+
+	rows := make([]row, 0, len(lines)+1)
+	rows = append(rows, row{kind: rowTurn, text: "@" + t.Author, path: path, comment: index})
+
+	for i, l := range lines {
+		text := strings.Repeat(" ", bodyIndent) + l
+		if trimmed && i == len(lines)-1 {
+			text += "…"
+		}
+
+		rows = append(rows, row{kind: rowTurn, text: text, path: path, comment: index})
+	}
+
+	return rows
 }

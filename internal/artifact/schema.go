@@ -83,11 +83,25 @@ type Comment struct {
 	Severity string `json:"severity" toml:"severity"`
 
 	// Status gates posting. A draft blocks the submit rather than posting or
-	// vanishing, and a skip records a decision not to comment.
+	// vanishing, a todo blocks it because an agent still owes work here, and a
+	// skip records a decision not to comment.
 	Status string `json:"status" toml:"status"`
 
 	// SkipReason explains a skip, so a declined finding reads as considered.
 	SkipReason string `json:"skip_reason,omitempty" toml:"skip_reason,omitempty"`
+
+	// Turns is the conversation about this comment, in the order it was said,
+	// and it never posts. The note is one mutating field and loses the exchange
+	// that produced it.
+	Turns []Turn `json:"turn,omitempty" toml:"turn,omitempty"`
+}
+
+// Turn is one thing said about a comment, by me or by an agent. Author is free
+// text because the agent naming itself is more useful than an enum this tool
+// would have to keep current.
+type Turn struct {
+	Author string `json:"author" toml:"author"`
+	Body   string `json:"body"   toml:"body"`
 }
 
 // Comment statuses.
@@ -95,6 +109,10 @@ const (
 	StatusReady = "ready"
 	StatusDraft = "draft"
 	StatusSkip  = "skip"
+	// StatusTodo means an agent owes work here. It is not a draft: a draft is a
+	// comment nobody has ruled on, and a todo is one that has been ruled on and
+	// handed back.
+	StatusTodo = "todo"
 )
 
 // Review events.
@@ -111,7 +129,7 @@ const (
 )
 
 var (
-	validStatus = map[string]bool{StatusReady: true, StatusDraft: true, StatusSkip: true}
+	validStatus = map[string]bool{StatusReady: true, StatusDraft: true, StatusSkip: true, StatusTodo: true}
 	validEvent  = map[string]bool{EventComment: true, EventApprove: true, EventRequestChanges: true}
 	validSide   = map[string]bool{SideRight: true, SideLeft: true}
 	validSev    = map[string]bool{"blocker": true, "major": true, "minor": true, "nit": true, "question": true}
@@ -155,6 +173,18 @@ func (r *Review) validateHeader() []error {
 	return errs
 }
 
+func (c *Comment) validateTurns(where string) []error {
+	var errs []error
+
+	for i := range c.Turns {
+		if c.Turns[i].Author == "" || c.Turns[i].Body == "" {
+			errs = append(errs, fmt.Errorf("%s: turn %d: %w", where, i+1, ErrTurn))
+		}
+	}
+
+	return errs
+}
+
 // validate checks one comment. The where argument names it in the message,
 // because a comment with no id still has to be findable in the file.
 func (c *Comment) validate(where string) []error {
@@ -172,6 +202,8 @@ func (c *Comment) validate(where string) []error {
 	if c.Severity != "" && !validSev[c.Severity] {
 		errs = append(errs, fmt.Errorf("%s: %w: %q", where, ErrSeverity, c.Severity))
 	}
+
+	errs = append(errs, c.validateTurns(where)...)
 
 	// A reply carries no anchor of its own: it lands under the comment it answers.
 	if c.InReplyTo != 0 {

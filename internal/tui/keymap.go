@@ -46,6 +46,8 @@ type keyMap struct {
 	Ready     key.Binding
 	Draft     key.Binding
 	Skip      key.Binding
+	Todo      key.Binding
+	Dispatch  key.Binding
 	Seen      key.Binding
 	Search    key.Binding
 	List      key.Binding
@@ -93,6 +95,8 @@ func defaultKeyMap() keyMap {
 		Ready:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
 		Draft:     key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
 		Skip:      key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
+		Todo:      key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "hand back")),
+		Dispatch:  key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "dispatch todo")),
 		Seen:      key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
 		Search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 		List:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
@@ -128,7 +132,7 @@ func objects() [][2]string {
 // states are what m accepts, and folds what z accepts. Both are shown while the
 // chord waits, so the second key never has to be remembered.
 func states() [][2]string {
-	return [][2]string{{"r", "ready"}, {"d", "draft"}, {"x", "skip"}}
+	return [][2]string{{"r", "ready"}, {"d", "draft"}, {"t", "todo"}, {"x", "skip"}}
 }
 
 func foldObjects() [][2]string {
@@ -166,7 +170,8 @@ func helpLines() [][2]string {
 		{"w", "hide hunks that change nothing but whitespace, and show them again"},
 		{"t", "hide hunks that change no code at all, comments and re-wraps included"},
 		{spaceKey, "mark the hunk read, or the whole file from a file line"},
-		{"m then r / d / x", "mark the comment ready, draft, or skipped"},
+		{"m then r / d / t / x", "mark the comment ready, draft, todo, or skipped"},
+		{"T", "write out every todo comment for an agent, and run the dispatch command if one is set"},
 		{"z then a / i / R / M", "fold what is here, or all of it; invert; open all; fold to the file names"},
 		{"a then b / m / n / t / ?", "write a comment on this line, ranked blocker to question"},
 		{"e", "write here: a comment, an answer to a thread, the review's body or note"},

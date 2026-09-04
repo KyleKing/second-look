@@ -44,6 +44,11 @@ type Config struct {
 	// tree does not stop a lockfile being one. A trailing slash means a
 	// directory anywhere in the path; anything else is a path or name suffix.
 	Generated []string `toml:"generated,omitempty"`
+	// Dispatch is the command T runs to hand the todo set to an agent, with the
+	// file holding the set as its last argument. Unset, T writes the file and
+	// names it, which is the safe default: running an agent is not something to
+	// start on a keystroke nobody configured.
+	Dispatch []string `toml:"dispatch,omitempty"`
 }
 
 // Path is where the config lives.

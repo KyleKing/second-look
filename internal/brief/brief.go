@@ -87,6 +87,7 @@ func Comment(
 		fmt.Fprintf(&b, "\nSKIPPED: %s\n", c.SkipReason)
 	}
 
+	b.WriteString(Turns(c))
 	b.WriteString(hunkOf(d, c, around))
 	b.WriteString(conversation(c, ts))
 

@@ -11,6 +11,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look show <pr> --payload  print exactly what would be sent
   second-look show <pr> --threads  print the open review threads and their ids
   second-look context <pr> <id>    one comment with its hunk, note, and thread
+  second-look todo <pr>            every comment an agent still owes work on
   second-look post <pr>            post the review
   second-look post <pr> --dry-run  print the request without sending it
   second-look post <pr> --only <id>  post one comment on its own, now
@@ -205,6 +206,12 @@ NAMING A PULL REQUEST
       marked, and the conversation it answers. This is what to read before
       acting on a finding.
 
+  second-look todo <pr>
+      Print every comment whose status is todo, each with the context reading it
+      needs. A todo means the author has handed the comment back for work. Answer
+      one by staging it again with a turn appended, which holds it as a draft for
+      the author to rule on. Posting refuses while any todo remains.
+
   second-look post <pr> [--dry-run]
       Post the review in one request, then post any replies. Refuses while any
       comment is still a draft. On success the prepared review is removed:
@@ -374,8 +381,9 @@ BATCH SHAPE (stdin to second-look comment add)
         "in_reply_to": 0,
         "note":     "why this comment exists: evidence, the command that proved it",
         "severity": "blocker | major | minor | nit | question",
-        "status":   "ready | draft | skip, and ready is held as draft",
-        "skip_reason": "required when status is skip"
+        "status":   "ready | draft | todo | skip, and ready is held as draft",
+        "skip_reason": "required when status is skip",
+        "turn":     [{"author": "who is speaking", "body": "what they said"}]
       }
     ]
   }
@@ -389,10 +397,14 @@ WHAT POSTS
 WHAT STAYS LOCAL
 
   review:   note
-  comment:  id, anchor, note, severity, status, skip_reason
+  comment:  id, anchor, note, severity, status, skip_reason, turn
 
   A skipped comment is never posted and stays in the file, so a finding that was
   considered and declined reads as considered rather than forgotten.
+
+  Turns are the exchange about a comment, in the order it was said. They append
+  rather than replace, so send only what is new and nothing already there is
+  lost. The note is one mutating field and keeps no argument; the turns keep it.
 
 WHAT IS REFUSED
 

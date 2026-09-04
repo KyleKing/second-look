@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
@@ -46,6 +47,7 @@ var (
 	errUsageThreads   = errors.New("usage: second-look threads [--json]")
 	errUsageReviews   = errors.New("usage: second-look reviews [--json]")
 	errUsageContext   = errors.New("usage: second-look context <pr> <comment-id>")
+	errUsageTodo      = errors.New("usage: second-look todo <pr>")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--diff|--payload|--threads]")
 	errUsageSkill     = errors.New("usage: second-look skill")
 )
@@ -126,6 +128,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return showCmd(ctx, args[1:], stdout)
 	case "context":
 		return contextCmd(ctx, args[1:], stdout)
+	case "todo":
+		return todoCmd(ctx, args[1:], stdout)
 	case "post":
 		return postCmd(ctx, args[1:], stdout)
 	case "inbox":
@@ -239,6 +243,10 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 		// A config that will not parse leaves the built-in patterns rather than
 		// stopping a review, the same as it leaves the built-in buckets.
 		tui.WithGenerated(generatedPatterns()),
+	}
+
+	if d := dispatcher(); d != nil {
+		opts = append(opts, tui.WithDispatcher(d))
 	}
 
 	// A review read out of the cache reached the screen without asking GitHub
@@ -395,6 +403,12 @@ func stage(into *artifact.Review, batch []artifact.Comment) int {
 			held++
 		}
 
+		// Turns append rather than replace, so answering a comment does not
+		// need the whole exchange resent and cannot lose the half already there.
+		if old := into.Find(c.ID); old != nil {
+			c.Turns = append(slices.Clone(old.Turns), c.Turns...)
+		}
+
 		into.Upsert(c)
 	}
 
@@ -547,27 +561,60 @@ func contextCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 
-	r, err := artifact.Load(artifact.Path(t.Store, t.Number))
+	r, d, open, err := readAll(t)
 	if err != nil {
-		return fmt.Errorf("loading the prepared review: %w", err)
+		return err
 	}
 
-	cached, err := artifact.LoadDiff(t.Store, r.HeadSHA)
-	if err != nil {
-		return fmt.Errorf("reading the cached diff: %w", err)
-	}
-
-	var open []threads.Thread
-	if err := artifact.LoadThreads(t.Store, r.HeadSHA, &open); err != nil {
-		return fmt.Errorf("reading the cached review threads: %w", err)
-	}
-
-	out, err := brief.Comment(r, args[1], diff.Parse(cached), open, 0)
+	out, err := brief.Comment(r, args[1], d, open, 0)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", args[1], err)
 	}
 
 	return write(stdout, out)
+}
+
+// todoCmd prints every comment an agent still owes work on, each with the
+// context reading it needs. It is what T in the review screen writes out, so
+// the set an agent drains is the same set either way.
+func todoCmd(ctx context.Context, args []string, stdout io.Writer) error {
+	if len(args) != 1 {
+		return errUsageTodo
+	}
+
+	t, err := target(ctx, args[0])
+	if err != nil {
+		return err
+	}
+
+	r, d, open, err := readAll(t)
+	if err != nil {
+		return err
+	}
+
+	return write(stdout, brief.Owed(r, d, open))
+}
+
+// readAll is the review with what was cached against its head: the diff and the
+// open conversations. Three commands need all three and none of them differ in
+// how they ask.
+func readAll(t get.Target) (*artifact.Review, *diff.Diff, []threads.Thread, error) {
+	r, err := artifact.Load(artifact.Path(t.Store, t.Number))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("loading the prepared review: %w", err)
+	}
+
+	cached, err := artifact.LoadDiff(t.Store, r.HeadSHA)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("reading the cached diff: %w", err)
+	}
+
+	var open []threads.Thread
+	if err := artifact.LoadThreads(t.Store, r.HeadSHA, &open); err != nil {
+		return nil, nil, nil, fmt.Errorf("reading the cached review threads: %w", err)
+	}
+
+	return r, diff.Parse(cached), open, nil
 }
 
 func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
@@ -705,6 +752,44 @@ func configSections(cfg *config.Config) []inbox.Section {
 
 // generatedPatterns is what this repository says it writes by machine, and
 // nothing where the config is missing or unreadable.
+// Dispatcher runs the configured command over the written-out todo set. It is
+// nil where the config names none, and T then writes the file and says where it
+// is rather than starting anything.
+//
+// The command's own output goes to a log beside the set, since the screen owns
+// the terminal while it runs and a line of an agent's reasoning drawn over the
+// frame is worse than none.
+func dispatcher() tui.Dispatcher {
+	const logPerm = 0o600
+
+	cfg, err := loadConfig()
+	if err != nil || len(cfg.Dispatch) == 0 {
+		return nil
+	}
+
+	argv := slices.Clone(cfg.Dispatch)
+
+	return func(ctx context.Context, path string) (string, error) {
+		log := strings.TrimSuffix(path, ".md") + ".log"
+
+		//nolint:gosec // the log sits beside the set this same run wrote
+		f, err := os.OpenFile(log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, logPerm)
+		if err != nil {
+			return "", fmt.Errorf("opening %s: %w", log, err)
+		}
+		defer f.Close() //nolint:errcheck // the child holds its own handle
+
+		cmd := exec.CommandContext(ctx, argv[0], append(argv[1:], path)...) // #nosec G204 -- the caller's own config
+		cmd.Stdout, cmd.Stderr = f, f
+
+		if err := cmd.Start(); err != nil {
+			return "", fmt.Errorf("running %s: %w", argv[0], err)
+		}
+
+		return fmt.Sprintf("%s is reading %s; its output goes to %s", argv[0], path, log), nil
+	}
+}
+
 func generatedPatterns() []string {
 	cfg, err := loadConfig()
 	if err != nil {

@@ -92,9 +92,8 @@ func (s styles) forSeverity(name string) lipgloss.Style {
 	return s.subtitle
 }
 
-// statusGlyph distinguishes the three comment states without color, since
-// whether a comment will post is the one thing that must survive a monochrome
-// terminal.
+// statusGlyph distinguishes the comment states without color, since whether a
+// comment will post is the one thing that must survive a monochrome terminal.
 func statusGlyph(status string) string {
 	switch status {
 	case artifact.StatusReady:
@@ -103,6 +102,8 @@ func statusGlyph(status string) string {
 		return "◐"
 	case artifact.StatusSkip:
 		return "○"
+	case artifact.StatusTodo:
+		return "◑"
 	default:
 		return "?"
 	}
