@@ -664,24 +664,67 @@ type columns struct {
 	removed int
 }
 
-// widest measures the columns that vary, so rows line up with each other.
-func (l *List) widest() columns {
-	const (
-		leftCap = 34
-		midCap  = 48
-	)
+// The narrow widths for the two columns that truncate, and the room the tail is
+// never squeezed below. They are where a frame with no space to spare lands
+// rather than a ceiling: a wider one spends its slack on them.
+const (
+	leftNarrow = 34
+	midNarrow  = 48
+	tailRoom   = 24
+)
 
-	var out columns
+// widest measures the columns that vary, so rows line up with each other.
+//
+// A long repository name or anchor used to truncate at a fixed width however
+// much terminal there was. So the narrow widths are the floor, and whatever the
+// frame has past them and the tail's own room is spent growing the two back
+// towards what their contents need, the left column first because the
+// repository and number are what identify a row.
+func (l *List) widest() columns {
+	var out, natural columns
 
 	for i := range l.shown {
 		for j := range l.shown[i].Rows {
 			r := &l.shown[i].Rows[j]
-			out.left = max(out.left, min(leftCap, textWidth(r.Left)))
-			out.mid = max(out.mid, min(midCap, textWidth(r.Mid)))
+			natural.left = max(natural.left, textWidth(r.Left))
+			natural.mid = max(natural.mid, textWidth(r.Mid))
 			out.cost = max(out.cost, textWidth(r.Cost))
 			out.added = max(out.added, textWidth(r.Added))
 			out.removed = max(out.removed, textWidth(r.Removed))
 		}
+	}
+
+	out.left = min(natural.left, leftNarrow)
+	out.mid = min(natural.mid, midNarrow)
+
+	out.left += grow(natural.left-out.left, l.width-out.fixed()-tailRoom)
+	out.mid += grow(natural.mid-out.mid, l.width-out.fixed()-tailRoom)
+
+	return out
+}
+
+// grow is how much of a column's shortfall a frame can pay for.
+func grow(want, slack int) int { return max(0, min(want, slack)) }
+
+// fixed is what a row spends on everything but the tail: the mark, the measured
+// columns, the gaps between them, and the age.
+func (c columns) fixed() int {
+	const (
+		chrome    = 3
+		gap       = 2
+		ageWidth  = 5
+		tailGap   = 2
+		signWidth = 1
+	)
+
+	out := chrome + c.left + gap + c.mid + gap + ageWidth + tailGap
+
+	if c.cost > 0 {
+		out += gap + c.cost
+	}
+
+	if c.added > 0 || c.removed > 0 {
+		out += gap + c.added + signWidth + 1 + c.removed + signWidth
 	}
 
 	return out
