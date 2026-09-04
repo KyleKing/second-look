@@ -68,7 +68,8 @@ so when there is none. `!` refuses in that case too, rather than opening a shell
 whatever the working directory happens to be.
 
 `second-look skill` prints the instructions an agent needs to drive it, ready to write
-into a skills directory.
+into a skills directory. An installed copy is a snapshot rather than a link, so run it
+again after an upgrade.
 
 `+` and `-` grow and shrink the file's own context around the hunk under the cursor. A
 hunk carries three lines by convention and the question a review turns on is often in the
