@@ -1,6 +1,7 @@
 # Every gh call a screen makes, and the seed that answers it. A route is the
-# tokens that must all appear in the call, then the file. A token matches
-# anywhere in an argument, so --reviewed-by covers --reviewed-by=@me.
+# tokens that must all appear in the call, then the file. A token has to start
+# an argument, so --reviewed-by covers --reviewed-by=@me and "view" does not
+# match --review-requested.
 #
 # The first matching route wins, so a narrower one goes above a wider one.
 pr view                              pr-view.json

@@ -57,5 +57,12 @@ Sleep 2500ms
 Type "c"
 Sleep 2500ms
 
+# Back to the diff, then every conversation already open on the pull request,
+# each under the line it answers.
+Type "c"
+Sleep 1500ms
+Type "t"
+Sleep 3s
+
 Type "q"
 Sleep 1s
