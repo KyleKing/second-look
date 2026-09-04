@@ -1,3 +1,18 @@
+## v0.8.0 (2026-09-04)
+
+### Feat
+
+- **tui**: group the legend and place the frame with zz, zt, zb
+- **reviews**: mark the rows this checkout can reach and move it onto one
+- **cli**: open the queue where a branch names no review
+- **tui**: grow the truncating columns into a wide frame
+
+### Fix
+
+- **tui**: report a boundary when tab finds nothing further
+- **queue**: come back to the row and filter a review was opened from
+- **artifact**: leave a twice-staged review rather than refusing every other one
+
 ## v0.7.0 (2026-09-04)
 
 ### Feat
