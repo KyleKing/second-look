@@ -8,7 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/kyleking/aragonite/forge"
 	"github.com/kyleking/aragonite/forge/github"
@@ -305,6 +307,7 @@ func writeReview(out io.Writer, t Target, pr *forge.PullRequest) error {
 	review.Repo = t.Repo
 	review.Number = pr.Number
 	review.HeadSHA = pr.HeadSHA
+	review.Rounds = rounds(review.Rounds, pr.HeadSHA, time.Now())
 
 	if err := artifact.Save(path, review); err != nil {
 		return fmt.Errorf("writing the prepared review: %w", err)
@@ -318,6 +321,17 @@ func writeReview(out io.Writer, t Target, pr *forge.PullRequest) error {
 	}
 
 	return say(out, fmt.Sprintf("%s ready at %s\n", path, short(pr.HeadSHA)))
+}
+
+// rounds records the head this pass read, leaving the ones before it alone. A
+// head prepared twice keeps the time it was first read at, since the round is
+// the code and reading it again is the same round.
+func rounds(was []artifact.Round, sha string, now time.Time) []artifact.Round {
+	if slices.ContainsFunc(was, func(r artifact.Round) bool { return r.SHA == sha }) {
+		return was
+	}
+
+	return append(was, artifact.Round{SHA: sha, Staged: now})
 }
 
 func short(sha string) string {

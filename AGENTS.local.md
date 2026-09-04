@@ -155,6 +155,9 @@ non-zero exit, which is how a scene draws a failure. A call nothing routes fails
 because a screen drawing nothing because a seed was missing is the failure this must not
 hide.
 
+A scene needing a second cached diff (`rounds` is the one, since comparing against an
+earlier round reads the diff cached at it) brings it as `diff/<sha>.patch`.
+
 `SEED` is the directories searched in order, the scene's own first, so overriding an
 answer is dropping a file of the same name into the scene. That is why `head-moved` is one
 JSON file and `search-failed` is two.

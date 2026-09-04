@@ -41,6 +41,10 @@ func DiscardAt(root string, number int) error {
 // Sweep drops the diff, threads, and rating cached against a head commit no
 // staged review is pinned to, and reports how many files it removed.
 //
+// A review pins every head it has been read against rather than only its
+// current one, since comparing against an earlier round reads the diff cached
+// at it. They all go when the review does, so nothing outlives what it is for.
+//
 // A review that will not parse leaves the sweep alone: its head is unknown, so
 // every cache under the root could be the one it needs to be repaired against.
 func Sweep(root string) (int, error) {
@@ -57,6 +61,10 @@ func Sweep(root string) (int, error) {
 		}
 
 		keep[rows[i].HeadSHA] = true
+
+		for _, sha := range rows[i].Rounds {
+			keep[sha] = true
+		}
 	}
 
 	removed := 0

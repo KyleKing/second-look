@@ -1,0 +1,39 @@
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 2
+head_sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
+event = "COMMENT"
+body = ""
+note = "Read against origin/main, one file. Ran the suite twice: the first pass missed the empty-file case, the second caught it against a fixture with a trailing newline and nothing else.\n\nNothing here was proven by reading alone."
+
+[[round]]
+sha = "3f9a1c0d7e2b48f6a05c9d3e1b7f4a28c6d0e5b9"
+staged = 2026-08-29T09:14:00Z
+
+[[round]]
+sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
+staged = 2026-09-01T17:55:00Z
+
+[[comment]]
+id = "wrap-the-read"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+body = "This returns os.ReadFile's error with no context, so the caller sees a bare `no such file or directory` and cannot tell which budget failed. Wrap it: `fmt.Errorf(\"reading %s: %w\", path, err)`."
+anchor = "        return 0, err"
+note = "Matches the wrapping rule in AGENTS.md.\nRan: go vet ./... -> clean, so nothing else catches this.\nThe caller prints the error unwrapped."
+severity = "major"
+status = "draft"
+
+[[comment]]
+id = "skip-is-silent"
+path = "testdata/fixture/sample.go"
+line = 27
+side = "RIGHT"
+body = "A line that does not parse is skipped silently, so a typo reads as a smaller total."
+anchor = "            continue"
+note = "short note"
+severity = "minor"
+status = "draft"

@@ -251,7 +251,8 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 	}
 
 	reader := blob.Reader{Work: opened.Work, Repo: t.RepoID(), SHA: opened.Review.HeadSHA}
-	opts = append(opts, tui.WithBlobs(reader.Read), tui.WithRestage(restager(t)))
+	opts = append(opts,
+		tui.WithBlobs(reader.Read), tui.WithRestage(restager(t)), tui.WithRounds(rounds(t)))
 
 	// A review read out of the cache reached the screen without asking GitHub
 	// anything, so the screen asks behind the first frame instead.
@@ -1034,6 +1035,21 @@ func oneOf(args []string, usage error, want ...string) (string, error) {
 	}
 
 	return "", usage
+}
+
+// rounds reads the diff cached at an earlier head, which is what comparing
+// against a round the review was already read at needs. Every round a review
+// has been read at is kept for as long as the review is, so nothing here
+// reaches the network.
+func rounds(t get.Target) tui.Rounds {
+	return func(sha string) (*diff.Diff, error) {
+		cached, err := artifact.LoadDiff(t.Store, sha)
+		if err != nil {
+			return nil, fmt.Errorf("reading the diff cached at %s: %w", sha, err)
+		}
+
+		return diff.Parse(cached), nil
+	}
 }
 
 // restager prepares the review again against the head the pull request is on

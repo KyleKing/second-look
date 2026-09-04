@@ -37,6 +37,12 @@ if [ -f "$scene/review.toml" ]; then
   cp "$scene/review.toml" "$work/.second-look/pr-2.toml"
 fi
 
+# A scene comparing against an earlier round brings that round's cached diff,
+# since the round is only readable where its patch is on disk.
+if [ -d "$scene/diff" ]; then
+  cp "$scene"/diff/*.patch "$work/.second-look/diff/"
+fi
+
 if [ -f "$scene/no-review" ]; then
   rm -f "$work"/.second-look/pr-*.toml
 fi

@@ -332,9 +332,18 @@ else's push is a tree moved without being asked, and where the checkout stands i
 screen ends up holding exactly what a reopen would have given it. The read marks survive on
 their own, since they are keyed by what a hunk says rather than by the commit it sat on.
 
-Still not built: the picker for comparing against any earlier round, which needs the caches
-of earlier heads kept rather than swept, a change to what `get` cleans up and a decision
-about how much disk a year of reviews is allowed.
+**Comparing against an earlier round** is `H`, which lists every head this review has
+been read at and hides every hunk the round it names already carried. It is `U` with the
+round named by hand instead of taken from the read marks, so it composes with `w` and `W`
+the same way and reaches nothing: the comparison is the diff cached at that head against
+the diff cached at this one, and a hunk is matched by what it says rather than by where it
+sits.
+
+The retention question that blocked it is answered. A review records every head it has
+been prepared against, and the sweep pins them all rather than only the current one, so
+they live exactly as long as the review does and posting or discarding it takes them
+together. That needs no size guess and no second lifetime: the caches already died with
+the review, and now they die with it in a group.
 
 A pull request already reviewed says so wherever it is opened from, which step 4 gave for
 free: the read marks and the rating live with the review rather than with the clone.

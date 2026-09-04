@@ -82,6 +82,8 @@ func (m *Model) level() hider {
 // hidden and one that was touched comes back, which is the whole of "what
 // changed since I read it".
 func (m *Model) narrowed(h hider) hider {
+	h = m.compared(h)
+
 	if !m.onlyNew || m.read == nil {
 		return h
 	}
@@ -93,6 +95,24 @@ func (m *Model) narrowed(h hider) hider {
 
 	return hider{why: why, skip: func(p string, at int) bool {
 		return (was != nil && was(p, at)) || m.read.Has(seen.Hunk(m.diff, p, at))
+	}}
+}
+
+// compared adds the round a reader picked to compare against, which hides every
+// hunk that round already carried. It is the same test the read marks make,
+// asked of what a head held rather than of what this pass has read.
+func (m *Model) compared(h hider) hider {
+	if m.since == nil {
+		return h
+	}
+
+	was, why := h.skip, "unchanged since "+short(m.sinceSHA)
+	if h.why != "" {
+		why = h.why + " and unchanged since " + short(m.sinceSHA)
+	}
+
+	return hider{why: why, skip: func(p string, at int) bool {
+		return (was != nil && was(p, at)) || m.since.Has(seen.Hunk(m.diff, p, at))
 	}}
 }
 

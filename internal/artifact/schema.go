@@ -12,6 +12,7 @@ package artifact
 import (
 	"errors"
 	"fmt"
+	"time"
 )
 
 // SchemaVersion is the artifact format. Bump it when a field's meaning changes,
@@ -47,7 +48,19 @@ type Review struct {
 	// still unresolved. Shown in the TUI, never posted.
 	Note string `json:"note" toml:"note"`
 
+	// Rounds is every head this review has been read against, in the order each
+	// was first read. The diff cached at each is kept for as long as the review
+	// is, which is what lets a second pass ask what changed since a round rather
+	// than only since it last marked something read.
+	Rounds []Round `json:"rounds,omitempty" toml:"round,omitempty"`
+
 	Comments []Comment `json:"comments" toml:"comment"`
+}
+
+// Round is one head a review was prepared against, and when.
+type Round struct {
+	SHA    string    `json:"sha"    toml:"sha"`
+	Staged time.Time `json:"staged" toml:"staged"`
 }
 
 // Comment is one inline comment. Anchors follow GitHub's review-comment shape:

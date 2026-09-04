@@ -16,9 +16,9 @@ kyleking/jj-diff #42                                                        0% Â
                          w  hide hunks that change nothing but whitespace, and show them again
                          W  hide hunks that change no code at all, comments and re-wraps included
                          U  hide every hunk already marked read, so what is left is what is new since the last pass
+          H then 1 / 2 / â€¦  hide every hunk an earlier round already carried; H again shows them
                      space  mark the hunk read, or the whole file from a file line
       m then r / d / t / x  mark the comment ready, draft, todo, or skipped
                          T  write out every todo comment for an agent, and run the dispatch command if one is set
                     ctrl+t  while writing: swap in the version an agent wrote under you, and back
-                    ctrl+n  while writing: complete the word from the files, symbols, and people in this review
  [j/k] line  []] go to  [c]ode  writ[e]  [S]ubmit  [?] help  [q]uit

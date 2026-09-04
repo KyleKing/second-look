@@ -35,6 +35,10 @@ type Review struct {
 	HeadRef  string    `json:"head_ref,omitempty"`
 	BaseRef  string    `json:"base_ref,omitempty"`
 	Modified time.Time `json:"modified"`
+	// Rounds is every head the review has been read against, which is what the
+	// sweep has to keep: comparing against an earlier round reads the diff
+	// cached at it.
+	Rounds []string `json:"rounds,omitempty"`
 
 	Ready int `json:"ready"`
 	Draft int `json:"draft"`
@@ -263,6 +267,11 @@ func read(path string, number int) Review {
 	row.Event = r.Event
 	row.HeadSHA = r.HeadSHA
 	row.HeadRef, row.BaseRef = r.HeadRef, r.BaseRef
+
+	for i := range r.Rounds {
+		row.Rounds = append(row.Rounds, r.Rounds[i].SHA)
+	}
+
 	row.Body = strings.TrimSpace(r.Body) != ""
 
 	for i := range r.Comments {

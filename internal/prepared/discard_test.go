@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/prepared"
@@ -86,6 +87,40 @@ func TestSweepDropsTheCachesOfEveryHeadNoReviewIsStagedAgainst(t *testing.T) {
 		if !exists(t, path) {
 			t.Errorf("%s was swept, and the staged review is pinned to it", path)
 		}
+	}
+}
+
+// Comparing against an earlier round reads the diff cached at it, so a round
+// the review still lists is a round the sweep has to leave alone. They all go
+// when the review does, so nothing outlives what it is for.
+func TestSweepKeepsEveryRoundAReviewWasReadAt(t *testing.T) {
+	t.Parallel()
+
+	root := cachedRoot(t)
+
+	path := artifact.Path(root, 42)
+
+	r, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r.Rounds = []artifact.Round{{SHA: older, Staged: time.Now()}, {SHA: head, Staged: time.Now()}}
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := prepared.Sweep(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if n != 0 {
+		t.Errorf("removed %d files, and both heads are rounds the review was read at", n)
+	}
+
+	if !exists(t, artifact.DiffPath(root, older)) {
+		t.Error("the diff of a round the review was read at was swept")
 	}
 }
 

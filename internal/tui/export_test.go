@@ -97,3 +97,7 @@ func (l *List) Armed() int { return l.moves }
 // Settle delivers the settle timer armed at at, which is what the cursor
 // stopping on a row runs.
 func (l *List) Settle(at int) tea.Cmd { return l.settled(at) }
+
+// SetRounds supplies the earlier-round reader after construction, which is what
+// a test needs when the diff it answers with is built beside the review.
+func (m *Model) SetRounds(r Rounds) { m.rounds = r }

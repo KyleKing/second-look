@@ -60,6 +60,7 @@ type keyMap struct {
 	Zed       key.Binding
 	Structure key.Binding
 	OnlyNew   key.Binding
+	Round     key.Binding
 	Suggest   key.Binding
 	Range     key.Binding
 	More      key.Binding
@@ -116,6 +117,7 @@ func defaultKeyMap() keyMap {
 		Zed:       key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
 		Structure: key.NewBinding(key.WithKeys("W"), key.WithHelp("W", "no code changed")),
 		OnlyNew:   key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "only what is new")),
+		Round:     key.NewBinding(key.WithKeys("H"), key.WithHelp("H", "since a round")),
 		Suggest:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "suggest")),
 		Range:     key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "range")),
 		More:      key.NewBinding(key.WithKeys("+"), key.WithHelp("+", "more context")),
@@ -187,6 +189,7 @@ func helpLines() [][2]string {
 		{"w", "hide hunks that change nothing but whitespace, and show them again"},
 		{"W", "hide hunks that change no code at all, comments and re-wraps included"},
 		{"U", "hide every hunk already marked read, so what is left is what is new since the last pass"},
+		{"H then 1 / 2 / …", "hide every hunk an earlier round already carried; H again shows them"},
 		{spaceKey, "mark the hunk read, or the whole file from a file line"},
 		{"m then r / d / t / x", "mark the comment ready, draft, todo, or skipped"},
 		{"T", "write out every todo comment for an agent, and run the dispatch command if one is set"},

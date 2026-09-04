@@ -75,6 +75,13 @@ type Model struct {
 	// onlyNew hides every hunk already marked read, which is the second pass
 	// over a pull request that moved under an earlier one.
 	onlyNew bool
+	// since is every hunk an earlier round already carried, and sinceSHA is the
+	// round it came from. Both are nil until a round is picked, and it is a
+	// separate axis from onlyNew: what a round held and what this pass marked
+	// read are different questions.
+	since    *seen.Set
+	sinceSHA string
+	rounds   Rounds
 	// ticks counts the watcher's beats, which is what paces the head check at a
 	// different cadence from the reload.
 	ticks int
@@ -531,6 +538,10 @@ func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.askStructure(), true
 	case key.Matches(msg, m.keys.Restage):
 		return m.askRestage(), true
+	case key.Matches(msg, m.keys.Round):
+		m.askRound()
+
+		return nil, true
 	case key.Matches(msg, m.keys.Suggest):
 		return m.suggest(), true
 	case key.Matches(msg, m.keys.Range):
@@ -630,6 +641,10 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case 'S':
 		return m.submitAs(msg)
+	case 'H':
+		m.sinceRound(msg.String())
+
+		return m, nil
 	case 'm':
 		if !m.stateKey(msg) {
 			m.say("no state for "+msg.String()+"; r ready, d draft, t todo, x skip", false)

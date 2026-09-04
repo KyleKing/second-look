@@ -99,6 +99,12 @@ A comment whose line no longer reads the way it did when it was written says so 
 is drawn. It is the posting guard asked at read time, because finding out at submit that
 four comments moved under a force-push is finding out too late.
 
+`H` compares against an earlier round. A review records every head it has been prepared
+against, the diff cached at each one is kept for as long as the review is, and `H` lists
+them so a second pass can hide every hunk the round it names already carried. It reaches
+nothing, since both diffs are already on disk, and a hunk is matched by what it says
+rather than by where it sits.
+
 `U` narrows the review to what is new since the last pass: every hunk already marked read
 is hidden, and the marks are keyed by what a hunk says rather than by the commit it sat
 on, so a hunk that survived a force-push unchanged stays hidden and one that was touched

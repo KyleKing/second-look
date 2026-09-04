@@ -32,6 +32,10 @@ type file struct {
 	Hunk []record `toml:"hunk"`
 }
 
+// New is an empty set, which is what a caller marking hunks it has just read
+// off a diff starts from.
+func New() *Set { return &Set{ids: map[ID]bool{}} }
+
 // Path is where a pull request's read hunks are kept. It is keyed by pull
 // request rather than by head commit, because surviving a new head is the one
 // thing this file exists to do.
