@@ -335,6 +335,51 @@ syntax-aware whitespace filter, which moved to `W` beside `w`, since `T` is batc
 
 ### 6. The session for twenty-five reviews — half done
 
+Batching a review pass over a whole queue is built, and it turned out to be four small
+things rather than a feature. Measured against a real pending queue of eighteen rows read
+from `~/Developer/coverbasedev`, thirteen of them in one repository with six clones of it
+on disk:
+
+`second-look get` was not recording the branches a pull request joins. `writeReview` set
+every other field and `load`, on the screen's own path, set those two, so a review staged
+by `get` could not be grouped into its stack and only picked the branches up if somebody
+later opened it. A stack is read bottom first and the upper diff excludes the lower one,
+so a batch that staged fourteen rows and worked through them lost the one ordering that
+matters. Confirmed on `irm#14802` and `#14814`, a real stack that listed as two flat rows
+before the fix and bottom first after it.
+
+`prepared.Split` was only ever called by the reviews screen, so the piped list and
+`--json` carried no stack order at all. `prepared.Order` puts each chain contiguous and
+bottom first, standing where its earliest row already stood, and everything else stays
+where it was.
+
+`inbox --json` carried none of the rating. Its rows were repository, number, title,
+author, draft, comments, labels, updated, and url, while the screen was computing cost and
+size and drawing them, so anything driving the queue from a pipe had to fetch every diff
+again to find out which row was cheap. The rows now carry `reviewed`, `cost`, `rated`,
+`added`, and `removed`, and the piped queue is ranked the way the screen ranks it rather
+than left in the order the searches answered.
+
+The guidance is the fourth. `second-look skill` now says where to stand (anywhere, since
+a repository with no clone here keeps one store per repository, so six clones of one
+repository are still one set of reviews), what order to take the queue in, that `reviews`
+is where the stack order comes from, which of the two things actually needs a checkout,
+and that finding nothing is an answer that belongs in the review's own note.
+
+Three things are left, and each is a decision rather than a gap. The cost is only there
+where something rated that head, and the burst needs twenty rows, so a queue of eighteen
+answers `rated: false` on every row and a driver falls back to started-then-oldest. Rating
+from the CLI would be a read per row, which is exactly what `WorthRating` exists to
+refuse, so it wants living with before it is built. Checkout arbitration is the second:
+`internal/checkouts` already ranks the clones of a repository by on-branch, then clean,
+then needs-a-stash, and it is wired only into the threads reply path, while a batch wants
+that ranking plus a lease so two agents do not both claim the one clean clone. Of six irm
+clones on this laptop, one is clean and named `irm-1-review`, so the real parallelism is
+two rather than six. The third is that a prepared review with no comments reads the same
+whether it was read carefully or never opened, which is `skip` semantics one level up. The
+guidance asks for a run log in the note instead, and whether that is enough is worth
+finding out before adding a state.
+
 Prefetch is built. Once every search has answered, the queue stages the next few rows in
 the order it is read, with no checkout: a detached target moves no working copy, so a
 prefetch cannot be noticed in a clone. A row this laptop already holds a review for is
