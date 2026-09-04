@@ -411,6 +411,10 @@ WHAT STAYS LOCAL
   A skipped comment is never posted and stays in the file, so a finding that was
   considered and declined reads as considered rather than forgotten.
 
+  A body carrying a suggestion fence posts as a GitHub suggestion. It has to
+  hang from the RIGHT side and cover only lines the file that results has, and
+  both are checked when the comment is staged rather than when it is posted.
+
   Turns are the exchange about a comment, in the order it was said. They append
   rather than replace, so send only what is new and nothing already there is
   lost. The note is one mutating field and keeps no argument; the turns keep it.

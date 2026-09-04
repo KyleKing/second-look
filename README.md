@@ -61,6 +61,17 @@ whatever the working directory happens to be.
 `second-look skill` prints the instructions an agent needs to drive it, ready to write
 into a skills directory.
 
+`s` on a line of the diff opens the line's own text and stages what comes back as a
+GitHub suggestion, which the author commits in one click. Typing three fences and the
+line's leading whitespace correctly is why nobody writes one from a terminal. What GitHub
+would refuse is refused at staging time: a suggestion has to hang from the right side and
+cover only lines the file that results has, so a range crossing a removed line is caught
+before it is sent rather than after.
+
+A comment whose line no longer reads the way it did when it was written says so where it
+is drawn. It is the posting guard asked at read time, because finding out at submit that
+four comments moved under a force-push is finding out too late.
+
 `U` narrows the review to what is new since the last pass: every hunk already marked read
 is hidden, and the marks are keyed by what a hunk says rather than by the commit it sat
 on, so a hunk that survived a force-push unchanged stays hidden and one that was touched

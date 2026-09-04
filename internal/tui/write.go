@@ -90,6 +90,10 @@ func (m *Model) writeAs(msg tea.KeyPressMsg) tea.Cmd {
 // changes as threads are resolved.
 func (m *Model) draftKey(msg editedMsg) string {
 	switch {
+	case msg.fresh != nil && msg.suggests:
+		f := msg.fresh
+
+		return fmt.Sprintf("suggest-%s-%s-%d", f.path, f.side, f.line)
 	case msg.fresh != nil:
 		f := msg.fresh
 

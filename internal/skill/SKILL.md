@@ -87,6 +87,16 @@ carrying `"turn": [{"author": "<you>", "body": "<what you did and what changed>"
 append to what is already on disk, so send only what is new. The comment is held as a
 draft, which puts it back in front of the author.
 
+## Suggestions
+
+A body whose text is fenced with ```suggestion posts as a GitHub suggestion the author can
+commit in one click. Write the replacement exactly, leading whitespace included: it
+replaces the lines the comment covers.
+
+A suggestion has to hang from the RIGHT side and cover only lines the file that results
+has, so a range crossing a removed line is refused when the comment is staged rather than
+when it is posted.
+
 ## Replies
 
 `second-look get <pr>` caches the pull request's unresolved review threads, and

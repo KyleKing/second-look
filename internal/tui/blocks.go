@@ -72,9 +72,11 @@ func newFolded() folded {
 // to wrap to, which hunks are hidden because nothing in them changed, and what
 // has been folded away by hand.
 type layout struct {
-	width int
-	hide  hider
-	fold  folded
+	// drifted is every comment whose anchor no longer matches the diff, by id.
+	drifted map[string]bool
+	width   int
+	hide    hider
+	fold    folded
 	// split pairs each removal with the addition that replaced it, so the two
 	// sides of an edit share a row. It is the one renderer that changes which
 	// rows exist rather than only how they are drawn.
@@ -184,7 +186,10 @@ func commentRows(c *artifact.Comment, index int, path string, lay layout, numWid
 	rows := make([]row, 0, len(body)+3)
 	rows = append(rows,
 		row{kind: rowBlank, path: path, comment: index},
-		row{kind: rowComment, text: commentHead(c), path: path, comment: index, head: true})
+		row{
+			kind: rowComment, path: path, comment: index, head: true,
+			text: commentHead(c) + driftWord(lay.drifted[c.ID]),
+		})
 
 	for _, line := range body {
 		rows = append(rows, row{kind: rowComment, text: line, path: path, comment: index})
@@ -210,6 +215,17 @@ func commentHead(c *artifact.Comment) string {
 	}
 
 	return head
+}
+
+// driftWord marks a comment whose line no longer reads the way it did when the
+// comment was written. The posting guard asks the same question and answers it
+// too late to do anything about, so it is asked here as well.
+func driftWord(drifted bool) string {
+	if drifted {
+		return "  ⚠ the line under it changed"
+	}
+
+	return ""
 }
 
 func noteRows(note string, index int, path string, avail int, lay layout) []row {

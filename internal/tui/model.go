@@ -285,6 +285,9 @@ type editedMsg struct {
 	// fresh is where a comment written from nothing lands, nil for every edit
 	// of something already staged.
 	fresh *staging
+	// suggests marks a buffer whose text replaces the line rather than
+	// describing it, so what comes back is fenced rather than posted as prose.
+	suggests bool
 }
 
 type sentMsg struct {
@@ -508,6 +511,10 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		m.help = !m.help
 	case key.Matches(msg, m.keys.Structure):
 		cmd := m.askStructure()
+
+		return true, m, cmd
+	case key.Matches(msg, m.keys.Suggest):
+		cmd := m.suggest()
 
 		return true, m, cmd
 	case m.reshapes(msg):
@@ -1484,6 +1491,12 @@ func (m *Model) applyEdit(msg editedMsg) {
 	}
 
 	if msg.fresh != nil {
+		if msg.suggests {
+			m.stageSuggestion(msg)
+
+			return
+		}
+
 		m.stageNew(msg)
 
 		return
@@ -1869,6 +1882,7 @@ func (m *Model) rebuild() {
 	lay := layout{
 		width: m.width, hide: m.skipper(), fold: m.folded,
 		split: m.sideBySide(), made: m.made,
+		drifted: artifact.Drifted(m.review.Comments, m.diff),
 	}
 	if !m.asDiffed {
 		lay.plan = m.shape.plan

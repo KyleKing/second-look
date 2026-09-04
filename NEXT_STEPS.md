@@ -308,19 +308,31 @@ round needs the caches of earlier heads kept rather than swept, which is a chang
 A pull request already reviewed says so wherever it is opened from, which step 4 gave for
 free: the read marks and the rating live with the review rather than with the clone.
 
-### 8. Suggestions, ranges, and drift
+### 8. Suggestions and drift — done, bar the markers
 
-second-look owns suggestions. A key takes the line or range under the cursor, opens the
-after-side text, and stages a GitHub suggestion block, refusing what GitHub would refuse
-(a range crossing a removed line, a range leaving its hunk) at staging time rather than
-at post time. An agent can write one into the TOML and the same validation applies to it.
+`s` takes the line under the cursor, opens it on the line's own text, and stages what
+comes back as a GitHub suggestion. That is the whole of why nobody writes one from a
+terminal: three fences and the line's own leading whitespace, typed correctly, to say
+what an edit of the line says by being it.
 
-The generalization worth having: flag when the code under any anchor changed since the
-comment was written, which is the post-time anchor guard moved to read time and useful for
-every comment rather than only a suggestion.
+What GitHub would refuse is refused at staging time. A suggestion replaces lines of the
+file that results, so it can only hang from the right side, and every line it covers has
+to be a line that exists there. A range crossing a removed line is the case that reads
+as fine and fails on posting: the numbers are contiguous in the post-image and the diff
+shows a gap between them. The check runs in `artifact`, so a suggestion an agent writes
+into the TOML is held to it too, and `Resolve` runs it on every staged batch.
 
-`[TODO:` markers are the other half, and they are requirements.md's second review target:
-local changes with no posting endpoint, where a comment lands in the source as a marker.
+Drift is the generalization, and it is the post-time anchor guard asked at read time: a
+comment whose line no longer reads the way it did says so where it is drawn. It costs
+nothing against a diff already in memory, and finding out at submit that four comments
+moved under a force-push is finding out too late.
+
+Ranges beyond one line are still staged rather than selected: an agent writes `start_line`
+and the checks hold, and there is no visual range selection in the screen yet.
+
+`[TODO:` markers are not built. They are requirements.md's second review target rather
+than a part of this one: local changes with no posting endpoint, where a comment lands in
+the source as a marker, which is a second mode rather than a key.
 
 ### 9. Writing the comment
 

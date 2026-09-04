@@ -57,6 +57,7 @@ type keyMap struct {
 	Zed       key.Binding
 	Structure key.Binding
 	OnlyNew   key.Binding
+	Suggest   key.Binding
 	Accept    key.Binding
 	Send      key.Binding
 	Submit    key.Binding
@@ -107,6 +108,7 @@ func defaultKeyMap() keyMap {
 		Zed:       key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
 		Structure: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "no code changed")),
 		OnlyNew:   key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "only what is new")),
+		Suggest:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "suggest")),
 		Accept:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
 		Send:      key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
 		Submit:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
@@ -178,6 +180,7 @@ func helpLines() [][2]string {
 		{"ctrl+t", "while writing: swap in the version an agent wrote under you, and back"},
 		{"z then a / i / R / M", "fold what is here, or all of it; invert; open all; fold to the file names"},
 		{"a then b / m / n / t / ?", "write a comment on this line, ranked blocker to question"},
+		{"s", "suggest a replacement for this line, opened on the line's own text"},
 		{"e", "write here: a comment, an answer to a thread, the review's body or note"},
 		{"E", "edit the comment's local note, which never posts"},
 		{"!", "run a shell here and attach what it printed to the note"},

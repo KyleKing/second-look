@@ -41,6 +41,12 @@ func Resolve(comments []Comment, d *diff.Diff) error {
 			continue
 		}
 
+		if err := CheckSuggestion(c, d); err != nil {
+			errs = append(errs, err)
+
+			continue
+		}
+
 		c.Anchor = text
 	}
 
