@@ -2372,3 +2372,28 @@ func TestTheReviewsOwnProseStartsFolded(t *testing.T) {
 		t.Errorf("za did not open the review's note:\n%s", got)
 	}
 }
+
+// tab and shift+tab report a boundary the way n and N do. The two keys walk the
+// same motion, so one of them going quiet at the ends reads as a dead key.
+func TestTabAtTheEdgeSaysThereIsNothingFurther(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t,
+		comment("c1", parsed, artifact.SideRight, 15, "first"),
+		comment("c2", parsed, artifact.SideRight, 14, "second"))
+
+	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	press(m, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "no comment or thread before this one") {
+		t.Errorf("shift+tab at the first one said nothing:\n%s", got)
+	}
+
+	for range 10 {
+		press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+
+	if got := plain(m.Frame()); !strings.Contains(got, "no comment or thread after this one") {
+		t.Errorf("tab at the last one said nothing:\n%s", got)
+	}
+}

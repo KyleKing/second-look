@@ -915,6 +915,14 @@ func (m *Model) repeatable(mo motion) {
 	m.jump(mo.step, mo.what, mo.want)
 }
 
+// toNote walks to the next or previous thing wanting a decision. It reports its
+// own outcome, so it must return before the clear at the end of moved.
+func (m *Model) toNote(step int) bool {
+	m.repeatable(motion{step, "comment or thread", isHead})
+
+	return true
+}
+
 // chord is what the second key can be, shown while the first is waiting. The
 // brackets are unstyled because the footer renders the status as one span, and
 // a color opened inside it would close the span around it.
@@ -953,9 +961,9 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 	case key.Matches(msg, m.keys.Bottom):
 		m.cursor = len(m.screen.rows) - 1
 	case key.Matches(msg, m.keys.NextNote):
-		m.repeatable(motion{1, "comment or thread", isHead})
+		return m.toNote(1)
 	case key.Matches(msg, m.keys.PrevNote):
-		m.repeatable(motion{-1, "comment or thread", isHead})
+		return m.toNote(-1)
 	case key.Matches(msg, m.keys.Again):
 		return m.again(1)
 	case key.Matches(msg, m.keys.Reverse):
