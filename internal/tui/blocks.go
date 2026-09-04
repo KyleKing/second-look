@@ -74,9 +74,12 @@ func newFolded() folded {
 type layout struct {
 	// drifted is every comment whose anchor no longer matches the diff, by id.
 	drifted map[string]bool
-	width   int
-	hide    hider
-	fold    folded
+	// grown is the file's own lines either side of a hunk, where a reader asked
+	// for more than the patch carried. It is nil for every view but the diff.
+	grown func(path string, hunk int, span [2]int) ([]row, []row)
+	width int
+	hide  hider
+	fold  folded
 	// split pairs each removal with the addition that replaced it, so the two
 	// sides of an edit share a row. It is the one renderer that changes which
 	// rows exist rather than only how they are drawn.

@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/x/term"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/brief"
 	"github.com/kyleking/second-look/internal/config"
 	"github.com/kyleking/second-look/internal/conversations"
@@ -248,6 +249,9 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 	if d := dispatcher(); d != nil {
 		opts = append(opts, tui.WithDispatcher(d))
 	}
+
+	reader := blob.Reader{Work: opened.Work, Repo: t.RepoID(), SHA: opened.Review.HeadSHA}
+	opts = append(opts, tui.WithBlobs(reader.Read))
 
 	// A review read out of the cache reached the screen without asking GitHub
 	// anything, so the screen asks behind the first frame instead.

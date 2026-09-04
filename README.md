@@ -61,6 +61,12 @@ whatever the working directory happens to be.
 `second-look skill` prints the instructions an agent needs to drive it, ready to write
 into a skills directory.
 
+`+` and `-` grow and shrink the file's own context around the hunk under the cursor. A
+hunk carries three lines by convention and the question a review turns on is often in the
+fourth, and leaving the screen for an editor loses the comments, the read marks, and the
+place. The file is read from the checkout when one holds the commit, which is free and
+works offline, and from GitHub when none does.
+
 `ctrl+n` while writing completes the word under the cursor from what this review already
 knows: the files the diff touches, the symbols the structural pass named, and the people
 who have said something on the pull request. `@` completes a login. Pressing again takes

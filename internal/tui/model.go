@@ -61,6 +61,12 @@ type Model struct {
 	// dispatcher hands the todo set to an agent, and is nil where nothing is
 	// configured to receive it.
 	dispatcher Dispatcher
+	// around is how many lines of the file either side of a hunk the reader
+	// asked for, blobs is the files read to answer that, and blob is what reads
+	// one. blob is nil where nothing can.
+	around map[hunkAt]int
+	blobs  map[string][]string
+	blob   Blobs
 	// onlyNew hides every hunk already marked read, which is the second pass
 	// over a pull request that moved under an earlier one.
 	onlyNew bool
@@ -187,7 +193,8 @@ func New(
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
 		width: minWidth, height: startHeight, folded: newFolded(),
 		refined: d.Refine(), lexed: map[hunkAt]map[diff.LineRef][]highlight.Span{},
-		made: generated.New(nil),
+		made:   generated.New(nil),
+		around: map[hunkAt]int{}, blobs: map[string][]string{},
 	}
 
 	for _, opt := range opts {
@@ -332,6 +339,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.reloaded(msg)
 
 		return m, cmd
+	case blobMsg:
+		m.absorbBlob(msg)
+
+		return m, nil
 	case structureMsg:
 		asked := m.reading
 		m.reading = false
@@ -511,6 +522,15 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		m.help = !m.help
 	case key.Matches(msg, m.keys.Structure):
 		cmd := m.askStructure()
+
+		return true, m, cmd
+	case key.Matches(msg, m.keys.More), key.Matches(msg, m.keys.Less):
+		by := step
+		if key.Matches(msg, m.keys.Less) {
+			by = -step
+		}
+
+		cmd := m.grow(by)
 
 		return true, m, cmd
 	case key.Matches(msg, m.keys.Suggest):
@@ -1883,6 +1903,9 @@ func (m *Model) rebuild() {
 		width: m.width, hide: m.skipper(), fold: m.folded,
 		split: m.sideBySide(), made: m.made,
 		drifted: artifact.Drifted(m.review.Comments, m.diff),
+		grown: func(path string, hunk int, span [2]int) ([]row, []row) {
+			return m.surround(path, hunk, span[0], span[1])
+		},
 	}
 	if !m.asDiffed {
 		lay.plan = m.shape.plan

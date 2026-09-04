@@ -56,7 +56,7 @@ func (m *Model) watch() tea.Cmd {
 const headEvery = 60
 
 // reloaded answers the tick. Nothing changed is the common case and costs a
-// comparison; a change is read, and what it collides with is offered rather
+// comparison. A change is read, and what it collides with is offered rather
 // than resolved.
 func (m *Model) reloaded(msg reloadMsg) tea.Cmd {
 	m.ticks++
@@ -115,8 +115,8 @@ func (m *Model) take(fresh *artifact.Review) {
 	was := m.review.Comments[index]
 	m.review = fresh
 
-	theirs, ok := find(fresh, was.ID)
-	if !ok || theirs.Body == was.Body {
+	theirs := fresh.Find(was.ID)
+	if theirs == nil || theirs.Body == was.Body {
 		m.rebuild()
 		m.say(said, false)
 
@@ -137,8 +137,8 @@ func arrived(was, now *artifact.Review) string {
 	turns := 0
 
 	for i := range now.Comments {
-		old, ok := find(was, now.Comments[i].ID)
-		if !ok {
+		old := was.Find(now.Comments[i].ID)
+		if old == nil {
 			continue
 		}
 
@@ -153,14 +153,4 @@ func arrived(was, now *artifact.Review) string {
 	}
 
 	return "the review changed on disk and was reloaded"
-}
-
-func find(r *artifact.Review, id string) (*artifact.Comment, bool) {
-	for i := range r.Comments {
-		if r.Comments[i].ID == id {
-			return &r.Comments[i], true
-		}
-	}
-
-	return nil, false
 }

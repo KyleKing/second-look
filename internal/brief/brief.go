@@ -69,7 +69,7 @@ func Diff(d *diff.Diff, r *artifact.Review) string {
 func Comment(
 	r *artifact.Review, id string, d *diff.Diff, ts []threads.Thread, around int,
 ) (string, error) {
-	c := find(r, id)
+	c := r.Find(id)
 	if c == nil {
 		return "", fmt.Errorf("%q: %w", id, ErrNoComment)
 	}
@@ -187,16 +187,6 @@ func conversation(c *artifact.Comment, ts []threads.Thread) string {
 	}
 
 	return fmt.Sprintf("\nIT ANSWERS comment %d, which is not in the cached threads.\n", c.InReplyTo)
-}
-
-func find(r *artifact.Review, id string) *artifact.Comment {
-	for i := range r.Comments {
-		if r.Comments[i].ID == id {
-			return &r.Comments[i]
-		}
-	}
-
-	return nil
 }
 
 // anchored indexes the comments by the line they hang from, since a line can

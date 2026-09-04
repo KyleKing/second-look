@@ -356,12 +356,25 @@ Images are still an open question rather than an assumption. Nothing here verifi
 right next move is to test it against a real repository, not to build the fallback on the
 strength of a remembered limitation.
 
-### 10. Reading around the diff
+### 10. Reading around the diff — the spike landed
 
-Spike context expansion first, since it needs no index: grow a hunk's context, or open the
-whole post-change file around it, from the checkout when there is one and the API blob when
-there is not. Definitions and usages come after, on the codeintel extraction, and the
-checkout-less path is the question that has to be answered before they can be promised.
+`+` and `-` grow and shrink the file's own lines around the hunk under the cursor, three
+at a press. The file is read once and kept, and the press that started the read is the
+press that gets the lines.
+
+The checkout-less path is answered, and it is the same seam either way: `git show
+<sha>:<path>` where a checkout holds the commit, which is free and works with no network
+and reads the commit rather than the working tree, so a tree left on another branch still
+answers correctly; and `gh api repos/<repo>/contents/<path>?ref=<sha>` where none does.
+Neither is a fallback for the other going wrong, since a checkout that does not hold the
+commit is the ordinary detached case rather than a failure.
+
+An expanded line carries no pre-image number, because a line outside the hunk has none in
+the diff and inventing one would be a number that lies.
+
+Definitions and usages still wait on codeintel, and opening the whole file rather than a
+window around the hunk wants living with first: three at a press is enough for the case
+this was built for, and a whole-file view is closer to an editor than to a review.
 
 ### Later, in the order I would reach for them
 

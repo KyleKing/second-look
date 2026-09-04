@@ -133,3 +133,13 @@ func Run(
 func WithGenerated(patterns []string) Option {
 	return func(m *Model) { m.made = generated.New(patterns) }
 }
+
+// Blobs reads a file as it reads after the change, by path, so a hunk can be
+// drawn with more of the file around it than the patch carried.
+type Blobs func(ctx context.Context, path string) ([]string, error)
+
+// WithBlobs allows + and - to grow the context around a hunk. Without one, the
+// keys say so rather than appearing to work.
+func WithBlobs(read Blobs) Option {
+	return func(m *Model) { m.blob = read }
+}

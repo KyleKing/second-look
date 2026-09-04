@@ -53,6 +53,10 @@ type row struct {
 	// thread indexes the open threads for every row of a thread block. It is
 	// only read where kind is rowThread, so its zero elsewhere means nothing.
 	thread int
+	// around marks a line read out of the file rather than out of the diff,
+	// which is context somebody asked for rather than context the patch
+	// carried.
+	around bool
 	// hunk numbers the @@ block a row belongs to, across the whole diff, and is
 	// zero for a row that belongs to none.
 	hunk int
@@ -87,7 +91,7 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 	groups := lay.groups(d)
 	ctx := fileCtx{
 		d: d, r: r, ts: ts, byLine: byLine, byThread: byThread,
-		placed: placed, lay: lay, split: splitFiles(groups),
+		placed: placed, lay: lay, split: splitFiles(groups), grown: lay.grown,
 	}
 
 	for _, g := range groups {
@@ -133,6 +137,9 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 	}
 
 	hide := false
+	span := bounds(f)
+
+	var below []row
 
 	for _, l := range f.Lines {
 		if at.hunks != nil && !at.hunks[l.Hunk] {
@@ -143,6 +150,8 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 			// A change block never spans two hunks, so the pending one closes
 			// before the next heading is drawn.
 			lines.flush()
+			rows = append(rows, below...)
+			below = nil
 			lines.hunk, hunk = l.Hunk, l.Hunk
 
 			var head *row
@@ -154,6 +163,11 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 				folded++
 			} else {
 				rows = append(rows, *head)
+
+				var above []row
+
+				above, below = c.grown(p, hunk, span[hunk])
+				rows = append(rows, above...)
 			}
 		}
 
@@ -167,6 +181,7 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 	}
 
 	lines.flush()
+	rows = append(rows, below...)
 
 	if folded > 0 {
 		rows = append(rows, row{
@@ -191,6 +206,9 @@ type fileCtx struct {
 	lay      layout
 	// split is how many other places each file is also drawn in.
 	split map[string]int
+	// grown is the file's own lines either side of a hunk, for a reader who
+	// asked for more than the patch carried.
+	grown func(path string, hunk int, span [2]int) ([]row, []row)
 }
 
 // fileNotes is what a file says about itself before its first hunk: why it

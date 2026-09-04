@@ -14,7 +14,7 @@ import (
 // One review, wherever it is read from. A review staged in one clone is moved
 // into the store on the first read and answers from a second clone of the same
 // repository, which is what makes an incremental re-review possible across
-// directories. Reading it from two places used to stage it twice.
+// directories.
 func TestAReviewIsOneReviewAcrossClones(t *testing.T) {
 	t.Parallel()
 
