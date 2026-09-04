@@ -172,6 +172,7 @@ func helpLines() [][2]string {
 		{spaceKey, "mark the hunk read, or the whole file from a file line"},
 		{"m then r / d / t / x", "mark the comment ready, draft, todo, or skipped"},
 		{"T", "write out every todo comment for an agent, and run the dispatch command if one is set"},
+		{"ctrl+t", "while writing: swap in the version an agent wrote under you, and back"},
 		{"z then a / i / R / M", "fold what is here, or all of it; invert; open all; fold to the file names"},
 		{"a then b / m / n / t / ?", "write a comment on this line, ranked blocker to question"},
 		{"e", "write here: a comment, an answer to a thread, the review's body or note"},

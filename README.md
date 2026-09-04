@@ -61,6 +61,12 @@ whatever the working directory happens to be.
 `second-look skill` prints the instructions an agent needs to drive it, ready to write
 into a skills directory.
 
+The screen watches the artifact, so an agent writing it while you read reaches the screen
+rather than being clobbered by the next keystroke. What is being typed is never
+overwritten: where the same comment moved underneath, the buffer keeps the screen and
+`ctrl+t` swaps the version from disk in and out, because resolving that collision without
+asking would throw one of the two away.
+
 A comment can be handed back rather than ruled on. `m` then `t` marks it todo, which is
 the fifth state beside ready, draft, and skipped: it means an agent owes work here, and
 posting refuses while any remains for the same reason it refuses a draft. `T` writes every

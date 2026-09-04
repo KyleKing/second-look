@@ -61,12 +61,15 @@ type Model struct {
 	// dispatcher hands the todo set to an agent, and is nil where nothing is
 	// configured to receive it.
 	dispatcher Dispatcher
-	submit     Submitter
-	send       Sender
-	merge      Merger
-	head       HeadCheck
-	browser    Opener
-	tree       Tree
+	// wrote is the artifact's stamp as this screen last saw it, which is what
+	// tells a write of its own from an agent's.
+	wrote   stamp
+	submit  Submitter
+	send    Sender
+	merge   Merger
+	head    HeadCheck
+	browser Opener
+	tree    Tree
 
 	screen screen
 	cursor int
@@ -196,7 +199,9 @@ func (m *Model) Init() tea.Cmd {
 	// The pass costs a subprocess per hunk side, so it runs behind the first
 	// frame rather than in front of it: the rating appears when it is ready and
 	// t is a redraw by the time anyone presses it.
-	cmds := []tea.Cmd{m.checkHead()}
+	m.wrote, _ = stampOf(m.path)
+
+	cmds := []tea.Cmd{m.checkHead(), m.watch()}
 	if structure.Available() {
 		cmds = append(cmds, readStructure(m.diff, m.made))
 	}
@@ -314,6 +319,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.dispatched(msg)
 
 		return m, nil
+	case reloadMsg:
+		cmd := m.reloaded(msg)
+
+		return m, cmd
 	case structureMsg:
 		asked := m.reading
 		m.reading = false
@@ -1202,6 +1211,10 @@ func (m *Model) save(ok string) {
 		return
 	}
 
+	// The watcher reads the same file, so a write of this screen's own is
+	// recorded here rather than arriving a second later as a change.
+	m.wrote, _ = stampOf(m.path)
+
 	m.rebuild()
 	m.say(ok, false)
 }
@@ -1662,6 +1675,8 @@ func (m *Model) submitAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 			return m, nil
 		}
+
+		m.wrote, _ = stampOf(m.path)
 	}
 
 	m.posting = true

@@ -38,6 +38,10 @@ type editor struct {
 	// told marks a failure to keep the buffer as already reported, since it
 	// would otherwise be reported on every keystroke.
 	told bool
+	// theirs is the body this comment gained on disk while it was being typed
+	// in. It is held rather than applied: ctrl+t swaps it into the buffer, and
+	// what was typed goes back on a second press.
+	theirs string
 }
 
 // beginEdit opens the editor over the block the cursor is in, on whatever an
@@ -114,6 +118,10 @@ func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.putBack()
 
 		return m, nil
+	case "ctrl+t":
+		m.swapTheirs()
+
+		return m, nil
 	case "ctrl+s":
 		done := m.editing
 		m.editing = nil
@@ -136,6 +144,24 @@ func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.keep()
 
 	return m, cmd
+}
+
+// swapTheirs puts the version an agent wrote into the buffer, and puts what was
+// typed back on a second press. Neither side is thrown away, which is the whole
+// point of holding both: the collision is a decision, not a merge.
+func (m *Model) swapTheirs() {
+	if m.editing.theirs == "" {
+		m.say("nothing arrived under this one", false)
+
+		return
+	}
+
+	mine := m.editing.area.Value()
+	m.editing.area.SetValue(m.editing.theirs)
+	m.editing.area.MoveToEnd()
+	m.editing.theirs = mine
+	m.fit()
+	m.say("swapped; ctrl+t again puts the other one back", false)
 }
 
 // reopens names the key that offers a kept buffer back, since a comment that
@@ -279,6 +305,10 @@ func (m *Model) editorLines() []string {
 	keys := "┗ ctrl+s save · esc keeps it · ctrl+e $EDITOR"
 	if m.editing.restored {
 		keys += " · ctrl+r drops what was restored"
+	}
+
+	if m.editing.theirs != "" {
+		keys += " · ctrl+t swaps the version from disk"
 	}
 
 	return append(out, frame.Render(cut(gutter+keys, m.width)))

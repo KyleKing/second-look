@@ -223,39 +223,43 @@ can move it: it lists as a leftover under a heading of its own rather than being
 And `post` says what it removed by naming the review rather than the path, since an
 absolute path into the state directory is neither short nor something anyone types.
 
-### 5. The agent loop, both directions
+### 5. The agent loop, both directions — done, bar the threads tab
 
 Four parts, and the point of all of them is that a review is a conversation with Claude
 Code rather than a file handoff.
 
-**Reload rather than clobber.** The screen watches the artifact and says it changed the
-way nvim says a file changed on disk, keeping the comment being edited. The case worth
-designing for is the collision: the agent rewrote the comment I am typing in, so the
-screen offers both and never silently wins.
+**Reload rather than clobber** is built. The screen stats the artifact once a second and
+takes what an agent wrote, saying what arrived rather than redrawing silently. Its own
+writes are told apart by the stamp it records after each save, so a save of its own never
+reads as a change. The collision is the case it exists for: where the comment being typed
+in was rewritten underneath, the buffer keeps the screen and the other version is held on
+`ctrl+t`, which swaps the two and swaps them back. Resolving that without asking would
+throw one of the two away.
 
-**What the agent reads.** `sl show` prints the review and cannot hand over the diff, so
-an agent asked about a finding is working from a path and a line number. `sl show <pr>
---diff` prints the diff with the anchors marked, and a per-comment context command emits
-the hunk, the surrounding file, the thread, and the note together, so the agent reads
-what I am looking at.
+**What the agent reads** is built, as `show <pr> --diff` and `context <pr> <id>`. The
+first prints the cached diff with every staged comment marked on the line it anchors to,
+the second prints one comment with its hunk, its private note, its turns, and the
+conversation it answers. Both are text rather than JSON, because they are read rather
+than parsed, and both read the commit the review was written against rather than the
+working tree.
 
-**A fifth state and a thread.** States become ready, draft, skipped, posted, and `todo`,
-where `todo` means the agent owes work here. A comment grows a thread of turns, each with
-an author and a body, so my guidance and the agent's answer are iterations rather than
-one mutating note. Rendering is progressive: the first comment stays sticky, the last turn
-is trimmed to a couple of lines, one line of the turn before it shows, older turns are
-hidden behind a count, and focus expands them a step at a time. Length is the risk here,
-so the collapsed shape is the design and the expanded one is the affordance.
+**A fifth state and a thread** is built. `todo` sits beside ready, draft, and skipped,
+means an agent owes work here, and blocks the post the way a draft does. Turns are the
+exchange about one comment, they append rather than replace so an answer cannot lose the
+half already there, and they render collapsed: the last turn trimmed to two lines, one
+line of the turn before it, a count of everything older, and `za` for the lot.
 
-**Batch dispatch on its own key.** `T` hands every `todo` to the agent at once and does
-not block on drafts, where `S` blocks on a draft and always will, because a draft is a
-comment nobody has ruled on and handing work to an agent is not posting. The set is
-written out, the agent drains it, answers arrive as turns, and the screen says which
-came back while I was elsewhere.
+**Batch dispatch** is `T`. It writes every todo comment out with its context and runs
+whatever `dispatch` in `config.toml` names, with the command's own output going to a log
+beside the set, since the screen owns the terminal while it runs. Unset, it writes the
+file and names it: starting an agent is not something to do on a keystroke nobody
+configured. `second-look todo <pr>` prints the same set, so the loop works from the shell
+as well as from the screen.
 
-Alongside it, the threads tab takes on what GitHub's conversations list makes unreadable:
-gh-dash's row density, inbox-style processing of what moved, and the reply written where
-the code is rather than in a browser textarea.
+Still outstanding: the threads tab taking on what GitHub's conversations list makes
+unreadable, with gh-dash's row density and inbox-style processing of what moved. The
+conversation queue already does most of that job, so what is left is the review screen's
+own threads view rather than a new surface.
 
 ### 6. The session for twenty-five reviews
 

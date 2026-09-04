@@ -59,3 +59,10 @@ func BandColors(millions bool) map[string]color.Color {
 		"removed mark": blend(p.Base, p.Red, mark),
 	}
 }
+
+// Reload delivers the watcher's message without waiting on its timer, so a test
+// can pin what a write from an agent does to the screen.
+func (m *Model) Reload(path string) {
+	at, _ := stampOf(path)
+	m.reloaded(reloadMsg{at: at})
+}
