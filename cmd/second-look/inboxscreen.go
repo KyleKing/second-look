@@ -367,6 +367,43 @@ func (s *inboxScreen) rate(items []inbox.PullRequest) tea.Cmd {
 	return s.spend()
 }
 
+// restedOn rates the row the cursor has stopped on.
+//
+// The burst leaves two kinds of row unrated: one in a bucket short enough to
+// read at a glance, where a read per row buys nothing, and one the hourly
+// allowance would not cover. Both are worth a read once somebody is actually
+// looking at them, which bounds what an unrated queue costs to what is read
+// rather than to what was searched for.
+func (s *inboxScreen) restedOn(key string) tea.Cmd {
+	if s.local[key].Rated || s.asked[key] || !structure.Available() {
+		return nil
+	}
+
+	p, ok := s.rowFor(key)
+	if !ok {
+		return nil
+	}
+
+	s.queued = append(s.queued, p)
+
+	return s.spend()
+}
+
+// rowFor is the pull request a row names, and false for a heading or for a row
+// belonging to another tab.
+func (s *inboxScreen) rowFor(key string) (inbox.PullRequest, bool) {
+	for i := range s.buckets {
+		items := s.buckets[i].Items
+		for j := range items {
+			if keyOf(&items[j]) == key {
+				return items[j], true
+			}
+		}
+	}
+
+	return inbox.PullRequest{}, false
+}
+
 // budgetMsg is what is left of the hourly allowance a rating spends.
 type budgetMsg struct {
 	left github.Allowance
@@ -420,6 +457,7 @@ func (s *inboxScreen) spend() tea.Cmd {
 			break
 		}
 
+		s.asked[key] = true
 		started++
 
 		go s.rateOne(key, p)

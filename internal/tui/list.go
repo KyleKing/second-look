@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -156,6 +157,10 @@ type List struct {
 	expanded map[string]bool
 	filter   filter
 	loader   Loader
+	// onRest is called with the row the cursor has stopped on, and moves counts
+	// the moves so far, so an answer about a row already left is dropped.
+	onRest func(row string) tea.Cmd
+	moves  int
 	// touched marks a cursor the reader has moved. Until then a queue filling
 	// in as its searches answer keeps the cursor at the top, since a row that
 	// arrives above the cursor should not leave it in the middle of the list.
@@ -230,6 +235,47 @@ func (l *List) WithLoader(ld Loader) *List {
 	return l
 }
 
+// restMsg is the cursor having held still long enough that what is under it is
+// worth paying for.
+type restMsg struct{ at int }
+
+// WithRest calls back once the cursor has stopped on a row, so a screen can pay
+// for what only the row being looked at needs. Every move restarts the wait, so
+// running the cursor down eighty rows asks for none of them.
+func (l *List) WithRest(on func(row string) tea.Cmd) *List {
+	l.onRest = on
+
+	return l
+}
+
+// settleFor is how long the cursor holds still before what is under it is paid
+// for. Long enough that running down a queue asks for nothing, short enough
+// that stopping on a row and looking at it reads as immediate.
+const settleFor = 400 * time.Millisecond
+
+// rest starts the wait again. The count is what tells an answer about the row
+// under the cursor from one about a row the reader has already left.
+func (l *List) rest() tea.Cmd {
+	if l.onRest == nil {
+		return nil
+	}
+
+	l.moves++
+	at := l.moves
+
+	return tea.Tick(settleFor, func(time.Time) tea.Msg { return restMsg{at: at} })
+}
+
+// settled answers the wait, and does nothing where the cursor has moved since.
+func (l *List) settled(at int) tea.Cmd {
+	row := l.current()
+	if at != l.moves || row == nil {
+		return nil
+	}
+
+	return l.onRest(row.Key)
+}
+
 // WithSubtitle puts a count or a filter in the header's right-hand corner. It
 // is a function because the count changes as rows are answered.
 func (l *List) WithSubtitle(s func() string) *List {
@@ -268,7 +314,7 @@ func (l *List) Init() tea.Cmd {
 	if l.loader == nil {
 		l.rebuild()
 
-		return nil
+		return l.rest()
 	}
 
 	if len(l.views) > 0 {
@@ -278,7 +324,7 @@ func (l *List) Init() tea.Cmd {
 	cmd := l.loader.Start()
 	l.rebuild()
 
-	return cmd
+	return tea.Batch(cmd, l.rest())
 }
 
 // Update handles a keypress or a resize. Everything else is the caller's, which
@@ -292,16 +338,23 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return l, nil
 	case tea.KeyPressMsg:
 		return l.handleKey(msg)
+	case restMsg:
+		cmd := l.settled(msg.at)
+
+		return l, cmd
 	}
 
 	// Every tab's loader is fed, not only the one being read: a queue switched
 	// away from mid-search still has answers coming, and dropping them would
 	// leave it half full whenever it is switched back to.
+	// The wait starts again on every answer as well as on every move: the row
+	// the cursor is on when a search lands is one nobody moved to, and it is
+	// still the row being looked at.
 	for _, ld := range l.loaders() {
 		if cmd, mine := ld.Absorb(msg); mine {
 			l.rebuild()
 
-			return l, cmd
+			return l, tea.Batch(cmd, l.rest())
 		}
 	}
 
@@ -359,7 +412,9 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if l.moved(msg) {
-		return l, nil
+		cmd := l.rest()
+
+		return l, cmd
 	}
 
 	// A screen that fills in as its searches answer re-runs them itself, since

@@ -982,6 +982,12 @@ The threshold is the reason the rating exists: recency orders a screenful well e
 a bucket a reader can see all of at once is left in the order its search answered rather
 than costing an API read per row.
 
+That threshold leaves rows unrated, and so does the allowance, so a row nothing has rated
+is read once the cursor has stopped on it. Every move restarts the wait, which is what
+makes it lazy: running the cursor down a queue asks for nothing, and stopping on a row
+pays for that row alone. It is the same read the burst makes and writes into the same
+cache, so a row rated this way is rated for the next open too.
+
 The allowance guard is the other half, and it lives in aragonite as `github.Budgets`
 because gh-sweep and gh-repo-dashboard burst the same way. It reads what is left of each
 pool (core, GraphQL, and search are separate allowances) through `gh api rate_limit`, which
@@ -1346,11 +1352,12 @@ needs, all in v0.9.0.
 
 ## Open questions
 
-**Whether the queue should pay for what it cannot know for free.** It orders on local
-signals now, which leaves two a reviewer would want: how large an unrated diff is, and
-whether they are the only human asked. Both cost an API call per row, which on a
-configured inbox is about eighty per open. A lazy version (rate what the cursor passes,
-cache by head SHA) would bound that to what is actually looked at.
+**Whether the queue should pay for what it cannot know for free.** The lazy half is
+built: the cursor stopping on a row rates that row and nothing else, which is what bounds
+an unrated queue's cost to what is actually read. Two signals a reviewer would want are
+still not fetched. How large a diff is could be counted off the patch the rating already
+pulls, so it costs nothing more. Whether they are the only human asked is a second read
+per row, and it wants living with the lazy rating before anyone spends it.
 
 **Whether the review-cost rating moves to aragonite.** It reads the diff, the symbol
 graph, and the changed symbols, so it may belong next to `codeintel` rather than here.

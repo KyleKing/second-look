@@ -42,6 +42,10 @@ disk and only a pull request pushed to since is read again. A diff no grammar an
 be fetched at all is not, so a rate limit costs the order rather than the cache. A bucket
 short enough to read at a glance is left alone, because a read per row buys nothing there.
 
+A row left unrated by either the threshold or the allowance is read once the cursor has
+stopped on it. Every move restarts the wait, so running the cursor down a queue asks for
+nothing and stopping on a row pays for that row alone.
+
 Before any of it runs, the queue asks GitHub what is left of the hour's allowance, which is
 a read GitHub does not charge for. It spends at most half of what remains: ordering a queue
 is what leads to opening the reviews in it, and those are reads too, so a queue sorted

@@ -554,3 +554,41 @@ func startsOf(frame, want string) []int {
 
 	return out
 }
+
+// Ordering a queue by what a diff costs to read means a read per row, which on
+// a configured inbox is eighty nobody asked for. So a row nothing has rated is
+// paid for once the cursor has stopped on it, and running the cursor past one
+// asks for nothing.
+func TestTheCursorStoppingPaysForTheRowUnderIt(t *testing.T) {
+	t.Parallel()
+
+	asked := []string{}
+
+	l := tui.NewList("second-look conversations", queue, nil).
+		WithRest(func(key string) tea.Cmd {
+			asked = append(asked, key)
+
+			return nil
+		})
+	l.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+
+	l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+
+	stale := l.Armed()
+
+	l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+
+	// The timer the first move armed answers about a row the cursor has left,
+	// so it is dropped rather than paid for.
+	l.Settle(stale)
+
+	if len(asked) != 0 {
+		t.Fatalf("a row the cursor moved off was paid for: %v", asked)
+	}
+
+	l.Settle(l.Armed())
+
+	if len(asked) != 1 || asked[0] != l.CursorKey() {
+		t.Errorf("asked for %v, want the row under the cursor (%q)", asked, l.CursorKey())
+	}
+}

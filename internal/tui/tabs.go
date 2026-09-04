@@ -29,6 +29,9 @@ type Tab struct {
 	// is first looked at rather than when the screen opens, so a queue nobody
 	// switched to costs no requests.
 	Loader Loader
+	// Rest is called with the row the cursor has stopped on, for a tab that
+	// pays for something only the row being looked at needs.
+	Rest func(row string) tea.Cmd
 }
 
 // view is where a tab was left. Switching back to one puts the cursor, the
@@ -80,7 +83,7 @@ func (l *List) adopt() {
 	t := &l.tabs[l.at]
 	l.title, l.sections, l.act = t.Title, t.Sections, t.Act
 	l.subtitle, l.hints, l.helpLines = t.Subtitle, t.Hints, t.Help
-	l.loader = t.Loader
+	l.loader, l.onRest = t.Loader, t.Rest
 
 	v := &l.views[l.at]
 	l.cursor, l.offset, l.touched = v.cursor, v.offset, v.touched

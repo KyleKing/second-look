@@ -3,6 +3,7 @@ package tui
 import (
 	"image/color"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/theme"
 )
 
@@ -88,3 +89,11 @@ func (m *Model) CursorAnchor() int {
 
 	return anchorOf(r.path, r.line).line
 }
+
+// Armed is the number the last cursor move gave the settle timer, so a test can
+// deliver that timer without waiting one out.
+func (l *List) Armed() int { return l.moves }
+
+// Settle delivers the settle timer armed at at, which is what the cursor
+// stopping on a row runs.
+func (l *List) Settle(at int) tea.Cmd { return l.settled(at) }

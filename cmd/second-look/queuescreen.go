@@ -72,7 +72,7 @@ func queueOnce(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) (
 		{
 			Name: "inbox", Title: "second-look inbox",
 			Sections: in.sections, Act: in.act, Subtitle: in.counts,
-			Hints: inboxHints, Help: inboxHelp, Loader: in,
+			Hints: inboxHints, Help: inboxHelp, Loader: in, Rest: in.restedOn,
 		},
 		{
 			Name: "conversations", Title: "second-look conversations",
