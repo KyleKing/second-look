@@ -267,6 +267,28 @@ func testHome(t *testing.T, dir string) string {
 		t.Fatalf("creating the state home: %v", err)
 	}
 
+	settle(t, home)
+
+	return home
+}
+
+// settle turns the background prefetch off. It stages reviews nobody asked for,
+// which against a fixed recording means the interaction the test was going to
+// use has already been played by the time the test asks for it.
+func settle(t *testing.T, home string) {
+	t.Helper()
+
+	write(t, filepath.Join(home, ".config", "second-look", "config.toml"), []byte("prefetch = 0\n"))
+}
+
+// quietHome is a home with the prefetch off, which is what every screen test
+// wants: the recording holds one answer per call.
+func quietHome(t *testing.T) string {
+	t.Helper()
+
+	home := t.TempDir()
+	settle(t, home)
+
 	return home
 }
 

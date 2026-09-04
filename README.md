@@ -61,6 +61,12 @@ whatever the working directory happens to be.
 `second-look skill` prints the instructions an agent needs to drive it, ready to write
 into a skills directory.
 
+`ctrl+n` while writing completes the word under the cursor from what this review already
+knows: the files the diff touches, the symbols the structural pass named, and the people
+who have said something on the pull request. `@` completes a login. Pressing again takes
+the next match. Nothing here needs an index, which is why it is what got built; every
+symbol in the repository rather than the ones in the diff waits on codeintel.
+
 `s` on a line of the diff opens the line's own text and stages what comes back as a
 GitHub suggestion, which the author commits in one click. Typing three fences and the
 line's leading whitespace correctly is why nobody writes one from a terminal. What GitHub

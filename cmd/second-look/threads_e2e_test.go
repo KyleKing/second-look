@@ -67,7 +67,7 @@ func TestThreadsWritesNoReadMarks(t *testing.T) {
 	t.Parallel()
 
 	s := ghcassette.Replay(t, queueCassette(t))
-	home := t.TempDir()
+	home := quietHome(t)
 
 	res := runCLIEnv(t, s, t.TempDir(), []string{"HOME=" + home, "XDG_CONFIG_HOME=" + home + "/.config"}, "threads")
 	if res.code != 0 {
@@ -173,7 +173,7 @@ func TestThreadsScreen(t *testing.T) {
 	t.Parallel()
 
 	s := ghcassette.Replay(t, queueCassette(t))
-	home := t.TempDir()
+	home := quietHome(t)
 
 	// Both, because os.UserConfigDir reads XDG_CONFIG_HOME on Linux and ignores
 	// it on macOS: setting only HOME leaves the marks under the harness's own

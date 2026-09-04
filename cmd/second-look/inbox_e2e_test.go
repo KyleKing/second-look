@@ -71,7 +71,7 @@ func TestInboxJSON(t *testing.T) {
 func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	t.Parallel()
 
-	home := t.TempDir()
+	home := quietHome(t)
 	s := ghcassette.Replay(t, inboxThenReview(t))
 
 	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
@@ -147,7 +147,7 @@ func TestInboxScreenApprovesOnTheSecondPress(t *testing.T) {
 	t.Parallel()
 
 	s := ghcassette.Replay(t, withApprove(t))
-	home := t.TempDir()
+	home := quietHome(t)
 
 	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
 	sc.await("kyleking/aragonite#100")
@@ -197,7 +197,7 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 	const body = "Rebased this onto main, CI is green now."
 
 	s := ghcassette.Replay(t, withComment(t, body))
-	home := t.TempDir()
+	home := quietHome(t)
 
 	editor := filepath.Join(t.TempDir(), "editor")
 	script := "#!/bin/sh\nprintf '" + body + "\\n' > \"$1\"\n"
@@ -257,7 +257,7 @@ func withComment(t *testing.T, body string) string {
 func TestInboxWithABrokenConfig(t *testing.T) {
 	t.Parallel()
 
-	home := t.TempDir()
+	home := quietHome(t)
 
 	dir := filepath.Join(home, ".config", "second-look")
 	if err := os.MkdirAll(dir, 0o750); err != nil {

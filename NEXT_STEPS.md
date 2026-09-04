@@ -334,20 +334,27 @@ and the checks hold, and there is no visual range selection in the screen yet.
 than a part of this one: local changes with no posting endpoint, where a comment lands in
 the source as a marker, which is a second mode rather than a key.
 
-### 9. Writing the comment
+### 9. Writing the comment — completion built, the editor still owed to aragonite
 
-`e` then `ctrl+e` is the reflex today, which says the text box is the wrong shape for real
-prose. Inline modal editing is owed to aragonite as `tui/editor` and is what fixes it,
-shared with every tool here that writes prose in a terminal.
+`ctrl+n` completes the word under the cursor from what the review already holds: the files
+the diff touches by full path and by base name, the symbols the structural pass named, and
+the logins of everyone who has said something on the pull request, with `@` switching to
+that last list. Pressing again takes the next match, so the key walks the list rather than
+sticking on the first. It needs no index, which is exactly why it is the half that got
+built.
 
-With it, completion for GitHub usernames, files in the diff, symbols, and links, which
-requirements.md leaves as an open question about where the candidates come from: files in
-the diff need no index, and symbols need codeintel.
+Every symbol in the repository rather than the ones in the diff still needs codeintel, and
+link completion needs somewhere for the candidates to come from, so both wait.
 
-Images stay an open question and want verifying rather than assuming. requirements.md
-recorded that `gh` cannot upload one; if that has changed, a linked image in a comment
-body should post, and if it has not, the fallback of opening the comment and the image
-directory together on post is what stands.
+Extracting the inline editor to aragonite as `tui/editor` is not done, and it is a
+cross-repository change rather than a feature: the editor here works, and moving it means
+its own check ladder, a release, and a version bump on this side. It wants doing when a
+second tool needs it, which is what would prove the shape.
+
+Images are still an open question rather than an assumption. Nothing here verified whether
+`gh` can upload one, and requirements.md's note that it cannot is what still stands: the
+right next move is to test it against a real repository, not to build the fallback on the
+strength of a remembered limitation.
 
 ### 10. Reading around the diff
 

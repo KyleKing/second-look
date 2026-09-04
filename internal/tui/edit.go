@@ -122,6 +122,10 @@ func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.swapTheirs()
 
 		return m, nil
+	case "ctrl+n":
+		m.suggestWord()
+
+		return m, nil
 	case "ctrl+s":
 		done := m.editing
 		m.editing = nil
@@ -302,7 +306,7 @@ func (m *Model) editorLines() []string {
 		out = append(out, frame.Render(gutter+"┃ ")+cut(line, m.width))
 	}
 
-	keys := "┗ ctrl+s save · esc keeps it · ctrl+e $EDITOR"
+	keys := "┗ ctrl+s save · esc keeps it · ctrl+e $EDITOR · ctrl+n complete"
 	if m.editing.restored {
 		keys += " · ctrl+r drops what was restored"
 	}

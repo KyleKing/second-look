@@ -22,7 +22,7 @@ func TestReviewWithNoCheckout(t *testing.T) {
 	t.Parallel()
 
 	s := ghcassette.Replay(t, awayCassette(t))
-	home := t.TempDir()
+	home := quietHome(t)
 	env := homeEnv(home)
 
 	res := runCLIEnv(t, s, t.TempDir(), env, "get", "KyleKing/second-look#2")
@@ -73,7 +73,7 @@ func TestReviewScreenWithNoCheckoutRefusesAShell(t *testing.T) {
 	t.Parallel()
 
 	s := ghcassette.Replay(t, awayCassette(t))
-	home := t.TempDir()
+	home := quietHome(t)
 
 	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config",
 		"KyleKing/second-look#2")
