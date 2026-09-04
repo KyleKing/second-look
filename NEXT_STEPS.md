@@ -104,9 +104,12 @@ A folded file or hunk heading recedes the same way, so what is closed reads as c
 rather than as another heading asking for the attention the fold had just been told to
 stop giving.
 
-The file the cursor is not in is the third, and it is the one still waiting: dimming every
-file but one is most of a long diff most of the time, which is a different thing from
-dimming a window nobody is typing in.
+The file the cursor is not in was the third, and it is dropped rather than waiting.
+Dimming every file but one is most of a long diff most of the time, so dim becomes the
+normal contrast and the one undimmed file is what stands out, which is a highlight wearing
+a dim's clothing. What it was on the list to solve was orientation, and a size on every
+file heading solves that without spending contrast on it. `dim_inactive` closes at two
+thirds, which is where the idea stopped being worth taking.
 
 Folded in here because every one of them is a rendering problem, and both are waiting on
 a decision rather than on code. `demo/scene.sh comment-run` and `demo/scene.sh skipped`
@@ -198,11 +201,25 @@ gathered hunks by symbol, which is one relation out of several and the only one 
 relation nobody can see is how a change maps across the filesystem, and that wants a visual
 helper of some kind rather than another line of prose on a heading.
 
-Nothing here is a design yet. What algorithm decides the narrative is open, and so is what
-the helper looks like. Two things are already known to be wrong: adding is what got the
-screen here, so the next pass is about what to take away and what to fold behind a key,
-and the fixes have to be argued with on a real review through `demo/scene.sh` rather than
-reasoned about.
+What algorithm decides the narrative is still open, and so is what the helper looks like.
+The next pass is not either of them: it is subtraction, because adding is what got the
+screen here and because taking rows away shrinks whatever the map would later have to do.
+Measured on `demo/scene.sh review` at 120x40, on a review whose diff is one file:
+
+- The header is seven facts of equal weight after the title, `0% · off head · cost 46 ·
+  0/1 read · 0 ready · 2 draft · 0 skipped`, where `off head` means the diff is stale and
+  `0 skipped` means nothing happened
+- The body and note block takes 9 of 40 rows before any code, and it is the text on screen
+  you least need to re-read, having written it
+- One file costs three rows of chrome: a directory heading, the file heading, and
+  `@@ -0,0 +1,57 @@`, which is git's syntax for what the gutter already shows
+
+So: the header keeps the worst fact and folds the quiet ones behind a key, with `off head`
+the only one colored. The preamble is one row until `za`, which is 9 rows back to 1. The
+directory row merges into the path where a review has one directory. The `@@` row goes.
+Each file heading carries its own size, so the frame answers how much is left without the
+header saying it. Every one of them is argued with on a real review through
+`demo/scene.sh` rather than reasoned about.
 
 ### 3. The score that always says 99 — done
 
@@ -330,6 +347,15 @@ a hand-placed row means when the rating re-sorts under it), notification at a bo
 disk, so what second-look may say about a clone without duplicating it), and the review
 screen as a view inside the tabbed shell rather than a program the shell hands off to.
 `demo/scene.sh` now opens each queue on seed data, which is where those get argued with.
+
+The shell is the one to take first, because the other five have nowhere to live without
+it. While the review screen is a separate program the queue hands off to, there is no
+process for a session cutoff to be measured against, nothing for a recently-opened list to
+outlive, and no boundary for a notification to fire at. The handoff also costs what it
+already cost once: coming back re-runs three searches and loses the filter, which is what
+made the queue's own test wait on a heading an empty bucket draws before its search
+answers. What it costs is the largest refactor here, and it takes away the thing every pty
+test and every scene relies on, which is that the review screen runs on its own.
 
 ### 7. What changed since I read it — the filter and the detection, not the picker
 
@@ -758,15 +784,26 @@ Folding the hunk is also what makes a comment on a lockfile placeable. Today the
 whichever of four hundred lines the cursor happens to be on, which is a line nobody will
 find again. With the card in the hunk's place, the comment lands on the package.
 
-What has to be answered before any of it is built:
+The first card is advisories and nothing else, which is the half that changes a review
+decision and the half that costs one request. Measured against the live services:
 
-- Where the metadata comes from, one resolver per ecosystem: PyPI, the npm registry,
-  crates.io, and the Go module proxy all answer versions and release dates without auth
-- Where advisories come from. [OSV](https://osv.dev) covers every ecosystem here, takes a
-  batch query, and needs no key, which makes it the one to try first
-- What it costs. A hundred-package bump is a hundred lookups, so the answers are cached by
-  package and version under the state directory, the batch endpoints are used where they
-  exist, and the card fills in as it lands the way the inbox's sections do
+- [OSV](https://osv.dev) answers a whole lockfile in one POST to `/v1/querybatch`, with no
+  key and no auth, in about 700ms. Three packages across PyPI, npm, and Go in a single
+  request found ten advisories against `requests` 2.19.0, six against `lodash` 4.17.15,
+  and two against `gogo/protobuf` 1.3.1
+- The registries all answer, and their payloads are why they are not in the first card.
+  The Go module proxy is 194 bytes for a version and a release date. PyPI is 193KB for a
+  package, or 66KB for one version. npm is 248KB, and the abbreviated form that drops to
+  69KB also drops the `time` object, so a release date costs the full document. crates.io
+  is 441KB for `serde`, and it answers 403 with no `User-Agent`, which is a documented
+  requirement rather than an outage
+- So version age, what the latest is, and the detail block a package new to the file
+  deserves are all deferred. A hundred-package bump would be a hundred requests of 60KB to
+  440KB, which makes the cache by package and version mandatory rather than an
+  optimization, and leaves the first cold card slow however it is written
+
+What still has to be answered:
+
 - What happens offline, on a private registry, or when a lookup fails. The hunk is still
   there, so the fallback is the diff and a line saying which packages could not be
   resolved. A card that quietly omits a package is worse than no card
@@ -1399,12 +1436,22 @@ needs, all in v0.9.0.
 
 ## Open questions
 
-**Whether the queue should pay for what it cannot know for free.** Both free halves are
-built. The cursor stopping on a row rates that row and nothing else, which bounds an
-unrated queue's cost to what is actually read, and the size of the change is counted off
-the patch that read already pulled. What is left is whether you are the only human asked,
-which is a second read per row, and it wants living with the two that cost nothing before
-anyone spends it.
+**Whether you are the only human asked.** Settled, and the premise was wrong twice. It is
+not a read per row: one GraphQL query carrying `reviewRequests` and `reviews` for a whole
+page of search results costs 1 against the 5000-point hourly allowance, so it is a read
+per section. And being free is not what decides it. Measured against a real pending queue
+of twelve rows, nine carried no other human at all, two carried one, and one carried two,
+so as a sort key it separates nine rows from three and leaves the nine in the order they
+were already in. It is drawn on the minority instead, in the tail rather than as a column
+that would be three quarters blank, because somebody else already being on a pull request
+is the hint that it can wait.
+
+Telling a bot from a person is `__typename`, which `internal/conversations/decode.go`
+already does and `query.go` already explains: a login matched against a list of known bot
+names is a guess that goes stale. Confirmed on that same queue, where `coderabbitai`
+answers `Bot` and carries no `[bot]` suffix, so a name match would have counted it as a
+reviewer. The case `__typename` cannot catch is a bot running on an ordinary account with
+a token, which is a list of logins in `config.toml` rather than a heuristic.
 
 **Whether the review-cost rating moves to aragonite.** It reads the diff, the symbol
 graph, and the changed symbols, so it may belong next to `codeintel` rather than here.
