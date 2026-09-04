@@ -365,11 +365,20 @@ func (m *Model) rowLines() []string {
 // answer a keystroke with a bar of inverted text across it.
 const cursorBar = "▌"
 
+// rangeBar is the same column for a row the open range covers. It is thinner
+// rather than paler, since the palette a terminal is on may quantize the two
+// colors into one and leave the range invisible.
+const rangeBar = "▏"
+
 func (m *Model) renderRow(i, width int) string {
 	body := m.rowBody(m.screen.rows[i], width)
 
 	if i == m.cursor {
 		return m.styles.cursor.Render(cursorBar) + body
+	}
+
+	if m.inRange(i) {
+		return m.styles.selected.Render(rangeBar) + body
 	}
 
 	return " " + body

@@ -80,6 +80,12 @@ would refuse is refused at staging time: a suggestion has to hang from the right
 cover only lines the file that results has, so a range crossing a removed line is caught
 before it is sent rather than after.
 
+`V` opens a range on the line under the cursor and closes it wherever the cursor has
+reached, so `a` writes one comment covering all of them and `s` opens on every line it
+will replace. A range beyond one line could only be written by an agent into the TOML
+before, because the screen had no way to say where one ends. It is answered by the key
+that uses it, so the next comment is never quietly written against the last one's lines.
+
 A comment whose line no longer reads the way it did when it was written says so where it
 is drawn. It is the posting guard asked at read time, because finding out at submit that
 four comments moved under a force-push is finding out too late.
@@ -87,7 +93,7 @@ four comments moved under a force-push is finding out too late.
 `U` narrows the review to what is new since the last pass: every hunk already marked read
 is hidden, and the marks are keyed by what a hunk says rather than by the commit it sat
 on, so a hunk that survived a force-push unchanged stays hidden and one that was touched
-comes back. It composes with `w` and `t` rather than replacing them.
+comes back. It composes with `w` and `W` rather than replacing them.
 
 The head is asked about again while the screen is open, not only when it opens, so a push
 that lands mid-review says so rather than being found out at submit time.

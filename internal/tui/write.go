@@ -38,6 +38,7 @@ type staging struct {
 	side     string
 	severity string
 	line     int
+	start    int
 }
 
 // mine is the id a comment written on this screen carries, so what a person
@@ -76,12 +77,22 @@ func (m *Model) writeAs(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	r := m.screen.rows[m.cursor]
-	a := anchorOf(r.path, r.line)
+	start, line, side := m.takeRange(r.line, r.path)
 
-	fresh := &staging{path: a.path, side: a.side, line: a.line, severity: severity}
-	title := fmt.Sprintf("a %s comment on %s:%d", severity, a.path, a.line)
+	fresh := &staging{path: r.path, side: side, line: line, start: start, severity: severity}
+	title := fmt.Sprintf("a %s comment on %s", severity, rangeWord(r.path, firstOf(start, line), line))
 
 	return m.beginEdit(title, "", editedMsg{index: noComment, replyTo: -1, fresh: fresh})
+}
+
+// startSide is the side a range opens on, which GitHub wants alongside
+// start_line and nowhere else.
+func startSide(f *staging) string {
+	if f.start == 0 {
+		return ""
+	}
+
+	return f.side
 }
 
 // draftKey names the buffer on disk for whatever is being written, so a second
@@ -129,7 +140,8 @@ func (m *Model) stageNew(msg editedMsg) {
 
 	c := artifact.Comment{
 		ID: m.freeID(), Path: f.path, Side: f.side, Line: f.line, Body: msg.body,
-		Anchor: text, Severity: f.severity, Status: artifact.StatusReady,
+		StartLine: f.start, StartSide: startSide(f), Anchor: text,
+		Severity: f.severity, Status: artifact.StatusReady,
 	}
 
 	m.review.Upsert(c)

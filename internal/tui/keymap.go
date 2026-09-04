@@ -61,6 +61,7 @@ type keyMap struct {
 	Structure key.Binding
 	OnlyNew   key.Binding
 	Suggest   key.Binding
+	Range     key.Binding
 	More      key.Binding
 	Less      key.Binding
 	Accept    key.Binding
@@ -116,6 +117,7 @@ func defaultKeyMap() keyMap {
 		Structure: key.NewBinding(key.WithKeys("W"), key.WithHelp("W", "no code changed")),
 		OnlyNew:   key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "only what is new")),
 		Suggest:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "suggest")),
+		Range:     key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "range")),
 		More:      key.NewBinding(key.WithKeys("+"), key.WithHelp("+", "more context")),
 		Less:      key.NewBinding(key.WithKeys("-"), key.WithHelp("-", "less context")),
 		Accept:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
@@ -193,6 +195,7 @@ func helpLines() [][2]string {
 		{"z then a / i / R / M", "fold what is here, or all of it; invert; open all; fold to the file names"},
 		{"a then b / m / n / t / ?", "write a comment on this line, ranked blocker to question"},
 		{"s", "suggest a replacement for this line, opened on the line's own text"},
+		{"V", "open a range here; move to its other end, then a or s covers every line of it"},
 		{"+ / -", "grow or shrink the file's own context around this hunk, read from the checkout or the API"},
 		{"e", "write here: a comment, an answer to a thread, the review's body or note"},
 		{"E", "edit the comment's local note, which never posts"},

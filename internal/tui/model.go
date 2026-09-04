@@ -88,11 +88,12 @@ type Model struct {
 	browser Opener
 	tree    Tree
 
-	screen screen
-	cursor int
-	offset int
-	width  int
-	height int
+	screen   screen
+	cursor   int
+	selected *selection
+	offset   int
+	width    int
+	height   int
 
 	keys   keyMap
 	styles styles
@@ -521,14 +522,21 @@ func (m *Model) readHelp(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// asks handles the keys that go out to the parser or the forge and swap the
-// answer in once it lands, and reports whether one of them matched.
+// asks handles the keys that act on the row under the cursor: the ones that go
+// out to the parser or the forge and swap the answer in once it lands, and the
+// ones that open a range or an editor on it. It reports whether one matched.
 func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Structure):
 		return m.askStructure(), true
 	case key.Matches(msg, m.keys.Restage):
 		return m.askRestage(), true
+	case key.Matches(msg, m.keys.Suggest):
+		return m.suggest(), true
+	case key.Matches(msg, m.keys.Range):
+		m.askRange()
+
+		return nil, true
 	}
 
 	return nil, false
@@ -559,10 +567,6 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		}
 
 		cmd := m.grow(by)
-
-		return true, m, cmd
-	case key.Matches(msg, m.keys.Suggest):
-		cmd := m.suggest()
 
 		return true, m, cmd
 	case m.reshapes(msg):
@@ -1974,6 +1978,10 @@ func (m *Model) applyMerge(msg mergedMsg) {
 }
 
 func (m *Model) rebuild() {
+	// An open range is two row numbers, and every row number here is about to
+	// mean something else.
+	m.selected = nil
+
 	if m.notes == nil {
 		m.notes = noted(m.threads)
 	}

@@ -356,8 +356,13 @@ comment whose line no longer reads the way it did says so where it is drawn. It 
 nothing against a diff already in memory, and finding out at submit that four comments
 moved under a force-push is finding out too late.
 
-Ranges beyond one line are still staged rather than selected: an agent writes `start_line`
-and the checks hold, and there is no visual range selection in the screen yet.
+Ranges are selected as well as staged. `V` opens one on the line under the cursor and
+closes it wherever the cursor has reached, `a` writes a single comment covering all of it,
+and `s` opens on every line the suggestion will replace. The range is answered by the key
+that uses it and by a second `V`, so the next comment is never written against the last
+one's lines, and a rebuild drops it because the two row numbers it holds are about to mean
+something else. The bar is thinner than the cursor's rather than paler, since a terminal
+that quantizes the two colors into one would leave the range invisible.
 
 `[TODO:` markers are not built. They are requirements.md's second review target rather
 than a part of this one: local changes with no posting endpoint, where a comment lands in

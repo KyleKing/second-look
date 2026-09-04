@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strconv"
 
 	tea "charm.land/bubbletea/v2"
@@ -31,10 +30,21 @@ func (m *Model) suggest() tea.Cmd {
 		return nil
 	}
 
-	fresh := &staging{path: r.path, side: artifact.SideRight, line: r.line.New, severity: question}
-	title := fmt.Sprintf("suggest a replacement for %s:%d", r.path, r.line.New)
+	start, line, _ := m.takeRange(r.line, r.path)
+	from := firstOf(start, line)
 
-	return m.beginEdit(title, r.line.Text, editedMsg{
+	text, ok := m.rangeText(r.path, artifact.SideRight, from, line)
+	if !ok {
+		m.say("a suggestion replaces lines of the file that results, and this range crosses one that came out", true)
+
+		return nil
+	}
+
+	fresh := &staging{path: r.path, side: artifact.SideRight, line: line, start: start, severity: question}
+
+	title := "suggest a replacement for " + rangeWord(r.path, from, line)
+
+	return m.beginEdit(title, text, editedMsg{
 		index: noComment, replyTo: -1, fresh: fresh, suggests: true,
 	})
 }
@@ -53,6 +63,7 @@ func (m *Model) stageSuggestion(msg editedMsg) {
 
 	c := artifact.Comment{
 		ID: m.freeID(), Path: f.path, Side: f.side, Line: f.line,
+		StartLine: f.start, StartSide: startSide(f),
 		Body: artifact.Suggest(msg.body), Anchor: text,
 		Severity: f.severity, Status: artifact.StatusReady,
 	}

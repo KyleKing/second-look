@@ -80,3 +80,11 @@ func (m *Model) SetRestage(r Restager) { m.restage = r }
 // SawHead is the watcher having found a head that moved, so a test can reach
 // the restage without waiting out the check.
 func (m *Model) SawHead(sha string) { m.newHead = sha }
+
+// CursorAnchor is the line of the file the cursor is standing on, so a test can
+// name the range it opened rather than counting keystrokes.
+func (m *Model) CursorAnchor() int {
+	r := m.screen.rows[m.cursor]
+
+	return anchorOf(r.path, r.line).line
+}
