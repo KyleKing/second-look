@@ -151,30 +151,24 @@ func (l layout) fileWord(path string) string {
 	return l.parsed.fileWord(path)
 }
 
-// header is the review's own prose. Both blocks are drawn whether or not
-// anything is written in them: a review posted with no body is unsigned, and a
-// field that appears only once it is filled in is one nobody knows to fill in.
+// header is the review's own note, above the diff. It is the run log, so it
+// belongs where reading starts, and it starts folded: what it holds is evidence
+// for later rather than something to read first.
+//
+// It is drawn whether or not anything is written in it, because a field that
+// appears only once it is filled in is one nobody knows to fill in.
 func header(r *artifact.Review, lay layout, numWidth int) []row {
-	if r.Body == "" && r.Note == "" {
-		return []row{{
-			kind: rowComment, comment: reviewBody, head: true,
-			text: "REVIEW  no body, no note · e to write one",
-		}}
-	}
+	return prose(reviewNote, "REVIEW NOTE", r.Note, rowNote, proseCols(lay.width, numWidth), lay)
+}
 
-	avail := proseCols(lay.width, numWidth)
+// signature is the review's body, after the last hunk. It is what posts, and it
+// is written once the diff has been read, so it sits where the reading ends
+// rather than above the thing it is a verdict on. Tab reaches it last for the
+// same reason.
+func signature(r *artifact.Review, lay layout, numWidth int) []row {
+	body := prose(reviewBody, "REVIEW BODY", r.Body, rowComment, proseCols(lay.width, numWidth), lay)
 
-	body := prose(reviewBody, "REVIEW BODY", r.Body, rowComment, avail, lay)
-	note := prose(reviewNote, "REVIEW NOTE", r.Note, rowNote, avail, lay)
-
-	// The two blocks are separated, because a note that opens where a body ended
-	// reads as more of the body. Two closed headings cannot run together, so
-	// they are two rows at the top of the diff rather than three.
-	if len(body) > 1 || len(note) > 1 {
-		body = append(body, row{kind: rowComment, comment: reviewNote})
-	}
-
-	return append(body, note...)
+	return append([]row{{kind: rowBlank, comment: -1}}, body...)
 }
 
 // prose is one titled block of the review's own writing. The kind is what its
@@ -189,9 +183,11 @@ func prose(index int, title, text string, kind rowKind, avail int, lay layout) [
 		return []row{head}
 	}
 
-	// The review's own prose starts closed, unlike every other note here.
+	// The body is what will post, so it is drawn in full: a review whose body
+	// is folded is one you sign without reading. The note is the run log and
+	// starts closed, the way a comment's note does not.
 	lines := wrap(text, avail)
-	if !lay.fold.notes.shownFrom(index, false) {
+	if !lay.fold.notes.shownFrom(index, index == reviewBody) {
 		head.text = fmt.Sprintf("%s  %s · za to read", title, plural(len(lines), "line"))
 		head.folded = true
 

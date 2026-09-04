@@ -1842,10 +1842,11 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 
 	// The review's own body had nowhere to be written from: its rows carried no
 	// comment, so tab walked past them and e said there was no comment here.
-	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	// It is drawn after the last hunk, which is where G lands.
+	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
-	if got := m.CursorText(); !strings.Contains(got, "no body, no note") {
-		t.Fatalf("the screen does not open on the review's own prose: %q", got)
+	if got := m.CursorText(); !strings.Contains(got, "REVIEW BODY") {
+		t.Fatalf("the bottom of the review is not its body: %q", got)
 	}
 
 	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
@@ -1856,12 +1857,11 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 		t.Errorf("review body = %q", saved.Body)
 	}
 
-	// The one row is two the moment either is written, so the note it now
-	// carries is reachable in its own right.
-	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+	// The note is the other half, at the top where reading starts.
+	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 
 	if got := m.CursorText(); !strings.Contains(got, "REVIEW NOTE") {
-		t.Errorf("tab off the body landed on %q, want the review note", got)
+		t.Errorf("the top of the review is %q, want the review note", got)
 	}
 }
 
@@ -2407,13 +2407,38 @@ func TestTheReviewsOwnProseStartsFolded(t *testing.T) {
 		t.Fatalf("the review's note is not folded:\n%s", got)
 	}
 
-	// The cursor opens on the body above it, which ]c does not walk to: the
-	// review's own prose is not a staged comment.
-	pressKey(m, 'j')
+	// The note is the first row, since the body is drawn after the last hunk.
 	go2(m, 'z', 'a')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "the first pass missed the empty file") {
 		t.Errorf("za did not open the review's note:\n%s", got)
+	}
+}
+
+// The body is what posts, so it is never folded away by default, and it is
+// written after the diff is read, so it is drawn where the reading ends.
+func TestTheReviewBodyIsOpenAndBelowTheDiff(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := modelFor(t, &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff",
+		Number: 42, HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+		Note: "ran the suite twice", Body: "Reads the head through the cache.",
+	}, patch)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 60})
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "Reads the head through the cache.") {
+		t.Fatalf("the body is folded:\n%s", frame)
+	}
+
+	note := strings.Index(frame, "REVIEW NOTE")
+	body := strings.Index(frame, "REVIEW BODY")
+	code := strings.Index(frame, "lines, err := split(r)")
+
+	if note > code || code > body {
+		t.Errorf("the note is at %d, the diff at %d, the body at %d; want the body last:\n%s",
+			note, code, body, frame)
 	}
 }
 

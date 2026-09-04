@@ -122,7 +122,10 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 		}
 	}
 
-	return s.appendUnanchored(r, placed, lay)
+	s = s.appendUnanchored(r, placed, lay)
+	s.rows = append(s.rows, signature(r, lay, s.numWidth)...)
+
+	return s
 }
 
 // fileRows is one file: its name, whatever it says about itself, and every hunk
@@ -527,6 +530,8 @@ func buildList(r *artifact.Review, d *diff.Diff, lay layout) screen {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
 			row{kind: rowFile, text: "no comments staged", comment: -1})
 	}
+
+	s.rows = append(s.rows, signature(r, lay, s.numWidth)...)
 
 	return s
 }

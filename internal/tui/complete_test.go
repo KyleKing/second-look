@@ -16,7 +16,7 @@ func TestCompletionOffersWhatTheReviewAlreadyKnows(t *testing.T) {
 	m, _ := fixture(t)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	onto(t, m, "REVIEW  no body")
+	onto(t, m, "REVIEW BODY  empty")
 	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 	for _, r := range "see diff.g" {
