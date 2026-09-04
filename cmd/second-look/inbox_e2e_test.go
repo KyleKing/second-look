@@ -1,12 +1,16 @@
 package main_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/kyleking/aragonite/ghcassette"
+
+	"github.com/kyleking/second-look/internal/artifact"
 )
 
 // The inbox is three gh searches and nothing local, so this is the one test in
@@ -61,6 +65,69 @@ func TestInboxJSON(t *testing.T) {
 		if !strings.Contains(res.stdout, want) {
 			t.Errorf("the %s field is missing:\n%s", want, res.stdout)
 		}
+	}
+}
+
+// Whatever reviews a queue in turn reads the piped shape, so it has to arrive in
+// the order the screen draws and carry the rating the screen shows. Without
+// both, a driver re-fetches every diff to work out which row is cheap and then
+// works through them by recency anyway.
+func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	s := ghcassette.Replay(t, cassettePath(t, "inbox"))
+
+	// The third row of the pending bucket, staged and rated here already, which
+	// is what puts it first: finishing a review costs less than beginning one.
+	const (
+		sha  = "aa11bb22cc33dd44ee55ff6677889900aabbccdd"
+		cost = 37
+	)
+
+	root := storeFor(t, testHome(t, dir), "kyleking", "gh-sweep")
+	staged := fmt.Sprintf("version = 1\nhost = 'github.com'\nowner = 'kyleking'\n"+
+		"repo = 'gh-sweep'\nnumber = 102\nhead_sha = '%s'\n", sha)
+
+	write(t, artifact.Path(root, 102), []byte(staged))
+
+	if err := artifact.SaveScore(root, sha, artifact.Cost{Total: cost, Added: 12, Removed: 3}); err != nil {
+		t.Fatalf("seeding the rating: %v", err)
+	}
+
+	res := runCLI(t, s, dir, "inbox", "--json")
+	if res.code != 0 {
+		t.Fatalf("inbox --json failed: %s%s", res.stdout, res.stderr)
+	}
+
+	var buckets []struct {
+		Bucket string `json:"bucket"`
+		Items  []struct {
+			Repository string `json:"repository"`
+			Number     int    `json:"number"`
+			Reviewed   bool   `json:"reviewed"`
+			Cost       int    `json:"cost"`
+			Rated      bool   `json:"rated"`
+			Added      int    `json:"added"`
+		} `json:"items"`
+	}
+
+	if err := json.Unmarshal([]byte(res.stdout), &buckets); err != nil {
+		t.Fatalf("reading the queue: %v\n%s", err, res.stdout)
+	}
+
+	if len(buckets) == 0 || len(buckets[0].Items) == 0 {
+		t.Fatalf("the queue is empty, so nothing here is exercised:\n%s", res.stdout)
+	}
+
+	first := buckets[0].Items[0]
+	if first.Repository != "kyleking/gh-sweep" || first.Number != 102 {
+		t.Errorf("the bucket leads with %s#%d, want the review already staged here",
+			first.Repository, first.Number)
+	}
+
+	if !first.Reviewed || !first.Rated || first.Cost != cost || first.Added != 12 {
+		t.Errorf("the row carries %+v, want the rating read off disk", first)
 	}
 }
 

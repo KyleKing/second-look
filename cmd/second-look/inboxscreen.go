@@ -217,9 +217,6 @@ type bucketMsg struct {
 // is under two seconds, and an empty terminal until then reads as a hang.
 func (s *inboxScreen) Start() tea.Cmd {
 	s.local = localKnowledge()
-	if s.local == nil {
-		s.local = map[string]inbox.Known{}
-	}
 
 	s.ratings = artifact.LoadRatings()
 	s.asked = map[string]bool{}
@@ -544,10 +541,12 @@ func (s *inboxScreen) known(p *inbox.PullRequest) inbox.Known {
 // localKnowledge reads every review staged on this laptop and whatever each one
 // rated its diff. A queue is ordered from it, so nothing here reaches GitHub
 // and a failure leaves the queue in the order the searches answered.
+//
+// It is never nil, since Recall writes what it recovers into this map.
 func localKnowledge() map[string]inbox.Known {
 	rows, err := staged()
 	if err != nil {
-		return nil
+		rows = nil
 	}
 
 	out := make(map[string]inbox.Known, len(rows))

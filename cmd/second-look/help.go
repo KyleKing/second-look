@@ -249,6 +249,12 @@ NAMING A PULL REQUEST
       comes off this laptop, so ordering costs no API call, and a row carries
       the rating where a cached diff was there to work it out.
 
+      The pipe and --json answer in that same order, and each row there carries
+      reviewed, cost, rated, added, and removed: what this laptop already knows
+      about it. So whatever works through a queue reads the cheap rows and the
+      ones already started first, without fetching a diff to find out which
+      those are.
+
       enter reviews the pull request under the cursor, C moves a checkout onto
       it, m comments on the pull request itself in $EDITOR, A approves it (A
       again to confirm), and o opens it on GitHub. Opening one needs no clone of

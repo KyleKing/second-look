@@ -118,10 +118,17 @@ func homeEnv(home string) []string {
 func storeIn(t *testing.T, home string) string {
 	t.Helper()
 
+	return storeFor(t, home, "KyleKing", "second-look")
+}
+
+// storeFor is the store a repository with no clone here keeps its reviews in.
+func storeFor(t *testing.T, home, owner, name string) string {
+	t.Helper()
+
 	if runtime.GOOS == "darwin" {
 		return filepath.Join(home, "Library", "Application Support",
-			"second-look", "github.com", "KyleKing", "second-look")
+			"second-look", "github.com", owner, name)
 	}
 
-	return filepath.Join(home, ".config", "second-look", "github.com", "KyleKing", "second-look")
+	return filepath.Join(home, ".config", "second-look", "github.com", owner, name)
 }

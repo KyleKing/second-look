@@ -943,6 +943,7 @@ func inboxCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 	}
 
 	buckets := queue(ctx, os.Stderr)
+	inbox.Attach(buckets, artifact.LoadRatings(), localKnowledge())
 
 	if asJSON == jsonArg {
 		return writeJSON(stdout, buckets)

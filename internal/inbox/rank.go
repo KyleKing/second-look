@@ -15,16 +15,17 @@ type Known struct {
 	// Reviewed is a prepared review for it under .second-look or the user
 	// config directory, which is the closest thing to "you have started this"
 	// that a search result can be matched against.
-	Reviewed bool
+	Reviewed bool `json:"reviewed,omitempty"`
 	// Cost is what an earlier run rated the diff, and Rated whether there was
 	// one to read. A pull request nobody has opened has neither.
-	Cost  int
-	Rated bool
+	Cost  int  `json:"cost,omitempty"`
+	Rated bool `json:"rated,omitempty"`
 	// Added and Removed are how many lines the same read counted. They are
 	// shown and never sorted on: a row no grammar answered for is one nobody
 	// can rank, and ordering it by line count is the signal the rating exists
 	// to reject.
-	Added, Removed int
+	Added   int `json:"added,omitempty"`
+	Removed int `json:"removed,omitempty"`
 }
 
 // WorthRating is how many rows a bucket needs before its order is worth an API
@@ -123,4 +124,24 @@ func dearness(k Known) int {
 	}
 
 	return k.Cost
+}
+
+// Attach orders every bucket the way the screen does and records on each row
+// what this laptop already knows about it. A piped queue is read by whatever
+// reviews the rows in turn, so it has to arrive in the order they are worth
+// doing and carry the rating rather than leaving it to be worked out again.
+func Attach(buckets []Bucket, ratings artifact.Ratings, known map[string]Known) {
+	at := func(p *PullRequest) Known {
+		return known[artifact.RatingKey(p.Repository, p.Number)]
+	}
+
+	for i := range buckets {
+		Recall(buckets[i].Items, ratings, known)
+		Rank(buckets[i].Items, at)
+
+		for j := range buckets[i].Items {
+			p := &buckets[i].Items[j]
+			p.Known = at(p)
+		}
+	}
 }
