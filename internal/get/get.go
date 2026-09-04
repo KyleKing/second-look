@@ -307,6 +307,8 @@ func writeReview(out io.Writer, t Target, pr *forge.PullRequest) error {
 	review.Repo = t.Repo
 	review.Number = pr.Number
 	review.HeadSHA = pr.HeadSHA
+	review.HeadRef = pr.HeadRef
+	review.BaseRef = pr.BaseRef
 	review.Rounds = rounds(review.Rounds, pr.HeadSHA, time.Now())
 
 	if err := artifact.Save(path, review); err != nil {

@@ -147,6 +147,12 @@ func TestGetPreparesTheReview(t *testing.T) {
 		t.Errorf("the review names %s/%s#%d, which is not the remote", review.Owner, review.Repo, review.Number)
 	}
 
+	// A review with no branches cannot be grouped into its stack, and a stack is
+	// read bottom first, so getting several of them loses the order they go in.
+	if review.HeadRef != headBranch || review.BaseRef != "main" {
+		t.Errorf("the review joins %q to %q, want %q to main", review.HeadRef, review.BaseRef, headBranch)
+	}
+
 	// #nosec G304 -- a path under the test's own temporary directory
 	cached, err := os.ReadFile(artifact.DiffPath(stored(t, dir), sha))
 	if err != nil {
