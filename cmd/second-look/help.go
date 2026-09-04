@@ -397,6 +397,10 @@ CONFIG
       second-look session, so nothing here has to know how a tool prints one.
       Unset, every T starts a fresh session.
 
+  limit, prefetch, generated, dispatch, and resume are top-level keys, so they
+  belong above the first [[section]]: TOML reads a bare key after a table header
+  as part of that table, where it is refused as a key the schema does not know.
+
   A file that exists and says something wrong is reported and the built-in
   buckets are used, so a typo leaves a working queue. An unknown key is refused
   for the same reason it is in a prepared review: a misspelled key does not do
