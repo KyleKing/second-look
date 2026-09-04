@@ -261,23 +261,30 @@ unreadable, with gh-dash's row density and inbox-style processing of what moved.
 conversation queue already does most of that job, so what is left is the review screen's
 own threads view rather than a new surface.
 
-### 6. The session for twenty-five reviews
+### 6. The session for twenty-five reviews — half done
 
-Prefetch lazily in the background so the next review is staged before the current one is
-finished, ordered by rules from `config.toml` rather than by a single built-in ranking,
-and pruned from disk once a review is actioned.
+Prefetch is built. Once every search has answered, the queue stages the next few rows in
+the order it is read, with no checkout: a detached target moves no working copy, so a
+prefetch cannot be noticed in a clone. A row this laptop already holds a review for is
+skipped, since what is on disk is what a re-review reads and refetching it would throw
+away the read marks it is pinned to. `prefetch` in `config.toml` sets how many to keep
+ahead and zero turns it off.
 
-The queue then has to behave like something I am working through. Progress is visible, a
-session can carry a cutoff line so I decide what is in scope today, rows can be reordered
-by hand, and a review I walked away from is still where I left it. New and reordered rows
-are held out of the sort until I ask for them, with a count on the tab saying how many are
-waiting, because a queue that rearranges under the cursor is worse than a stale one.
-Notification lands at a boundary (a review posted, a review finished) rather than
-mid-read.
+It holds back on a thin allowance, using the same reasoning the rating burst already used:
+staging one review costs three reads, and spending the last of the hourly allowance on
+rows nobody asked for is the wrong half to spend it on. The header says how many are
+staging and how many are staged.
 
-Navigation is part of this: the review screen becomes a view inside the tabbed shell with
-a way back to the queue, a recently-opened list, and an indicator of which pull requests
-have a checkout here, rather than quitting and reopening the program.
+Leaving a review comes back to the queue rather than ending the session, which is the
+cheap half of the navigation the step asks for: quitting the program to reach the next row
+makes the queue a list to consult rather than one to work through.
+
+Still outstanding, and each wants living with before it is built: the session cutoff line,
+reordering rows by hand, holding new and reordered rows out of the sort with a count on
+the tab, notification at a boundary, the recently-opened list, the checkout indicator, and
+the review screen as a view inside the tabbed shell rather than a program the shell hands
+off to. Pruning on action is partly there already, since posting and merging both discard
+what was staged; what is missing is pruning a prefetched review the queue no longer holds.
 
 ### 7. What changed since I read it
 

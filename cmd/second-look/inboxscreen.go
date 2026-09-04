@@ -75,6 +75,15 @@ type inboxScreen struct {
 	queued []inbox.PullRequest
 	// spent is what this run has already committed of the allowance.
 	spent int
+	// fetching counts the reviews being staged ahead of the cursor, ready
+	// counts the ones that landed, and fetched is every row already asked for,
+	// so a refresh does not stage the same one twice.
+	fetching int
+	ready    int
+	fetched  map[string]bool
+	// ahead is how many reviews to keep staged in front of the cursor, from the
+	// config.
+	ahead int
 	// short marks a run that left rows unrated because the hourly allowance
 	// would not cover them, which is a different thing from a diff that could
 	// not be read and wants saying differently.
@@ -217,6 +226,7 @@ func (s *inboxScreen) Start() tea.Cmd {
 	s.armed = ""
 	s.pending, s.listening, s.unread = 0, false, 0
 	s.budget, s.queued, s.spent, s.short = nil, nil, 0, false
+	s.fetching, s.ready, s.fetched = 0, 0, map[string]bool{}
 	s.rated = make(chan costMsg, ratingBuffer)
 	s.slots = make(chan struct{}, howManyAtOnce)
 
@@ -255,6 +265,10 @@ func (s *inboxScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
 		return s.absorbBudget(answered), true
 	case costMsg:
 		return s.absorbCost(answered), true
+	case prefetchedMsg:
+		s.absorbPrefetch(answered)
+
+		return nil, true
 	}
 
 	return nil, false
@@ -274,7 +288,16 @@ func (s *inboxScreen) absorbBucket(answered bucketMsg) tea.Cmd {
 	s.buckets[answered.at] = answered.bucket
 	s.waiting--
 
-	return s.rate(answered.bucket.Items)
+	rate := s.rate(answered.bucket.Items)
+
+	// The queue is prepared once every search has answered, so what is staged
+	// ahead is the order the queue is actually read in rather than whichever
+	// search came back first.
+	if s.waiting > 0 {
+		return rate
+	}
+
+	return tea.Batch(rate, s.prefetch())
 }
 
 // absorbCost records one rating and puts the queue back in order around it. The
@@ -511,7 +534,7 @@ func (s *inboxScreen) counts() string {
 	}
 
 	if s.unread > 0 {
-		return humanize.Plural(s.unread, "row") + " could not be rated"
+		return humanize.Plural(s.unread, "row") + " could not be rated" + s.readyWord()
 	}
 
 	rows, failed := 0, 0
@@ -534,6 +557,8 @@ func (s *inboxScreen) counts() string {
 	if s.configured {
 		out = fmt.Sprintf("%d in %s", rows, humanize.Plural(len(s.buckets), "section"))
 	}
+
+	out += s.readyWord()
 
 	if failed == 0 {
 		return out

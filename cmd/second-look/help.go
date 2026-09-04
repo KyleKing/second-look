@@ -358,6 +358,15 @@ CONFIG
   the same way here. Sections replace the built-in buckets outright: merging the
   two would put rows in front of you that no query asked for.
 
+  prefetch = 3
+      How many reviews to stage in the background ahead of the cursor. Zero
+      turns it off. Staging one costs three reads, and the queue holds back
+      while the hourly allowance is thin.
+
+  dispatch = ["claude", "-p"]
+      What T runs over the written-out todo set, with the file as its last
+      argument. Unset, T writes the file and names it.
+
   A file that exists and says something wrong is reported and the built-in
   buckets are used, so a typo leaves a working queue. An unknown key is refused
   for the same reason it is in a prepared review: a misspelled key does not do

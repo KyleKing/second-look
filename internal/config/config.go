@@ -44,6 +44,11 @@ type Config struct {
 	// tree does not stop a lockfile being one. A trailing slash means a
 	// directory anywhere in the path; anything else is a path or name suffix.
 	Generated []string `toml:"generated,omitempty"`
+	// Prefetch is how many reviews ahead of the cursor the queue stages in the
+	// background. Nil is the built-in default and zero turns it off, which is
+	// the difference the pointer is for: a queue nobody works through would
+	// otherwise spend an afternoon of API reads on rows nobody opened.
+	Prefetch *int `toml:"prefetch,omitempty"`
 	// Dispatch is the command T runs to hand the todo set to an agent, with the
 	// file holding the set as its last argument. Unset, T writes the file and
 	// names it, which is the safe default: running an agent is not something to

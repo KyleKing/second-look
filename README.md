@@ -94,6 +94,12 @@ before anything is sent.
 Conversations already open on the pull request are shown where they anchor, so a second
 pass answers what was said last time. `e` on one writes the reply in `$EDITOR`.
 
+The queue stages the next few reviews in the background while you read the current one,
+in the order the queue is read, so the one after this is ready before this one is
+finished. It skips a row this laptop already holds a review for, holds back when GitHub's
+hourly allowance is thin, and `prefetch` in `config.toml` sets how many to keep ahead (0
+turns it off). Leaving a review comes back to the queue rather than ending the session.
+
 `second-look inbox` is your review queue. `enter` on a row opens the review, which needs no
 clone of that repository, so getting to one costs an API read rather than a clone and a
 branch switch. `C` moves a checkout onto it, `m` comments on the pull request itself, `A`

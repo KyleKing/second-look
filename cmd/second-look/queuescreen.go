@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/kyleking/second-look/internal/config"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/tui"
 )
@@ -51,6 +52,7 @@ func queueOnce(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) (
 	in := &inboxScreen{
 		ctx:        ctx,
 		configured: len(cfg.Sections) > 0,
+		ahead:      keepAhead(cfg),
 		plan:       func() []inbox.Bucket { return planQueue(cfg) },
 	}
 
@@ -99,21 +101,37 @@ func queueOnce(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) (
 	return afterQueue(ctx, list.Tab(), in, th, rv, stdin, stdout)
 }
 
-// afterQueue runs whatever the screen closed for. Only one of the three can be
-// set: the screen quits on the action that sets it.
+// keepAhead is how many reviews the queue stages in front of the cursor. An
+// unset config gets the built-in number and a zero turns it off.
+func keepAhead(cfg *config.Config) int {
+	if cfg.Prefetch == nil {
+		return howManyAhead
+	}
+
+	return max(0, *cfg.Prefetch)
+}
+
+// afterQueue runs whatever the screen closed for, then says which tab to come
+// back to. Only one of the four can be set: the screen quits on the action that
+// sets it.
+//
+// Reading a review comes back to the queue rather than ending the session,
+// because twenty-five reviews is one sitting: quitting the program to get to
+// the next row makes the queue a list you consult rather than one you work
+// through.
 func afterQueue(
 	ctx context.Context, at int, in *inboxScreen, th *threadsScreen, rv *reviewsScreen,
 	stdin io.Reader, stdout io.Writer,
 ) (int, error) {
 	switch {
 	case rv.open != nil:
-		return -1, openRef(ctx, *rv.open, stdin, stdout)
+		return at, openRef(ctx, *rv.open, stdin, stdout)
 	case th.reply != nil:
-		return -1, answer(ctx, th.reply, th.repo, stdin, stdout)
+		return at, answer(ctx, th.reply, th.repo, stdin, stdout)
 	case in.next == nil:
 		return -1, nil
 	case in.next.act == tui.ActChoose:
-		return -1, openRef(ctx, in.next.at, stdin, stdout)
+		return at, openRef(ctx, in.next.at, stdin, stdout)
 	}
 
 	// A checkout that could not move or an editor closed empty is not a reason

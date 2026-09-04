@@ -85,6 +85,13 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	sc.press("\r")
 	sc.await("kyleking/aragonite #100")
 
+	// Leaving the review comes back to the queue rather than ending the
+	// session, which is what makes twenty-five reviews one sitting.
+	at := sc.mark()
+
+	sc.press("q")
+	sc.awaitFrom(at, "pending your review")
+
 	sc.press("q")
 	sc.wait()
 }
@@ -121,6 +128,9 @@ func inboxThenReview(t *testing.T) string {
 	for i := range opening {
 		c.Interactions = append(c.Interactions, addressed(opening[i], "kyleking/aragonite", 100))
 	}
+
+	// Leaving the review comes back to the queue, which loads its tab again.
+	c.Interactions = append(c.Interactions, onScreen(t).Interactions...)
 
 	path := filepath.Join(t.TempDir(), "inbox-review.golden")
 	if err := ghcassette.Save(path, c); err != nil {
