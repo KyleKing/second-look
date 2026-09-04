@@ -105,7 +105,7 @@ with before they are built: dimming every file but one is most of a long diff mo
 time, which is a different thing from dimming a window nobody is typing in.
 
 Folded in here because every one of them is a rendering problem, and both are waiting on
-a decision rather than on code. `demo/case.sh many-on-one-line` and `demo/case.sh skipped`
+a decision rather than on code. `demo/scene.sh comment-run` and `demo/scene.sh skipped`
 open each as a live review off a TOML file to edit, which is how the shape gets argued
 with:
 

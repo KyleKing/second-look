@@ -1,0 +1,342 @@
+{
+  "data": {
+    "viewer": {
+      "login": "me"
+    },
+    "search": {
+      "nodes": [
+        {
+          "number": 1,
+          "title": "mine",
+          "url": "https://github.com/o/mine/pull/1",
+          "repository": {
+            "nameWithOwner": "o/mine"
+          },
+          "author": {
+            "login": "me",
+            "__typename": "User"
+          },
+          "reviewThreads": {
+            "nodes": [
+              {
+                "id": "T-bot-open",
+                "isResolved": false,
+                "isOutdated": false,
+                "path": "a.go",
+                "line": 12,
+                "diffSide": "RIGHT",
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 11,
+                      "body": "this leaks",
+                      "createdAt": "2026-08-31T10:00:00Z",
+                      "author": {
+                        "login": "coderabbitai",
+                        "__typename": "Bot"
+                      },
+                      "id": "PRRC_11",
+                      "reactionGroups": []
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "T-resolved",
+                "isResolved": true,
+                "isOutdated": false,
+                "path": "a.go",
+                "line": 20,
+                "diffSide": "RIGHT",
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 12,
+                      "body": "fixed",
+                      "createdAt": "2026-08-31T10:00:00Z",
+                      "author": {
+                        "login": "alice",
+                        "__typename": "User"
+                      },
+                      "id": "PRRC_12",
+                      "reactionGroups": []
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "T-thumbed",
+                "isResolved": false,
+                "isOutdated": false,
+                "path": "a.go",
+                "line": 31,
+                "diffSide": "RIGHT",
+                "comments": {
+                  "nodes": [
+                    {
+                      "id": "PRRC_19",
+                      "databaseId": 19,
+                      "body": "rename this while you are here",
+                      "createdAt": "2026-08-31T10:30:00Z",
+                      "author": {
+                        "login": "alice",
+                        "__typename": "User"
+                      },
+                      "reactionGroups": [
+                        {
+                          "content": "THUMBS_UP",
+                          "viewerHasReacted": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "comments": {
+            "nodes": [
+              {
+                "databaseId": 21,
+                "body": "## Coverage report",
+                "createdAt": "2026-08-31T11:00:00Z",
+                "author": {
+                  "login": "github-actions",
+                  "__typename": "Bot"
+                },
+                "reactionGroups": [],
+                "id": "IC_21"
+              },
+              {
+                "databaseId": 22,
+                "body": "can you split this?",
+                "createdAt": "2026-08-31T12:00:00Z",
+                "author": {
+                  "login": "alice",
+                  "__typename": "User"
+                },
+                "reactionGroups": [],
+                "id": "IC_22"
+              },
+              {
+                "databaseId": 23,
+                "body": "rebased",
+                "createdAt": "2026-08-31T13:00:00Z",
+                "author": {
+                  "login": "me",
+                  "__typename": "User"
+                },
+                "reactionGroups": [],
+                "id": "IC_23"
+              }
+            ]
+          },
+          "reviews": {
+            "nodes": [
+              {
+                "databaseId": 31,
+                "body": "**Actionable comments posted: 3**",
+                "state": "COMMENTED",
+                "createdAt": "2026-08-31T11:30:00Z",
+                "author": {
+                  "login": "coderabbitai",
+                  "__typename": "Bot"
+                },
+                "reactionGroups": [],
+                "id": "PRR_31"
+              },
+              {
+                "databaseId": 32,
+                "body": "two questions inline",
+                "state": "CHANGES_REQUESTED",
+                "createdAt": "2026-08-31T14:00:00Z",
+                "author": {
+                  "login": "alice",
+                  "__typename": "User"
+                },
+                "reactionGroups": [],
+                "id": "PRR_32"
+              },
+              {
+                "databaseId": 33,
+                "body": "not submitted yet",
+                "state": "PENDING",
+                "createdAt": "2026-08-31T15:00:00Z",
+                "author": {
+                  "login": "alice",
+                  "__typename": "User"
+                },
+                "reactionGroups": [],
+                "id": "PRR_33"
+              },
+              {
+                "databaseId": 34,
+                "body": "   ",
+                "state": "APPROVED",
+                "createdAt": "2026-08-31T16:00:00Z",
+                "author": {
+                  "login": "alice",
+                  "__typename": "User"
+                },
+                "reactionGroups": [],
+                "id": "PRR_34"
+              }
+            ]
+          }
+        },
+        {
+          "number": 2,
+          "title": "theirs",
+          "url": "https://github.com/o/theirs/pull/2",
+          "repository": {
+            "nameWithOwner": "o/theirs"
+          },
+          "author": {
+            "login": "bob",
+            "__typename": "User"
+          },
+          "reviewThreads": {
+            "nodes": [
+              {
+                "id": "T-i-spoke",
+                "isResolved": false,
+                "isOutdated": true,
+                "path": "b.go",
+                "line": 5,
+                "diffSide": "RIGHT",
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 41,
+                      "body": "why here?",
+                      "createdAt": "2026-08-30T09:00:00Z",
+                      "author": {
+                        "login": "me",
+                        "__typename": "User"
+                      }
+                    },
+                    {
+                      "databaseId": 42,
+                      "body": "because of the lease",
+                      "createdAt": "2026-08-30T10:00:00Z",
+                      "author": {
+                        "login": "bob",
+                        "__typename": "User"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "T-not-mine",
+                "isResolved": false,
+                "isOutdated": false,
+                "path": "b.go",
+                "line": 40,
+                "diffSide": "RIGHT",
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 43,
+                      "body": "nit",
+                      "createdAt": "2026-08-30T11:00:00Z",
+                      "author": {
+                        "login": "alice",
+                        "__typename": "User"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "T-mentions-me",
+                "isResolved": false,
+                "isOutdated": false,
+                "path": "b.go",
+                "line": 60,
+                "diffSide": "LEFT",
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 44,
+                      "body": "@ME does this match your parser?",
+                      "createdAt": "2026-08-30T12:00:00Z",
+                      "author": {
+                        "login": "alice",
+                        "__typename": "User"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "T-i-answered",
+                "isResolved": false,
+                "isOutdated": false,
+                "path": "b.go",
+                "line": 80,
+                "diffSide": "RIGHT",
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 45,
+                      "body": "is this the same lease?",
+                      "createdAt": "2026-08-30T15:00:00Z",
+                      "author": {
+                        "login": "alice",
+                        "__typename": "User"
+                      }
+                    },
+                    {
+                      "databaseId": 46,
+                      "body": "no, that one is per worker",
+                      "createdAt": "2026-08-30T16:00:00Z",
+                      "author": {
+                        "login": "me",
+                        "__typename": "User"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "comments": {
+            "nodes": [
+              {
+                "databaseId": 51,
+                "body": "cc @me for the diff parser",
+                "createdAt": "2026-08-30T13:00:00Z",
+                "author": {
+                  "login": "alice",
+                  "__typename": "User"
+                },
+                "reactionGroups": [],
+                "id": "IC_51"
+              },
+              {
+                "databaseId": 52,
+                "body": "@me already handled this one",
+                "createdAt": "2026-08-30T14:00:00Z",
+                "author": {
+                  "login": "alice",
+                  "__typename": "User"
+                },
+                "reactionGroups": [
+                  {
+                    "content": "THUMBS_UP",
+                    "viewerHasReacted": true
+                  }
+                ],
+                "id": "IC_52"
+              }
+            ]
+          },
+          "reviews": {
+            "nodes": []
+          }
+        }
+      ]
+    }
+  }
+}

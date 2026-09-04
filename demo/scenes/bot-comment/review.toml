@@ -1,6 +1,6 @@
 # One prepared comment beside a bot's, so what a thread from GitHub actually
 # looks like can be read on screen. The bot's body lives in the sibling
-# bot-comment.threads.json, which case.sh copies over the fixture's threads.
+# threads.json beside it, which scene.sh copies over the fixture's threads.
 version = 1
 host = "github.com"
 owner = "KyleKing"

@@ -1,0 +1,81 @@
+[
+  {
+    "author": {
+      "id": "MDQ6VXNlcjE=",
+      "is_bot": false,
+      "login": "hubot",
+      "type": "User",
+      "url": "https://github.com/hubot"
+    },
+    "commentsCount": 0,
+    "isDraft": false,
+    "labels": [
+      {
+        "color": "d4c5f9",
+        "description": "",
+        "id": "LA_1",
+        "name": "needs-review"
+      }
+    ],
+    "number": 110,
+    "repository": {
+      "description": "",
+      "id": "R_1",
+      "isFork": false,
+      "name": "second-look",
+      "nameWithOwner": "kyleking/second-look",
+      "url": "https://github.com/kyleking/second-look"
+    },
+    "title": "fix(cache): key the parsed diff by head commit",
+    "updatedAt": "2026-08-30T09:12:00Z",
+    "url": "https://github.com/kyleking/second-look/pull/110"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjE=",
+      "is_bot": false,
+      "login": "dependabot",
+      "type": "User",
+      "url": "https://github.com/dependabot"
+    },
+    "commentsCount": 1,
+    "isDraft": true,
+    "labels": [],
+    "number": 111,
+    "repository": {
+      "description": "",
+      "id": "R_1",
+      "isFork": false,
+      "name": "gh-sweep",
+      "nameWithOwner": "kyleking/gh-sweep",
+      "url": "https://github.com/kyleking/gh-sweep"
+    },
+    "title": "chore(deps): bump the charm packages",
+    "updatedAt": "2026-08-24T14:40:00Z",
+    "url": "https://github.com/kyleking/gh-sweep/pull/111"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjE=",
+      "is_bot": false,
+      "login": "kyleking",
+      "type": "User",
+      "url": "https://github.com/kyleking"
+    },
+    "commentsCount": 2,
+    "isDraft": false,
+    "labels": [],
+    "number": 112,
+    "repository": {
+      "description": "",
+      "id": "R_1",
+      "isFork": false,
+      "name": "hello-world",
+      "nameWithOwner": "octocat/hello-world",
+      "url": "https://github.com/octocat/hello-world"
+    },
+    "title": "refactor(forge): move the pull request type out of models",
+    "updatedAt": "2026-07-19T11:05:00Z",
+    "url": "https://github.com/octocat/hello-world/pull/112"
+  }
+]

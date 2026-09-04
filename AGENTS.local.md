@@ -138,22 +138,36 @@ cannot draw without: where a fence starts and ends, which lines are a table, wha
 `<details>` holds, and what is an HTML comment. Everything else is prose. A rule that
 would need a real parser is a rule not worth having here.
 
-## Layout cases
+## Scenes
 
-`demo/case.sh <name>` opens `demo/cases/<name>.toml` as a live review on the same fixture
-and the same stand-in `gh`, so a layout argument is settled by looking at it. A case is a
-prepared review and nothing else, which is what makes it worth checking in: a shape that
-reads badly is edited into the TOML and seen in a second, and the golden frames stay for
-what is already decided.
+`demo/scene.sh <name>` opens `demo/scenes/<name>/` as a live screen against seed data on
+disk, so what the app does in a situation is settled by looking at it. A scene names the
+argv in `scene.conf` and brings only what it changes about the shared fixture: a prepared
+review as `review.toml`, its conversations as `threads.json`, extra `gh` routes, and any
+seed those routes name. `demo/scene.sh` with no argument lists them.
 
-The checkout is rebuilt from the case file on every run and kept afterwards, so what the
-screen wrote back is readable at `demo/.work/<name>/.second-look/`. Edits belong in
-`demo/cases/`, since the work directory is thrown away on the next run.
+`demo/bin/gh` is the forge every scene runs against. It reads a routing table, `routes`,
+whose rows are the tokens a call must carry and the seed file that answers it, and a token
+has to start an argument rather than appear anywhere in the call: matching a substring of
+the whole command line reads `--review-requested` as the word "view", which routed the
+inbox's searches to the pull request. A seed named `.err` is written to stderr with a
+non-zero exit, which is how a scene draws a failure. A call nothing routes fails loudly,
+because a screen drawing nothing because a seed was missing is the failure this must not
+hide.
 
-A case may bring its own conversations as `demo/cases/<name>.threads.json`, which replaces
-the fixture's threads for that run. `bot-comment` is the one that does, because what a
-review bot posts is the case the comment renderer exists for and no real thread on the
-fixture has that shape.
+`SEED` is the directories searched in order, the scene's own first, so overriding an
+answer is dropping a file of the same name into the scene. That is why `head-moved` is one
+JSON file and `search-failed` is two.
+
+The seed under `demo/fixture/` is written rather than recorded, for the reason
+`inbox.golden` is: a real one carries the private repository names, logins, and titles of
+whatever is open, and this repository is public. The inbox's three searches and the
+conversation queue's reply are the same content the cassettes hold, so one queue shape
+stays current rather than two.
+
+The checkout is rebuilt on every run and kept afterwards, so what the screen wrote back is
+readable at `demo/.work/<name>/.second-look/`. Edits belong in `demo/scenes/`, since the
+work directory is thrown away on the next run.
 
 ## Driving the review screen
 

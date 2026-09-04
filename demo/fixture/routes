@@ -1,0 +1,13 @@
+# Every gh call a screen makes, and the seed that answers it. A route is the
+# tokens that must all appear in the call, then the file. A token matches
+# anywhere in an argument, so --reviewed-by covers --reviewed-by=@me.
+#
+# The first matching route wins, so a narrower one goes above a wider one.
+pr view                              pr-view.json
+pr diff                              pr-diff.patch
+api rate_limit                       rate-limit.json
+search prs --review-requested        search-pending.json
+search prs --reviewed-by --merged    search-merged.json
+search prs --reviewed-by             search-open.json
+api graphql -F q=                    conversations.json
+api graphql -F owner=                threads.json

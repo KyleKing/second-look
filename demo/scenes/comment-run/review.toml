@@ -1,6 +1,6 @@
 # Five comments anchored to one line, plus one on its own for contrast. What the
 # comment block was never designed for: edit, add, and remove comments here and
-# run `demo/case.sh many-on-one-line` again to see the layout change.
+# run `demo/scene.sh comment-run` again to see the layout change.
 version = 1
 host = "github.com"
 owner = "KyleKing"

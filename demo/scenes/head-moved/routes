@@ -1,0 +1,3 @@
+# The pull request answers a head the staged review was not written against,
+# which is what a force-push mid-review looks like from here.
+pr view   pr-view.json

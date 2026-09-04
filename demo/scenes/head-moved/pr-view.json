@@ -1,0 +1,17 @@
+{
+  "baseRefName": "main",
+  "headRefName": "fixture/review-target",
+  "headRefOid": "9f2c4d1e7b3a8560cf19e02d4a7b6c8319fd5e42",
+  "headRepositoryOwner": {
+    "id": "MDQ6VXNlcjM3ODQzMzk=",
+    "login": "KyleKing",
+    "name": "Kyle King"
+  },
+  "isDraft": true,
+  "mergeStateStatus": "CLEAN",
+  "number": 2,
+  "state": "OPEN",
+  "statusCheckRollup": [],
+  "title": "test: Add a recording-target pull request for cassette tests",
+  "url": "https://github.com/KyleKing/second-look/pull/2"
+}

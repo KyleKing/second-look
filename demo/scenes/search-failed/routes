@@ -1,0 +1,4 @@
+# One section fails while the others answer, which is the case the inbox draws a
+# row for rather than an empty screen. GitHub answers a secondary rate limit
+# with its terms of service, so the reason is long on purpose.
+search prs --review-requested   rate-limited.err
