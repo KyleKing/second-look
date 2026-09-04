@@ -287,12 +287,12 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 	sc.press("m")
 	sc.awaitFrom(from, "commented on kyleking/aragonite#100")
 
-	// The queue comes back, which is what makes a comment a detour rather than
-	// the end of the session. An empty bucket keeps its heading, so a row of the
-	// last one is what all three searches have to answer for, and the mark is
-	// where the second screen starts writing.
+	// The queue comes back narrowed the way it was left, which is what makes a
+	// comment a detour rather than the end of the session. The mark is where the
+	// second screen starts writing, since both draws carry the same row.
 	back := sc.mark()
-	sc.awaitFrom(back, "kyleking/aragonite#122")
+	sc.awaitFrom(back, "showing 1 of")
+	sc.awaitFrom(back, "kyleking/aragonite#100")
 
 	sc.press("q")
 	sc.wait()

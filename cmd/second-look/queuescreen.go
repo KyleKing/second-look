@@ -29,24 +29,28 @@ const (
 // leaving and starting again. Each tab loads when it is first looked at, so
 // opening on one costs what that one costs.
 func openQueue(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) error {
+	var where tui.Resume
+
 	for {
-		next, err := queueOnce(ctx, at, stdin, stdout)
+		next, left, err := queueOnce(ctx, at, where, stdin, stdout)
 		if err != nil || next < 0 {
 			return err
 		}
 
-		at = next
+		at, where = next, left
 	}
 }
 
 // queueOnce draws the screen and performs whatever it was left for. It returns
-// the tab to come back to, or -1 when the session is over: reviewing, replying,
-// and opening a staged review all end in the review screen, which is where the
-// rest of the work happens.
-func queueOnce(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) (int, error) {
+// the tab to come back to and where every tab was left, or -1 when the session
+// is over: reviewing, replying, and opening a staged review all end in the
+// review screen, which is where the rest of the work happens.
+func queueOnce(
+	ctx context.Context, at int, where tui.Resume, stdin io.Reader, stdout io.Writer,
+) (int, tui.Resume, error) {
 	cfg, err := configured(os.Stderr)
 	if err != nil {
-		return -1, err
+		return -1, where, err
 	}
 
 	in := &inboxScreen{
@@ -58,12 +62,12 @@ func queueOnce(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) (
 
 	th, err := newThreadsScreen(ctx)
 	if err != nil {
-		return -1, err
+		return -1, where, err
 	}
 
 	rows, err := staged()
 	if err != nil {
-		return -1, err
+		return -1, where, err
 	}
 
 	rv := &reviewsScreen{ctx: ctx, rows: rows}
@@ -85,20 +89,25 @@ func queueOnce(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) (
 			Hints: reviewsHints, Help: reviewsHelp,
 		},
 	}, at)
+	list.Restore(where)
 
 	_, runErr := tui.RunList(list)
 
 	// The marks are worth keeping even when an action failed: what was read was
 	// still read.
 	if err := th.save(); err != nil {
-		return -1, err
+		return -1, where, err
 	}
 
 	if runErr != nil {
-		return -1, fmt.Errorf("reading your queue: %w", runErr)
+		return -1, where, fmt.Errorf("reading your queue: %w", runErr)
 	}
 
-	return afterQueue(ctx, list.Tab(), in, th, rv, stdin, stdout)
+	left := list.Where()
+
+	next, err := afterQueue(ctx, list.Tab(), in, th, rv, stdin, stdout)
+
+	return next, left, err
 }
 
 // keepAhead is how many reviews the queue stages in front of the cursor. An

@@ -605,3 +605,88 @@ func TestTheCursorStoppingPaysForTheRowUnderIt(t *testing.T) {
 		t.Errorf("asked for %v, want the row under the cursor (%q)", asked, l.CursorKey())
 	}
 }
+
+// Opening a review closes the queue and builds it again afterwards, so without
+// a Resume every return lands at the top rather than on the row that was opened.
+func TestAQueueComesBackWhereTheReviewWasOpened(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		again func() []tui.Section
+		want  string
+	}{
+		{name: "the row is still there", again: queue, want: "T3"},
+		{
+			// A review that posted while it was open leaves no row to return to.
+			name:  "the row it was left on has gone",
+			again: func() []tui.Section { return withoutRow(queue(), "T3") },
+			want:  "T2",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			before := tui.NewTabs(tabsOver(queue), 0)
+			before.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+			before.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+			if got := before.CursorKey(); got != "T3" {
+				t.Fatalf("the cursor sits on %q, want the last row", got)
+			}
+
+			after := tui.NewTabs(tabsOver(tc.again), 0)
+			after.Restore(before.Where())
+			after.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+
+			if got := after.CursorKey(); got != tc.want {
+				t.Errorf("the queue came back on %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// A filter is part of where a tab was left.
+func TestAQueueComesBackNarrowedTheWayItWasLeft(t *testing.T) {
+	t.Parallel()
+
+	before := tui.NewTabs(tabsOver(queue), 0)
+	before.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+
+	for _, r := range "/wavez" {
+		before.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	before.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	shows(t, before, []string{"kyleking/wavez#7"}, []string{"kyleking/tlr#118"})
+
+	after := tui.NewTabs(tabsOver(queue), 0)
+	after.Restore(before.Where())
+	after.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+
+	shows(t, after, []string{"kyleking/wavez#7"}, []string{"kyleking/tlr#118"})
+}
+
+// tabsOver is the one tab both resume tests need on each side of the handoff.
+func tabsOver(sections func() []tui.Section) []tui.Tab {
+	return []tui.Tab{{
+		Name: "staged", Title: "second-look staged reviews", Sections: sections,
+		Act: func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
+	}}
+}
+
+func withoutRow(sections []tui.Section, key string) []tui.Section {
+	for i := range sections {
+		kept := make([]tui.Row, 0, len(sections[i].Rows))
+
+		for j := range sections[i].Rows {
+			if sections[i].Rows[j].Key != key {
+				kept = append(kept, sections[i].Rows[j])
+			}
+		}
+
+		sections[i].Rows = kept
+	}
+
+	return sections
+}
