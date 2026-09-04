@@ -691,12 +691,13 @@ func TestTheCommentViewKeepsYourPlace(t *testing.T) {
 	nextView(m)
 	nextView(m)
 
+	// A count of zero is left out, so what a file carries is what it says.
 	frame := plain(m.Frame())
-	if !strings.Contains(frame, "1 ready · 0 draft · 0 skipped") {
+	if !strings.Contains(frame, "internal/vcs/diff.go  1 ready") {
 		t.Errorf("the file heading does not carry the counts:\n%s", frame)
 	}
 
-	if !strings.Contains(frame, "0 ready · 0 draft · 1 skipped") {
+	if !strings.Contains(frame, "internal/vcs/git.go  1 skipped") {
 		t.Errorf("the skipped comment's file is missing its count:\n%s", frame)
 	}
 
@@ -2286,5 +2287,88 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 
 	if got := plain(m.Frame()); strings.Contains(got, "move a line") {
 		t.Errorf("escape did not close the legend:\n%s", got)
+	}
+}
+
+// mixedContext is a hunk git named nothing for beside one it named a
+// declaration for, which is the pair that decides how a hunk's row is drawn.
+const mixedContext = `diff --git a/a/new.go b/a/new.go
+new file mode 100644
+--- /dev/null
++++ b/a/new.go
+@@ -0,0 +1,2 @@
++package a
++
+diff --git a/a/old.go b/a/old.go
+index 1111111..2222222 100644
+--- a/a/old.go
++++ b/a/old.go
+@@ -10,3 +10,3 @@ func Old() error {
+-	return nil
++	return err
+`
+
+// A hunk gets one row and exactly one, because ]h and ]u walk those rows and
+// marking one read anchors on them. What the row says is the declaration git
+// named as enclosing the hunk, and where git named none the file's own heading
+// stands in for it, so claiming the hunk on both sent ]h to it twice.
+func TestEveryHunkIsOneRowToWalk(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := modelFor(t, &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff",
+		Number: 42, HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}, mixedContext)
+
+	var stops []string
+
+	for range 4 {
+		go2(m, ']', 'h')
+
+		if at := m.CursorText(); len(stops) == 0 || stops[len(stops)-1] != at {
+			stops = append(stops, at)
+		}
+	}
+
+	if len(stops) != 2 {
+		t.Fatalf("]h stopped %d times for two hunks: %q\n%s", len(stops), stops, plain(m.Frame()))
+	}
+
+	// The heading is the hunk where git named nothing to put on a row of its own.
+	if !strings.Contains(stops[0], "a/new.go") {
+		t.Errorf("the first stop is %q, want the heading of the file with no declaration", stops[0])
+	}
+
+	// git's own declaration survives; the line numbers beside it do not, being
+	// what the gutter says on every line under it.
+	if stops[1] != "func Old() error {" {
+		t.Errorf("the second stop is %q, want git's declaration alone", stops[1])
+	}
+}
+
+// The review's own body and note start folded, unlike every other note on this
+// screen: you wrote them, so they are the text here you least need to read
+// back, and open they cost nine rows before the diff began.
+func TestTheReviewsOwnProseStartsFolded(t *testing.T) {
+	t.Parallel()
+
+	note := "ran the suite twice\nthe first pass missed the empty file"
+
+	m, _, _ := modelFor(t, &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff",
+		Number: 42, HeadSHA: "a1b2c3d", Event: artifact.EventComment, Note: note,
+	}, patch)
+
+	if got := plain(m.Frame()); !strings.Contains(got, "REVIEW NOTE  2 lines · za to read") {
+		t.Fatalf("the review's note is not folded:\n%s", got)
+	}
+
+	// The cursor opens on the body above it, which ]c does not walk to: the
+	// review's own prose is not a staged comment.
+	pressKey(m, 'j')
+	go2(m, 'z', 'a')
+
+	if got := plain(m.Frame()); !strings.Contains(got, "the first pass missed the empty file") {
+		t.Errorf("za did not open the review's note:\n%s", got)
 	}
 }

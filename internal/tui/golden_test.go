@@ -83,6 +83,10 @@ func TestReviewProseFrames(t *testing.T) {
 			}, patch)
 			m.Update(tea.WindowSizeMsg{Width: width, Height: 24})
 
+			// The review's own prose starts closed, and how it wraps is what
+			// these frames are for.
+			go2(m, 'z', 'R')
+
 			golden.RequireEqual(t, []byte(plain(m.Frame())))
 		})
 	}

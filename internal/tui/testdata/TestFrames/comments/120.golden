@@ -1,7 +1,7 @@
-kyleking/jj-diff #42  comments                                              0% · on head · 1 ready · 1 draft · 1 skipped
+kyleking/jj-diff #42  comments                                                        0% · 1 ready · 1 draft · 1 skipped
 ▌     ┃ REVIEW  no body, no note · e to write one
  
-   internal/vcs/diff.go  1 ready · 1 draft · 0 skipped ─────────────────────────────────────────────────────────────────
+     internal/vcs/diff.go  1 ready · 1 draft ───────────────────────────────────────────────────────────────────────────
  
       ┃ ● MAJOR  ready
       ┃ split can fail now, so this has to check err.
@@ -10,7 +10,7 @@ kyleking/jj-diff #42  comments                                              0% �
       ┃ Is first still 1 after the change?
       ┃ NOTE  Unverified: I have not read the caller.
  
-   internal/vcs/git.go  0 ready · 0 draft · 1 skipped ──────────────────────────────────────────────────────────────────
+     internal/vcs/git.go  1 skipped ────────────────────────────────────────────────────────────────────────────────────
 
 
 

@@ -28,6 +28,11 @@ type planGroup struct {
 	parts []part
 }
 
+// named reports whether the heading says anything the file paths under it do
+// not. One directory over a review whose files each carry their whole path is
+// the same words twice; a gathered symbol, or what a machine wrote, is not.
+func (g planGroup) named(groups int) bool { return groups > 1 || g.sym || g.made }
+
 func (g planGroup) heading() string {
 	what := fmt.Sprintf("%s · %s", plural(g.files, "file"), plural(g.hunks, "hunk"))
 

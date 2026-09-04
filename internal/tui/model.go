@@ -1204,17 +1204,21 @@ func (m *Model) saveRead(ok string) {
 // isUnread accepts a hunk heading nobody has marked read, which is what makes
 // ]u the motion that walks what is left to do.
 func (m *Model) isUnread(r row) bool {
-	if r.kind != rowHunk || r.hunk == 0 || m.read == nil {
+	if !isHunk(r) || m.read == nil {
 		return false
 	}
 
 	return !m.read.Has(seen.Hunk(m.diff, r.path, r.hunk))
 }
 
-// isHunk accepts a real @@ heading. The review's own body and note, and the
-// line naming a rename or a binary payload, share the heading style without
-// being hunks, so a motion over hunks has to look past the style.
-func isHunk(r row) bool { return r.kind == rowHunk && r.hunk > 0 }
+// isHunk accepts a row standing for one hunk of the diff, which is a hunk
+// heading or the heading of a file drawing only that hunk. The review's own
+// body and note, and the line naming a rename or a binary payload, share the
+// heading style without being hunks, so this looks at the number rather than
+// at the kind.
+func isHunk(r row) bool {
+	return r.hunk > 0 && (r.kind == rowHunk || r.kind == rowFile)
+}
 
 func isComment(r row) bool { return r.head && r.kind == rowComment && r.comment >= 0 }
 
@@ -1622,14 +1626,18 @@ func (m *Model) applyEdit(msg editedMsg) {
 		return
 	}
 
+	// Both start closed, so writing one has to open it or the editor looks like
+	// it discarded what was typed.
 	switch msg.index {
 	case reviewBody:
 		m.review.Body = msg.body
+		m.folded.notes[reviewBody] = true
 		m.save("review body updated")
 
 		return
 	case reviewNote:
 		m.review.Note = msg.body
+		m.folded.notes[reviewNote] = true
 		m.save("review note updated; it stays local")
 
 		return

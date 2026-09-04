@@ -40,11 +40,8 @@ func (m *Model) render() string {
 }
 
 func (m *Model) title() string {
-	c := m.counts()
 	left := fmt.Sprintf("%s/%s #%d", m.review.Owner, m.review.Repo, m.review.Number)
-	right := cut(fmt.Sprintf("%s · %s · %s%s%d ready · %d draft · %d skipped%s",
-		m.position(), m.treeWord(), m.costCount(), m.readCount(),
-		c.ready, c.draft, c.skip, todoCount(c)), m.width)
+	right := cut(m.facts(), m.width)
 
 	if word := m.view.String(); word != "" {
 		left += "  " + word
@@ -102,7 +99,7 @@ func fitPath(path string, room int) string {
 func (m *Model) treeWord() string {
 	switch m.tree {
 	case TreeOnHead:
-		return "on head"
+		return ""
 	case TreeElsewhere:
 		return "off head"
 	case TreeNone:
@@ -112,15 +109,25 @@ func (m *Model) treeWord() string {
 	return ""
 }
 
-// costCount is what the change is rated, absent until the structural pass
-// answers and where nothing could parse, because a number standing for a hunk
-// count alone would be read as one that means more than that.
-func (m *Model) costCount() string {
-	if !m.cost.Rated() {
-		return ""
+// facts is the right of the title. A count of zero and a working copy standing
+// where the review was staged say nothing happened, so neither is drawn, and a
+// tree standing somewhere a key would refuse to work is the one fact colored.
+func (m *Model) facts() string {
+	parts := []string{m.position()}
+
+	if word := m.treeWord(); word != "" {
+		parts = append(parts, m.styles.warn.Render(word))
 	}
 
-	return fmt.Sprintf("cost %d · ", m.cost.Total)
+	if m.cost.Rated() {
+		parts = append(parts, fmt.Sprintf("cost %d", m.cost.Total))
+	}
+
+	if word := m.readCount(); word != "" {
+		parts = append(parts, word)
+	}
+
+	return strings.Join(append(parts, m.counts().words()...), " · ")
 }
 
 // readCount is how much of the diff has been read, which is the number that
@@ -137,7 +144,7 @@ func (m *Model) readCount() string {
 		return ""
 	}
 
-	return fmt.Sprintf("%d/%d read · ", m.read.Count(refs), len(refs))
+	return fmt.Sprintf("%d/%d read", m.read.Count(refs), len(refs))
 }
 
 // position is where the cursor is. On a comment it counts them, since "which
@@ -406,7 +413,9 @@ func (m *Model) rowBody(r row, width int) string {
 		style = m.styles.behind
 	}
 
-	if r.kind == rowFile {
+	// A hunk with nothing named on it is still a boundary and still carries the
+	// read mark, so it draws as a rule rather than as a blank row.
+	if r.kind == rowFile || (r.kind == rowHunk && r.hunk > 0 && r.text == "") {
 		return m.ruledFile(text, width, style)
 	}
 
@@ -478,7 +487,7 @@ const ruleFloor = 4
 // contrast of a hunk already read.
 func closed(r row) bool { return r.folded && (r.kind == rowFile || r.kind == rowHunk) }
 
-// ruledFile is a file heading with a rule out to the frame's edge.
+// ruledFile is a heading with a rule out to the frame's edge.
 func (m *Model) ruledFile(text string, width int, style lipgloss.Style) string {
 	head := style.Render(cut(text, width))
 
@@ -497,9 +506,9 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 	case rowGroup:
 		return r.text, m.styles.title
 	case rowFile:
-		return "  " + r.text, m.styles.file
+		return "  " + m.readMark(r) + r.text, m.styles.file
 	case rowHunk:
-		return "  " + m.readGlyph(r) + r.text, m.styles.hunk
+		return "    " + m.readMark(r) + r.text, m.styles.hunk
 	case rowComment, rowNote, rowTurn:
 		return m.commentRow(r)
 	case rowGone:
@@ -536,15 +545,12 @@ func (m *Model) commentRow(r row) (string, lipgloss.Style) {
 	return text, m.styles.forSeverity(m.review.Comments[r.comment].Severity)
 }
 
-// readGlyph marks a hunk already read. It is a glyph rather than a color so
-// the one thing that says how much is left survives a monochrome terminal, and
-// the unread case still spends the same two columns so nothing shifts.
-func (m *Model) readGlyph(r row) string {
-	if r.hunk == 0 || m.read == nil {
-		return ""
-	}
-
-	if m.read.Has(seen.Hunk(m.diff, r.path, r.hunk)) {
+// readMark says whether a hunk has been read. It is a glyph rather than a color
+// so the one thing saying how much is left survives a monochrome terminal, and
+// every heading spends the two cells whether or not it stands for a hunk, so a
+// column of paths does not shift where one of them is read.
+func (m *Model) readMark(r row) string {
+	if r.hunk > 0 && m.read != nil && m.read.Has(seen.Hunk(m.diff, r.path, r.hunk)) {
 		return "✓ "
 	}
 
@@ -651,12 +657,19 @@ func lpad(s string, width int) string {
 	return s
 }
 
-// todoCount is absent from the counts until there is one, since a review with
-// no agent work waiting should not spend the width saying so.
-func todoCount(c tally) string {
-	if c.todo == 0 {
-		return ""
+// words is what the review is carrying, leaving out whatever it carries none
+// of.
+func (c tally) words() []string {
+	var out []string
+
+	for _, at := range [...]struct {
+		n    int
+		word string
+	}{{c.ready, "ready"}, {c.draft, "draft"}, {c.skip, "skipped"}, {c.todo, "todo"}} {
+		if at.n > 0 {
+			out = append(out, fmt.Sprintf("%d %s", at.n, at.word))
+		}
 	}
 
-	return fmt.Sprintf(" · %d todo", c.todo)
+	return out
 }

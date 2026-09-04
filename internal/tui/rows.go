@@ -110,8 +110,12 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 	}
 
 	for _, g := range groups {
-		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
-			row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
+		s.rows = append(s.rows, row{kind: rowBlank, comment: -1})
+
+		if g.named(len(groups)) {
+			s.rows = append(s.rows,
+				row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
+		}
 
 		for _, at := range g.parts {
 			s.rows = append(s.rows, s.fileRows(&d.Files[at.file], at, ctx)...)
@@ -130,7 +134,13 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 // hunks are this piece's own, and nil is all of them.
 func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 	p := filePath(f)
-	rows := []row{{kind: rowFile, text: p + partWord(c.split[at.path]), path: p, comment: noComment}}
+	span := bounds(f)
+
+	merged := mergedHunk(f, at, c, span)
+	rows := []row{{
+		kind: rowFile, path: p, comment: noComment, hunk: merged,
+		text: p + partWord(c.split[at.path]) + sizeWord(f, at.hunks),
+	}}
 
 	if c.lay.shut(p) {
 		rows[0].text = p + "  " + plural(hunkCount(f), "hunk") + " folded" + staged(c.r, p) + " · za to open"
@@ -152,7 +162,6 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 	}
 
 	hide := false
-	span := bounds(f)
 
 	var below []row
 
@@ -173,11 +182,14 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 
 			// The tests walk the file, so they are asked once per hunk rather
 			// than once per line.
-			head, hide = hunkRow(c.d, c.lay, hunkAt{p, hunk})
+			head, hide = hunkRow(c.d, c.lay, hunkAt{p, hunk}, span[hunk])
+
 			if head == nil {
 				folded++
 			} else {
-				rows = append(rows, *head)
+				if hunk != merged {
+					rows = append(rows, *head)
+				}
 
 				var above []row
 
@@ -292,22 +304,118 @@ func (s screen) hanger(
 // hunkRow is one hunk's own row and whether its lines are held back. A hunk the
 // current fold level hides has no row at all and is counted instead; one folded
 // by hand keeps its row and says so.
-func hunkRow(d *diff.Diff, lay layout, at hunkAt) (*row, bool) {
+func hunkRow(d *diff.Diff, lay layout, at hunkAt, span [2]int) (*row, bool) {
 	if lay.hide.skip != nil && lay.hide.skip(at.path, at.hunk) {
 		return nil, true
 	}
 
 	if lay.fold.hunks[at] {
 		return &row{
-			kind: rowHunk, text: hunkHeader(d, at.hunk) + "  folded · za to open",
+			kind: rowHunk, text: spanWord(span) + "folded · za to open",
 			path: at.path, comment: noComment, hunk: at.hunk, folded: true,
 		}, true
 	}
 
+	// The row stays whatever it has to say, being what ]h and ]u walk and what
+	// carries the read mark.
 	return &row{
 		kind: rowHunk, comment: noComment, path: at.path, hunk: at.hunk,
-		text: hunkHeader(d, at.hunk) + lay.hunkWord(at),
+		text: strings.TrimPrefix(hunkContext(hunkHeader(d, at.hunk))+lay.hunkWord(at), "  "),
 	}, false
+}
+
+// hunkContext is the declaration git named after a hunk's line numbers, which
+// is the only thing a diff says about what encloses it.
+func hunkContext(header string) string {
+	at := strings.Index(header, "@@ ")
+	if at < 0 {
+		return ""
+	}
+
+	rest := strings.Index(header[at+3:], "@@")
+	if rest < 0 {
+		return ""
+	}
+
+	return strings.TrimSpace(header[at+3+rest+2:])
+}
+
+// mergedHunk is the hunk a file's heading stands in for, and zero where it
+// stands in for nothing. A file drawing one hunk whose own row would say
+// nothing is that hunk, and a hunk git named a declaration for keeps its row.
+// Claiming one on both rows sends a motion over hunks to it twice.
+func mergedHunk(f *diff.File, at part, c fileCtx, span map[int][2]int) int {
+	only := onlyHunk(f, at.hunks)
+	if only == 0 {
+		return 0
+	}
+
+	head, _ := hunkRow(c.d, c.lay, hunkAt{filePath(f), only}, span[only])
+	if head == nil || head.text != "" {
+		return 0
+	}
+
+	return only
+}
+
+// onlyHunk is the number of the one hunk a file draws here, and zero where it
+// draws none or several.
+func onlyHunk(f *diff.File, wanted map[int]bool) int {
+	only := 0
+
+	for _, l := range f.Lines {
+		if l.Hunk == 0 || l.Hunk == only || (wanted != nil && !wanted[l.Hunk]) {
+			continue
+		}
+
+		if only != 0 {
+			return 0
+		}
+
+		only = l.Hunk
+	}
+
+	return only
+}
+
+// spanWord names a hunk by the lines it covers in the file as it now reads,
+// which is how a reader asks about one. A folded hunk needs it: several of them
+// in one file are otherwise the same row several times.
+func spanWord(span [2]int) string {
+	if span[1] == 0 {
+		return ""
+	}
+
+	if span[0] == span[1] {
+		return "line " + strconv.Itoa(span[0]) + "  "
+	}
+
+	return "lines " + strconv.Itoa(span[0]) + "-" + strconv.Itoa(span[1]) + "  "
+}
+
+// sizeWord is what a file asks somebody to read, drawn on its own heading so
+// the frame answers how much is left without the header saying it.
+func sizeWord(f *diff.File, wanted map[int]bool) string {
+	var added, removed int
+
+	for _, l := range f.Lines {
+		if wanted != nil && !wanted[l.Hunk] {
+			continue
+		}
+
+		switch l.Kind {
+		case diff.KindAdd:
+			added++
+		case diff.KindRemove:
+			removed++
+		}
+	}
+
+	if added == 0 && removed == 0 {
+		return ""
+	}
+
+	return "  +" + humanize.Count(added) + " -" + humanize.Count(removed)
 }
 
 // claim marks the comments anchored to a line without drawing them, so a hunk
@@ -403,8 +511,7 @@ func buildList(r *artifact.Review, d *diff.Diff, lay layout) screen {
 		c := countFor(r, path)
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1}, row{
 			kind: rowFile, path: path, comment: -1,
-			text: fmt.Sprintf("%s  %d ready · %d draft · %d skipped%s",
-				path, c.ready, c.draft, c.skip, todoCount(c)),
+			text: path + "  " + strings.Join(c.words(), " · "),
 		})
 
 		for i := range r.Comments {

@@ -21,9 +21,12 @@ Show
 
 Sleep 1500ms
 
-# The review's own note, which starts folded because it is the run log.
+# The review's own note, which starts folded because you wrote it. The cursor
+# opens on the body above it, which this review has none of.
+Type "j"
+Sleep 800ms
 Type "za"
-Sleep 2s
+Sleep 2500ms
 Type "za"
 Sleep 500ms
 

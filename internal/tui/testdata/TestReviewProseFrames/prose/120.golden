@@ -1,4 +1,4 @@
-kyleking/jj-diff #42                                                        0% · on head · 0 ready · 0 draft · 0 skipped
+kyleking/jj-diff #42                                                                                                  0%
 ▌     ┃ REVIEW BODY                                                                                                    ┃
       ┃ Picking up the review. I checked production and:                                                               ┃
       ┃                                                                                                                ┃
@@ -14,11 +14,11 @@ kyleking/jj-diff #42                                                        0% �
       ┃   asks do the same                                                                                             ┃
       ┃     - every pair of them matches a fork run, so the fork is the source                                         ┃
                                                                                                                        ┃
- internal/vcs  2 files · 2 hunks                                                                                       ┃
-   internal/vcs/diff.go ───────────────────────────────────────────────────────────────────────────────────────────────┃
-   @@ -14,6 +14,7 @@ func Parse(r io.Reader) ([]Hunk, error) {                                                         ┃
-  14       first := 1                                                                                                  │
-  15 -     lines := split(r)                                                                                           │
+     internal/vcs/diff.go  +2 -1 ──────────────────────────────────────────────────────────────────────────────────────┃
+       func Parse(r io.Reader) ([]Hunk, error) {                                                                       ┃
+  14       first := 1                                                                                                  ┃
+  15 -     lines := split(r)                                                                                           ┃
   15 +     lines, err := split(r)                                                                                      │
   16 +     if err != nil {                                                                                             │
- [j/k] line  []] go to  [c]ode  writ[e]  [S]ubmit  [?] help  [q]uit
+  17       last := 4                                                                                                   │
+everything open

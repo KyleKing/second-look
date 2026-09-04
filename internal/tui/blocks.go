@@ -43,10 +43,17 @@ type folds map[int]bool
 // shown reports whether a block is drawn in full. Everything is open until it
 // is folded by hand: a note is the evidence for the comment above it, and one
 // folded by default is one nobody reads.
-func (f folds) shown(index int) bool {
-	open, ok := f[index]
+func (f folds) shown(index int) bool { return f.shownFrom(index, true) }
 
-	return !ok || open
+// shownFrom is shown against a block's own default, for the blocks that start
+// closed. A hand fold either way wins over it.
+func (f folds) shownFrom(index int, open bool) bool {
+	was, ok := f[index]
+	if !ok {
+		return open
+	}
+
+	return was
 }
 
 // folded is what z has put away by hand: a note, a run of removed lines, a
@@ -152,13 +159,17 @@ func header(r *artifact.Review, lay layout, numWidth int) []row {
 
 	avail := proseCols(lay.width, numWidth)
 
-	// The two blocks are separated, because a note that opens where a body ended
-	// reads as more of the body. The gap keeps the rail, so the review's own
-	// prose still reads as one bounded block.
-	rows := prose(reviewBody, "REVIEW BODY", r.Body, rowComment, avail, lay)
-	rows = append(rows, row{kind: rowComment, comment: reviewNote})
+	body := prose(reviewBody, "REVIEW BODY", r.Body, rowComment, avail, lay)
+	note := prose(reviewNote, "REVIEW NOTE", r.Note, rowNote, avail, lay)
 
-	return append(rows, prose(reviewNote, "REVIEW NOTE", r.Note, rowNote, avail, lay)...)
+	// The two blocks are separated, because a note that opens where a body ended
+	// reads as more of the body. Two closed headings cannot run together, so
+	// they are two rows at the top of the diff rather than three.
+	if len(body) > 1 || len(note) > 1 {
+		body = append(body, row{kind: rowComment, comment: reviewNote})
+	}
+
+	return append(body, note...)
 }
 
 // prose is one titled block of the review's own writing. The kind is what its
@@ -173,8 +184,9 @@ func prose(index int, title, text string, kind rowKind, avail int, lay layout) [
 		return []row{head}
 	}
 
+	// The review's own prose starts closed, unlike every other note here.
 	lines := wrap(text, avail)
-	if !lay.fold.notes.shown(index) {
+	if !lay.fold.notes.shownFrom(index, false) {
 		head.text = fmt.Sprintf("%s  %s · za to read", title, plural(len(lines), "line"))
 		head.folded = true
 

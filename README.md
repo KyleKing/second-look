@@ -265,9 +265,23 @@ base did not counts next; and size is only the tiebreaker. The number is
 advisory, deterministic, and decides nothing.
 
 Files are grouped by directory with file and hunk counts on each heading, and `]d` walks
-the groups. The title names the file the cursor is in once that file's own heading has
-scrolled off the top, beside where the frame sits and which comment the cursor is on. A
-heading you can still see is not worth the width.
+the groups. One directory over a review whose files each carry their whole path is the
+same words twice, so that heading appears once there is a second group to tell it from.
+The title names the file the cursor is in once that file's own heading has scrolled off
+the top, beside where the frame sits and which comment the cursor is on. A heading you can
+still see is not worth the width.
+
+The rest of the frame is what somebody has to act on. A count of zero says nothing
+happened and is left out, and a working copy standing where the review was staged says
+nothing either, so the title carries `off head` or `no clone` only where a key would
+refuse to work and colors that one fact alone. Each file heading says how many lines it
+adds and removes, which is what the header would otherwise be asked for. The review's own
+body and note start folded, because you wrote them and open they cost nine rows before the
+diff began. A hunk keeps a row of its own, since that is what `]h` and `]u` walk and what
+carries the read mark, and what the row says is the declaration git named as enclosing it
+rather than `@@ -0,0 +1,57 @@`, which is the gutter beside every line said twice. Where
+git named nothing, the row is a rule, and a file drawing one such hunk is that hunk, so
+its heading carries the read mark and the hunk's row is left out.
 
 `c` walks three views: both, the code, the comments. Both is the diff with what is being
 said about it inline. The code is the file as it reads after the change, where a removal
@@ -305,8 +319,7 @@ Files a machine wrote are grouped last, folded, and counted rather than read. Lo
 `go.sum`, `*.pb.go`, snapshots, and vendored trees are recognized without configuration;
 `generated` in the config names whatever else this repository writes. What matters about
 one is that it moved and by how much, so the group says how many files and hunks it holds
-and `za` opens any of them. It is the one thing on the screen that starts folded, because
-everything else is worth reading until you decide otherwise.
+and `za` opens any of them.
 
 A comment from GitHub is markdown somebody wrote for a browser, and a bot's is mostly
 machinery: routing state in an HTML comment, the scripts it ran, and the output of each,
@@ -393,8 +406,10 @@ letters next to the motion keys made that one keystroke away.
 it, a comment's note from the comment, and in the code view the run of removed lines from
 the row standing for it. `za` inverts it, `zi` inverts the whole review, `zR` opens
 everything, and `zM` folds to the file names, which is the outline a long review is read
-from. Everything is drawn until you fold it: a note is the evidence for the comment above
-it, and one folded by default is one nobody reads. A folded heading recedes to the
+from. A comment's note is drawn until you fold it, because it is the evidence for the
+comment above it and one folded by default is one nobody reads. What a machine wrote, and
+the review's own body and note, are the exceptions: the first is worth knowing moved
+rather than reading, and the second you wrote yourself. A folded heading recedes to the
 contrast of a hunk already read, so what is closed reads as closed.
 
 `/` searches, and `tab` in the prompt restricts it to hunks you have not read yet. The
