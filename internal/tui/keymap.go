@@ -56,6 +56,7 @@ type keyMap struct {
 	Fold      key.Binding
 	Zed       key.Binding
 	Structure key.Binding
+	OnlyNew   key.Binding
 	Accept    key.Binding
 	Send      key.Binding
 	Submit    key.Binding
@@ -105,6 +106,7 @@ func defaultKeyMap() keyMap {
 		Fold:      key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
 		Zed:       key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
 		Structure: key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "no code changed")),
+		OnlyNew:   key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "only what is new")),
 		Accept:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
 		Send:      key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
 		Submit:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
@@ -169,6 +171,7 @@ func helpLines() [][2]string {
 		{"O", "read in the diff's own order instead of gathered by symbol, and back"},
 		{"w", "hide hunks that change nothing but whitespace, and show them again"},
 		{"t", "hide hunks that change no code at all, comments and re-wraps included"},
+		{"U", "hide every hunk already marked read, so what is left is what is new since the last pass"},
 		{spaceKey, "mark the hunk read, or the whole file from a file line"},
 		{"m then r / d / t / x", "mark the comment ready, draft, todo, or skipped"},
 		{"T", "write out every todo comment for an agent, and run the dispatch command if one is set"},

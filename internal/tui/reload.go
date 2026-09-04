@@ -50,12 +50,27 @@ func (m *Model) watch() tea.Cmd {
 	})
 }
 
+// headEvery is how many ticks apart the head is asked about. A push landing
+// while the screen is open is worth knowing about and is not worth a request a
+// second, so it is asked once a minute.
+const headEvery = 60
+
 // reloaded answers the tick. Nothing changed is the common case and costs a
 // comparison; a change is read, and what it collides with is offered rather
 // than resolved.
 func (m *Model) reloaded(msg reloadMsg) tea.Cmd {
+	m.ticks++
+
+	// A push that lands while the screen is open is the case the check exists
+	// for. It is asked again rather than only at open, because a review read
+	// over twenty minutes outlives the answer given when it started.
+	next := m.watch()
+	if m.ticks%headEvery == 0 && m.newHead == "" {
+		next = tea.Batch(next, m.checkHead())
+	}
+
 	if msg.at == (stamp{}) || msg.at == m.wrote {
-		return m.watch()
+		return next
 	}
 
 	// The screen's own writes move the stamp too, and the file it just wrote is
@@ -66,12 +81,12 @@ func (m *Model) reloaded(msg reloadMsg) tea.Cmd {
 	if err != nil {
 		// A half-written file is what a save in flight looks like, and the next
 		// tick reads the finished one.
-		return m.watch()
+		return next
 	}
 
 	m.take(fresh)
 
-	return m.watch()
+	return next
 }
 
 // merge takes the review from disk. What is being typed is never overwritten:

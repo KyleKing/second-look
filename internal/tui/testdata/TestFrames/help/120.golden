@@ -13,6 +13,7 @@ kyleking/jj-diff #42                                                        0% Â
                          O  read in the diff's own order instead of gathered by symbol, and back
                          w  hide hunks that change nothing but whitespace, and show them again
                          t  hide hunks that change no code at all, comments and re-wraps included
+                         U  hide every hunk already marked read, so what is left is what is new since the last pass
                      space  mark the hunk read, or the whole file from a file line
       m then r / d / t / x  mark the comment ready, draft, todo, or skipped
                          T  write out every todo comment for an agent, and run the dispatch command if one is set
@@ -20,5 +21,4 @@ kyleking/jj-diff #42                                                        0% Â
       z then a / i / R / M  fold what is here, or all of it; invert; open all; fold to the file names
   a then b / m / n / t / ?  write a comment on this line, ranked blocker to question
                          e  write here: a comment, an answer to a thread, the review's body or note
-                         E  edit the comment's local note, which never posts
  [j/k] line  []] go to  [c]ode  writ[e]  [S]ubmit  [?] help  [q]uit

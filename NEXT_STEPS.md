@@ -286,19 +286,27 @@ the review screen as a view inside the tabbed shell rather than a program the sh
 off to. Pruning on action is partly there already, since posting and merging both discard
 what was staged; what is missing is pruning a prefetched review the queue no longer holds.
 
-### 7. What changed since I read it
+### 7. What changed since I read it — the filter and the detection, not the picker
 
-Three steps of one feature, all of them resting on step 3.
+The filter is `U`, and it turned out to be presentation over state that already existed:
+every hunk already marked read is hidden, and the marks are keyed by what a hunk says
+rather than by the commit it sat on, so a hunk that survived a force-push unchanged stays
+hidden and one that was touched comes back. It is a separate axis from `w` and `t` rather
+than a rung on that ladder, because what a parser calls cosmetic and what this pass has
+already read are different questions and a second pass wants to ask both.
 
-A filter first: every head I have read keeps its diff, so reopening a pull request can
-mark which hunks are new or changed since the newest read head and narrow the review to
-those. Read marks already survive a force-push by content hash, so this is presentation
-over state that exists.
+Live detection is the watcher asking the head again once a minute rather than only when
+the screen opens. A review read over twenty minutes outlives the answer given when it
+started, and finding out at submit time that the head moved is finding out too late.
 
-Then a picker, for comparing against any earlier round rather than only the last. Then
-live detection, so a push that lands while the screen is open keeps my staged comments
-and offers the incremental diff instead of making me reopen. A pull request I have already
-reviewed says so when it opens, whichever directory I open it from.
+Two things are not built. Offering the incremental diff in place, so a push that lands
+mid-read restages without reopening, needs a restage seam the screen does not have and
+wants deciding rather than assuming. And the picker for comparing against any earlier
+round needs the caches of earlier heads kept rather than swept, which is a change to what
+`get` cleans up and a decision about how much disk a year of reviews is allowed.
+
+A pull request already reviewed says so wherever it is opened from, which step 4 gave for
+free: the read marks and the rating live with the review rather than with the clone.
 
 ### 8. Suggestions, ranges, and drift
 

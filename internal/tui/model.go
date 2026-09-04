@@ -61,6 +61,12 @@ type Model struct {
 	// dispatcher hands the todo set to an agent, and is nil where nothing is
 	// configured to receive it.
 	dispatcher Dispatcher
+	// onlyNew hides every hunk already marked read, which is the second pass
+	// over a pull request that moved under an earlier one.
+	onlyNew bool
+	// ticks counts the watcher's beats, which is what paces the head check at a
+	// different cadence from the reload.
+	ticks int
 	// wrote is the artifact's stamp as this screen last saw it, which is what
 	// tells a write of its own from an agent's.
 	wrote   stamp
@@ -500,18 +506,12 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		return true, m, tea.Quit
 	case key.Matches(msg, m.keys.Help):
 		m.help = !m.help
-	case key.Matches(msg, m.keys.List):
-		m.cycleView()
-	case key.Matches(msg, m.keys.Renderer):
-		m.cycleRenderer()
-	case key.Matches(msg, m.keys.Order):
-		m.cycleOrder()
-	case key.Matches(msg, m.keys.Fold):
-		m.setFold(foldWhitespace)
 	case key.Matches(msg, m.keys.Structure):
 		cmd := m.askStructure()
 
 		return true, m, cmd
+	case m.reshapes(msg):
+		return true, m, nil
 	case key.Matches(msg, m.keys.Zed):
 		m.pending = 'z'
 
@@ -1202,6 +1202,43 @@ func (m *Model) setStatus(status string) {
 	}
 
 	m.save(fmt.Sprintf("%s is %s", c.ID, status))
+}
+
+// reshapes answers the keys that change what the frame shows rather than what
+// the review says: the view, the renderer, the order, and the two filters.
+func (m *Model) reshapes(msg tea.KeyPressMsg) bool {
+	switch {
+	case key.Matches(msg, m.keys.List):
+		m.cycleView()
+	case key.Matches(msg, m.keys.Renderer):
+		m.cycleRenderer()
+	case key.Matches(msg, m.keys.Order):
+		m.cycleOrder()
+	case key.Matches(msg, m.keys.Fold):
+		m.setFold(foldWhitespace)
+	case key.Matches(msg, m.keys.OnlyNew):
+		m.narrow()
+	default:
+		return false
+	}
+
+	return true
+}
+
+// narrow answers U: what is left is what this pass has not read, which is the
+// second look at a pull request that moved.
+func (m *Model) narrow() {
+	if m.read == nil {
+		m.say("no read marks here, so there is nothing to narrow to", false)
+
+		return
+	}
+
+	was := m.here()
+	m.onlyNew = !m.onlyNew
+	m.rebuild()
+	m.goTo(was)
+	m.say(newWord(m.onlyNew), false)
 }
 
 func (m *Model) save(ok string) {

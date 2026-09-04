@@ -9,6 +9,7 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/rate"
+	"github.com/kyleking/second-look/internal/seen"
 )
 
 // errNoParser is what t says where the structural tool is missing. The w level
@@ -53,6 +54,10 @@ type hider struct {
 // is nil. Both levels ask the text test, because a reordering of whole lines is
 // something it catches and comparing the two sides byte by byte does not.
 func (m *Model) skipper() hider {
+	return m.narrowed(m.level())
+}
+
+func (m *Model) level() hider {
 	switch m.fold {
 	case foldWhitespace:
 		return hider{skip: m.diff.WhitespaceOnly, why: "whitespace only"}
@@ -65,6 +70,30 @@ func (m *Model) skipper() hider {
 	}
 
 	return hider{}
+}
+
+// narrowed adds the incremental filter to whatever level is set. It is a
+// separate axis rather than a rung on the ladder: what a parser calls cosmetic
+// and what this pass has already read are different questions, and a second
+// pass over a pull request wants to ask both.
+//
+// The test is the read mark, which is keyed by what the hunk says rather than
+// by the commit it sat on. So a hunk that survived a force-push unchanged stays
+// hidden and one that was touched comes back, which is the whole of "what
+// changed since I read it".
+func (m *Model) narrowed(h hider) hider {
+	if !m.onlyNew || m.read == nil {
+		return h
+	}
+
+	was, why := h.skip, "already read"
+	if h.why != "" {
+		why = h.why + " and what is already read"
+	}
+
+	return hider{why: why, skip: func(p string, at int) bool {
+		return (was != nil && was(p, at)) || m.read.Has(seen.Hunk(m.diff, p, at))
+	}}
 }
 
 // structureMsg carries the pass over every hunk. It runs once per diff and the
@@ -98,6 +127,16 @@ func readStructure(d *diff.Diff, made generated.Set) tea.Cmd {
 			cosmetic: out, shape: readShape(readings, at, made), score: rate.Of(readings),
 		}
 	}
+}
+
+// newWord says the incremental filter is on, since a review showing three hunks
+// of a forty-hunk diff has to say why.
+func newWord(on bool) string {
+	if on {
+		return "showing only what is new since the last pass"
+	}
+
+	return "showing every hunk again"
 }
 
 // foldWord says which way the fold went, since a hunk that vanished with no

@@ -61,6 +61,14 @@ whatever the working directory happens to be.
 `second-look skill` prints the instructions an agent needs to drive it, ready to write
 into a skills directory.
 
+`U` narrows the review to what is new since the last pass: every hunk already marked read
+is hidden, and the marks are keyed by what a hunk says rather than by the commit it sat
+on, so a hunk that survived a force-push unchanged stays hidden and one that was touched
+comes back. It composes with `w` and `t` rather than replacing them.
+
+The head is asked about again while the screen is open, not only when it opens, so a push
+that lands mid-review says so rather than being found out at submit time.
+
 The screen watches the artifact, so an agent writing it while you read reaches the screen
 rather than being clobbered by the next keystroke. What is being typed is never
 overwritten: where the same comment moved underneath, the buffer keeps the screen and
