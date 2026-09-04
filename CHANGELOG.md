@@ -1,3 +1,49 @@
+## v0.7.0 (2026-09-04)
+
+### Feat
+
+- **inbox**: carry the triage order and the rating into the piped queue
+- **reviews**: carry the stack order into the piped list
+- **review**: cut the frame down to what has to be acted on
+- **review**: let a folded heading recede
+- **queue**: say how large a change is beside what it is rated
+- **review**: compare against an earlier round the review was read at
+- **queue**: rate the row the cursor stops on
+- **review**: pin the line a run answers and gather its skips
+- **review**: select a range of lines to comment on or suggest over
+- **queue**: discard a prefetched review the queue no longer holds
+- **review**: take a head that moved without reopening the screen
+- **review**: read every open conversation with the line it answers
+- **review**: say when comments on one line are a run
+- **demo**: drive every screen from seed data, not just the review
+- **review**: read a bot comment as blocks instead of as raw markdown
+- **review**: make a change carry on four channels, not one band
+- **review**: grow a hunk with the file's own lines
+- **review**: complete a word from the files, symbols, and people in it
+- **review**: suggest a replacement, and say when an anchor drifted
+- **review**: narrow to what is new, and keep asking what the head is
+- **queue**: stage the next few reviews while you read this one
+- **review**: take what an agent wrote without losing what you typed
+- **review**: hand a comment back to an agent and keep the exchange
+- **cli**: give an agent the diff and one comment's context
+- **store**: keep every review in one place, keyed by repository
+- **demo**: open a layout case from an editable review file
+- **tui**: gather a caller with its callee across the diff
+- **tui**: group what a machine wrote last, folded and counted
+- **tui**: say what the parser saw on every heading
+- **tui**: pair each edit onto one row side by side
+- **tui**: let a hunk already read recede
+- **tui**: draw the diff by its grammar behind v
+- **tui**: center a comment when a motion lands on it
+- **tui**: name the lines a ranged comment covers
+- **inbox**: give the review-cost rating a column of its own
+
+### Fix
+
+- **get**: record the branches a pull request joins
+- **rate**: bend the score onto the scale instead of clipping it
+- **list**: keep the cursor on the row a verb acted on
+
 ## v0.6.0 (2026-09-02)
 
 ### Feat
