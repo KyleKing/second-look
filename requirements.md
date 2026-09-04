@@ -62,6 +62,18 @@ TUI is the first consumer. An nvim plugin later shells out to the same CLI, whic
 what keeps the review artifact frontend-agnostic. gh-repo-dashboard's three front ends
 over one set of internals is the pattern to copy.
 
+**The parser and the highlighter are subprocesses or pure Go, never cgo.**
+`.goreleaser.yml` builds ten platforms with `CGO_ENABLED=0`, and every tree-sitter
+binding for Go needs cgo, so the structural pass shells out to `ast-grep` on the path
+and highlighting is [chroma](https://github.com/alecthomas/chroma). Shelling out is what
+the tool already does with gh, git, `$EDITOR`, and `$SHELL`, and it loses only the
+feature where the binary is missing, which the screen says out loud. difftastic was the
+other candidate and was measured out: `difft --exit-code` answers 0 for a pure reformat
+and 1 for a reworded comment, which is right for a diff viewer and wrong here, because
+telling a comment change from a code change is the distinction the pass exists to make.
+Comparing every non-whitespace byte of a hunk's two sides settles layout in process, so
+only what survives that needs a grammar at all.
+
 **Claude Code drives the drafting.** No API key in the tool and no prompt in the tool.
 The CLI exposes subcommands and JSON the way `hunk session comment apply` does, and my
 `change-review` skill drives it, so the voice rules stay in one place. hunk.dev's
@@ -69,9 +81,13 @@ interface is the reference to beat.
 
 ### Storage and state
 
-**The artifact lives in the repo at `.second-look/`.** Gitignored globally, so an agent
-finds it without knowing a state path. It is not designed to be committed and nothing
-breaks if it is, because it holds no secrets.
+**One store per repository, not per checkout.** Everything kept about a review lives
+under the state directory keyed by host, owner, and repository. Keeping it in the
+checkout at `.second-look/` was the first shape, and it made #42 read from two clones
+into two unrelated reviews, so an incremental re-review across directories was
+impossible. What a checkout still holds is migrated the first time that review is
+opened, and a review staged on both sides stops the move rather than picking one,
+because choosing would drop work nobody has posted.
 
 **TOML on disk, JSON at both edges.** A person edits the file, so it is TOML: comments
 are allowed, multi-line strings stay readable, and a hand-edit does not mean counting
@@ -101,9 +117,9 @@ again.
 
 So a hunk is identified by the file it belongs to plus every line of the hunk, kinds
 included, with the line numbers left out. A hunk that slides down the file stays read; a
-hunk whose text changed comes back unread. Marks live in `.second-look/seen/pr-<n>.toml`,
-keyed by that hash rather than by head commit, and are pruned to the hunks the current
-diff still carries. Cached diffs are collected when the PR merges or after a TTL.
+hunk whose text changed comes back unread. Marks live under `seen/pr-<n>.toml` in the
+repository's store, keyed by that hash rather than by head commit, and are pruned to the
+hunks the current diff still carries.
 
 **Cache aggressively**, following gh-repo-dashboard's model. Every forge call, every
 parsed diff, and every derived index is cacheable, scoped by repo and PR, invalidated on
@@ -135,9 +151,10 @@ imagined one:
 `astgrep` stays in wavez. It is a thin runner over the ast-grep binary and second-look
 can rewrite the part it needs.
 
-Development happens against local checkouts through a `go.work`. gh-repo-dashboard stays
-unpushed until the extraction is green, and an older version stays pinned in the
-meantime.
+`go.mod` always pins a released aragonite version, and `GOWORK=off` on a pre-push hook
+is what proves the consumer builds against the published one rather than the checkout on
+disk. A gitignored `go.work` overrides the pin while working across the two, which is
+three lines to recreate when aragonite next needs work ahead of a release.
 
 ### The inbox
 
@@ -162,9 +179,19 @@ is not a git tool needs them.
 Not shared: the screens. second-look's inbox is a task list in three buckets, ordered
 pending my review, then reviewed and open, then reviewed and merged.
 
-The merged bucket has a consequence worth stating: the review record outlives the pull
-request. Cached diffs are collected on merge, and what I said about a change is what I
-want to find later, so the artifact and the cached diff have separate lifetimes.
+The merged bucket reads submitted reviews back from the API rather than from anything
+kept here. A successful post deletes the artifact and GitHub is the source of truth from
+that moment, so no comment ids are written back and nothing local outlives the post. The
+caches keyed by head commit live exactly as long as the review does, every round it was
+read at pinned together, so posting or discarding takes them as a group.
+
+**A machine account is `__typename`, not a list of logins.** The conversation queue
+admits what a bot says only where it is anchored to code, so telling a bot from a person
+decides most of the queue's length. A login matched against known bot names is a guess
+that goes stale, and `coderabbitai` answers `Bot` while carrying no `[bot]` suffix, so a
+name match counts it as a reviewer. The case the type cannot catch is a bot running on
+an ordinary account with a token, which is a list of logins in `config.toml` rather than
+a heuristic.
 
 ### Branch and working tree
 
@@ -334,7 +361,7 @@ diff size.
 The rating is deterministic and produces a number, computed over the diff with comments
 and whitespace-only changes excluded first:
 
-- **Changed-symbol extraction** with tree-sitter maps hunks to their enclosing function
+- **Changed-symbol extraction** with ast-grep maps hunks to their enclosing function
   or class and classifies each change as body-only, signature, new, or deleted. A
   signature change escalates on its own. This is the multiplier that makes the other two
   signals precise
@@ -349,6 +376,14 @@ and whitespace-only changes excluded first:
   graph by base SHA
 
 The rating is advisory. It ranks the inbox and it never decides anything.
+
+It reads patch text, which is what keeps it on the core allowance rather than the GraphQL
+one that sits idle while core empties: `pullRequest.files` answers path, additions,
+deletions, and changeType and no patch, so GraphQL could carry a size-only order and not
+this. Both sides of a hunk come from the patch, context lines included, so nothing reads
+a working copy and the rating works on a review prepared with no checkout. The limit of
+that is a hunk being a fragment, so the enclosing symbol of a change deep inside a body
+is not always knowable.
 
 ## Open questions
 

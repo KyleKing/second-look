@@ -432,7 +432,7 @@ comment under the cursor, so a comment carries the output that proves it. That n
 local and never posted. It refuses while the checkout is on another branch or missing,
 since a shell there would run against something other than the diff.
 
-- [Next steps](NEXT_STEPS.md) — what alpha needs, in order, and what is still open
+- [Next steps](NEXT_STEPS.md) — what is open, in the order it wants doing
 - [Requirements](requirements.md) — scope, decisions made, and what is still open
 - [Prior art, August 2026](research/prior-art-2026-08.md) — what already exists in this
   space and the three capabilities nothing implements

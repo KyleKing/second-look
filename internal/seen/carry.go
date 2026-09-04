@@ -16,7 +16,7 @@ import "github.com/kyleking/second-look/internal/diff"
 // byte-identical too, which is when identity already carries them. Applying its
 // verdict per hunk instead of per commit would mean attributing a
 // cumulative-diff hunk to one commit, which is blame-level work with its own
-// failure modes. See NEXT_STEPS.md for the experiment.
+// failure modes. The experiment is recorded in requirements.md.
 func Carry(set *Set, current *diff.Diff) int {
 	return set.Count(Hunks(current))
 }
