@@ -52,8 +52,13 @@ func (l *List) header() string {
 		right = l.styles.subtitle.Render(l.subtitle() + " ")
 	}
 
-	// What the filter is holding back outranks the counts, since a queue that
-	// is quiet for the wrong reason is the worst thing a filter can do.
+	// What is being held back outranks the counts, since a queue that is quiet
+	// for the wrong reason is the worst thing narrowing it can do.
+	if l.focused != "" {
+		left += l.styles.file.Render("  " + l.focused)
+		right = l.styles.subtitle.Render(l.counted() + " ")
+	}
+
 	if l.filter.on() {
 		right = l.styles.subtitle.Render("/" + l.filter.query + "  " + l.counted() + " ")
 	}

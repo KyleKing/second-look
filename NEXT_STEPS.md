@@ -74,11 +74,11 @@ anyway, because the alternative is building five features against a handoff that
 to go.
 
 [FLOW.md](FLOW.md) is what the shell is for: the whole motion from opening the queue to
-posting the last review, one repository at a time. Three of its eight steps are unbuilt,
-and each of them is a thing the shell either enables or is not worth doing without.
-Focusing one repository, leasing a checkout for it, and holding one resumable Claude Code
-session per pull request are the three, and the last of them is where the notification
-boundary finally has a source.
+posting the last review, one repository at a time. `f` focuses a repository across all
+three tabs, which is what makes the two steps after it single-valued. Those two are
+unbuilt: leasing a checkout for the focused repository, and holding one resumable Claude
+Code session per pull request. The second is where the notification boundary finally has
+a source, since `claude agents --json` says which session is blocked on a prompt.
 
 ### 4. A lockfile is not a diff worth reading
 

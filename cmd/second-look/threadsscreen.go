@@ -181,6 +181,7 @@ func (s *threadsScreen) sections() []tui.Section {
 			rows = append(rows, tui.Row{
 				Key:    c.Key(),
 				Left:   c.Where(),
+				Repo:   c.Repository,
 				Mid:    c.Anchor(),
 				Age:    humanize.Ago(c.Updated(), now),
 				Tail:   tail(c),

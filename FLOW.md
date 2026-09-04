@@ -19,7 +19,7 @@ request inside it.
 | Step | Built | Missing |
 | --- | --- | --- |
 | Open on what is owed | three buckets or configured sections, drawn as each search lands | nothing |
-| Narrow to one repository | `/` filters by any word, including the repository | focus that survives a refresh and a tab switch, and drives the lease and the agent |
+| Narrow to one repository | `f` focuses the cursor row's repository across all three tabs, `F` clears it | the clone it would use in the header, and a motion to the next repository |
 | Take the ordering advice | `inbox.Rank`, and `inbox --json` carries it | why a row sits where it does, `s` to sort another way, and the stack drawn as a stack |
 | Get a checkout | `C` where the cwd is a clone of that repository | the `internal/checkouts` ranking, a lease, and a column saying which clone is free |
 | Stage the batch | `get` with no clone, prefetch ahead of the cursor, `reviews --json` | nothing |
@@ -27,8 +27,8 @@ request inside it.
 | Read and answer | the review screen, the conversation queue, notes, threads | the narrative pass, which is its own problem |
 | Post and move on | `S`, and leaving a review returns to the queue | nothing |
 
-Four of eight steps are done. The three in the middle are what a sitting actually spends
-its time on.
+Five of eight steps are done. The two left in the middle, the lease and the agent, are
+what a sitting actually spends its time on.
 
 ## 1. Open on what is owed
 
@@ -40,15 +40,18 @@ its time on.
 refresh, and it says nothing to the rest of the program: the checkout `C` takes and the
 agent `T` starts have no idea a filter is on.
 
-So focus is session state rather than a filter. `f` on a row focuses its repository,
-`F` clears it, and while it is on:
+So focus is session state rather than a filter. `f` on a row focuses its repository and
+`F` clears it. While it is on, all three tabs show only that repository, switching tabs
+and refreshing keep it, the handoff that closes the screen to open a review brings it
+back, and the header carries it beside how much of the queue is left. A row standing for
+a search that failed names no repository, so it survives the narrowing: the reason a
+section is short is the one thing this must not hide.
 
-- all three tabs show only that repository, and switching tabs keeps it
-- a refresh keeps it, which is what `/` gets wrong
-- the header carries it (`kyleking/tlr · 6 owed · clone: app-wt clean`), because the
-  focused repository is the one fact every other key now depends on
-- `]`/`[` on the repository object moves focus to the next repository in the queue, which
-  is how a sitting ends one repository and starts the next
+Two things it still wants. The header should say which clone it would use and what state
+that clone is in, which is step 4's to add. And a motion to the next repository in the
+queue is how a sitting ends one and starts the next, where today that is `F`, a move, and
+`f` again; `]` and `[` already switch tabs, so the motion needs a key of its own rather
+than the repository object.
 
 Focus is what makes the lease and the agent single-valued. Without it both are per-row
 and the laptop cannot honour either: of six clones of one repository here, one is clean.

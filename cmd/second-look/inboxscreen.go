@@ -663,6 +663,7 @@ func (s *inboxScreen) sections() []tui.Section {
 			rows = append(rows, tui.Row{
 				Key:     key,
 				Left:    key,
+				Repo:    p.Repository,
 				Mid:     humanize.Clip(p.Author, authorCap),
 				Age:     humanize.Ago(p.Updated, now),
 				Cost:    rated(s.local[key]),

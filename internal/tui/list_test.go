@@ -24,13 +24,14 @@ func queue() []tui.Section {
 	return []tui.Section{
 		{Name: "new since you looked", Rows: []tui.Row{
 			{
-				Key: "T1", Left: "kyleking/tlr#118", Mid: "internal/pool/pool.go:42",
+				Key: "T1", Left: "kyleking/tlr#118", Repo: "kyleking/tlr", Mid: "internal/pool/pool.go:42",
 				Age: "2h", Tail: "alice  2 replies  add TTL to the pool",
 				Under: "good catch, pushed a defer", Unread: true,
 				Detail: []string{"you:", "  does this leak on cancel?", "alice:", "  good catch, pushed a defer"},
 			},
 			{
-				Key: "T2", Left: "kyleking/a-much-longer-repository-name#7", Mid: "review body",
+				Key: "T2", Left: "kyleking/a-much-longer-repository-name#7",
+				Repo: "kyleking/a-much-longer-repository-name", Mid: "review body",
 				Age: "13h", Tail: "bob  fix the footnote reorder", Under: "two questions inline",
 				Unread: true,
 			},
@@ -38,7 +39,7 @@ func queue() []tui.Section {
 		{Name: "waiting on you", Rows: nil},
 		{Name: "awaiting others", Rows: []tui.Row{
 			{
-				Key: "T3", Left: "kyleking/wavez#7", Mid: "internal/lease/lease.go:9",
+				Key: "T3", Left: "kyleking/wavez#7", Repo: "kyleking/wavez", Mid: "internal/lease/lease.go:9",
 				Age: "4d", Tail: "KyleKing  scheduler leases", Under: "no, that one is per worker",
 			},
 		}},
@@ -689,4 +690,82 @@ func withoutRow(sections []tui.Section, key string) []tui.Section {
 	}
 
 	return sections
+}
+
+// focusQueues are two tabs sharing a repository, and a row standing for a
+// search that failed, which names none.
+func focusQueues() []tui.Tab {
+	act := func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil }
+
+	inbox := func() []tui.Section {
+		return []tui.Section{{Name: "waiting on you", Rows: []tui.Row{
+			{Key: "kyleking/tlr#118", Left: "kyleking/tlr#118", Repo: "kyleking/tlr", Tail: "add a TTL"},
+			{Key: "kyleking/wavez#7", Left: "kyleking/wavez#7", Repo: "kyleking/wavez", Tail: "leases"},
+			{Left: "could not be read", Tail: "gh said no"},
+		}}}
+	}
+
+	staged := func() []tui.Section {
+		return []tui.Section{{Name: "staged", Rows: []tui.Row{
+			{Key: "kyleking/tlr#118", Left: "kyleking/tlr#118", Repo: "kyleking/tlr", Tail: "2 comments"},
+			{Key: "kyleking/other#3", Left: "kyleking/other#3", Repo: "kyleking/other", Tail: "1 comment"},
+		}}}
+	}
+
+	return []tui.Tab{
+		{Name: "inbox", Title: "second-look inbox", Sections: inbox, Act: act},
+		{Name: "staged", Title: "second-look staged reviews", Sections: staged, Act: act},
+	}
+}
+
+// A sitting is one repository at a time, so f narrows every tab rather than the
+// one it was pressed on, and it survives the handoff that closes the screen to
+// open a review. A filter does neither, which is why focus is not one.
+func TestFocusNarrowsEveryQueueAndSurvivesAHandoff(t *testing.T) {
+	t.Parallel()
+
+	before := tui.NewTabs(focusQueues(), 0)
+	before.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	before.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})
+
+	if got := before.Focused(); got != "kyleking/tlr" {
+		t.Fatalf("focused %q, want kyleking/tlr", got)
+	}
+
+	// The failed search stays: the reason a section is short is the one thing
+	// narrowing a queue must not hide.
+	shows(t, before, []string{"kyleking/tlr#118", "could not be read"},
+		[]string{"kyleking/wavez#7"})
+
+	before.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	shows(t, before, []string{"kyleking/tlr#118"}, []string{"kyleking/other#3"})
+
+	after := tui.NewTabs(focusQueues(), 1)
+	after.Restore(before.Where())
+	after.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	shows(t, after, []string{"kyleking/tlr#118"}, []string{"kyleking/other#3"})
+
+	after.Update(tea.KeyPressMsg{Code: 'F', Text: "F"})
+
+	if got := after.Focused(); got != "" {
+		t.Errorf("F left the screen focused on %q", got)
+	}
+
+	shows(t, after, []string{"kyleking/other#3"}, nil)
+
+	// A row with no repository behind it cannot be focused, and says so rather
+	// than narrowing to nothing.
+	after.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
+
+	for range 2 {
+		after.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	}
+
+	after.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})
+
+	if got := after.Focused(); got != "" {
+		t.Errorf("a row naming no repository focused %q", got)
+	}
+
+	shows(t, after, []string{"belongs to no repository", "kyleking/wavez#7"}, nil)
 }

@@ -4,6 +4,9 @@ package tui
 // and is built again afterwards.
 type Resume struct {
 	tabs []tabMark
+	// focus is the repository the sitting is on, which belongs to the screen
+	// rather than to a tab.
+	focus string
 }
 
 type tabMark struct {
@@ -21,7 +24,7 @@ func (m tabMark) placed() bool { return m.key != "" || m.cursor > 0 }
 func (l *List) Where() Resume {
 	l.remember()
 
-	out := Resume{tabs: make([]tabMark, len(l.views))}
+	out := Resume{tabs: make([]tabMark, len(l.views)), focus: l.focused}
 
 	for i := range l.views {
 		v := &l.views[i]
@@ -44,6 +47,8 @@ func (l *List) Restore(r Resume) {
 	if len(r.tabs) != len(l.views) {
 		return
 	}
+
+	l.focused = r.focus
 
 	for i := range l.views {
 		v := &l.views[i]

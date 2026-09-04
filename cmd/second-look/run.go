@@ -81,6 +81,7 @@ func helpGroup() [][2]string {
 	return [][2]string{
 		{"tab", "the next group"},
 		{"/", "narrow to the rows carrying a word; esc puts them back"},
+		{"f, F", "read one repository across all three queues, and every one again"},
 	}
 }
 

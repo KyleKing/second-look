@@ -52,6 +52,7 @@ var reviewsHints = [][2]string{
 var reviewsHelp = helpFor(helpMove(), [][2]string{
 	{enterKey, "open the review screen for it"},
 	{"/", "narrow to the rows carrying a word; esc puts them back"},
+	{"f, F", "read one repository across all three queues, and every one again"},
 	{"C", "move this checkout onto it, pulling where it is already on the branch"},
 	{"d", "throw the review away with everything cached for it; d again confirms"},
 	{refreshKey, "read the directory again"},
@@ -137,6 +138,7 @@ func (s *reviewsScreen) reviewRow(r *prepared.Review, now time.Time) tui.Row {
 		// number in two repositories is two rows.
 		Key:  r.Where(),
 		Left: r.Where(),
+		Repo: r.Repository,
 		Mid:  prepared.State(r),
 		Age:  humanize.Ago(r.Modified, now),
 		Tail: s.tail(r),

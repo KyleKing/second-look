@@ -107,8 +107,10 @@ stacks. The buckets are the whole point: what I owe, what I have done that is st
 and what is finished.
 
 Built as a `tui.List` over the configured searches, with `enter` opening the review, `C`
-checking out, `m` commenting, and `A` approving. What the mock below still promises and the
-screen does not: the stack, and sorting by anything but the triage order. The cost rating
+checking out, `m` commenting, and `A` approving. `f` narrows every tab to the cursor row's
+repository and `F` puts them all back, because a sitting is one repository at a time. What
+the mock below still promises and the screen does not: the stack, and sorting by anything
+but the triage order. The cost rating
 shows where an earlier read cached one. Opening a row needs no clone of the repository, which is what makes the queue
 faster than a browser tab.
 
@@ -363,7 +365,7 @@ Layered so the footer stays short.
 | Motion | `j`/`k` line, `n`/`p` hunk, `}`/`{` file, `g`/`G` top and bottom |
 | Review | `space` seen, `c` comment, `a` then a severity writes one, `S` then `a`/`r`/`c` submit, `o` on GitHub, `u` unresolved only |
 | Fold | `z` then `a` here, `i` invert all, `R` open all, `M` to the file names |
-| Queue | `1`/`2`/`3` and `]`/`[` the tab, `tab` the next group |
+| Queue | `1`/`2`/`3` and `]`/`[` the tab, `tab` the next group, `f`/`F` focus one repository |
 | View | `-` file overlay, `g` context pane, `s` split, `w` whitespace, `t` syntax-aware |
 | Thread | `ctrl+j`/`ctrl+k` scroll, `tab` complete, `r` reply, `R` resolve |
 

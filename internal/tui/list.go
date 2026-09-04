@@ -20,6 +20,9 @@ type Row struct {
 	Left string
 	Mid  string
 	Age  string
+	// Repo is the repository the row belongs to, which is what focus narrows
+	// on. A row standing for something other than a pull request carries none.
+	Repo string
 	// Cost is what reading the row is rated, right-aligned in a column of its
 	// own. A list where no row carries one spends no width on it.
 	Cost string
@@ -101,6 +104,8 @@ type listKeys struct {
 	Comment  key.Binding
 	Approve  key.Binding
 	Discard  key.Binding
+	Focus    key.Binding
+	Unfocus  key.Binding
 }
 
 func defaultListKeys() listKeys {
@@ -117,6 +122,8 @@ func defaultListKeys() listKeys {
 		Comment:  key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "comment")),
 		Approve:  key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "approve")),
 		Discard:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "discard")),
+		Focus:    key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "focus")),
+		Unfocus:  key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "every repository")),
 	}
 }
 
@@ -161,7 +168,10 @@ type List struct {
 
 	expanded map[string]bool
 	filter   filter
-	loader   Loader
+	// focused is the repository the whole screen is narrowed to, which every
+	// tab shares and a refresh keeps.
+	focused string
+	loader  Loader
 	// onRest is called with the row the cursor has stopped on, and moves counts
 	// the moves so far, so an answer about a row already left is dropped.
 	onRest func(row string) tea.Cmd
@@ -409,6 +419,10 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, l.keys.Help):
 		l.help = true
 
+		return l, nil
+	}
+
+	if l.focusKey(msg) {
 		return l, nil
 	}
 
@@ -737,7 +751,7 @@ func (l *List) rebuild() {
 	was := l.current()
 
 	l.lines = l.lines[:0]
-	l.shown = l.filter.narrow(l.sections())
+	l.shown = l.filter.narrow(keepFocused(l.focused, l.sections()))
 
 	for i := range l.shown {
 		s := &l.shown[i]
