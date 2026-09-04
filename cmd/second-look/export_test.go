@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/prepared"
+	"github.com/kyleking/second-look/internal/prstate"
 )
 
 // RefString parses a pull request reference and renders it back, which is both
@@ -18,8 +19,12 @@ func RefString(s string) (string, error) {
 
 // StagedRow is what one staged review's row says it holds, and whether C would
 // act on it, for a directory standing at head in repo.
-func StagedRow(review prepared.Review, repo, head string) (string, bool) {
+func StagedRow(review prepared.Review, repo, head string, remote ...prstate.State) (string, bool) {
 	s := &reviewsScreen{here: repo, head: head, rows: []prepared.Review{review}}
+
+	for _, got := range remote {
+		s.remote = map[string]prstate.State{review.Where(): got}
+	}
 
 	_, _, err := s.checkout(review.Where())
 

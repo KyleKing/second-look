@@ -88,7 +88,7 @@ func queueOnce(
 		{
 			Name: "staged", Title: "second-look staged reviews",
 			Sections: rv.sections, Act: rv.act, Subtitle: rv.counts,
-			Hints: reviewsHints, Help: reviewsHelp,
+			Hints: reviewsHints, Help: reviewsHelp, Loader: rv, Rest: rv.restedOn,
 		},
 	}, at).WithFocusNote(func(repo string) tea.Cmd { return cloneNote(ctx, repo) })
 	list.Restore(where)

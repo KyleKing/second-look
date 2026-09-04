@@ -11,5 +11,6 @@ api rate_limit                       rate-limit.json
 search prs --review-requested        search-pending.json
 search prs --reviewed-by --merged    search-merged.json
 search prs --reviewed-by             search-open.json
+api graphql -F pr=                   pr-state.json
 api graphql -F q=                    conversations.json
 api graphql -F owner=                threads.json

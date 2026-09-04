@@ -8,8 +8,13 @@ import (
 	"strings"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/prepared"
+	"github.com/kyleking/second-look/internal/prstate"
+	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -38,6 +43,92 @@ type reviewsScreen struct {
 	// armed is the row d was pressed on. Discarding is the one thing here that
 	// deletes work, and every comment staged in the row goes with it.
 	armed string
+	// remote is what the forge says of each row, read when the cursor stops on
+	// one. A staged review is local work and the one thing the file cannot say
+	// is whether the work is still wanted.
+	remote map[string]prstate.State
+	// asked is every row already read, so a cursor moving back and forth costs
+	// one request per row rather than one per pass.
+	asked map[string]bool
+}
+
+// Start reads the directory again and forgets what the forge said, which is
+// what ctrl+r means here. The read is local, so it answers before the frame
+// rather than through a message.
+func (s *reviewsScreen) Start() tea.Cmd {
+	rows, err := staged()
+	if err != nil {
+		return nil
+	}
+
+	s.rows = rows
+	s.remote, s.asked = nil, nil
+
+	return nil
+}
+
+// stateMsg is one row's remote state.
+type stateMsg struct {
+	key   string
+	state prstate.State
+}
+
+// restedOn reads the forge's view of the row the cursor has stopped on. It is
+// one request per staged review at most, and only for the rows looked at.
+func (s *reviewsScreen) restedOn(key string) tea.Cmd {
+	if s.asked[key] {
+		return nil
+	}
+
+	r, ok := s.rowFor(key)
+	if !ok {
+		return nil
+	}
+
+	if s.asked == nil {
+		s.asked = map[string]bool{}
+	}
+
+	s.asked[key] = true
+	repo, number := r.Repository, r.Number
+
+	return func() tea.Msg {
+		got, err := prstate.Fetch(s.ctx, ".", repo, number)
+		if err != nil {
+			// A state nobody could read leaves the row saying what it knows
+			// locally, which is what the screen said before it asked.
+			return stateMsg{key: key}
+		}
+
+		return stateMsg{key: key, state: got}
+	}
+}
+
+// Absorb records a state that has answered. The screen has no loader, so this
+// is the one message it takes.
+func (s *reviewsScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
+	answered, ok := msg.(stateMsg)
+	if !ok {
+		return nil, false
+	}
+
+	if s.remote == nil {
+		s.remote = map[string]prstate.State{}
+	}
+
+	s.remote[answered.key] = answered.state
+
+	return nil, true
+}
+
+func (s *reviewsScreen) rowFor(key string) (*prepared.Review, bool) {
+	for i := range s.rows {
+		if s.rows[i].Where() == key {
+			return &s.rows[i], true
+		}
+	}
+
+	return nil, false
 }
 
 // reviewsHints is the footer, which advertises only the keys this screen offers.
@@ -63,6 +154,9 @@ var reviewsHelp = helpFor(helpMove(), [][2]string{
 	"opens the same way, from the API.",
 	"here marks the row this directory stands on and not here a row it cannot",
 	"reach; the rest are reachable, which is what C moves onto.",
+	"The second line is what the pull request is called, and the row says what the",
+	"forge thinks of it once the cursor has rested on it: merged, closed, or the",
+	"last review you left.",
 	"A pull request based on another one staged here is grouped with it, bottom",
 	"first, which is the order the diffs read in.",
 ))
@@ -136,31 +230,49 @@ func (s *reviewsScreen) reviewRow(r *prepared.Review, now time.Time) tui.Row {
 	return tui.Row{
 		// The key names the repository as well as the number, since the same
 		// number in two repositories is two rows.
-		Key:  r.Where(),
-		Left: r.Where(),
-		Repo: r.Repository,
-		Mid:  prepared.State(r),
-		Age:  humanize.Ago(r.Modified, now),
-		Tail: s.tail(r),
+		Key:   r.Where(),
+		Left:  r.Where(),
+		Repo:  r.Repository,
+		Mid:   prepared.State(r),
+		Age:   humanize.Ago(r.Modified, now),
+		Tail:  s.tail(r),
+		Under: title(r),
 		// A review with a draft in it is the one to come back to, which is
 		// what the unread mark means on this screen.
 		Unread: r.Blocked() || r.Broken != "",
 	}
 }
 
-// tail is what the review carries, or why it could not be read, with where
-// this directory stands relative to it.
+// tail is what the review carries, or why it could not be read, with where this
+// directory stands relative to it and what the forge says of it.
 func (s *reviewsScreen) tail(r *prepared.Review) string {
 	if r.Broken != "" {
 		return r.Broken
 	}
 
-	held := prepared.Holds(r)
+	parts := []string{prepared.Holds(r)}
+
 	if word := s.treeWord(r); word != "" {
-		return held + " · " + word
+		parts = append(parts, word)
 	}
 
-	return held
+	if word := s.remote[r.Where()].Word(); word != "" {
+		parts = append(parts, word)
+	}
+
+	return strings.Join(parts, " · ")
+}
+
+// title is what the pull request is called, read out of what `second-look get`
+// cached at the head this review was staged against. A row that says only
+// owner/repo#118 is a row nobody recognizes.
+func title(r *prepared.Review) string {
+	var about threads.About
+	if err := artifact.LoadAbout(prepared.Root(r), r.HeadSHA, &about); err != nil {
+		return ""
+	}
+
+	return about.Title
 }
 
 // reachable reports a row whose code this directory holds, which is what C acts

@@ -12,6 +12,7 @@ import (
 
 	main "github.com/kyleking/second-look/cmd/second-look"
 	"github.com/kyleking/second-look/internal/prepared"
+	"github.com/kyleking/second-look/internal/prstate"
 )
 
 // `reviews` reads the directory and nothing else, so its cassette is empty and
@@ -176,12 +177,20 @@ func TestAStagedRowSaysWhetherThisDirectoryHoldsItsCode(t *testing.T) {
 	const held = "1 ready · @60f9fb9"
 
 	for _, tc := range []struct {
-		name string
-		repo string
-		head string
-		want string
-		acts bool
+		name   string
+		repo   string
+		head   string
+		want   string
+		remote []prstate.State
+		acts   bool
 	}{
+		{
+			// The one thing the local file cannot say is whether the work is
+			// still wanted.
+			name: "merged while it sat here", repo: "coverbasedev/irm", head: "60f9fb9",
+			remote: []prstate.State{{State: "MERGED"}},
+			want:   held + " · here · merged", acts: true,
+		},
 		{
 			name: "standing on it", repo: "coverbasedev/irm", head: "60f9fb9",
 			want: held + " · here", acts: true,
@@ -199,7 +208,7 @@ func TestAStagedRowSaysWhetherThisDirectoryHoldsItsCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, acts := main.StagedRow(review, tc.repo, tc.head)
+			got, acts := main.StagedRow(review, tc.repo, tc.head, tc.remote...)
 			if got != tc.want {
 				t.Errorf("the row says %q, want %q", got, tc.want)
 			}

@@ -234,6 +234,11 @@ the reviews staged with no checkout of their repository at all. The artifact is 
 moment a review posts, so every row is unfinished work: the review being written, or one
 whose head has since moved and which will refuse to post until it is prepared again.
 
+Each row carries what the pull request is called, read out of what `get` cached, and what
+the forge thinks of it now: merged, closed, or the last review you left. That last one is
+read when the cursor stops on the row, one request per row at most, because whether the
+work is still wanted is the thing a local file cannot say.
+
 ```
  second-look staged reviews                                  5 staged · 1 blocked
 ┌──────────────────────────────────────────────────────────────────────────────┐
