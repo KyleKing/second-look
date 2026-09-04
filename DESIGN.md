@@ -274,9 +274,11 @@ actions the caller supplies. They are the same shape, and three screens would dr
 ### Review
 
 The default screen. Diff fills the frame, comments render inline where they anchor. The
-review's own note sits above the diff, folded, because it is the run log; its body sits
-after the last hunk, drawn in full, because it is the verdict and it is written once the
-diff has been read. `i`
+review's own prose sits after the last hunk, since it is written once the diff has been
+read: the body first, drawn in full because it is the verdict, then the note under it,
+folded because it is the run log. The frame looks a few lines past the last row, and past
+that by the editor's height while one is open, so writing either is never drawn off the
+bottom. `i`
 opens what the pull request says about itself over the diff: its description, its labels,
 and the comments left on the pull request rather than on a line of it, which is where a
 coverage report, a preview build, and an agent's summary all arrive. It reads the context

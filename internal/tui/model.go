@@ -1068,7 +1068,7 @@ func (m *Model) frameAt(msg tea.KeyPressMsg) bool {
 		return false
 	}
 
-	m.offset = clamp(m.offset, len(m.screen.rows)-h+overscroll)
+	m.offset = clamp(m.offset, m.maxOffset())
 	m.say("", false)
 
 	return true
@@ -1076,7 +1076,7 @@ func (m *Model) frameAt(msg tea.KeyPressMsg) bool {
 
 // peek scrolls the frame by a line without moving the cursor.
 func (m *Model) peek(step int) bool {
-	m.offset = clamp(m.offset+step, len(m.screen.rows)-m.viewHeight()+overscroll)
+	m.offset = clamp(m.offset+step, m.maxOffset())
 	m.say("", false)
 
 	return true
@@ -2220,7 +2220,7 @@ func (m *Model) reveal() {
 	if top, tall, ok := m.blockSpan(); ok && tall < h {
 		const sides = 2
 
-		m.offset = clamp(top-(h-tall)/sides, len(m.screen.rows)-h)
+		m.offset = clamp(top-(h-tall)/sides, m.maxOffset())
 
 		return
 	}
@@ -2233,7 +2233,7 @@ func (m *Model) reveal() {
 		margin++
 	}
 
-	m.offset = clamp(m.cursor-margin, len(m.screen.rows)-h)
+	m.offset = clamp(m.cursor-margin, m.maxOffset())
 }
 
 // blockSpan is where the comment block under the cursor starts and how tall it
@@ -2267,7 +2267,7 @@ func (m *Model) follow() {
 
 	m.offset = min(m.offset, m.cursor-pad)
 	m.offset = max(m.offset, min(m.blockEnd()+pad, m.cursor+h-1)-h+1)
-	m.offset = clamp(m.offset, len(m.screen.rows)-h)
+	m.offset = clamp(m.offset, m.maxOffset())
 }
 
 // blockEnd is the last row of the comment the cursor is in, or the cursor.
@@ -2290,6 +2290,19 @@ func (m *Model) viewHeight() int {
 	const title = 1
 
 	return max(1, m.height-title-len(m.footerLines()))
+}
+
+// maxOffset is how far the frame may scroll. It looks past the last row by
+// overscroll, so the end of a review is not jammed against the footer, and by
+// the editor's own height while one is open, so a box on the last row is drawn
+// whole rather than cut off the bottom.
+func (m *Model) maxOffset() int {
+	room := overscroll
+	if m.editing != nil {
+		room += len(m.editorLines())
+	}
+
+	return max(0, len(m.screen.rows)-m.viewHeight()+room)
 }
 
 // clamp holds v inside [0, hi], which is every bound a row index has.

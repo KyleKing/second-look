@@ -1841,12 +1841,14 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 	}
 
 	// The review's own body had nowhere to be written from: its rows carried no
-	// comment, so tab walked past them and e said there was no comment here.
-	// It is drawn after the last hunk, which is where G lands.
+	// comment, so tab walked past them and e said there was no comment here. It
+	// is drawn after the last hunk, with the note under it, so G lands on the
+	// note and one row back is the body.
 	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	pressKey(m, 'k')
 
 	if got := m.CursorText(); !strings.Contains(got, "REVIEW BODY") {
-		t.Fatalf("the bottom of the review is not its body: %q", got)
+		t.Fatalf("the row above the note is not the body: %q", got)
 	}
 
 	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
@@ -1857,11 +1859,11 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 		t.Errorf("review body = %q", saved.Body)
 	}
 
-	// The note is the other half, at the top where reading starts.
-	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	// The note is the other half, drawn under the body.
+	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
 	if got := m.CursorText(); !strings.Contains(got, "REVIEW NOTE") {
-		t.Errorf("the top of the review is %q, want the review note", got)
+		t.Errorf("the last row of the review is %q, want the review note", got)
 	}
 }
 
@@ -2407,7 +2409,8 @@ func TestTheReviewsOwnProseStartsFolded(t *testing.T) {
 		t.Fatalf("the review's note is not folded:\n%s", got)
 	}
 
-	// The note is the first row, since the body is drawn after the last hunk.
+	// Both blocks are drawn after the last hunk, the note under the body.
+	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 	go2(m, 'z', 'a')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "the first pass missed the empty file") {
@@ -2436,9 +2439,9 @@ func TestTheReviewBodyIsOpenAndBelowTheDiff(t *testing.T) {
 	body := strings.Index(frame, "REVIEW BODY")
 	code := strings.Index(frame, "lines, err := split(r)")
 
-	if note > code || code > body {
-		t.Errorf("the note is at %d, the diff at %d, the body at %d; want the body last:\n%s",
-			note, code, body, frame)
+	if code > body || body > note {
+		t.Errorf("the diff is at %d, the body at %d, the note at %d; want the prose last:\n%s",
+			code, body, note, frame)
 	}
 }
 
@@ -2756,5 +2759,50 @@ func TestTheFooterDimsTheKeysThatDoNothingHere(t *testing.T) {
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "[q]uit") || strings.Contains(frame, "[m]ark") {
 		t.Errorf("the narrow footer kept a dim key and lost quit:\n%s", frame)
+	}
+}
+
+// The end of a review used to sit against the footer, and an editor opened on
+// the last row was drawn off the bottom of the frame. The frame looks past the
+// last row by a few lines, and by the editor's own height while one is open.
+func TestTheEndOfAReviewHasRoomBelowIt(t *testing.T) {
+	t.Parallel()
+
+	for _, height := range []int{14, 30} {
+		t.Run(fmt.Sprintf("%d rows", height), func(t *testing.T) {
+			t.Parallel()
+
+			m, _, _ := modelFor(t, &artifact.Review{
+				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff",
+				Number: 42, HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+				Note: "ran the suite twice",
+			}, patch)
+			m.Update(tea.WindowSizeMsg{Width: 100, Height: height})
+
+			press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+			lines := strings.Split(plain(m.Frame()), "\n")
+			if len(lines) < 3 {
+				t.Fatalf("the frame is %d lines", len(lines))
+			}
+
+			// The footer is the last line, so the blank room is above it. A row
+			// with nothing in it still carries the scrollbar's track.
+			blank := 0
+			for i := len(lines) - 2; i > 0 && strings.Trim(lines[i], " │┃▌") == ""; i-- {
+				blank++
+			}
+
+			if blank < 2 {
+				t.Errorf("the last row has %d blank lines under it:\n%s", blank, plain(m.Frame()))
+			}
+
+			// The editor opens on the note, which is the last row of all.
+			press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+
+			if frame := plain(m.Frame()); !strings.Contains(frame, "ctrl+s save") {
+				t.Errorf("the editor on the last row is off the frame:\n%s", frame)
+			}
+		})
 	}
 }

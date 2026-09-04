@@ -72,8 +72,6 @@ func buildCode(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout
 		placed: placed, lay: lay,
 	}
 
-	s.rows = append(s.rows, header(r, lay, s.numWidth)...)
-
 	for _, g := range lay.groups(d) {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
 			row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
@@ -83,7 +81,10 @@ func buildCode(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout
 		}
 	}
 
-	return s.appendUnanchored(r, placed, lay)
+	s = s.appendUnanchored(r, placed, lay)
+	s.rows = append(s.rows, signature(r, lay, s.numWidth)...)
+
+	return s
 }
 
 // codeCtx is what laying out the code view needs beyond the file in front of

@@ -1,11 +1,5 @@
 kyleking/jj-diff #42                                                                                                  0%
-▌     ┃ REVIEW NOTE                                                                                                    ┃
-      ┃ PROD EVIDENCE (read-only). The orgs named here are real.                                                       ┃
-      ┃                                                                                                                ┃
-      ┃ - 177 live asks across 7 orgs carry an id owned by a different org, and the template                           ┃
-      ┃   asks do the same                                                                                             ┃
-      ┃     - every pair of them matches a fork run, so the fork is the source                                         ┃
-                                                                                                                       ┃
+▌                                                                                                                      ┃
      internal/vcs/diff.go  +2 -1 ──────────────────────────────────────────────────────────────────────────────────────┃
        func Parse(r io.Reader) ([]Hunk, error) {                                                                       ┃
   14       first := 1                                                                                                  ┃
@@ -18,7 +12,13 @@ kyleking/jj-diff #42                                                            
  201       return head                                                                                                 ┃
                                                                                                                        ┃
       ┃ REVIEW BODY                                                                                                    ┃
-      ┃ Picking up the review. I checked production and:                                                               │
+      ┃ Picking up the review. I checked production and:                                                               ┃
+      ┃                                                                                                                ┃
+      ┃ 1. Across 177 live asks, seven orgs carry an id owned by another org, which is the                             ┃
+      ┃    case this change is for                                                                                     ┃
+      ┃ 2. The org in the ticket has none of it: no cross-org pointer, no duplicate ask                                ┃
+      ┃ - it does have two live questionnaires sharing a name                                                          │
       ┃                                                                                                                │
-      ┃ 1. Across 177 live asks, seven orgs carry an id owned by another org, which is the                             │
+      ┃ REVIEW NOTE                                                                                                    │
+      ┃ PROD EVIDENCE (read-only). The orgs named here are real.                                                       │
 everything open

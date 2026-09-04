@@ -21,4 +21,4 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
                                      W  hide hunks that change no code at all… │
                                      U  hide every hunk already marked read, … │
                       H then 1 / 2 / …  hide every hunk an earlier round alre… │
- [j/k] line  []] go to  [c]ode  writ[e]  [i] context  [S]ubmit  [?] help  [q]uit
+ [j/k] line  []] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit

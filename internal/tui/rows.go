@@ -101,8 +101,6 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 	byThread := indexThreads(ts)
 	placed := make([]bool, len(r.Comments))
 
-	s.rows = append(s.rows, header(r, lay, s.numWidth)...)
-
 	groups := lay.groups(d)
 	ctx := fileCtx{
 		d: d, r: r, ts: ts, byLine: byLine, byThread: byThread,
@@ -508,7 +506,6 @@ func indexComments(r *artifact.Review) map[anchor][]int {
 // re-reading, and the diff view still shows it where it sits.
 func buildList(r *artifact.Review, d *diff.Diff, lay layout) screen {
 	s := screen{numWidth: numberWidth(d)}
-	s.rows = append(s.rows, header(r, lay, s.numWidth)...)
 
 	for _, path := range commentPaths(r) {
 		c := countFor(r, path)
@@ -526,7 +523,7 @@ func buildList(r *artifact.Review, d *diff.Diff, lay layout) screen {
 		}
 	}
 
-	if len(s.rows) == len(header(r, lay, s.numWidth)) {
+	if len(s.rows) == 0 {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
 			row{kind: rowFile, text: "no comments staged", comment: -1})
 	}

@@ -151,24 +151,30 @@ func (l layout) fileWord(path string) string {
 	return l.parsed.fileWord(path)
 }
 
-// header is the review's own note, above the diff. It is the run log, so it
-// belongs where reading starts, and it starts folded: what it holds is evidence
-// for later rather than something to read first.
+// signature is the review's own prose, after the last hunk: the body, then the
+// note under it. Both are written once the diff has been read, so they sit
+// where the reading ends rather than above the thing they are a verdict on, and
+// tab reaches them last for the same reason.
 //
-// It is drawn whether or not anything is written in it, because a field that
-// appears only once it is filled in is one nobody knows to fill in.
-func header(r *artifact.Review, lay layout, numWidth int) []row {
-	return prose(reviewNote, "REVIEW NOTE", r.Note, rowNote, proseCols(lay.width, numWidth), lay)
-}
-
-// signature is the review's body, after the last hunk. It is what posts, and it
-// is written once the diff has been read, so it sits where the reading ends
-// rather than above the thing it is a verdict on. Tab reaches it last for the
-// same reason.
+// Both are drawn whether or not anything is written in them, because a field
+// that appears only once it is filled in is one nobody knows to fill in. The
+// body is open, since it is what posts; the note is folded, since it is the run
+// log and its evidence is for later.
 func signature(r *artifact.Review, lay layout, numWidth int) []row {
-	body := prose(reviewBody, "REVIEW BODY", r.Body, rowComment, proseCols(lay.width, numWidth), lay)
+	avail := proseCols(lay.width, numWidth)
 
-	return append([]row{{kind: rowBlank, comment: -1}}, body...)
+	body := prose(reviewBody, "REVIEW BODY", r.Body, rowComment, avail, lay)
+	note := prose(reviewNote, "REVIEW NOTE", r.Note, rowNote, avail, lay)
+
+	// A note that opens where the body ended reads as more of the body, so the
+	// two are separated wherever either is drawn in full.
+	if len(body) > 1 || len(note) > 1 {
+		body = append(body, row{kind: rowComment, comment: reviewNote})
+	}
+
+	rows := append([]row{{kind: rowBlank, comment: -1}}, body...)
+
+	return append(rows, note...)
 }
 
 // prose is one titled block of the review's own writing. The kind is what its
