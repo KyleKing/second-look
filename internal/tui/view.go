@@ -338,6 +338,10 @@ func (m *Model) rowLines() []string {
 
 	out := make([]string, 0, h)
 
+	if head, ok := m.pinned(width); ok {
+		out = append(out, head)
+	}
+
 	for i := m.offset; i < len(m.screen.rows) && len(out) < h; i++ {
 		if m.editingHere(i) {
 			out = append(out, m.editorLines()...)

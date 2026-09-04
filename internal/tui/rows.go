@@ -76,6 +76,13 @@ type row struct {
 	// gone marks a row belonging to a run of removed lines, numbered by the
 	// line the run started on. Zero belongs to no run.
 	gone int
+	// run is how many comments the run this row belongs to holds, and zero for
+	// a row outside one. The line a run answers scrolls away before the last of
+	// them is read, so it is pinned while a row carrying this is at the top.
+	run int
+	// skips names the line whose skipped comments a row stands for, and is empty
+	// on every other row.
+	skips anchor
 }
 
 // screen is the flattened review: the diff with each open thread and each
@@ -252,15 +259,30 @@ func (s screen) hanger(
 			out = append(out, threadRows(&ts[t], t, p, s.numWidth, lay, "")...)
 		}
 
-		run := inRun{of: len(byLine[a])}
-		if run.of >= aRun {
-			out = append(out, runHead(a, byLine[a][0], run.of)...)
-		}
-
 		for _, c := range byLine[a] {
 			placed[c] = true
+		}
+
+		live, skipped := live(r, byLine[a])
+		run := inRun{of: len(live)}
+
+		at := len(out)
+
+		if run.of >= aRun {
+			out = append(out, runHead(a, live[0], run.of)...)
+		}
+
+		for _, c := range live {
 			run.at++
 			out = append(out, commentRows(&r.Comments[c], c, p, lay, s.numWidth, run)...)
+		}
+
+		out = append(out, skipRows(r, skipped, a, p, lay, s.numWidth)...)
+
+		if run.of >= aRun {
+			for i := at; i < len(out); i++ {
+				out[i].run = run.of
+			}
 		}
 
 		return out
@@ -633,3 +655,27 @@ func split(word string, width int) []string {
 // plural is humanize's, under a short name because this package counts things
 // on nearly every row it draws.
 func plural(n int, what string) string { return humanize.Plural(n, what) }
+
+// live splits a line's comments into the ones that will post and the ones a
+// decision has already been taken against. Below the length that reads as a
+// run there is nothing to gather, and a lone skip drawn as a count would hide
+// the only thing said about the line.
+func live(r *artifact.Review, on []int) ([]int, []int) {
+	if len(on) < aRun {
+		return on, nil
+	}
+
+	out, skipped := make([]int, 0, len(on)), []int{}
+
+	for _, c := range on {
+		if r.Comments[c].Status == artifact.StatusSkip {
+			skipped = append(skipped, c)
+
+			continue
+		}
+
+		out = append(out, c)
+	}
+
+	return out, skipped
+}

@@ -745,6 +745,8 @@ func (m *Model) foldHere(open bool) {
 		}
 
 		m.folded.blocks[at] = open
+	case r.skips.path != "":
+		m.folded.skips[r.skips] = open
 	case r.kind == rowFile && r.path != "":
 		m.folded.files[r.path] = !open
 	case r.gone > 0:
@@ -773,6 +775,8 @@ func (m *Model) openHere() bool {
 		at, ok := foldKey(r)
 
 		return !ok || m.folded.blocks[at]
+	case r.skips.path != "":
+		return m.folded.skips[r.skips]
 	case r.kind == rowFile:
 		return !m.folded.files[r.path]
 	case r.gone > 0:

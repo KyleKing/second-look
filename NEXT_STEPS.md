@@ -109,17 +109,19 @@ a decision rather than on code. `demo/scene.sh comment-run` and `demo/scene.sh s
 open each as a live review off a TOML file to edit, which is how the shape gets argued
 with:
 
-- Several comments on one line do not break the layout, and three things about a run of
-  them read badly. The first is fixed: a run opens on a heading naming how many comments
-  it holds and which line they answer, and each one is numbered inside it, so two blocks
-  separated by a blank row no longer read as comments on consecutive lines. The anchor
-  still scrolls off the top before the last of them is read, and a skip in the run still
-  costs a live comment's room; both were left, because a sticky anchor row and a
-  run-only fold are each a change to a settled shape rather than a label on it
-- A skipped comment already draws as an ordinary comment carrying its body and note,
-  marked skipped, everywhere except the comment view, where it is counted rather than
-  listed. That is the settled decision recorded below, so what is left is whether a run
-  is the case that breaks it
+- Several comments on one line do not break the layout, and the three things about a run
+  of them that read badly are all fixed. A run opens on a heading naming how many
+  comments it holds and which line they answer, and each one is numbered inside it, so
+  two blocks separated by a blank row no longer read as comments on consecutive lines.
+  The line the run answers is pinned to the top of the frame while the run is read past
+  it, at the contrast of a hunk already read, which is the first pinned row this screen
+  has and costs a row only while it is needed. And a skip inside a run gathers below the
+  live comments as one row saying how many, opened with `za`
+- A run is the case that breaks the settled decision about a skipped comment, which is
+  recorded below: it draws as an ordinary comment carrying its body and note, marked
+  skipped, everywhere except the comment view. The decision stands wherever a line
+  carries fewer comments than read as a run, since a lone skip drawn as a count would
+  hide the only thing said about the line
 
 One keymap fix stood alone rather than folding in, and is done: `dd` on the third staged
 review armed the first, because `moved` set `touched` on every keypress and cleared it

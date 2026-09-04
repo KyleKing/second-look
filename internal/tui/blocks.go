@@ -58,6 +58,9 @@ type folded struct {
 	// now reads is the thing being reviewed, so it is collapsed until asked for.
 	turns map[int]bool
 	hunks map[hunkAt]bool
+	// skips is where a run's gathered skips have been opened by hand, which is
+	// the one fold here that opens rather than closes.
+	skips map[anchor]bool
 	files map[string]bool
 	gone  map[goneAt]bool
 	// blocks default the same way turns do. A <details> is collapsed on the web
@@ -69,7 +72,8 @@ type folded struct {
 func newFolded() folded {
 	return folded{
 		notes: folds{}, turns: map[int]bool{}, hunks: map[hunkAt]bool{},
-		files: map[string]bool{}, gone: map[goneAt]bool{}, blocks: map[blockAt]bool{},
+		skips: map[anchor]bool{}, files: map[string]bool{},
+		gone: map[goneAt]bool{}, blocks: map[blockAt]bool{},
 	}
 }
 
@@ -224,6 +228,35 @@ func runHead(a anchor, index, n int) []row {
 			text: fmt.Sprintf("%s ON %s %d", strings.ToUpper(plural(n, "comment")), side, a.line),
 		},
 	}
+}
+
+// skipRows gathers a run's skipped comments below its live ones, as one row
+// until somebody asks. A skip is a decision with a reason against it, so it is
+// counted rather than dropped, and it stops costing a live comment's room on a
+// line several comments answer.
+func skipRows(r *artifact.Review, on []int, a anchor, path string, lay layout, numWidth int) []row {
+	if len(on) == 0 {
+		return nil
+	}
+
+	head := row{kind: rowBlank, path: path, comment: noComment, skips: a}
+	if !lay.fold.skips[a] {
+		return []row{head, {
+			kind: rowComment, path: path, comment: on[0], head: true, folded: true, skips: a,
+			text: plural(len(on), "comment") + " skipped here · za to read",
+		}}
+	}
+
+	rows := []row{head, {
+		kind: rowComment, path: path, comment: on[0], head: true, skips: a,
+		text: plural(len(on), "comment") + " skipped here · za to fold",
+	}}
+
+	for _, c := range on {
+		rows = append(rows, commentRows(&r.Comments[c], c, path, lay, numWidth, inRun{})...)
+	}
+
+	return rows
 }
 
 // commentRows is one prepared comment: a heading naming what it is and whether

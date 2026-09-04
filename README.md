@@ -86,6 +86,11 @@ will replace. A range beyond one line could only be written by an agent into the
 before, because the screen had no way to say where one ends. It is answered by the key
 that uses it, so the next comment is never quietly written against the last one's lines.
 
+Several comments on one line read as a run: a heading says how many there are and which
+line they answer, each is numbered inside it, and the line itself is pinned to the top of
+the frame while the run is read past it. A skip inside a run gathers below the live
+comments as one row saying how many, which `za` opens.
+
 A comment whose line no longer reads the way it did when it was written says so where it
 is drawn. It is the posting guard asked at read time, because finding out at submit that
 four comments moved under a force-push is finding out too late.
