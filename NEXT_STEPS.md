@@ -187,7 +187,7 @@ worse than leaving it where the diff had it. The per-hunk cost carries no ceilin
 what matters is which of two hunks is dearer and the ceiling exists to keep a number
 comparable between pull requests.
 
-### 2a. The screen has too much text and not enough hierarchy
+### 2a. The screen has too much text and not enough hierarchy — subtracted once
 
 The largest thing outstanding, and it is a complaint rather than a feature: reading a
 review on this screen means being a little lost in it. There is too much text, not enough
@@ -214,12 +214,32 @@ Measured on `demo/scene.sh review` at 120x40, on a review whose diff is one file
 - One file costs three rows of chrome: a directory heading, the file heading, and
   `@@ -0,0 +1,57 @@`, which is git's syntax for what the gutter already shows
 
-So: the header keeps the worst fact and folds the quiet ones behind a key, with `off head`
-the only one colored. The preamble is one row until `za`, which is 9 rows back to 1. The
-directory row merges into the path where a review has one directory. The `@@` row goes.
-Each file heading carries its own size, so the frame answers how much is left without the
-header saying it. Every one of them is argued with on a real review through
-`demo/scene.sh` rather than reasoned about.
+All five are built. A count of zero and a tree standing where the review was staged are
+not drawn, so the header is five facts where it was eight, and the tree is the one fact
+colored because it is the one a key would refuse to work against. The review's own body
+and note start folded, which is 9 rows back to 2, and writing either opens it so the
+editor does not look like it discarded what was typed. The directory heading appears once
+there is a second group to tell it from. Each file heading carries how many lines it adds
+and removes. Code starts on row 6 of the frame where it started on row 14, and every
+golden frame fits a row more content than it did.
+
+Two things came out of building it rather than planning it. The `@@` row could not simply
+go: it is what `]h` and `]u` walk and what carries the read mark, and dropping it broke
+both. What went is git's `-200,3 +201,3`, which is the gutter beside every line said
+twice, and what stayed is the declaration git names after it, which is the only thing a
+diff says about what encloses a hunk and was being thrown away with the numbers. Where git
+names nothing the row is a rule, and a file drawing one such hunk is that hunk, so the
+heading carries the read mark and the row goes. Claiming the hunk on both rows was a real
+bug, found by a test rather than by reading: it sent `]h` to the same hunk twice.
+
+The other was hierarchy in the literal sense. Reserving the read column on every heading
+put file headings at column 5 and their own hunks at column 3, so the child drew to the
+left of the parent on the screen whose complaint is that it has no hierarchy. Hunk rows
+are indented under their file now.
+
+What is still open is the part that was open before: what algorithm decides the narrative,
+and what the visual helper for how a change maps across the filesystem looks like. Neither
+is a design yet, and both want arguing with on a real review through `demo/scene.sh`.
 
 ### 3. The score that always says 99 — done
 
