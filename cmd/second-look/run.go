@@ -251,7 +251,7 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (bool, error) {
 	}
 
 	reader := blob.Reader{Work: opened.Work, Repo: t.RepoID(), SHA: opened.Review.HeadSHA}
-	opts = append(opts, tui.WithBlobs(reader.Read))
+	opts = append(opts, tui.WithBlobs(reader.Read), tui.WithRestage(restager(t)))
 
 	// A review read out of the cache reached the screen without asking GitHub
 	// anything, so the screen asks behind the first frame instead.
@@ -1034,4 +1034,29 @@ func oneOf(args []string, usage error, want ...string) (string, error) {
 	}
 
 	return "", usage
+}
+
+// restager prepares the review again against the head the pull request is on
+// now, which is what the screen needs when a push lands mid-read.
+//
+// It moves no working copy, since a tree moved as a side effect of somebody
+// else's push is a tree moved without being asked. What get wrote is read back
+// off disk rather than returned, so the screen holds exactly what a reopen
+// would have given it.
+func restager(t get.Target) tui.Restager {
+	return func(ctx context.Context) (*tui.Restaged, error) {
+		if err := get.Run(ctx, io.Discard, t.Restage()); err != nil {
+			return nil, fmt.Errorf("restaging #%d: %w", t.Number, err)
+		}
+
+		opened, err := get.Open(ctx, t)
+		if err != nil {
+			return nil, fmt.Errorf("reading #%d back: %w", t.Number, err)
+		}
+
+		return &tui.Restaged{
+			Review: opened.Review, Diff: opened.Diff, Threads: opened.Threads,
+			Read: opened.Read, HeadSHA: opened.Review.HeadSHA,
+		}, nil
+	}
 }

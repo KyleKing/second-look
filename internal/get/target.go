@@ -221,3 +221,13 @@ func Lookup(number int) (Target, error) {
 	return Target{}, fmt.Errorf("#%d is staged for %s: %w",
 		number, strings.Join(found, " and "), ErrAmbiguous)
 }
+
+// Restage is the same target prepared without moving the working copy, which is
+// what a restage from inside the review screen wants: the diff, the threads,
+// and the read marks come off the API, and where the tree is standing is the
+// reader's decision rather than a side effect of a push landing mid-read.
+func (t Target) Restage() Target {
+	t.Work = ""
+
+	return t
+}

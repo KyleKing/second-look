@@ -308,11 +308,21 @@ Live detection is the watcher asking the head again once a minute rather than on
 the screen opens. A review read over twenty minutes outlives the answer given when it
 started, and finding out at submit time that the head moved is finding out too late.
 
-Two things are not built. Offering the incremental diff in place, so a push that lands
-mid-read restages without reopening, needs a restage seam the screen does not have and
-wants deciding rather than assuming. And the picker for comparing against any earlier
-round needs the caches of earlier heads kept rather than swept, which is a change to what
-`get` cleans up and a decision about how much disk a year of reviews is allowed.
+**Restaging in place** is `ctrl+r`, and it is only offered once the watcher has found a
+head that has moved. It prepares the review again against that head, then swaps in the
+diff, the conversations, and the read marks without the screen being reopened, and says
+what the move cost: which staged comments no longer anchor in the diff that resulted.
+
+The seam this was waiting on is `Target.Restage()`, which is the same target with no
+working copy. A restage moves no tree, because a tree moved as a side effect of somebody
+else's push is a tree moved without being asked, and where the checkout stands is already
+`C`'s question. What `get` wrote is read back off disk rather than handed over, so the
+screen ends up holding exactly what a reopen would have given it. The read marks survive on
+their own, since they are keyed by what a hunk says rather than by the commit it sat on.
+
+Still not built: the picker for comparing against any earlier round, which needs the caches
+of earlier heads kept rather than swept, a change to what `get` cleans up and a decision
+about how much disk a year of reviews is allowed.
 
 A pull request already reviewed says so wherever it is opened from, which step 4 gave for
 free: the read marks and the rating live with the review rather than with the clone.

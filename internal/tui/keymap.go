@@ -18,6 +18,7 @@ import "charm.land/bubbles/v2/key"
 const (
 	quitWord    = "quit"
 	commentWord = "comment"
+	refreshKey  = "ctrl+r"
 	spaceKey    = "space"
 )
 
@@ -49,6 +50,7 @@ type keyMap struct {
 	Todo      key.Binding
 	Dispatch  key.Binding
 	Threads   key.Binding
+	Restage   key.Binding
 	Seen      key.Binding
 	Search    key.Binding
 	List      key.Binding
@@ -107,6 +109,7 @@ func defaultKeyMap() keyMap {
 		List:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
 		Renderer:  key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "renderer")),
 		Threads:   key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "conversations")),
+		Restage:   key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "restage")),
 		Order:     key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
 		Fold:      key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
 		Zed:       key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
@@ -176,6 +179,7 @@ func helpLines() [][2]string {
 		{".", "repeat the last change: space, m r/d/x, a fold"},
 		{"c", "the next view: both, the code as it now reads, the comments alone"},
 		{"t", "the conversations already on this pull request, each under the line it answers"},
+		{refreshKey, "take a head that moved: prepare the review again against it, keeping what is read"},
 		{"v", "the next renderer: plain, rich, side by side, structural; each has a caveat"},
 		{"O", "read in the diff's own order instead of gathered by symbol, and back"},
 		{"w", "hide hunks that change nothing but whitespace, and show them again"},

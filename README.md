@@ -250,6 +250,11 @@ stands as one line saying how much came out and a comment stands as one row, bot
 the reader and four comments on one hunk bury it. The comments are what will post, by file. The cursor keeps
 its comment across the change.
 
+The head is asked again once a minute, because a review read over twenty minutes outlives
+the answer given when it started. When it has moved, `ctrl+r` prepares the review again
+against it in place, keeping every hunk already marked read and naming the staged comments
+that no longer anchor. It moves no working copy: where the tree stands is `C`'s question.
+
 `t` is the fourth view and is off that cycle: every open conversation on the pull request,
 each under the line it answers, with the rest of the diff left out. A conversation is what
 the forge already holds rather than what this pass is staging, which is a different axis

@@ -12,6 +12,8 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
+	"github.com/kyleking/second-look/internal/seen"
+	"github.com/kyleking/second-look/internal/threads"
 )
 
 // Tree is what the working directory holds for the pull request under review.
@@ -81,6 +83,28 @@ type HeadCheck func(ctx context.Context) (string, error)
 // is.
 func WithHeadCheck(check HeadCheck) Option {
 	return func(m *Model) { m.head = check }
+}
+
+// Restaged is a review prepared again against the head the pull request is on
+// now: the diff its comments anchor to, the conversations open on it, and the
+// hunks an earlier pass had already read.
+type Restaged struct {
+	Review  *artifact.Review
+	Diff    *diff.Diff
+	Threads []threads.Thread
+	Read    *seen.Set
+	HeadSHA string
+}
+
+// Restager prepares the review again against the current head. It moves no
+// working copy: where the tree is standing is the reader's decision rather than
+// a side effect of a push landing mid-read.
+type Restager func(ctx context.Context) (*Restaged, error)
+
+// WithRestage lets the screen take a head that moved without being reopened.
+// Without one, the key names the shell command that does it.
+func WithRestage(r Restager) Option {
+	return func(m *Model) { m.restage = r }
 }
 
 // Opener shows the pull request in a browser. It reads nothing back: what the

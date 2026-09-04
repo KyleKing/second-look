@@ -114,7 +114,7 @@ func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.say("kept where you left it; "+reopens(done.msg)+" brings it back", false)
 
 		return m, nil
-	case "ctrl+r":
+	case refreshKey:
 		m.putBack()
 
 		return m, nil

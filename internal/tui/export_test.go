@@ -72,3 +72,11 @@ func (m *Model) Reload(path string) {
 	at, _ := stampOf(path)
 	m.reloaded(reloadMsg{at: at})
 }
+
+// SetRestage supplies the restager after construction, which is what a test
+// needs when the answer has to name the model's own review.
+func (m *Model) SetRestage(r Restager) { m.restage = r }
+
+// SawHead is the watcher having found a head that moved, so a test can reach
+// the restage without waiting out the check.
+func (m *Model) SawHead(sha string) { m.newHead = sha }

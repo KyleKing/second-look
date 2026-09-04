@@ -10,6 +10,7 @@ kyleking/jj-diff #42                                                        0% Â
                          .  repeat the last change: space, m r/d/x, a fold
                          c  the next view: both, the code as it now reads, the comments alone
                          t  the conversations already on this pull request, each under the line it answers
+                    ctrl+r  take a head that moved: prepare the review again against it, keeping what is read
                          v  the next renderer: plain, rich, side by side, structural; each has a caveat
                          O  read in the diff's own order instead of gathered by symbol, and back
                          w  hide hunks that change nothing but whitespace, and show them again
@@ -20,5 +21,4 @@ kyleking/jj-diff #42                                                        0% Â
                          T  write out every todo comment for an agent, and run the dispatch command if one is set
                     ctrl+t  while writing: swap in the version an agent wrote under you, and back
                     ctrl+n  while writing: complete the word from the files, symbols, and people in this review
-      z then a / i / R / M  fold what is here, or all of it; invert; open all; fold to the file names
  [j/k] line  []] go to  [c]ode  writ[e]  [S]ubmit  [?] help  [q]uit

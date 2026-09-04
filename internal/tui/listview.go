@@ -240,7 +240,7 @@ func defaultListHelp() [][2]string {
 		{"r", "reply, staged into the prepared review"},
 		{"R", "resolve the thread, or thumbs-up what cannot be resolved"},
 		{"o", "open it on GitHub"},
-		{"ctrl+r", "read the queue again"},
+		{refreshKey, "read the queue again"},
 		{"q, esc", "leave"},
 		{},
 		{"", "● marks a conversation that moved since you last read it."},

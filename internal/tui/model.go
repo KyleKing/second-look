@@ -65,6 +65,7 @@ type Model struct {
 	// dispatcher hands the todo set to an agent, and is nil where nothing is
 	// configured to receive it.
 	dispatcher Dispatcher
+	restage    Restager
 	// around is how many lines of the file either side of a hunk the reader
 	// asked for, blobs is the files read to answer that, and blob is what reads
 	// one. blob is nil where nothing can.
@@ -253,6 +254,37 @@ func short(sha string) string {
 	return sha[:n]
 }
 
+// applyStructure takes what the parser found: the rating, the symbols each hunk
+// touched, and which hunks changed no code.
+func (m *Model) applyStructure(msg structureMsg) {
+	asked := m.reading
+	m.reading = false
+
+	if msg.err != nil {
+		// A pass nobody asked for fails quietly: the rating is missing from the
+		// title, which is the whole of what it was for.
+		if asked {
+			m.say("reading the structure: "+msg.err.Error(), true)
+		}
+
+		return
+	}
+
+	m.cosmetic, m.shape, m.cost = msg.cosmetic, msg.shape, msg.score
+	m.keepScore()
+
+	if asked {
+		m.setFold(foldCosmetic)
+
+		return
+	}
+
+	// The structural renderer draws what this pass found, and the pass lands
+	// behind the first frame, so the headings gain their symbols the moment it
+	// answers rather than on the next keystroke.
+	m.rebuild()
+}
+
 // headMsg is what the head check answered.
 type headMsg struct {
 	sha  string
@@ -339,6 +371,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.dispatched(msg)
 
 		return m, nil
+	case restagedMsg:
+		m.applyRestaged(msg)
+
+		return m, nil
 	case reloadMsg:
 		cmd := m.reloaded(msg)
 
@@ -348,32 +384,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case structureMsg:
-		asked := m.reading
-		m.reading = false
-
-		if msg.err != nil {
-			// A pass nobody asked for fails quietly: the rating is missing from
-			// the title, which is the whole of what it was for.
-			if asked {
-				m.say("reading the structure: "+msg.err.Error(), true)
-			}
-
-			return m, nil
-		}
-
-		m.cosmetic, m.shape, m.cost = msg.cosmetic, msg.shape, msg.score
-		m.keepScore()
-
-		if asked {
-			m.setFold(foldCosmetic)
-
-			return m, nil
-		}
-
-		// The structural renderer draws what this pass found, and the pass
-		// lands behind the first frame, so the headings gain their symbols the
-		// moment it answers rather than on the next keystroke.
-		m.rebuild()
+		m.applyStructure(msg)
 
 		return m, nil
 	case headMsg:
@@ -510,9 +521,26 @@ func (m *Model) readHelp(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// asks handles the keys that go out to the parser or the forge and swap the
+// answer in once it lands, and reports whether one of them matched.
+func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
+	switch {
+	case key.Matches(msg, m.keys.Structure):
+		return m.askStructure(), true
+	case key.Matches(msg, m.keys.Restage):
+		return m.askRestage(), true
+	}
+
+	return nil, false
+}
+
 // mode handles the keys that change what the screen is showing rather than what
 // the review says, and reports whether one of them matched.
 func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
+	if cmd, ok := m.asks(msg); ok {
+		return true, m, cmd
+	}
+
 	switch {
 	case key.Matches(msg, m.keys.Quit):
 		if m.help {
@@ -524,10 +552,6 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		return true, m, tea.Quit
 	case key.Matches(msg, m.keys.Help):
 		m.help = !m.help
-	case key.Matches(msg, m.keys.Structure):
-		cmd := m.askStructure()
-
-		return true, m, cmd
 	case key.Matches(msg, m.keys.More), key.Matches(msg, m.keys.Less):
 		by := step
 		if key.Matches(msg, m.keys.Less) {
