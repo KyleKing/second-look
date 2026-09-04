@@ -340,8 +340,8 @@ func (m *Model) helpLines() []string {
 	return alongside(out[:h], bar, m.styles, m.width)
 }
 
-// rowLines is the frame's body, with the editor standing in for the block it
-// is writing so what is being answered stays where it was on the screen.
+// rowLines is the frame's body, with the editor standing in for the comment it
+// is rewriting so the text stays where it was on the screen.
 func (m *Model) rowLines() []string {
 	h := m.viewHeight()
 	bar := scrollbar(h, len(m.screen.rows), m.offset)
@@ -355,6 +355,13 @@ func (m *Model) rowLines() []string {
 
 	for i := m.offset; i < len(m.screen.rows) && len(out) < h; i++ {
 		if m.editingHere(i) {
+			if m.answering() {
+				out = append(out, m.answeredLines(i, h-len(out), width)...)
+				i = m.spanEnd(i)
+
+				continue
+			}
+
 			out = append(out, m.editorLines()...)
 			i = m.spanEnd(i)
 

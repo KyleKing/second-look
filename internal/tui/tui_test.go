@@ -2086,6 +2086,50 @@ func TestReplyingToAnOpenThread(t *testing.T) {
 	t.Errorf("no reply was staged: %+v", saved.Comments)
 }
 
+// Answering a thread used to draw the editor over it, so the finding being
+// replied to left the screen at the moment it was needed. A frame too short for
+// both keeps the last turns, which are the ones the reply is to.
+func TestReplyKeepsTheThreadOnScreen(t *testing.T) {
+	t.Parallel()
+
+	notes := make([]threads.Note, 0, 6)
+	for i := range 6 {
+		notes = append(notes, threads.Note{
+			ID: int64(70 + i), Author: "coderabbitai",
+			Body: fmt.Sprintf("finding %d: wrap the error with the path", i),
+		})
+	}
+
+	for _, height := range []int{30, 14} {
+		t.Run(fmt.Sprintf("%d rows", height), func(t *testing.T) {
+			t.Parallel()
+
+			_, path, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 14, "check err"))
+			m := tui.New(t.Context(), reviewAt(t, path), diff.Parse([]byte(patch)), path,
+				func(context.Context, *artifact.Review) (string, error) { return "", nil },
+				tui.WithThreads([]threads.Thread{{
+					Path: parsed, Side: artifact.SideRight, Line: 15, Notes: notes,
+				}}))
+			m.Init()
+			m.Update(tea.WindowSizeMsg{Width: 100, Height: height})
+
+			go2(m, ']', 't')
+			press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+
+			frame := plain(m.Frame())
+			if !strings.Contains(frame, "ctrl+s save") {
+				t.Fatalf("the editor left the frame:\n%s", frame)
+			}
+
+			// The last turn is the one being answered, so it is the one that
+			// must survive a frame with room for neither.
+			if !strings.Contains(frame, "finding 5") {
+				t.Errorf("the thread being answered is not on screen:\n%s", frame)
+			}
+		})
+	}
+}
+
 func reviewAt(t *testing.T, path string) *artifact.Review {
 	t.Helper()
 

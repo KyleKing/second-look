@@ -317,3 +317,33 @@ func (m *Model) editorLines() []string {
 
 	return append(out, frame.Render(cut(gutter+keys, m.width)))
 }
+
+// answering reports an edit that adds to a thread rather than rewriting a
+// comment. What is being answered has to stay on screen: a reply written
+// against a bot's finding is written from the finding.
+func (m *Model) answering() bool {
+	return m.editing != nil && m.editing.msg.fresh == nil && m.editing.msg.replyTo >= 0
+}
+
+// answeredLines is the thread being answered with the editor under it, in the
+// room the frame has left. A thread too tall for that keeps its last turns,
+// which are the ones the reply is to, rather than losing the box off the
+// bottom of the frame.
+func (m *Model) answeredLines(from, room, width int) []string {
+	box := m.editorLines()
+	if room <= len(box) {
+		return box
+	}
+
+	end := m.spanEnd(from)
+	if fits := room - len(box); end-from+1 > fits {
+		from = end - fits + 1
+	}
+
+	out := make([]string, 0, room)
+	for i := from; i <= end; i++ {
+		out = append(out, m.renderRow(i, width))
+	}
+
+	return append(out, box...)
+}
