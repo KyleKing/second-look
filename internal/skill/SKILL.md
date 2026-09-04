@@ -20,6 +20,8 @@ remembered shape of the schema.
 ```sh
 second-look get <pr>                       # check out the head, cache the diff
 second-look show <pr>                      # what is already staged
+second-look show <pr> --diff               # the diff, with every comment marked on it
+second-look context <pr> <id>              # one comment with its hunk, note, and thread
 second-look comment add <pr> < batch.json  # stage a batch
 second-look show <pr> --payload            # exactly what would leave the laptop
 ```

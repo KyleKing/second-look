@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/x/term"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/brief"
 	"github.com/kyleking/second-look/internal/config"
 	"github.com/kyleking/second-look/internal/conversations"
 	"github.com/kyleking/second-look/internal/diff"
@@ -44,7 +45,8 @@ var (
 	errUsageInbox     = errors.New("usage: second-look inbox [--json]")
 	errUsageThreads   = errors.New("usage: second-look threads [--json]")
 	errUsageReviews   = errors.New("usage: second-look reviews [--json]")
-	errUsageShow      = errors.New("usage: second-look show <pr> [--payload|--threads]")
+	errUsageContext   = errors.New("usage: second-look context <pr> <comment-id>")
+	errUsageShow      = errors.New("usage: second-look show <pr> [--diff|--payload|--threads]")
 	errUsageSkill     = errors.New("usage: second-look skill")
 )
 
@@ -122,6 +124,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return commentCmd(ctx, args[1:], stdin, stdout)
 	case "show":
 		return showCmd(ctx, args[1:], stdout)
+	case "context":
+		return contextCmd(ctx, args[1:], stdout)
 	case "post":
 		return postCmd(ctx, args[1:], stdout)
 	case "inbox":
@@ -471,7 +475,7 @@ func showCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return errUsageShow
 	}
 
-	flag, err := oneOf(args[1:], errUsageShow, "--payload", "--threads")
+	flag, err := oneOf(args[1:], errUsageShow, "--diff", "--payload", "--threads")
 	if err != nil {
 		return err
 	}
@@ -500,6 +504,18 @@ func showCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return writeJSON(stdout, threads.Replyable(open))
 	}
 
+	// --diff is the code the review is about, with each comment marked on the
+	// line it anchors to. An agent given a path and a line number has to go and
+	// find the change itself, and what it finds is not what the screen shows.
+	if flag == "--diff" {
+		cached, err := artifact.LoadDiff(t.Store, r.HeadSHA)
+		if err != nil {
+			return fmt.Errorf("reading the cached diff: %w", err)
+		}
+
+		return write(stdout, brief.Diff(diff.Parse(cached), r))
+	}
+
 	payloadOnly := flag == "--payload"
 
 	// --payload prints exactly what would be sent, so what stays local is
@@ -514,6 +530,44 @@ func showCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	return writeJSON(stdout, r)
+}
+
+// contextCmd is one comment with everything around it: the hunk it anchors in,
+// the note that never posts, and the conversation it answers. It is what an
+// agent asked about a finding needs and what `show` alone cannot give it.
+func contextCmd(ctx context.Context, args []string, stdout io.Writer) error {
+	const wants = 2
+
+	if len(args) != wants {
+		return errUsageContext
+	}
+
+	t, err := target(ctx, args[0])
+	if err != nil {
+		return err
+	}
+
+	r, err := artifact.Load(artifact.Path(t.Store, t.Number))
+	if err != nil {
+		return fmt.Errorf("loading the prepared review: %w", err)
+	}
+
+	cached, err := artifact.LoadDiff(t.Store, r.HeadSHA)
+	if err != nil {
+		return fmt.Errorf("reading the cached diff: %w", err)
+	}
+
+	var open []threads.Thread
+	if err := artifact.LoadThreads(t.Store, r.HeadSHA, &open); err != nil {
+		return fmt.Errorf("reading the cached review threads: %w", err)
+	}
+
+	out, err := brief.Comment(r, args[1], diff.Parse(cached), open, 0)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", args[1], err)
+	}
+
+	return write(stdout, out)
 }
 
 func postCmd(ctx context.Context, args []string, stdout io.Writer) error {

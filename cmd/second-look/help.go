@@ -7,14 +7,16 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look get <pr>             fetch the PR, prepare the review, check it out
   second-look comment add <pr>     stage comments from a JSON batch on stdin
   second-look show <pr>            print the prepared review
+  second-look show <pr> --diff     print the diff with every comment marked on it
   second-look show <pr> --payload  print exactly what would be sent
   second-look show <pr> --threads  print the open review threads and their ids
+  second-look context <pr> <id>    one comment with its hunk, note, and thread
   second-look post <pr>            post the review
   second-look post <pr> --dry-run  print the request without sending it
   second-look post <pr> --only <id>  post one comment on its own, now
   second-look inbox                the review queue, in your own sections
   second-look threads              conversations that moved since you looked
-  second-look reviews              what is staged locally under .second-look/
+  second-look reviews              what is staged locally, in the store
   second-look skill                print the agent instructions this binary carries
 
   --help  the full contract, including every JSON field
@@ -184,6 +186,11 @@ NAMING A PULL REQUEST
   second-look show <pr>
       Print the prepared review as JSON, local fields included.
 
+  second-look show <pr> --diff
+      Print the cached diff with each staged comment marked, as a <<< line under
+      the line it anchors to. Read this rather than opening the files: it is the
+      change the review is about, at the commit the review was written against.
+
   second-look show <pr> --payload
       Print exactly what would be sent. Use this to confirm what stays local.
 
@@ -191,6 +198,12 @@ NAMING A PULL REQUEST
       Print the pull request's unresolved review threads as second-look get last
       read them, each with the comment id a reply addresses. Put that id in a
       comment's in_reply_to to answer the thread.
+
+  second-look context <pr> <comment-id>
+      Print one comment with everything around it: where it anchors, its body,
+      the note that never posts, the hunk it sits in with the anchored lines
+      marked, and the conversation it answers. This is what to read before
+      acting on a finding.
 
   second-look post <pr> [--dry-run]
       Post the review in one request, then post any replies. Refuses while any

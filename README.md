@@ -61,6 +61,13 @@ whatever the working directory happens to be.
 `second-look skill` prints the instructions an agent needs to drive it, ready to write
 into a skills directory.
 
+An agent reads the code as well as the review. `second-look show <pr> --diff` prints the
+cached diff with every staged comment marked on the line it anchors to, and
+`second-look context <pr> <id>` prints one comment with its hunk, the note that never
+posts, and the conversation it answers. Without them an agent asked about a finding has
+only a path and a line number, and what it goes and reads is the working tree rather than
+the commit the review was written against.
+
 Every comment is anchored to the diff line it points at. A comment on a line the diff
 does not carry is refused while staging, and one whose line has moved since is refused
 before anything is sent.

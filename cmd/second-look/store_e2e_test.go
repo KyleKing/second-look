@@ -78,3 +78,45 @@ func TestABareNumberResolvesFromTheStore(t *testing.T) {
 		t.Errorf("a bare number outside a checkout read nothing:\n%s", res.stdout)
 	}
 }
+
+// What the agent reads: the diff with the anchors on it, and one comment with
+// the hunk and the note around it. `show` alone hands over a path and a line
+// number, which is not what the person is looking at.
+func TestTheAgentReadsTheDiffAndOneCommentInContext(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	seedReview(t, dir, sha)
+	seedDiffAt(t, dir, sha)
+
+	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "agent-reads", func(c *ghcassette.Cassette) {
+		inCheckout(c)
+		c.Interactions = nil
+	}))
+
+	res := runCLI(t, s, dir, "show", "2", "--diff")
+	if res.code != 0 {
+		t.Fatalf("show --diff failed: %s%s", res.stdout, res.stderr)
+	}
+
+	for _, want := range []string{"testdata/fixture/sample.go", "<<< unwrapped-read-error"} {
+		if !strings.Contains(res.stdout, want) {
+			t.Errorf("%q is missing from the marked diff:\n%s", want, res.stdout)
+		}
+	}
+
+	res = runCLI(t, s, dir, "context", "2", "unwrapped-read-error")
+	if res.code != 0 {
+		t.Fatalf("context failed: %s%s", res.stdout, res.stderr)
+	}
+
+	for _, want := range []string{"NOTE (never posted)", ">>", "return 0, err"} {
+		if !strings.Contains(res.stdout, want) {
+			t.Errorf("%q is missing from the comment's context:\n%s", want, res.stdout)
+		}
+	}
+
+	if res := runCLI(t, s, dir, "context", "2", "no-such-comment"); res.code == 0 {
+		t.Error("an unknown comment id was accepted")
+	}
+}
