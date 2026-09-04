@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1402,6 +1403,30 @@ func TestAReadHunkRecedes(t *testing.T) {
 				t.Errorf("a read hunk lost its content:\n%s", plain(m.Frame()))
 			}
 		})
+	}
+}
+
+// A folded heading stands in for what it is hiding, so it draws at the contrast
+// of a hunk already read. Drawn like every other heading, a fold competed for
+// the attention it had just been told to stop asking for.
+func TestAFoldedHeadingRecedes(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	before := ansi.FindAllString(styledLine(t, m, parsed), -1)
+
+	go2(m, 'z', 'M')
+
+	after := ansi.FindAllString(styledLine(t, m, parsed), -1)
+
+	if !strings.Contains(plain(styledLine(t, m, parsed)), "folded") {
+		t.Fatalf("zM did not fold the file:\n%s", plain(m.Frame()))
+	}
+
+	if slices.Equal(before, after) {
+		t.Errorf("a folded heading is drawn the same as an open one: %q", after)
 	}
 }
 

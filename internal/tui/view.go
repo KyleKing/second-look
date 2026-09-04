@@ -402,12 +402,12 @@ func (m *Model) rowBody(r row, width int) string {
 	}
 
 	text, style := m.rowContent(r)
-	if r.kind == rowCode && m.behind(r) {
+	if (r.kind == rowCode && m.behind(r)) || closed(r) {
 		style = m.styles.behind
 	}
 
 	if r.kind == rowFile {
-		return m.ruledFile(text, width)
+		return m.ruledFile(text, width, style)
 	}
 
 	if r.lit != nil {
@@ -474,9 +474,13 @@ func spanRuns(spans []highlight.Span, length int) []run {
 // ends at its name.
 const ruleFloor = 4
 
+// closed is a heading standing in for what it is hiding, which draws at the
+// contrast of a hunk already read.
+func closed(r row) bool { return r.folded && (r.kind == rowFile || r.kind == rowHunk) }
+
 // ruledFile is a file heading with a rule out to the frame's edge.
-func (m *Model) ruledFile(text string, width int) string {
-	head := m.styles.file.Render(cut(text, width))
+func (m *Model) ruledFile(text string, width int, style lipgloss.Style) string {
+	head := style.Render(cut(text, width))
 
 	rest := width - textWidth(text) - 1
 	if rest < ruleFloor {
