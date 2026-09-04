@@ -214,12 +214,24 @@ being ruled out.
 
 ### Images
 
-Deferred, honestly. `gh` cannot upload an image and posting to a public host is not an
-option. For now, write the markdown image syntax into the comment, and on post open both
-the comment in the browser and the directory holding the images, so the drag is one
-motion. Only do this when the review actually contains image links. Automating it later
-means Playwright driving GitHub's own editor rather than an LLM, and that is a spike, not
-a plan.
+The limitation this was written around is gone, and half of it. gh gained `--attach` on
+[2026-09-01](https://github.blog/changelog/2026-09-01-github-cli-media-in-issues-pull-requests-and-comments/),
+generally available from v2.99.0, so `gh pr comment --attach ./login.png#alt` uploads a
+local image and rewrites the body's reference to point at the asset. Checked against the
+binary on this laptop rather than the changelog alone.
+
+It carries the flag on `pr comment` and `issue comment` and nowhere else. A review, which
+is what second-look posts, goes through `gh api .../reviews`, and neither `pr review` nor
+any standalone upload command takes it, so there is still no supported way to get an asset
+URL for an inline review comment's body. GitHub has never documented the upload endpoint
+`gh` uses, and building on an undocumented one is a dependency that breaks silently.
+
+So: an image on a pull request comment is buildable today through `gh pr comment
+--attach`, and an image on an inline review comment waits for GitHub to expose the same
+flag on a review. Until then the fallback stands, which is the markdown image syntax in
+the comment and a post that opens both the comment in the browser and the directory
+holding the images, so the drag is one motion, and only where the review actually carries
+an image link.
 
 ## Requirements
 

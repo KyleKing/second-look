@@ -46,6 +46,11 @@ A row left unrated by either the threshold or the allowance is read once the cur
 stopped on it. Every move restarts the wait, so running the cursor down a queue asks for
 nothing and stopping on a row pays for that row alone.
 
+How large the change is comes back with the rating, counted off the same patch, and sits
+in two columns beside it. It orders nothing: a 9 on eight hundred lines and a 9 on nine
+are different claims, and that is what it is there to say. A hunk that changed nothing but
+layout counts toward neither side.
+
 Before any of it runs, the queue asks GitHub what is left of the hour's allowance, which is
 a read GitHub does not charge for. It spends at most half of what remains: ordering a queue
 is what leads to opening the reviews in it, and those are reads too, so a queue sorted
@@ -389,7 +394,8 @@ it, a comment's note from the comment, and in the code view the run of removed l
 the row standing for it. `za` inverts it, `zi` inverts the whole review, `zR` opens
 everything, and `zM` folds to the file names, which is the outline a long review is read
 from. Everything is drawn until you fold it: a note is the evidence for the comment above
-it, and one folded by default is one nobody reads.
+it, and one folded by default is one nobody reads. A folded heading recedes to the
+contrast of a hunk already read, so what is closed reads as closed.
 
 `/` searches, and `tab` in the prompt restricts it to hunks you have not read yet. The
 pattern becomes a motion, so `n` walks the matches the same way it walks hunks.

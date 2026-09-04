@@ -97,12 +97,16 @@ co-locate hunks.
 
 The faces are nightfox's, derived into aragonite's palette rather than exposed as
 configuration, so second-look, gh-repo-dashboard, and gh-sweep stay one visual family.
-`dim_inactive` was the idea worth taking from that config, and half of it is done: a hunk
-already marked read recedes in both renderers, keeping its band and losing its grammar,
-since what the code says has been read and what is left to read is the question. The
-folded region and the file the cursor is not in are the other half, and both want living
-with before they are built: dimming every file but one is most of a long diff most of the
-time, which is a different thing from dimming a window nobody is typing in.
+`dim_inactive` was the idea worth taking from that config, and two thirds of it is done. A
+hunk already marked read recedes in both renderers, keeping its band and losing its
+grammar, since what the code says has been read and what is left to read is the question.
+A folded file or hunk heading recedes the same way, so what is closed reads as closed
+rather than as another heading asking for the attention the fold had just been told to
+stop giving.
+
+The file the cursor is not in is the third, and it is the one still waiting: dimming every
+file but one is most of a long diff most of the time, which is a different thing from
+dimming a window nobody is typing in.
 
 Folded in here because every one of them is a rendering problem, and both are waiting on
 a decision rather than on code. `demo/scene.sh comment-run` and `demo/scene.sh skipped`
@@ -179,6 +183,26 @@ convenient one: it is a hunk nobody can rank, and putting it first on a guess wo
 worse than leaving it where the diff had it. The per-hunk cost carries no ceiling, since
 what matters is which of two hunks is dearer and the ceiling exists to keep a number
 comparable between pull requests.
+
+### 2a. The screen has too much text and not enough hierarchy
+
+The largest thing outstanding, and it is a complaint rather than a feature: reading a
+review on this screen means being a little lost in it. There is too much text, not enough
+hierarchy, not enough progressive disclosure, and not enough to orient yourself by. Every
+step above added something true to the frame and none of them asked what the frame was
+becoming.
+
+What it should be doing instead is telling a narrative about the change: what was done,
+in what order it makes sense to read, and how the pieces relate to each other. Step 2
+gathered hunks by symbol, which is one relation out of several and the only one drawn. The
+relation nobody can see is how a change maps across the filesystem, and that wants a visual
+helper of some kind rather than another line of prose on a heading.
+
+Nothing here is a design yet. What algorithm decides the narrative is open, and so is what
+the helper looks like. Two things are already known to be wrong: adding is what got the
+screen here, so the next pass is about what to take away and what to fold behind a key,
+and the fixes have to be argued with on a real review through `demo/scene.sh` rather than
+reasoned about.
 
 ### 3. The score that always says 99 — done
 
@@ -396,10 +420,13 @@ cross-repository change rather than a feature: the editor here works, and moving
 its own check ladder, a release, and a version bump on this side. It wants doing when a
 second tool needs it, which is what would prove the shape.
 
-Images are still an open question rather than an assumption. Nothing here verified whether
-`gh` can upload one, and requirements.md's note that it cannot is what still stands: the
-right next move is to test it against a real repository, not to build the fallback on the
-strength of a remembered limitation.
+Images are answered, and the answer is half a yes. gh v2.99.0 carries `--attach`, checked
+against the binary rather than the changelog, so `gh pr comment --attach` uploads a local
+image and rewrites the body to point at it. The flag is on `pr comment` and `issue comment`
+and nowhere else, and a review goes through `gh api .../reviews`, so there is still no
+supported way to put an image in an inline review comment. requirements.md carries the
+whole finding, the undocumented upload endpoint included and why building on it would be a
+dependency that breaks silently.
 
 ### 10. Reading around the diff — the spike landed
 
@@ -997,6 +1024,17 @@ makes it lazy: running the cursor down a queue asks for nothing, and stopping on
 pays for that row alone. It is the same read the burst makes and writes into the same
 cache, so a row rated this way is rated for the next open too.
 
+How large the change is comes back with the rating, counted off the patch that was already
+pulled, and draws as two columns beside it: the sign in a column of its own so the signs
+line up, the count right-aligned after it so the digits do, and anything a reader would not
+read digit by digit abbreviated (`1.2k`) so four cells is the widest either goes. A hunk
+that changed nothing but layout counts toward neither side, since a size that counted one
+would call a re-indent over forty files the largest thing in the queue.
+
+It orders nothing. A reader checks the rating against it, because a 9 on eight hundred
+lines and a 9 on nine are different claims, and sorting on it would be the line count the
+rating exists to replace.
+
 The allowance guard is the other half, and it lives in aragonite as `github.Budgets`
 because gh-sweep and gh-repo-dashboard burst the same way. It reads what is left of each
 pool (core, GraphQL, and search are separate allowances) through `gh api rate_limit`, which
@@ -1361,12 +1399,12 @@ needs, all in v0.9.0.
 
 ## Open questions
 
-**Whether the queue should pay for what it cannot know for free.** The lazy half is
-built: the cursor stopping on a row rates that row and nothing else, which is what bounds
-an unrated queue's cost to what is actually read. Two signals a reviewer would want are
-still not fetched. How large a diff is could be counted off the patch the rating already
-pulls, so it costs nothing more. Whether they are the only human asked is a second read
-per row, and it wants living with the lazy rating before anyone spends it.
+**Whether the queue should pay for what it cannot know for free.** Both free halves are
+built. The cursor stopping on a row rates that row and nothing else, which bounds an
+unrated queue's cost to what is actually read, and the size of the change is counted off
+the patch that read already pulled. What is left is whether you are the only human asked,
+which is a second read per row, and it wants living with the two that cost nothing before
+anyone spends it.
 
 **Whether the review-cost rating moves to aragonite.** It reads the diff, the symbol
 graph, and the changed symbols, so it may belong next to `codeintel` rather than here.
