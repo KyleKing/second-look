@@ -261,7 +261,7 @@ func (m *Model) footerLines() []string {
 	}
 
 	if m.status == "" {
-		return []string{cut(" "+hintLine(m.styles, m.hints()), m.width)}
+		return []string{cut(" "+dimLine(m.styles, m.hints(), m.width), m.width)}
 	}
 
 	if !m.failed {
@@ -296,35 +296,86 @@ func (m *Model) prompt() string {
 	return cut(head+m.search.input.View()+tail, m.width)
 }
 
-// hints is what is actionable where the cursor is standing. The keys that
-// change a comment are shown on a comment and the keys that skip through the
-// diff are shown on code, because both sets at once do not fit an 80-column
-// frame and quitting has to be visible in either.
-func (m *Model) hints() [][2]string {
-	var middle [][2]string
+// hint is one footer key and whether it does anything where the cursor is. An
+// inapplicable key is dimmed rather than dropped, so the footer says what the
+// screen offers as well as what it offers here. An 80-column frame has room for
+// neither the whole line nor a truncated one, so it drops the dim ones and
+// quitting stays visible.
+type hint struct {
+	key  string
+	what string
+	off  bool
+}
 
+func (m *Model) hints() []hint {
+	view := hint{key: "c", what: m.view.next().String()}
+	if m.view.next() == viewDiff {
+		view.what = "the diff"
+	}
+
+	return []hint{
+		{key: "j/k", what: "line"},
+		{key: "]", what: "go to"},
+		view,
+		{key: "m", what: "mark", off: m.current() < 0},
+		{key: "e", what: m.writeWord(), off: !m.canWrite()},
+		{key: "a", what: "add", off: !m.onCode()},
+		{key: "i", what: "context"},
+		{key: "S", what: "submit"},
+		{key: "?", what: "help"},
+		{key: "q", what: quitWord},
+	}
+}
+
+// writeWord is what e does where the cursor is: answer a conversation, rewrite
+// a staged comment, or write the review's own prose.
+func (m *Model) writeWord() string {
 	switch {
 	case m.currentThread() >= 0:
-		middle = [][2]string{{"e", "reply"}}
+		return "reply"
 	case m.current() >= 0:
-		middle = [][2]string{{"m", "mark"}, {"e", "edit"}, {"z", "fold"}}
-	case m.current() != noComment:
-		middle = [][2]string{{"e", "write"}}
-	case m.onCode():
-		middle = [][2]string{{"a", "add"}}
+		return "edit"
 	}
 
-	view := [2]string{"c", m.view.next().String()}
-	if m.view.next() == viewDiff {
-		view = [2]string{"c", "the diff"}
+	return "write"
+}
+
+// canWrite reports whether e has anything to write here, which is everything
+// but a line of the diff: a new comment on one of those is a then a severity.
+func (m *Model) canWrite() bool {
+	return m.currentThread() >= 0 || m.current() != noComment
+}
+
+// legend is every key the screen offers, with the ones that do nothing where
+// the cursor is marked so they can be drawn dim rather than dropped.
+//
+// The rules are the footer's, so the two cannot disagree. They are matched
+// against the legend's own key text: a row renamed loses its dimming rather
+// than dimming the wrong row.
+func (m *Model) legend() []hint {
+	rows := helpLines()
+	out := make([]hint, 0, len(rows))
+
+	for _, r := range rows {
+		out = append(out, hint{key: r[0], what: r[1], off: m.inert(r[0])})
 	}
 
-	hints := make([][2]string, 0, len(middle)+6)
-	hints = append(hints, [2]string{"j/k", "line"}, [2]string{"]", "go to"}, view)
-	hints = append(hints, middle...)
+	return out
+}
 
-	return append(hints, [2]string{"i", "context"},
-		[2]string{"S", "submit"}, [2]string{"?", "help"}, [2]string{"q", quitWord})
+// inert reports a key with nothing to act on under the cursor. The strings are
+// the legend's own.
+func (m *Model) inert(key string) bool {
+	switch {
+	case strings.HasPrefix(key, "a then"), key == "s", key == "V":
+		return !m.onCode()
+	case strings.HasPrefix(key, "m then"), key == "E":
+		return m.current() < 0
+	case key == "e":
+		return !m.canWrite()
+	}
+
+	return false
 }
 
 // onCode reports whether the cursor is on a line of the diff, which is the one
@@ -335,10 +386,10 @@ func (m *Model) onCode() bool {
 
 func (m *Model) helpLines() []string {
 	h := m.viewHeight()
-	rows := helpLines()
+	rows := m.legend()
 	bar := scrollbar(h, len(rows), m.helpAt)
 
-	out := helpBlock(m.styles, rows, bodyWidth(m.width, bar))
+	out := dimBlock(m.styles, rows, bodyWidth(m.width, bar))
 	if m.helpAt < len(out) {
 		out = out[m.helpAt:]
 	}

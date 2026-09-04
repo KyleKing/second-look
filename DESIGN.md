@@ -369,7 +369,10 @@ hover works in vim, because wanting a type is not the same as wanting to navigat
 
 ## Keymap
 
-Layered so the footer stays short.
+Layered so the footer stays short. A key that does nothing where the cursor is standing is
+drawn dim in the footer and in the legend rather than disappearing, since a key that comes
+and goes teaches nothing about what the screen offers. A frame with no room for the whole
+line drops the dim ones instead of truncating it.
 
 | Layer | Keys |
 | --- | --- |

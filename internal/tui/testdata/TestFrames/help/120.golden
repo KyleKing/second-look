@@ -21,4 +21,4 @@ kyleking/jj-diff #42                                                            
                                      W  hide hunks that change no code at all, comments and re-wraps included          │
                                      U  hide every hunk already marked read, so what is left is what is new since the… │
                       H then 1 / 2 / …  hide every hunk an earlier round already carried; H again shows them           │
- [j/k] line  []] go to  [c]ode  writ[e]  [i] context  [S]ubmit  [?] help  [q]uit
+ [j/k] line  []] go to  [c]ode  [m]ark  writ[e]  [a]dd  [i] context  [S]ubmit  [?] help  [q]uit

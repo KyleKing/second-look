@@ -101,3 +101,20 @@ func (l *List) Settle(at int) tea.Cmd { return l.settled(at) }
 // SetRounds supplies the earlier-round reader after construction, which is what
 // a test needs when the diff it answers with is built beside the review.
 func (m *Model) SetRounds(r Rounds) { m.rounds = r }
+
+// DimKeys is which footer keys do nothing where the cursor is, which is what
+// the frame draws dim and a narrow frame drops.
+func (m *Model) DimKeys() []string {
+	var out []string
+
+	for _, h := range m.hints() {
+		if h.off {
+			out = append(out, h.key)
+		}
+	}
+
+	return out
+}
+
+// Inert reports a legend key with nothing to act on under the cursor.
+func (m *Model) KeyIsInert(key string) bool { return m.inert(key) }

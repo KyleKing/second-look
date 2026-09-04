@@ -38,7 +38,7 @@ func StagedMark(ready, draft, replies int) string {
 }
 
 // NextStaged is the review to read once one has posted, named as owner/repo#n.
-func NextStaged(rows []prepared.Review, repo string, was int) (string, bool) {
+func ReviewAfter(rows []prepared.Review, repo string, was int) (string, bool) {
 	at, ok := nextStaged(rows, repo, was)
 	if !ok {
 		return "", false

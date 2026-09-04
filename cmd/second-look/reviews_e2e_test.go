@@ -246,7 +246,7 @@ func TestTheNextReviewAfterAPostPrefersTheSameRepository(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := main.NextStaged(rows, c.repo, c.was)
+			got, ok := main.ReviewAfter(rows, c.repo, c.was)
 			if !ok {
 				t.Fatalf("nothing came next after %s#%d", c.repo, c.was)
 			}
@@ -259,7 +259,7 @@ func TestTheNextReviewAfterAPostPrefersTheSameRepository(t *testing.T) {
 
 	// A review whose file no longer parses is not something to open, and one
 	// staged review posted leaves nothing to move to.
-	if _, ok := main.NextStaged(rows[3:], "kyleking/broken", 7); ok {
+	if _, ok := main.ReviewAfter(rows[3:], "kyleking/broken", 7); ok {
 		t.Error("a review that cannot be read was offered as the next one")
 	}
 }

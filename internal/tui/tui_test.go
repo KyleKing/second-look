@@ -2714,3 +2714,47 @@ func TestFoldingAConversationSaysSo(t *testing.T) {
 		t.Errorf("za did not put the conversation back:\n%s", got)
 	}
 }
+
+// The footer used to swap its middle keys as the cursor moved, so a key that
+// did not apply here read as a key that does not exist. They stay put and are
+// drawn dim instead, and only a frame with no room for them drops them.
+func TestTheFooterDimsTheKeysThatDoNothingHere(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	go2(m, ']', 'c')
+
+	if got := m.DimKeys(); !slices.Contains(got, "a") || slices.Contains(got, "m") {
+		t.Errorf("on a comment the dim keys are %v, want a dim and m live", got)
+	}
+
+	// Every key is still on the line, which is what dimming is for.
+	if frame := plain(m.Frame()); !strings.Contains(frame, "[a]dd") {
+		t.Errorf("a key that does not apply here left the footer:\n%s", frame)
+	}
+
+	// A line of the diff is where a comment is written, so a is live there and
+	// the keys that act on a staged comment are not.
+	go2(m, ']', 'h')
+	pressKey(m, 'j')
+
+	if got := m.DimKeys(); !slices.Contains(got, "m") || slices.Contains(got, "a") {
+		t.Errorf("on a line of the diff the dim keys are %v, want m dim and a live", got)
+	}
+
+	// The legend dims by the same rule, so the two cannot disagree.
+	if m.KeyIsInert("m then r / d / t / x") != slices.Contains(m.DimKeys(), "m") {
+		t.Error("the legend and the footer disagree about m")
+	}
+
+	// A frame with no room drops them rather than losing the keys that leave
+	// the screen off the end of the line.
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 40})
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "[q]uit") || strings.Contains(frame, "[m]ark") {
+		t.Errorf("the narrow footer kept a dim key and lost quit:\n%s", frame)
+	}
+}
