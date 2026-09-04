@@ -161,7 +161,10 @@ turns it off). Leaving a review comes back to the queue rather than ending the s
 clone of that repository, so getting to one costs an API read rather than a clone and a
 branch switch. `C` moves a checkout onto it, `m` comments on the pull request itself, `A`
 approves it (`A` again to confirm), and `o` opens it on GitHub. A pipe or `--json` gets the
-text instead of the screen.
+text instead of the screen, in the same triage order, each row carrying what this laptop
+already knows about it: whether a review is staged here, and what an earlier read rated
+and measured the diff at. So whatever works through a queue reads the cheap rows first
+without fetching a diff to find out which those are.
 
 The sections are yours. Without a config it shows three buckets (pending your review,
 reviewed and still open, then reviewed and merged); with one it shows what you asked for:
@@ -234,7 +237,8 @@ A pull request based on another one staged here is a stack, and the two are grou
 together with the bottom first, which is the order they read in: a diff against changes
 you have not seen yet is a diff you cannot review. The branches are read when the review
 is prepared, so a stack is visible where both of its pull requests have a review staged
-on this laptop.
+on this laptop. A pipe or `--json` carries that order too, which is what lets something
+reviewing a batch in turn reach the bottom of a stack first.
 
 Answering a conversation on a repository you are not standing in works too. second-look
 asks `gh repo-dashboard --cli` (from its cache, so no network) which clones of that

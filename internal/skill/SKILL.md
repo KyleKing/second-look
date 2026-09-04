@@ -1,6 +1,6 @@
 ---
 name: second-look
-description: Stage pull request review comments through the second-look CLI, where they are anchored to the diff and held for the user to proofread before anything is posted. Use when drafting review comments, replying to a review thread, or preparing a review for the user to post.
+description: Stage pull request review comments through the second-look CLI, where they are anchored to the diff and held for the user to proofread before anything is posted. Use when drafting review comments, replying to a review thread, preparing a review for the user to post, or working through the queue of pull requests waiting on their review.
 ---
 
 # second-look
@@ -32,6 +32,55 @@ they said so in this session.
 
 `get` refuses to move a dirty working tree, so commit or stash when it says so. Already
 being on the pull request head never blocks, however dirty the tree is.
+
+## Working a queue rather than one pull request
+
+`second-look inbox --json` is every pull request waiting on the user, in the order to
+work it: what they have already started, then the cheapest of what an earlier read
+rated, then what has waited longest, with drafts under all of it. Take that order as
+given. Each row also carries `reviewed`, `cost`, `rated`, `added`, and `removed`, which
+is what this laptop knows without asking GitHub, so a row with no `rated` is one nobody
+has rated rather than one that is cheap.
+
+Stand anywhere. A repository this directory is not a checkout of keeps its reviews under
+the user config directory, one directory per repository, so a tree holding six clones of
+the same repository still has one set of reviews and it does not matter which of them you
+run from. Name the pull request as `owner/repo#42` and every row of the queue is reachable
+from one directory, including the repositories with no clone at all.
+
+Stage the whole batch before reviewing any of it, then read the order back:
+
+```sh
+second-look get <owner/repo#n>             # once per row, no checkout needed
+second-look reviews --json                 # every staged review, stacks bottom first
+```
+
+`reviews` is where the stack order comes from, because `get` records the branches each
+pull request joins and a chain is only visible once both ends are staged. Read the bottom
+of a stack before what sits on top of it: the upper diff excludes the lower one, so
+reading it first is reading against changes you have not seen. Stage a finding against
+the pull request that introduces the code, which is not always the one whose diff you
+were reading, and note the dependency in the upper review rather than staging the same
+comment twice.
+
+## What a checkout is for, and when to take one
+
+Most of a review needs none. The diff, the open threads, and the comment id a reply
+carries all come off the API, and `get` outside a clone moves no working copy at all.
+
+Two things need one: checking a finding that cites code the diff does not carry, and
+running the tests or the app for a claim about behavior. A clone can only be on one
+branch, so those reviews go one at a time in whichever clone is free, and the rest are
+read from the API. Say in the review's `note` which of the two a review got, because a
+finding nobody could check against the code is a weaker finding and the user is the one
+deciding whether to post it.
+
+## Finding nothing is an answer
+
+A prepared review with no comments reads the same whether it was read carefully or never
+opened. So write the review's `note` either way: what you read, what you ran, what it
+printed, and that nothing came of it. An empty review carrying a run log is a review. An
+empty review carrying nothing is a row somebody has to do again.
 
 ## Anchors are checked, not trusted
 

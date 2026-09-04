@@ -127,9 +127,8 @@ func dearness(k Known) int {
 }
 
 // Attach orders every bucket the way the screen does and records on each row
-// what this laptop already knows about it. A piped queue is read by whatever
-// reviews the rows in turn, so it has to arrive in the order they are worth
-// doing and carry the rating rather than leaving it to be worked out again.
+// what this laptop already knows about it, so a queue read through a pipe
+// arrives in the order the rows are worth doing.
 func Attach(buckets []Bucket, ratings artifact.Ratings, known map[string]Known) {
 	at := func(p *PullRequest) Known {
 		return known[artifact.RatingKey(p.Repository, p.Number)]

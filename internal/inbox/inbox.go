@@ -55,9 +55,9 @@ type PullRequest struct {
 	Labels     []string  `json:"labels"`
 	Updated    time.Time `json:"updated"`
 	URL        string    `json:"url"`
-	// Known is what this laptop already holds for the row, filled by Attach for
-	// the piped queue. The screen keeps its own copy in a map instead, because
-	// a rating lands after the row it belongs to has been drawn.
+	// Known is what this laptop already holds for the row, filled by Attach.
+	// The screen keeps its own copy in a map, because a rating lands after the
+	// row it belongs to has been drawn.
 	Known
 }
 

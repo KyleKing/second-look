@@ -139,8 +139,7 @@ func key(r *Review, ref string) string {
 
 // Order is the staged reviews in the order they are read: each stack's chain
 // contiguous and bottom first, standing where its earliest row already stood,
-// and everything else left where it was. The screen draws the chain itself, so
-// this is for the piped list, which is read by whatever reviews them in turn.
+// and everything else left where it was.
 func Order(rows []Review) []Review {
 	stacks, _ := Split(rows)
 	if len(stacks) == 0 {
