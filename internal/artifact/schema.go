@@ -55,6 +55,23 @@ type Review struct {
 	Rounds []Round `json:"rounds,omitempty" toml:"round,omitempty"`
 
 	Comments []Comment `json:"comments" toml:"comment"`
+
+	// Agent is the session an agent is working this review in, recorded by the
+	// agent itself through `second-look session`. It dies with the review: the
+	// artifact is deleted when the review posts, so a second round starts a
+	// session of its own rather than resuming one whose context is a diff that
+	// no longer exists.
+	Agent Agent `json:"agent,omitzero" toml:"agent,omitempty"`
+}
+
+// Agent is one agent's session on one review.
+type Agent struct {
+	// Session is whatever the tool calls its own resumable id: a Claude Code
+	// session id, a wavez thread id.
+	Session string `json:"session,omitempty" toml:"session,omitempty"`
+	// Tool is which one it is, so a resume command configured for another is
+	// not handed an id it cannot use.
+	Tool string `json:"tool,omitempty" toml:"tool,omitempty"`
 }
 
 // Round is one head a review was prepared against, and when.

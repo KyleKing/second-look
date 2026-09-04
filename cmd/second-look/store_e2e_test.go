@@ -229,3 +229,37 @@ func TestPostRefusesWhileWorkIsOutstanding(t *testing.T) {
 		t.Errorf("the refusal did not name the reason: %s", res.stderr)
 	}
 }
+
+// The agent records its own session, because every tool says its id
+// differently and the process holding one is what knows it for certain. It is
+// recorded on the review, so it goes when the review does.
+func TestTheAgentRecordsItsOwnSession(t *testing.T) {
+	t.Parallel()
+
+	dir := workspace(t, "staged.toml")
+
+	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "session", func(c *ghcassette.Cassette) {
+		inCheckout(c)
+		c.Interactions = nil
+	}))
+
+	if res := runCLI(t, s, dir, "session", "2"); !strings.Contains(res.stdout, "no session") {
+		t.Fatalf("a review nobody dispatched claims a session: %s%s", res.stdout, res.stderr)
+	}
+
+	res := runCLI(t, s, dir, "session", "2", "abc-123", "claude-code")
+	if res.code != 0 {
+		t.Fatalf("recording the session failed: %s%s", res.stdout, res.stderr)
+	}
+
+	res = runCLI(t, s, dir, "session", "2")
+	if !strings.Contains(res.stdout, "abc-123 claude-code") {
+		t.Errorf("the session did not survive: %s%s", res.stdout, res.stderr)
+	}
+
+	// It is a local field, so it reaches the review and not the payload.
+	res = runCLI(t, s, dir, "show", "2", "--payload")
+	if strings.Contains(res.stdout, "abc-123") {
+		t.Errorf("the session id is in what would be posted:\n%s", res.stdout)
+	}
+}

@@ -121,10 +121,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	}
 
 	switch args[0] {
-	case "-h":
-		return write(stdout, shortHelp)
-	case "--help", helpArg:
-		return write(stdout, longHelp)
+	case "-h", "--help", helpArg:
+		return write(stdout, helpText(args[0]))
 	case "get":
 		return getCmd(ctx, args[1:], stdin, stdout)
 	case "comment":
@@ -143,6 +141,8 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return threadsCmd(ctx, args[1:], stdin, stdout)
 	case "reviews":
 		return reviewsCmd(ctx, args[1:], stdin, stdout)
+	case "session":
+		return sessionCmd(ctx, args[1:], stdout)
 	case "skill":
 		return skillCmd(args[1:], stdout)
 	default:
@@ -787,6 +787,10 @@ func configSections(cfg *config.Config) []inbox.Section {
 // nil where the config names none, and T then writes the file and says where it
 // is rather than starting anything.
 //
+// A review carrying an agent session runs the resume command instead, with
+// {session} replaced by it, so the second hand-over reaches the agent that
+// already read the diff.
+//
 // The command's own output goes to a log beside the set, since the screen owns
 // the terminal while it runs and a line of an agent's reasoning drawn over the
 // frame is worse than none.
@@ -798,9 +802,14 @@ func dispatcher() tui.Dispatcher {
 		return nil
 	}
 
-	argv := slices.Clone(cfg.Dispatch)
+	start, resume := slices.Clone(cfg.Dispatch), slices.Clone(cfg.Resume)
 
-	return func(ctx context.Context, path string) (string, error) {
+	return func(ctx context.Context, path, session string) (string, error) {
+		argv := start
+		if session != "" && len(resume) > 0 {
+			argv = withSession(resume, session)
+		}
+
 		log := strings.TrimSuffix(path, ".md") + ".log"
 
 		//nolint:gosec // the log sits beside the set this same run wrote
@@ -1118,4 +1127,26 @@ func reactor(t get.Target) tui.Reactor {
 
 		return react.Set(ctx, ghrun.GH(), t.Dir(), nodeID, e, mine)
 	}
+}
+
+// withSession fills the session placeholder in a resume command. It is a
+// placeholder rather than a flag second-look knows, because the flag is the
+// agent tool's and this repository should not carry its CLI.
+func withSession(argv []string, session string) []string {
+	out := make([]string, 0, len(argv))
+	for _, arg := range argv {
+		out = append(out, strings.ReplaceAll(arg, "{session}", session))
+	}
+
+	return out
+}
+
+// helpText is the short usage for -h and the whole contract for --help, which
+// is long enough that a reader who asked for the short one does not want it.
+func helpText(arg string) string {
+	if arg == "-h" {
+		return shortHelp
+	}
+
+	return longHelp
 }

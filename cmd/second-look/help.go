@@ -18,6 +18,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look inbox                the review queue, in your own sections
   second-look threads              conversations that moved since you looked
   second-look reviews              what is staged locally, in the store
+  second-look session <pr> <id>    record the agent session working this review
   second-look skill                print the agent instructions this binary carries
 
   --help  the full contract, including every JSON field
@@ -337,6 +338,17 @@ NAMING A PULL REQUEST
       The pipe and --json carry that order too, so whatever reviews them in turn
       reads the bottom of a stack before what sits on it.
 
+  second-look session <pr> [<session-id> [tool]]
+      Record the agent session this review is being worked in, or print the one
+      already recorded. The agent writes its own id here: every tool says it
+      differently and the process holding the id is the one that knows it for
+      certain. Claude Code has it in CLAUDE_CODE_SESSION_ID.
+
+      It is recorded on the review, so it goes when the review posts: a second
+      round starts a session of its own rather than resuming one whose context
+      is a diff that no longer exists. While it is there, T runs the resume
+      command from the config instead of the dispatch one.
+
   second-look skill
       Print the instructions for an agent driving this binary, as a skill file
       ready to write to a skills directory. It says what this help does not:
@@ -378,6 +390,12 @@ CONFIG
   dispatch = ["claude", "-p"]
       What T runs over the written-out todo set, with the file as its last
       argument. Unset, T writes the file and names it.
+
+  resume = ["claude", "-p", "--resume", "{session}"]
+      What T runs instead once the review carries an agent session, with
+      {session} replaced by it. The agent records that id itself with
+      second-look session, so nothing here has to know how a tool prints one.
+      Unset, every T starts a fresh session.
 
   A file that exists and says something wrong is reported and the built-in
   buckets are used, so a typo leaves a working queue. An unknown key is refused

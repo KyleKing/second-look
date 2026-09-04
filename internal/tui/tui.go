@@ -124,8 +124,13 @@ func WithRestage(r Restager) Option {
 type Opener func(ctx context.Context, r *artifact.Review) error
 
 // Dispatcher hands the written-out todo set to an agent. It is given the file
-// holding the set and answers with the one line the footer shows.
-type Dispatcher func(ctx context.Context, path string) (string, error)
+// holding the set and the agent session the review already carries, and answers
+// with the one line the footer shows.
+//
+// The session is empty on the first hand-over. What a second one does with it
+// is the caller's: a tool that can resume gets the id, and one that cannot
+// starts again.
+type Dispatcher func(ctx context.Context, path, session string) (string, error)
 
 // WithDispatcher lets T run an agent over the todo set. Without one, T still
 // writes the set out and names the file, because starting an agent is not

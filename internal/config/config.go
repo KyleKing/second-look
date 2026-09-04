@@ -54,6 +54,13 @@ type Config struct {
 	// names it, which is the safe default: running an agent is not something to
 	// start on a keystroke nobody configured.
 	Dispatch []string `toml:"dispatch,omitempty"`
+	// Resume is the command T runs instead once the review carries an agent
+	// session, with {session} replaced by it. Unset, every T starts a fresh
+	// one, which is what a tool with no resumable session gets.
+	//
+	// The id is recorded by the agent itself through `second-look session`, so
+	// nothing here has to know how a tool prints one.
+	Resume []string `toml:"resume,omitempty"`
 }
 
 // Path is where the config lives.

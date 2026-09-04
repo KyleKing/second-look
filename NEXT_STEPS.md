@@ -75,10 +75,11 @@ to go.
 
 [FLOW.md](FLOW.md) is what the shell is for: the whole motion from opening the queue to
 posting the last review, one repository at a time. `f` focuses a repository across all
-three tabs, which is what makes the two steps after it single-valued. Those two are
-unbuilt: leasing a checkout for the focused repository, and holding one resumable Claude
-Code session per pull request. The second is where the notification boundary finally has
-a source, since `claude agents --json` says which session is blocked on a prompt.
+three tabs, which is what makes the two steps after it single-valued. One of those is
+built: an agent records its own session with `second-look session` and `T` resumes it, so
+a second hand-over reaches the agent that already read the diff. Leasing a checkout for
+the focused repository is what is left, and the notification boundary still wants a
+source, which `claude agents --json` has: it says which session is blocked on a prompt.
 
 ### 4. A lockfile is not a diff worth reading
 

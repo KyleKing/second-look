@@ -1,12 +1,15 @@
 package tui_test
 
 import (
+	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -130,5 +133,66 @@ func TestDispatchWithNothingOwedSaysSo(t *testing.T) {
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "nothing is marked todo") {
 		t.Errorf("T with nothing owed said:\n%s", frame)
+	}
+}
+
+// The second hand-over on one pull request has to reach the agent that already
+// read the diff, so T carries the session the agent recorded on the review. The
+// first one carries none, because there is nothing to resume yet.
+func TestDispatchCarriesTheSessionTheAgentRecorded(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		name    string
+		session string
+	}{
+		{"a first hand-over", ""},
+		{"a follow-up", "abc-123"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				handed  string
+				written string
+			)
+
+			store := t.TempDir()
+			owed := comment("c1", parsed, artifact.SideRight, 15, "the finding")
+			owed.Status = artifact.StatusTodo
+
+			review := &artifact.Review{
+				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+				HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+				Agent:    artifact.Agent{Session: c.session},
+				Comments: []artifact.Comment{owed},
+			}
+
+			path := filepath.Join(t.TempDir(), "pr-42.toml")
+			if err := artifact.Save(path, review); err != nil {
+				t.Fatal(err)
+			}
+
+			m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path,
+				func(context.Context, *artifact.Review) (string, error) { return "", nil },
+				tui.WithStore(store),
+				tui.WithDispatcher(func(_ context.Context, set, session string) (string, error) {
+					handed, written = session, set
+
+					return "handed over", nil
+				}))
+			m.Init()
+			m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+			press(m, tea.KeyPressMsg{Code: 'T', Text: "T"})
+
+			if handed != c.session {
+				t.Errorf("T handed over the session %q, want %q", handed, c.session)
+			}
+
+			if written == "" {
+				t.Error("T ran the agent without writing the set out")
+			}
+		})
 	}
 }

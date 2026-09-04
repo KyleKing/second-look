@@ -23,12 +23,12 @@ request inside it.
 | Take the ordering advice | `inbox.Rank`, `inbox --json` carries it, and a started row says what it holds | why a row sits where it does, `s` to sort another way, and the stack drawn as a stack |
 | Get a checkout | `C` where the cwd is a clone of that repository, and the header says which clone is free | the `internal/checkouts` ranking behind `C` itself, and a lease |
 | Stage the batch | `get` with no clone, prefetch ahead of the cursor, `reviews --json` | nothing |
-| Ask Claude Code | `T` writes the todo set and runs `dispatch` one-shot | a conversation that outlives one question, and a key that asks one |
+| Ask an agent | `T` hands the set over, and resumes the session the agent recorded on the review | a key that asks a question rather than handing work back |
 | Read and answer | the review screen, the conversation queue, notes, threads | the narrative pass, which is its own problem |
 | Post and move on | `S`, and leaving a review returns to the queue | nothing |
 
-Five of eight steps are done. The two left in the middle, the lease and the agent, are
-what a sitting actually spends its time on.
+Six of eight steps are done. The lease is the one left in the middle, and it is what
+decides where the agent runs.
 
 ## 1. Open on what is owed
 
@@ -112,6 +112,9 @@ One-shot, no memory, one direction. Every question pays for the repository's con
 again, an answer cannot be followed up, and there is nowhere for "you already read this
 diff, now check the other call site" to go.
 
+This is settled now, and not the way the options below read: the agent records its own
+session and second-look resumes it. What follows is why, and the mechanics are at the end.
+
 Four session models:
 
 - **One-shot per question.** What exists. Cheapest to build and it cannot hold a
@@ -131,23 +134,24 @@ Four session models:
 
 So: the pull request is the session, it is resumed, and it runs in the background.
 
-How it goes:
+How it goes, as built:
 
-- first dispatch or first question on a row starts `claude --bg --name "review
-  kyleking/tlr#118"` in the leased clone, and second-look records the session id in the
-  prepared review, beside the note. The review artifact is already the per-pull-request
+- the agent records its own session, first thing in a dispatched run:
+  `second-look session <pr> "$CLAUDE_CODE_SESSION_ID" claude-code`. Reading an id out of
+  what a tool printed was the alternative, and it needs a parser per tool and a config
+  key naming which one; the process holding the id is the one that knows it
+- it lands in the prepared review beside the note, which is already the per-pull-request
   file that outlives the screen
-- every later `T` or question on that row resumes that id, so the agent knows what it
-  already read and a second question is a follow-up rather than a restart
-- `claude agents --json` is 0.65s and carries `state`, so the inbox draws an agent column
-  from it: running, blocked, or done. A blocked agent is waiting on a permission prompt,
-  which is the notification boundary [NEXT_STEPS.md](NEXT_STEPS.md) wants and never had a
-  source for
-- `a` attaches: the screen closes, `claude attach <id>` takes the terminal, and the queue
-  comes back when it exits. This is the same handoff `C` and `m` already use, so it costs
-  no new machinery
-- posting or discarding a review takes the session with it, the way it already takes the
-  diff, the threads, and the read marks
+- every later `T` runs `resume` from the config with `{session}` filled in, so the second
+  hand-over reaches the agent that already read the diff. Unset, every `T` starts fresh,
+  which is what a tool with no resumable session gets
+- posting or discarding takes the session with it, the way it already takes the diff, the
+  threads, and the read marks. A second round is a session of its own rather than one
+  resumed against a diff that no longer exists
+
+Still to build: a key that asks a question rather than handing work back, and the agent
+column. `claude agents --json` is 0.65s and carries `state`, so a blocked agent is the
+notification boundary [NEXT_STEPS.md](NEXT_STEPS.md) wants and never had a source for.
 
 A question is a second key rather than a mode of `T`, for the same reason `T` is not a
 mode of `S`. `T` hands work back and expects a change. A question expects prose and
@@ -156,25 +160,19 @@ changes nothing, so it runs the session with the tools that cannot write:
 does not. Asking about a row with no review staged stages one first, because the answer
 has to land somewhere and the review's note is where evidence already lives.
 
-Where the config goes. `dispatch` is opaque today, a command with the file appended, and
-that is the right instinct: second-look should not carry Claude Code's flag list. So the
-session id becomes a placeholder rather than a hardcoded flag:
+The config is two keys, and second-look carries no tool's flag list:
 
 ```toml
-[agent]
-start  = ["claude", "--bg", "--name", "{title}"]   # prints the id
-resume = ["claude", "-p", "--resume", "{session}"]
-ask    = ["claude", "-p", "--resume", "{session}", "--restricted"]
-attach = ["claude", "attach", "{session}"]
-list   = ["claude", "agents", "--json"]
+dispatch = ["claude", "-p"]
+resume   = ["claude", "-p", "--resume", "{session}"]
 ```
 
-Unset, `T` writes the file and names it, which is what it does now. That keeps the
+Unset, `T` writes the file and names it, which is what it did before. That keeps the
 default honest: starting an agent is not something to do on a keystroke nobody asked for.
 
-The alternative is a `kind = "claude-code"` key with second-look owning every flag, which
-reads better in the file and pins this repository to another tool's CLI. Placeholders win
-because the only thing second-look actually needs back is one id.
+The alternative was a `kind = "claude-code"` key with second-look owning every flag, which
+reads better in the file and pins this repository to another tool's CLI. A placeholder wins
+because the only thing second-look needs is one id, and it is handed one.
 
 ## 7. Read the notes and answer the threads
 
@@ -197,5 +195,8 @@ next repository's rows are already staged if prefetch reached them.
   drafts were written against, and holding blocks the next repository
 - Whether the agent column costs a `claude agents --json` per refresh or a poll. It is
   local and it is 0.65s, so per refresh until that hurts
+- What a tool with no resumable session does. wavez resumes a thread with `-resume <id>`
+  and Claude Code a session with `--resume`, so both fit; a tool with neither gets a fresh
+  run every time and nothing here has to know which is which
 - Whether a question with no clone is worth asking at all. An agent with no working tree
   can read the diff and nothing else, which is a weaker answer that still beats none

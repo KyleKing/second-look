@@ -136,6 +136,23 @@ carrying `"turn": [{"author": "<you>", "body": "<what you did and what changed>"
 append to what is already on disk, so send only what is new. The comment is held as a
 draft, which puts it back in front of the author.
 
+## Say which session you are, once
+
+The first thing to do in a run started from the review screen is record your own session,
+so the next hand-over on the same pull request reaches you rather than starting a stranger
+who has to read the diff again:
+
+```sh
+second-look session <pr> "$CLAUDE_CODE_SESSION_ID" claude-code
+```
+
+Whatever your tool calls its resumable id goes there, with the tool's name after it: a
+Claude Code session id, a wavez thread id. It is recorded on the review, so it goes when
+the review posts, and a second round is a session of its own against a diff that exists.
+
+`second-look session <pr>` with no id prints what is recorded, which is how to tell a
+follow-up from a first pass.
+
 ## Suggestions
 
 A body whose text is fenced with ```suggestion posts as a GitHub suggestion the author can

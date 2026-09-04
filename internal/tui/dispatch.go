@@ -18,7 +18,9 @@ const (
 )
 
 // dispatch answers T: every comment handed back to an agent is written out as
-// one set, and the agent is started on it where one is configured.
+// one set, and the agent is started on it where one is configured. A review
+// already carrying a session hands that over too, so a second T is a follow-up
+// rather than a restart.
 //
 // It is a separate key from S rather than a mode of it because the two are
 // different acts. S blocks on a draft, because a draft is a comment nobody has
@@ -62,10 +64,10 @@ func (m *Model) dispatch() tea.Cmd {
 
 	m.say(fmt.Sprintf("handing %s over…", plural(len(owed), "todo")), false)
 
-	run := m.dispatcher
+	run, session := m.dispatcher, m.review.Agent.Session
 
 	return func() tea.Msg {
-		out, err := run(context.Background(), path)
+		out, err := run(context.Background(), path, session)
 
 		return dispatchedMsg{line: out, err: err}
 	}
