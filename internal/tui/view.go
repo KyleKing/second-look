@@ -10,6 +10,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/seen"
 )
 
@@ -396,16 +397,71 @@ func (m *Model) rowBody(r row, width int) string {
 		return m.ruledFile(text, width)
 	}
 
+	if r.lit != nil {
+		return cut(m.styles.note.Render(m.threadLead())+m.pastedCode(r), width)
+	}
+
 	return style.Render(cut(text, width))
 }
 
-// ruleFloor is the shortest run of rule worth drawing. A file heading that
-// nearly fills the frame ends at its name rather than at a dash or two.
+// threadLead is the rail a conversation hangs off, which every row of one
+// spends whether it is drawn as prose or as code.
+func (m *Model) threadLead() string {
+	return strings.Repeat(" ", m.screen.numWidth+indent) + "│ "
+}
+
+// pastedCode draws a line of a fenced block inside a comment under the grammar
+// the fence named. It takes the rich renderer's faces and none of its bands: a
+// fence is code somebody quoted rather than code that changed.
+//
+// The spans index the row rather than the line the fence held, having been
+// shifted onto it when it was built.
+func (m *Model) pastedCode(r row) string {
+	var b strings.Builder
+
+	for _, piece := range spanRuns(r.lit, len(r.text)) {
+		face, ok := m.rich.class[piece.class]
+		if !ok {
+			face = m.styles.note
+		}
+
+		b.WriteString(face.Render(r.text[piece.from:piece.to]))
+	}
+
+	return b.String()
+}
+
+// spanRuns cuts a line at every boundary the grammar drew, so a byte no span
+// covers is still written once and written plainly.
+func spanRuns(spans []highlight.Span, length int) []run {
+	out := make([]run, 0, len(spans)*2+1)
+	at := 0
+
+	for _, s := range spans {
+		from, to := min(s.From, length), min(s.To, length)
+		if from > at {
+			out = append(out, run{from: at, to: from, class: highlight.Plain})
+		}
+
+		if to > from {
+			out = append(out, run{from: from, to: to, class: s.Class})
+		}
+
+		at = max(at, to)
+	}
+
+	if at < length {
+		out = append(out, run{from: at, to: length, class: highlight.Plain})
+	}
+
+	return out
+}
+
+// ruleFloor is the shortest run of rule worth drawing, under which a heading
+// ends at its name.
 const ruleFloor = 4
 
-// ruledFile is a file heading with a rule out to the frame's edge. A file is
-// the largest boundary the screen draws and one that stops where its name stops
-// does not read as a boundary at all.
+// ruledFile is a file heading with a rule out to the frame's edge.
 func (m *Model) ruledFile(text string, width int) string {
 	head := m.styles.file.Render(cut(text, width))
 
@@ -482,7 +538,7 @@ func (m *Model) readGlyph(r row) string {
 // rail so it sits under its line the same way, and it is dimmer than a prepared
 // comment, because nothing about it will change when this review posts.
 func (m *Model) threadRow(r row) (string, lipgloss.Style) {
-	text := strings.Repeat(" ", m.screen.numWidth+indent) + "│ " + r.text
+	text := m.threadLead() + r.text
 	if r.head {
 		return text, m.styles.rail
 	}

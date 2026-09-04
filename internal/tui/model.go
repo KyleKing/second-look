@@ -15,6 +15,7 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
+	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/rate"
 	"github.com/kyleking/second-look/internal/seen"
@@ -52,9 +53,12 @@ type Model struct {
 	review  *artifact.Review
 	diff    *diff.Diff
 	threads []threads.Thread
-	read    *seen.Set
-	seenAt  string
-	path    string
+	// notes is those threads' comments segmented once. Their bodies never
+	// change, and a rebuild happens on every keystroke.
+	notes  map[noteAt][]ghmd.Block
+	read   *seen.Set
+	seenAt string
+	path   string
 	// store is the directory this review's caches live in, which is where the
 	// rating is left for the queue to read.
 	store string
@@ -704,6 +708,15 @@ func (m *Model) foldHere(open bool) {
 	switch {
 	case r.kind == rowTurn:
 		m.folded.turns[r.comment] = open
+	case r.kind == rowThread:
+		at, ok := foldKey(r)
+		if !ok {
+			m.say("nothing to fold here", false)
+
+			return
+		}
+
+		m.folded.blocks[at] = open
 	case r.kind == rowFile && r.path != "":
 		m.folded.files[r.path] = !open
 	case r.gone > 0:
@@ -728,6 +741,10 @@ func (m *Model) openHere() bool {
 	switch {
 	case r.kind == rowTurn:
 		return m.folded.turns[r.comment]
+	case r.kind == rowThread:
+		at, ok := foldKey(r)
+
+		return !ok || m.folded.blocks[at]
 	case r.kind == rowFile:
 		return !m.folded.files[r.path]
 	case r.gone > 0:
@@ -779,6 +796,12 @@ func (m *Model) foldAll(open bool) {
 	if open {
 		for _, at := range goneRuns(m.diff) {
 			m.folded.gone[at] = true
+		}
+
+		for at, blocks := range m.notes {
+			for i := tailBlock; i < foldables(blocks); i++ {
+				m.folded.blocks[blockAt{at, i}] = true
+			}
 		}
 	}
 
@@ -1899,8 +1922,12 @@ func (m *Model) applyMerge(msg mergedMsg) {
 }
 
 func (m *Model) rebuild() {
+	if m.notes == nil {
+		m.notes = noted(m.threads)
+	}
+
 	lay := layout{
-		width: m.width, hide: m.skipper(), fold: m.folded,
+		width: m.width, hide: m.skipper(), fold: m.folded, notes: m.notes,
 		split: m.sideBySide(), made: m.made,
 		drifted: artifact.Drifted(m.review.Comments, m.diff),
 		grown: func(path string, hunk int, span [2]int) ([]row, []row) {

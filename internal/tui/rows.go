@@ -7,6 +7,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -53,6 +54,13 @@ type row struct {
 	// thread indexes the open threads for every row of a thread block. It is
 	// only read where kind is rowThread, so its zero elsewhere means nothing.
 	thread int
+	// note indexes the comment inside that thread, and block names what the row
+	// folds inside that comment, offset so zero means it folds nothing.
+	note  int
+	block int
+	// lit is the grammar's reading of a line of fenced code inside a comment,
+	// and nil on every row that is not one.
+	lit []highlight.Span
 	// around marks a line read out of the file rather than out of the diff,
 	// which is context somebody asked for rather than context the patch
 	// carried.
@@ -241,7 +249,7 @@ func (s screen) hanger(
 		// What is already on GitHub comes before what this pass is adding, so a
 		// comment reads as an answer to the conversation above it.
 		for _, t := range byThread[a] {
-			out = append(out, threadRows(&ts[t], t, p, lay.width, s.numWidth)...)
+			out = append(out, threadRows(&ts[t], t, p, s.numWidth, lay)...)
 		}
 
 		for _, c := range byLine[a] {
@@ -442,33 +450,6 @@ func indexThreads(ts []threads.Thread) map[anchor][]int {
 	}
 
 	return out
-}
-
-// threadRows renders one conversation already on GitHub: who said what, in
-// order, under the line it hangs from. It is read-only, and answering it stages
-// a comment in the prepared review like any other.
-func threadRows(t *threads.Thread, index int, path string, width, numWidth int) []row {
-	// bodyIndent is applied after wrapping, so it comes off the width first.
-	avail := proseCols(width, numWidth) - bodyIndent
-	rows := []row{{
-		kind: rowThread, text: "⤷ open thread · " + plural(len(t.Notes), "comment"),
-		path: path, comment: -1, thread: index, head: true,
-	}}
-
-	for i := range t.Notes {
-		n := &t.Notes[i]
-		rows = append(rows, row{
-			kind: rowThread, text: "@" + n.Author, path: path, comment: -1, thread: index,
-		})
-
-		for _, l := range wrap(n.Body, avail) {
-			rows = append(rows, row{
-				kind: rowThread, text: "  " + l, path: path, comment: -1, thread: index,
-			})
-		}
-	}
-
-	return rows
 }
 
 // dirOf is the directory part of a diff path. A diff always spells paths with

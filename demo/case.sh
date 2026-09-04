@@ -25,6 +25,14 @@ mkdir -p "$work"
 cp -R "$here/fixture/.second-look" "$work/"
 cp "$here/cases/$name.toml" "$work/.second-look/pr-2.toml"
 
+# A case may bring its own conversations, which is how a thread's shape is tried
+# on without editing the fixture every case shares.
+if [ -f "$here/cases/$name.threads.json" ]; then
+  for recorded in "$work"/.second-look/threads/*.json; do
+    cp "$here/cases/$name.threads.json" "$recorded"
+  done
+fi
+
 cd "$work"
 git init -q .
 git -c user.name=demo -c user.email=demo@example.invalid commit -q --allow-empty -m "the demo's own history"

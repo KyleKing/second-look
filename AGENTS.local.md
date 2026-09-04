@@ -124,6 +124,20 @@ fixture's head moved would be a fixture problem, not a network one.
 The gif is committed, so regenerate it whenever the screen changes shape. Keep the tape's
 sleeps: a frame nobody can read is not a demo.
 
+## `internal/ghmd`
+
+Segmenting a GitHub comment body is not second-look's problem alone: gh-repo-dashboard and
+gh-sweep both render bodies somebody wrote for a browser. So `ghmd` imports nothing from
+this repository and answers in blocks rather than in rows or escapes, which is what makes
+it liftable into aragonite the moment a second tool wants it. Keep it that way: the
+decisions about width, folding, and color belong to `internal/tui/notes.go`, which is the
+half that is second-look's.
+
+It is deliberately not a markdown implementation. It answers the four questions a screen
+cannot draw without: where a fence starts and ends, which lines are a table, what a
+`<details>` holds, and what is an HTML comment. Everything else is prose. A rule that
+would need a real parser is a rule not worth having here.
+
 ## Layout cases
 
 `demo/case.sh <name>` opens `demo/cases/<name>.toml` as a live review on the same fixture
@@ -135,6 +149,11 @@ what is already decided.
 The checkout is rebuilt from the case file on every run and kept afterwards, so what the
 screen wrote back is readable at `demo/.work/<name>/.second-look/`. Edits belong in
 `demo/cases/`, since the work directory is thrown away on the next run.
+
+A case may bring its own conversations as `demo/cases/<name>.threads.json`, which replaces
+the fixture's threads for that run. `bot-comment` is the one that does, because what a
+review bot posts is the case the comment renderer exists for and no real thread on the
+fixture has that shape.
 
 ## Driving the review screen
 

@@ -55,7 +55,21 @@ func Lines(name string, src []string) [][]Span {
 	// The grammar is picked by file name alone. Chroma also guesses from
 	// content, which on a hunk guesses from a fragment, and a wrong grammar
 	// colors a diff confidently and incorrectly.
-	matched := lexers.Match(path.Base(name))
+	return lex(lexers.Match(path.Base(name)), src)
+}
+
+// Tagged lexes src under the grammar a fenced block names, and yields nil where
+// the tag names none. A fence in a comment says its own language, which is a
+// better answer than guessing from a few lines of it.
+func Tagged(lang string, src []string) [][]Span {
+	if lang == "" {
+		return nil
+	}
+
+	return lex(lexers.Get(lang), src)
+}
+
+func lex(matched chroma.Lexer, src []string) [][]Span {
 	if matched == nil {
 		return nil
 	}

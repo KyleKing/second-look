@@ -1,0 +1,22 @@
+# One prepared comment beside a bot's, so what a thread from GitHub actually
+# looks like can be read on screen. The bot's body lives in the sibling
+# bot-comment.threads.json, which case.sh copies over the fixture's threads.
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 2
+head_sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
+event = "COMMENT"
+body = ""
+note = "A layout case for a bot comment, not a real review."
+
+[[comment]]
+id = "wrap"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+anchor = "\t\treturn 0, err"
+body = "Agreed with the bot on this one. Wrapping with the path."
+severity = "major"
+status = "ready"

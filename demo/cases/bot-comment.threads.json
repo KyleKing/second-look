@@ -1,0 +1,19 @@
+[
+  {
+    "path": "testdata/fixture/sample.go",
+    "side": "RIGHT",
+    "line": 19,
+    "notes": [
+      {
+        "id": 3900038873,
+        "author": "coderabbitai",
+        "body": "<!-- coderabbit:state {\"thread\":\"41f0c2\",\"round\":2} -->\n_🩺 Stability & Availability_ | _🟠 Major_ | _🏗️ Heavy lift_\n\n`ReadBudget` returns `os.ReadFile`'s error untouched, so a caller that reads\nthree budgets cannot tell which one is missing. Wrap it with the path.\n\n| Newer run | Older run | Outcome |\n|-----------|-----------|---------|\n| prod | prod | The workflow group cancels the older run |\n| prod | stage | Prod cancels the running job, the loser posts CANCELLED |\n\n<details>\n<summary>🔎 Supported by static analysis</summary>\n\n🏁 Script executed:\n\n```shell\n#!/bin/bash\nset -eu\nprintf '%s\\n' '--- callers of ReadBudget ---'\nrg -n --no-heading 'ReadBudget\\(' -g '!*_test.go' .\nprintf '%s\\n' '--- the function itself ---'\nsed -n '15,32p' testdata/fixture/sample.go\nprintf '%s\\n' '--- every bare return of an os error ---'\nrg -n 'return 0, err$' testdata\nprintf '%s\\n' '--- done ---'\n```\n\nRepository: KyleKing/second-look\n\nLength of output: 47492\n\n---\n\n🌐 Web query:\n\n`go wrap os.ReadFile error with path fmt.Errorf %w convention`\n\n💡 Result:\n\nThe convention is to wrap with the operation and the operand, so the message\nreads as a sentence when the caller adds its own. See the errors package\ndocumentation for what `%w` promises about `errors.Is`.\n</details>\n\n<!-- end of coderabbit comment -->"
+      },
+      {
+        "id": 3900052046,
+        "author": "KyleKing",
+        "body": "Agreed. Wrapping with the path, not the call."
+      }
+    ]
+  }
+]

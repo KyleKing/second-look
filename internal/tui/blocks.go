@@ -6,6 +6,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/generated"
+	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/order"
 )
 
@@ -59,12 +60,16 @@ type folded struct {
 	hunks map[hunkAt]bool
 	files map[string]bool
 	gone  map[goneAt]bool
+	// blocks default the same way turns do. A <details> is collapsed on the web
+	// and a screenful of tool output between two sentences is worse in a
+	// terminal than it is there, so both stay shut until somebody asks.
+	blocks map[blockAt]bool
 }
 
 func newFolded() folded {
 	return folded{
 		notes: folds{}, turns: map[int]bool{}, hunks: map[hunkAt]bool{},
-		files: map[string]bool{}, gone: map[goneAt]bool{},
+		files: map[string]bool{}, gone: map[goneAt]bool{}, blocks: map[blockAt]bool{},
 	}
 }
 
@@ -74,6 +79,9 @@ func newFolded() folded {
 type layout struct {
 	// drifted is every comment whose anchor no longer matches the diff, by id.
 	drifted map[string]bool
+	// notes is every open thread's comments, already segmented into the blocks
+	// a terminal draws differently.
+	notes map[noteAt][]ghmd.Block
 	// grown is the file's own lines either side of a hunk, where a reader asked
 	// for more than the patch carried. It is nil for every view but the diff.
 	grown func(path string, hunk int, span [2]int) ([]row, []row)

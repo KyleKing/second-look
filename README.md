@@ -270,6 +270,20 @@ one is that it moved and by how much, so the group says how many files and hunks
 and `za` opens any of them. It is the one thing on the screen that starts folded, because
 everything else is worth reading until you decide otherwise.
 
+A comment from GitHub is markdown somebody wrote for a browser, and a bot's is mostly
+machinery: routing state in an HTML comment, the scripts it ran, and the output of each,
+inside collapsed sections that a terminal has no way to collapse. So a comment is
+segmented before it is drawn. The HTML comments are dropped, since they are addressed to
+the bot and not to you. A `<details>` section is one row you open with `za`, the way GitHub
+draws it. A fenced block longer than ten lines is drawn to its first six with the rest a
+keystroke away, and is never wrapped, because reflowing code says something the code does
+not; where the fence names a language, it is colored by that grammar. Tables and quoted
+lines are cut at the frame rather than reflowed for the same reason. Inline emphasis
+markers are taken out, since a terminal row has one face and `_🩺 Stability_` spelled out
+is worse than the words alone; backticks stay, because they mark code and nothing else in
+a terminal does. Any comment still over twenty rows after all that ends in a count of what
+is left, which `za` opens.
+
 `v` walks the renderers, which change how a line of the diff is drawn rather than which
 lines are drawn. `plain` is a whole-line color per side and one number per line, which is
 what a terminal diff has always looked like. `rich` colors the code by its grammar and
