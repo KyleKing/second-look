@@ -22,9 +22,14 @@ type Row struct {
 	Age  string
 	// Cost is what reading the row is rated, right-aligned in a column of its
 	// own. A list where no row carries one spends no width on it.
-	Cost  string
-	Tail  string
-	Under string
+	Cost string
+	// Added and Removed are how many lines the row changed, bare of any sign.
+	// The screen draws the sign in a fixed column and the count right-aligned
+	// after it, so the signs line up down the list and the digits do too.
+	Added   string
+	Removed string
+	Tail    string
+	Under   string
 
 	// Unread marks a row that has moved since it was last read, which is the
 	// one distinction a queue exists to draw.
@@ -652,9 +657,11 @@ func abs(n int) int {
 // columns is how wide each measured column is drawn. A zero means the column is
 // not drawn at all, which is what a list nothing rates does with the rating.
 type columns struct {
-	left int
-	mid  int
-	cost int
+	left    int
+	mid     int
+	cost    int
+	added   int
+	removed int
 }
 
 // widest measures the columns that vary, so rows line up with each other.
@@ -672,6 +679,8 @@ func (l *List) widest() columns {
 			out.left = max(out.left, min(leftCap, textWidth(r.Left)))
 			out.mid = max(out.mid, min(midCap, textWidth(r.Mid)))
 			out.cost = max(out.cost, textWidth(r.Cost))
+			out.added = max(out.added, textWidth(r.Added))
+			out.removed = max(out.removed, textWidth(r.Removed))
 		}
 	}
 

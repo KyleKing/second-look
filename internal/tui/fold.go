@@ -122,6 +122,7 @@ type structureMsg struct {
 	cosmetic map[hunkAt]bool
 	shape    shape
 	score    rate.Score
+	size     rate.Size
 	err      error
 }
 
@@ -144,7 +145,8 @@ func readStructure(d *diff.Diff, made generated.Set) tea.Cmd {
 		}
 
 		return structureMsg{
-			cosmetic: out, shape: readShape(readings, at, made), score: rate.Of(readings),
+			cosmetic: out, shape: readShape(readings, at, made),
+			score: rate.Of(readings), size: rate.Measure(d, readings, refs),
 		}
 	}
 }

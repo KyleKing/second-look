@@ -141,6 +141,7 @@ type Model struct {
 	// cost is what the same pass rates the change, shown in the title once it
 	// has an answer to show.
 	cost    rate.Score
+	size    rate.Size
 	reading bool
 	// made is what counts as written by a machine, which the review groups last
 	// and folds.
@@ -278,7 +279,7 @@ func (m *Model) applyStructure(msg structureMsg) {
 		return
 	}
 
-	m.cosmetic, m.shape, m.cost = msg.cosmetic, msg.shape, msg.score
+	m.cosmetic, m.shape, m.cost, m.size = msg.cosmetic, msg.shape, msg.score, msg.size
 	m.keepScore()
 
 	if asked {
@@ -1134,7 +1135,8 @@ func (m *Model) keepScore() {
 	}
 
 	//nolint:errcheck // the rating is a convenience; nothing depends on it landing
-	_ = artifact.SaveScore(m.store, m.review.HeadSHA, m.cost.Total)
+	_ = artifact.SaveScore(m.store, m.review.HeadSHA,
+		artifact.Cost{Total: m.cost.Total, Added: m.size.Added, Removed: m.size.Removed})
 }
 
 // askStructure answers t: it reads the diff once, keeps the answer, and says so

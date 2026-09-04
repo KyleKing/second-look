@@ -20,6 +20,11 @@ type Known struct {
 	// one to read. A pull request nobody has opened has neither.
 	Cost  int
 	Rated bool
+	// Added and Removed are how many lines the same read counted. They are
+	// shown and never sorted on: a row no grammar answered for is one nobody
+	// can rank, and ordering it by line count is the signal the rating exists
+	// to reject.
+	Added, Removed int
 }
 
 // WorthRating is how many rows a bucket needs before its order is worth an API
@@ -50,12 +55,16 @@ func Recall(items []PullRequest, ratings artifact.Ratings, known map[string]Know
 
 		asked[key] = true
 
-		if known[key].Rated || !was.Rated {
-			continue
+		k := known[key]
+
+		if k.Added == 0 && k.Removed == 0 {
+			k.Added, k.Removed = was.Added, was.Removed
 		}
 
-		k := known[key]
-		k.Cost, k.Rated = was.Cost, true
+		if !k.Rated && was.Rated {
+			k.Cost, k.Rated = was.Cost, true
+		}
+
 		known[key] = k
 	}
 
@@ -71,9 +80,10 @@ func Recall(items []PullRequest, ratings artifact.Ratings, known map[string]Know
 // pull request that has waited a week has waited longer than one from this
 // morning. A draft sinks whatever else it is: nobody is waiting on it.
 //
-// Two things a reviewer would want are missing, and both would cost an API call
-// per row: how large the diff is where nothing has rated it, and whether you
-// are the only human asked. `gh search prs` returns neither.
+// Size is deliberately not in the order. It is drawn beside the rating so a
+// reader can check one against the other, and sorting on it would be the line
+// count the rating exists to replace. Whether you are the only human asked is
+// the signal still missing, and it costs an API call per row.
 func Rank(items []PullRequest, known func(*PullRequest) Known) {
 	slices.SortStableFunc(items, func(a, b PullRequest) int {
 		ka, kb := known(&a), known(&b)
@@ -81,7 +91,7 @@ func Rank(items []PullRequest, known func(*PullRequest) Known) {
 		return cmp.Or(
 			cmp.Compare(sinks(&a), sinks(&b)),
 			cmp.Compare(started(ka), started(kb)),
-			cmp.Compare(size(ka), size(kb)),
+			cmp.Compare(dearness(ka), dearness(kb)),
 			a.Updated.Compare(b.Updated),
 		)
 	})
@@ -104,10 +114,10 @@ func started(k Known) int {
 	return 1
 }
 
-// size sorts a small rated change ahead of a large one, and everything unrated
-// behind both, tying with each other so those rows fall through to age rather
-// than being ordered by a number nobody has.
-func size(k Known) int {
+// dearness sorts a cheap rated change ahead of a dear one, and everything
+// unrated behind both, tying with each other so those rows fall through to age
+// rather than being ordered by a number nobody has.
+func dearness(k Known) int {
 	if !k.Rated {
 		return math.MaxInt
 	}

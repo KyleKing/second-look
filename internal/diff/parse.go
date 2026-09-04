@@ -121,6 +121,33 @@ func (d *Diff) Sides(path string, hunk int) ([]string, []string) {
 	return before, after
 }
 
+// Changed is how many lines a hunk adds and removes, which is what a queue
+// showing the size of a change is asking for.
+func (d *Diff) Changed(path string, hunk int) (int, int) {
+	var added, removed int
+
+	for i := range d.Files {
+		if pathOf(&d.Files[i]) != path {
+			continue
+		}
+
+		for _, l := range d.Files[i].Lines {
+			if l.Hunk != hunk {
+				continue
+			}
+
+			switch l.Kind {
+			case KindAdd:
+				added++
+			case KindRemove:
+				removed++
+			}
+		}
+	}
+
+	return added, removed
+}
+
 // withoutBlanks drops lines that are empty once whitespace is gone, so adding
 // or removing a blank line reads as whitespace rather than as content.
 func withoutBlanks(lines []string) []string {

@@ -104,6 +104,8 @@ type costMsg struct {
 	key  string
 	when time.Time
 	cost int
+	// added and removed are how many lines the same read counted.
+	added, removed int
 	// read says the diff was fetched, whatever the grammar then made of it, and
 	// rated says a grammar answered. A row that was read and not rated is still
 	// recorded, so it is not fetched again until it is pushed to; a row that
@@ -319,16 +321,24 @@ func (s *inboxScreen) absorbCost(answered costMsg) tea.Cmd {
 	if answered.read {
 		s.ratings[answered.key] = artifact.Rating{
 			Updated: answered.when, Cost: answered.cost, Rated: answered.rated,
+			Added: answered.added, Removed: answered.removed,
 		}
 	} else {
 		s.unread++
 	}
 
-	if answered.rated {
+	if answered.read {
 		known := s.local[answered.key]
-		known.Cost, known.Rated = answered.cost, true
-		s.local[answered.key] = known
+		known.Added, known.Removed = answered.added, answered.removed
 
+		if answered.rated {
+			known.Cost, known.Rated = answered.cost, true
+		}
+
+		s.local[answered.key] = known
+	}
+
+	if answered.rated {
 		for i := range s.buckets {
 			inbox.Rank(s.buckets[i].Items, s.known)
 		}
@@ -498,9 +508,10 @@ func (s *inboxScreen) rateOne(key string, p inbox.PullRequest) {
 
 	answer := costMsg{key: key, when: p.Updated}
 
-	if score, err := cost.Of(s.ctx, ".", p.Repository, p.Number); err == nil {
+	if score, size, err := cost.Of(s.ctx, ".", p.Repository, p.Number); err == nil {
 		answer.read = true
 		answer.cost, answer.rated = score.Total, score.Rated()
+		answer.added, answer.removed = size.Added, size.Removed
 	}
 
 	select {
@@ -544,9 +555,10 @@ func localKnowledge() map[string]inbox.Known {
 	for i := range rows {
 		r := &rows[i]
 
-		total, rated := artifact.LoadScore(filepath.Dir(filepath.Dir(r.Path)), r.HeadSHA)
+		was, rated := artifact.LoadScore(filepath.Dir(filepath.Dir(r.Path)), r.HeadSHA)
 		out[artifact.RatingKey(r.Repository, r.Number)] = inbox.Known{
-			Reviewed: true, Cost: total, Rated: rated,
+			Reviewed: true, Cost: was.Total, Rated: rated,
+			Added: was.Added, Removed: was.Removed,
 		}
 	}
 
@@ -650,12 +662,14 @@ func (s *inboxScreen) sections() []tui.Section {
 			p := &b.Items[j]
 			key := fmt.Sprintf("%s#%d", p.Repository, p.Number)
 			rows = append(rows, tui.Row{
-				Key:  key,
-				Left: key,
-				Mid:  humanize.Clip(p.Author, authorCap),
-				Age:  humanize.Ago(p.Updated, now),
-				Cost: rated(s.local[key]),
-				Tail: waiting(p),
+				Key:     key,
+				Left:    key,
+				Mid:     humanize.Clip(p.Author, authorCap),
+				Age:     humanize.Ago(p.Updated, now),
+				Cost:    rated(s.local[key]),
+				Added:   added(s.local[key]),
+				Removed: removed(s.local[key]),
+				Tail:    waiting(p),
 			})
 		}
 
@@ -678,6 +692,29 @@ func rated(k inbox.Known) string {
 
 	return strconv.Itoa(k.Cost)
 }
+
+// added and removed are how many lines the change touched, bare of any sign:
+// the list screen draws that.
+func added(k inbox.Known) string {
+	if !measured(k) {
+		return ""
+	}
+
+	return humanize.Count(k.Added)
+}
+
+func removed(k inbox.Known) string {
+	if !measured(k) {
+		return ""
+	}
+
+	return humanize.Count(k.Removed)
+}
+
+// measured tells a change nobody has read from one that changed no code, since
+// a diff of nothing but a re-indent counts zero on both sides and is still
+// something somebody looked at.
+func measured(k inbox.Known) bool { return k.Added > 0 || k.Removed > 0 }
 
 // waiting is what the row says past the columns: whether it is a draft, its
 // labels, and the title.

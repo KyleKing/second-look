@@ -26,6 +26,29 @@ func Plural(n int, one string, many ...string) string {
 	return strconv.Itoa(n) + " " + one + "s"
 }
 
+// Count writes a number narrow enough for a column, abbreviating anything a
+// reader would not read digit by digit. Four cells is the widest it goes, so a
+// column of them lines up whatever is in the queue.
+func Count(n int) string {
+	const (
+		k = 1000
+		m = 1000 * k
+	)
+
+	switch {
+	case n < k:
+		return strconv.Itoa(n)
+	case n < 10*k:
+		return strconv.FormatFloat(float64(n)/k, 'f', 1, 64) + "k"
+	case n < m:
+		return strconv.Itoa(n/k) + "k"
+	case n < 10*m:
+		return strconv.FormatFloat(float64(n)/m, 'f', 1, 64) + "M"
+	}
+
+	return strconv.Itoa(n/m) + "M"
+}
+
 // Ago is how stale something is, which is the field that decides what to look
 // at when two rows are otherwise equal. A zero time renders empty rather than
 // as a span since the epoch.

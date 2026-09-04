@@ -175,11 +175,26 @@ func (l *List) row(r *Row, cols columns) string {
 		b.WriteString("  " + lpad(r.Cost, cols.cost))
 	}
 
+	if cols.added > 0 || cols.removed > 0 {
+		b.WriteString("  " + signed(r.Added, "+", cols.added) + " " + signed(r.Removed, "-", cols.removed))
+	}
+
 	if r.Tail != "" {
 		b.WriteString("  " + r.Tail)
 	}
 
 	return b.String()
+}
+
+// signed draws one side of a row's size: the sign in a column of its own so the
+// signs line up, and the count right-aligned after it so the digits do. A row
+// nothing measured keeps the width and draws neither.
+func signed(count, sign string, width int) string {
+	if count == "" {
+		return strings.Repeat(" ", width+1)
+	}
+
+	return sign + lpad(count, width)
 }
 
 func (l *List) footer() string {

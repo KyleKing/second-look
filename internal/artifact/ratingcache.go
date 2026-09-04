@@ -32,6 +32,12 @@ type Rating struct {
 	// asks once per push rather than fetching the same unratable diff on every
 	// open.
 	Rated bool `toml:"rated"`
+	// Added and Removed are how many lines the diff changed, counted off the
+	// same patch the rating was made from. They order nothing: a reader checks
+	// the rating against them, since a 9 on eight hundred lines and a 9 on nine
+	// are different claims.
+	Added   int `toml:"added"`
+	Removed int `toml:"removed"`
 }
 
 // RatingKey names a pull request the way a queue row does.
@@ -53,7 +59,7 @@ func RatingsPath() (string, error) {
 // worked out changes what every cached number means, and a queue ordering a mix
 // of two scales orders wrongly and silently, so a file written on another one
 // is dropped rather than read.
-const RatingScale = 2
+const RatingScale = 3
 
 // ratingFile is the on-disk shape. The key is a field rather than a table name
 // because a repository name carries characters a bare TOML key cannot.
@@ -67,6 +73,8 @@ type ratedRow struct {
 	Updated time.Time `toml:"updated"`
 	Cost    int       `toml:"cost"`
 	Rated   bool      `toml:"rated"`
+	Added   int       `toml:"added"`
+	Removed int       `toml:"removed"`
 }
 
 // LoadRatings reads what earlier runs rated. Every failure answers with no
@@ -94,7 +102,9 @@ func LoadRatings() Ratings {
 
 	out := make(Ratings, len(file.Rated))
 	for _, r := range file.Rated {
-		out[r.Key] = Rating{Updated: r.Updated, Cost: r.Cost, Rated: r.Rated}
+		out[r.Key] = Rating{
+			Updated: r.Updated, Cost: r.Cost, Rated: r.Rated, Added: r.Added, Removed: r.Removed,
+		}
 	}
 
 	return out
@@ -118,8 +128,10 @@ func SaveRatings(r Ratings) error {
 
 	file := ratingFile{Scale: RatingScale, Rated: make([]ratedRow, 0, len(keys))}
 	for _, k := range keys {
-		file.Rated = append(file.Rated,
-			ratedRow{Key: k, Updated: r[k].Updated, Cost: r[k].Cost, Rated: r[k].Rated})
+		file.Rated = append(file.Rated, ratedRow{
+			Key: k, Updated: r[k].Updated, Cost: r[k].Cost, Rated: r[k].Rated,
+			Added: r[k].Added, Removed: r[k].Removed,
+		})
 	}
 
 	body, err := toml.Marshal(file)

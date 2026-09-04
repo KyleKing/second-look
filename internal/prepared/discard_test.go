@@ -41,7 +41,7 @@ func cachedRoot(t *testing.T) string {
 			t.Fatal(err)
 		}
 
-		if err := artifact.SaveScore(root, sha, 3); err != nil {
+		if err := artifact.SaveScore(root, sha, artifact.Cost{Total: 3}); err != nil {
 			t.Fatal(err)
 		}
 	}

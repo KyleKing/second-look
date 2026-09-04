@@ -482,17 +482,24 @@ func TestAnActionKeepsTheCursorWhereTheReaderPutIt(t *testing.T) {
 	}
 }
 
-// The rating gets a column of its own rather than being spliced onto the front
-// of the title. A queue re-sorts as ratings land, so a title whose start moved
-// with the number beside it jumped sideways under the eye on every answer.
+// The rating and the size each get a column of their own rather than being
+// spliced onto the front of the title. A queue re-sorts as ratings land, so a
+// title whose start moved with the numbers beside it jumped sideways under the
+// eye on every answer.
 func TestARatingIsAColumnRatherThanTitleText(t *testing.T) {
 	t.Parallel()
 
 	rated := func() []tui.Section {
 		return []tui.Section{{Name: "pending your review", Rows: []tui.Row{
-			{Key: "A", Left: "o/r#1", Mid: "alice", Age: "2h", Cost: "7", Tail: "the title"},
+			{
+				Key: "A", Left: "o/r#1", Mid: "alice", Age: "2h",
+				Cost: "7", Added: "9", Removed: "2", Tail: "the title",
+			},
 			{Key: "B", Left: "o/r#2", Mid: "bob", Age: "4d", Tail: "the title"},
-			{Key: "C", Left: "o/r#3", Mid: "carol", Age: "1d", Cost: "84", Tail: "the title"},
+			{
+				Key: "C", Left: "o/r#3", Mid: "carol", Age: "1d",
+				Cost: "84", Added: "1.2k", Removed: "340", Tail: "the title",
+			},
 		}}}
 	}
 
@@ -511,6 +518,12 @@ func TestARatingIsAColumnRatherThanTitleText(t *testing.T) {
 
 	if !strings.Contains(plain(l.ListFrame()), "84") {
 		t.Error("the rating is not drawn")
+	}
+
+	// The signs line up down the list, which two columns give and one figure
+	// with a space in it does not.
+	if got := startsOf(plain(l.ListFrame()), "-"); len(got) != 2 || got[0] != got[1] {
+		t.Errorf("the removed column starts at %v, want one column for both rows", got)
 	}
 }
 
