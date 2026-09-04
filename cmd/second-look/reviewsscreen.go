@@ -29,6 +29,12 @@ type reviewsScreen struct {
 	ctx  context.Context //nolint:containedctx // it bounds the reread a refresh makes
 	rows []prepared.Review
 	open *ref
+	// move is the row C was pressed on.
+	move *ref
+	// here is the repository this directory is a checkout of and head is where
+	// it stands, which is what says whether a row's code is reachable from here.
+	here string
+	head string
 	// armed is the row d was pressed on. Discarding is the one thing here that
 	// deletes work, and every comment staged in the row goes with it.
 	armed string
@@ -36,12 +42,17 @@ type reviewsScreen struct {
 
 // reviewsHints is the footer, which advertises only the keys this screen offers.
 var reviewsHints = [][2]string{
-	{enterKey, "open"}, {"d", "discard"}, {refreshKey, "refresh"}, {"?", helpArg},
+	{enterKey, "open"},
+	{"C", "checkout"},
+	{"d", "discard"},
+	{refreshKey, "refresh"},
+	{"?", helpArg},
 }
 
 var reviewsHelp = helpFor(helpMove(), [][2]string{
 	{enterKey, "open the review screen for it"},
 	{"/", "narrow to the rows carrying a word; esc puts them back"},
+	{"C", "move this checkout onto it, pulling where it is already on the branch"},
 	{"d", "throw the review away with everything cached for it; d again confirms"},
 	{refreshKey, "read the directory again"},
 }, helpLeave(), prose(
@@ -49,6 +60,8 @@ var reviewsHelp = helpFor(helpMove(), [][2]string{
 	"Every review here is unfinished: the file is deleted when it posts.",
 	"A review with no checkout of its repository is listed in its own group and",
 	"opens the same way, from the API.",
+	"here marks the row this directory stands on and not here a row it cannot",
+	"reach; the rest are reachable, which is what C moves onto.",
 	"A pull request based on another one staged here is grouped with it, bottom",
 	"first, which is the order the diffs read in.",
 ))
@@ -81,7 +94,7 @@ func (s *reviewsScreen) sections() []tui.Section {
 	for i := range stacks {
 		rows := make([]tui.Row, 0, len(stacks[i].Rows))
 		for j := range stacks[i].Rows {
-			rows = append(rows, reviewRow(&stacks[i].Rows[j], now))
+			rows = append(rows, s.reviewRow(&stacks[i].Rows[j], now))
 		}
 
 		out = append(out, tui.Section{Name: stackName(&stacks[i]), Rows: rows})
@@ -92,7 +105,7 @@ func (s *reviewsScreen) sections() []tui.Section {
 	var away []tui.Row
 
 	for i := range alone {
-		row := reviewRow(&alone[i], now)
+		row := s.reviewRow(&alone[i], now)
 
 		if alone[i].Stray {
 			away = append(away, row)
@@ -118,7 +131,7 @@ func stackName(st *prepared.Stack) string {
 	return "stacked onto " + st.Onto + ", bottom first"
 }
 
-func reviewRow(r *prepared.Review, now time.Time) tui.Row {
+func (s *reviewsScreen) reviewRow(r *prepared.Review, now time.Time) tui.Row {
 	return tui.Row{
 		// The key names the repository as well as the number, since the same
 		// number in two repositories is two rows.
@@ -126,20 +139,47 @@ func reviewRow(r *prepared.Review, now time.Time) tui.Row {
 		Left: r.Where(),
 		Mid:  prepared.State(r),
 		Age:  humanize.Ago(r.Modified, now),
-		Tail: holds(r),
+		Tail: s.tail(r),
 		// A review with a draft in it is the one to come back to, which is
 		// what the unread mark means on this screen.
 		Unread: r.Blocked() || r.Broken != "",
 	}
 }
 
-// holds is what the review carries, or why it could not be read.
-func holds(r *prepared.Review) string {
+// tail is what the review carries, or why it could not be read, with where
+// this directory stands relative to it.
+func (s *reviewsScreen) tail(r *prepared.Review) string {
 	if r.Broken != "" {
 		return r.Broken
 	}
 
-	return prepared.Holds(r)
+	held := prepared.Holds(r)
+	if word := s.treeWord(r); word != "" {
+		return held + " · " + word
+	}
+
+	return held
+}
+
+// reachable reports a row whose code this directory holds, which is what C acts
+// on and what reading around the change and running it need.
+func (s *reviewsScreen) reachable(r *prepared.Review) bool {
+	return s.here != "" && strings.EqualFold(s.here, r.Repository)
+}
+
+// treeWord marks the row this directory stands on and the rows it cannot reach,
+// and says nothing for the rest. In a tree of one repository every row is
+// reachable, so saying so on each of them would be noise rather than an
+// indicator.
+func (s *reviewsScreen) treeWord(r *prepared.Review) string {
+	switch {
+	case !s.reachable(r):
+		return "not here"
+	case s.head != "" && s.head == r.HeadSHA:
+		return "here"
+	}
+
+	return ""
 }
 
 func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
@@ -152,6 +192,8 @@ func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return s.choose(row.Key)
 	case tui.ActDiscard:
 		return s.discard(row.Key)
+	case tui.ActCheckout:
+		return s.checkout(row.Key)
 	case tui.ActRefresh:
 		rows, err := staged()
 		if err != nil {
@@ -162,11 +204,33 @@ func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 
 		return s.counts(), false, nil
 	case tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActCheckout, tui.ActComment, tui.ActApprove:
+		tui.ActComment, tui.ActApprove:
 		return "", false, errNotHere
 	}
 
 	return "", false, nil
+}
+
+// checkout leaves the screen to move this directory's working copy onto the
+// row, refusing where the directory is a checkout of something else rather than
+// moving a tree the review has nothing to do with.
+func (s *reviewsScreen) checkout(key string) (string, bool, error) {
+	for i := range s.rows {
+		if s.rows[i].Where() != key {
+			continue
+		}
+
+		if !s.reachable(&s.rows[i]) {
+			return "", false, fmt.Errorf("%s: %w", key, errNotACheckoutOfIt)
+		}
+
+		owner, name, _ := strings.Cut(s.rows[i].Repository, "/")
+		s.move = &ref{owner: owner, repo: name, number: s.rows[i].Number}
+
+		return "checking out " + key, true, nil
+	}
+
+	return "", false, fmt.Errorf("%w: %s", errUnknownRow, key)
 }
 
 // discard takes the key twice, and throws away the staged review along with the
@@ -208,6 +272,8 @@ var (
 	errNoPullRequest  = errors.New("this row is a search that failed, not a pull request")
 	errNoCheckoutHere = errors.New("no clone of it is on this laptop, so there is nothing to check out; " +
 		"enter reviews it from the API instead")
+	errNotACheckoutOfIt = errors.New("this directory is a checkout of something else; " +
+		"the rows marked here are the ones C can move")
 	errNotOnAConversation = errors.New("that key belongs to the inbox, which lists pull requests; " +
 		"r answers this conversation and R marks it dealt with")
 )

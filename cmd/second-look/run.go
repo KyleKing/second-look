@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/term"
+	"github.com/kyleking/aragonite/vcs"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/blob"
@@ -198,6 +199,17 @@ func currentRepo(ctx context.Context) string {
 	}
 
 	return name
+}
+
+// currentHead is where this checkout stands, or empty where there is no reading
+// it. A row's code is only reachable from here when the two agree.
+func currentHead(ctx context.Context) string {
+	head, err := vcs.HeadSHA(ctx, ".")
+	if err != nil {
+		return ""
+	}
+
+	return head
 }
 
 // openRef opens the review for a pull request named on the command line or

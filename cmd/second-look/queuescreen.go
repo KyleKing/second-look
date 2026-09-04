@@ -70,7 +70,7 @@ func queueOnce(
 		return -1, where, err
 	}
 
-	rv := &reviewsScreen{ctx: ctx, rows: rows}
+	rv := &reviewsScreen{ctx: ctx, rows: rows, here: currentRepo(ctx), head: currentHead(ctx)}
 
 	list := tui.NewTabs([]tui.Tab{
 		{
@@ -121,8 +121,7 @@ func keepAhead(cfg *config.Config) int {
 }
 
 // afterQueue runs whatever the screen closed for, then says which tab to come
-// back to. Only one of the four can be set: the screen quits on the action that
-// sets it.
+// back to. Only one can be set: the screen quits on the action that sets it.
 //
 // Reading a review comes back to the queue rather than ending the session,
 // because twenty-five reviews is one sitting: quitting the program to get to
@@ -135,6 +134,8 @@ func afterQueue(
 	switch {
 	case rv.open != nil:
 		return at, openRef(ctx, *rv.open, stdin, stdout)
+	case rv.move != nil:
+		return at, checkoutRef(ctx, *rv.move, stdin, stdout)
 	case th.reply != nil:
 		return at, answer(ctx, th.reply, th.repo, stdin, stdout)
 	case in.next == nil:

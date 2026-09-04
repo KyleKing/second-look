@@ -9,6 +9,9 @@ import (
 	"testing"
 
 	"github.com/kyleking/aragonite/ghcassette"
+
+	main "github.com/kyleking/second-look/cmd/second-look"
+	"github.com/kyleking/second-look/internal/prepared"
 )
 
 // `reviews` reads the directory and nothing else, so its cassette is empty and
@@ -156,5 +159,54 @@ func TestReviewsScreen(t *testing.T) {
 
 	if code := sc.wait(); code != 0 {
 		t.Fatalf("the list exited %d:\n%s", code, sc.text())
+	}
+}
+
+// The indicator marks the row the directory stands on and the rows it cannot
+// reach, and nothing else: a tree of one repository would otherwise repeat
+// itself on every row.
+func TestAStagedRowSaysWhetherThisDirectoryHoldsItsCode(t *testing.T) {
+	t.Parallel()
+
+	review := prepared.Review{
+		Repository: "coverbasedev/irm", Number: 14798,
+		HeadSHA: "60f9fb9", Ready: 1,
+	}
+
+	const held = "1 ready · @60f9fb9"
+
+	for _, tc := range []struct {
+		name string
+		repo string
+		head string
+		want string
+		acts bool
+	}{
+		{
+			name: "standing on it", repo: "coverbasedev/irm", head: "60f9fb9",
+			want: held + " · here", acts: true,
+		},
+		{
+			name: "the same repository elsewhere", repo: "coverbasedev/irm", head: "aaaaaaa",
+			want: held, acts: true,
+		},
+		{
+			name: "another repository", repo: "deanmalmgren/textract", head: "aaaaaaa",
+			want: held + " · not here",
+		},
+		{name: "no checkout at all", want: held + " · not here"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, acts := main.StagedRow(review, tc.repo, tc.head)
+			if got != tc.want {
+				t.Errorf("the row says %q, want %q", got, tc.want)
+			}
+
+			if acts != tc.acts {
+				t.Errorf("C acting on it is %v, want %v", acts, tc.acts)
+			}
+		})
 	}
 }
