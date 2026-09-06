@@ -307,7 +307,11 @@ Navigation, only as far as the pipeline needs:
   per file
 - Group files by relation rather than alphabetically. Also unbuilt anywhere. Directory
   adjacency is universally useful and package boundaries are strict in a monorepo, so
-  grouping has to respect both
+  grouping has to respect both. Built, and bounded by one property: the plan is a stable
+  partition, deciding which group a hunk belongs to and never which of two hunks comes
+  first, so the only rows a reading order moves are the ones a heading gathered. Reordering
+  costs a reader the file's own narrative, and the evidence that it pays is at file
+  granularity, so it buys as little of it as the gathering needs
 - A review inbox as a task list in three buckets, ordered pending my review, reviewed and
   open, then reviewed and merged, with per-PR metadata that makes triage possible without
   opening it. Searchable and sortable, and available from the CLI as well as the TUI.

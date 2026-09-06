@@ -34,24 +34,39 @@ instead is telling a narrative about the change: what was done, in what order it
 sense to read, and how the pieces relate to each other. Hunks gathered by symbol is one
 relation out of several and the only one drawn.
 
-Two things are open and neither is a design yet. What algorithm decides the narrative, and
-what the visual helper for how a change maps across the filesystem looks like, since that
-relation is the one nobody can see and another line of prose on a heading will not carry
-it. Both want arguing with on a real review through `demo/scene.sh review` rather than
-being reasoned about here.
+Three of the wayfinding recommendations in
+[research/diff-ordering-2026-09.md](research/diff-ordering-2026-09.md) are built: a piece
+of a split file counts the whole file, the title carries the group and the line once their
+own headings scroll off, and the scrollbar track marks where the file's unread hunks sit
+off screen. The fourth is a recommendation against short jump labels, which is the idea
+that started this and which no diff tool has adopted.
+
+What is still open is the algorithm, which is the half no widget answers. Gathering reads
+a symbol from syntax rather than resolving one, and the research is clear that every
+published result on ordering improving review is at file granularity, so ordering at hunk
+granularity is an extrapolation nothing has tested. `internal/order`'s tests now pin the
+one property that keeps it honest, which is that the plan is a stable partition: it
+decides which group a hunk belongs to and never which of two hunks comes first, so the
+only rows that moved are the ones a heading gathered. Any richer ordering has to keep
+that or say why it is worth breaking.
 
 ### 2. Four renderers is three too many
 
-`v` cycles `plain`, `rich`, `split`, and `structural`. They were built as experiments on
-the promise that they get lived with on real reviews and the losers are deleted rather
-than kept for symmetry. Nothing has been deleted, so every frame now has four code paths
-through it and each carries a caveat in the help.
+The renderers are three independent axes now rather than four modes: `v` walks four named
+presets and `u` toggles the grammar (`ug`), the columns (`us`), and the structural pass
+(`up`) one at a time, which reaches combinations the cycle cannot. Rich is the default.
 
-This step is the deletion. It needs a stretch of real reviews rather than a decision made
-here, and the questions it answers are which one I actually reach for, whether `split`
-earns being the only renderer that changes which rows exist rather than only how they are
-drawn, and whether `structural` says enough to be a view rather than a heading on the
-other three.
+The deletion this step was written for has not happened, and splitting the cycle into axes
+made it easier to defer rather than easier to decide. It still needs a stretch of real
+reviews rather than a decision made here, and the questions are the same: which one I
+actually reach for, whether the split view earns being the only one that changes which
+rows exist rather than only how they are drawn, and whether the structural pass says
+enough to be a view rather than a heading on the other three.
+
+One open question needs eyes on a truecolor terminal rather than a decision here. The rich
+renderer bands a changed line at a 0.12 lightness lift and 0.60 saturation, with deeper
+values on a 256-color terminal because the cube carries almost no dark tints. Whether that
+band should be darker, less saturated, or left alone is a judgment nothing here can make.
 
 `dim_inactive` closed at two thirds on purpose and wants no more: a read hunk recedes and
 a folded heading recedes, and dimming every file but one turned out to be a highlight
@@ -86,13 +101,18 @@ source, which `claude agents --json` has: it says which session is blocked on a 
 A `uv.lock` or a `package-lock.json` change is hundreds of lines that say almost nothing,
 and the four things worth knowing are not in them: what moved, when the new version
 shipped, whether anything newer exists, and whether any of it is a known vulnerability.
-So fold every lockfile hunk by default and draw a card where it was. Folding the hunk is
-also what makes a comment on a lockfile placeable, since today the anchor is whichever of
-four hundred lines the cursor happens to be on.
 
-The first card is advisories and nothing else, which is the half that changes a review
-decision and the half that costs one request. [OSV](https://osv.dev) answers a whole
-lockfile in one POST to `/v1/querybatch`, with no key and no auth, in about 700ms.
+The first of those four is built. `internal/meta` reads go.sum, go.mod, Cargo.lock,
+uv.lock, package-lock.json, pnpm-lock.yaml, yarn.lock, and Gemfile.lock, so a folded
+lockfile draws a table of what moved rather than a hunk count, and `za` still opens the
+hashes. A format nothing here reads keeps counting hunks, because a guessed table is worse
+than an honest count. Folding is also what makes a comment on a lockfile placeable, since
+the anchor was otherwise whichever of four hundred lines the cursor happened to be on.
+
+The other three all need the network. The next card is advisories and nothing else, which
+is the half that changes a review decision and the half that costs one request.
+[OSV](https://osv.dev) answers a whole lockfile in one POST to `/v1/querybatch`, with no
+key and no auth, in about 700ms.
 
 Version age, what the latest is, and the detail block a package new to the file deserves
 are deferred on measurement: the Go module proxy is 194 bytes for a version and a release
@@ -171,6 +191,79 @@ server. `filter/` and `tui/table` are already named for extraction there, and th
 request cache is the next thing that wants to move, since both tools now ask GitHub the
 same questions.
 
+### 9. The structural pass is the only thing that gets slow
+
+[research/open-cost-2026-09.md](research/open-cost-2026-09.md) measured every stage of
+opening a review, and the answer is that nothing about the diff itself needs a limit.
+Parsing, building the model, laying out rows, and drawing a frame together stay under
+10ms at 20,000 lines, and the frame is windowed, so it costs the same on a hundred files
+as on five. The first frame would not cross 100ms until roughly 1,100 files.
+
+The structural pass is the exception. It costs 1.2-1.9ms a hunk almost regardless of how
+long the hunk is, which is the process rather than the reading, so it crosses 100ms at
+around 65 hunks and reaches 155ms at 100. Raising the worker count was tried against the
+benchmark and bought nothing, so the lever left is batching several hunks into one
+`ast-grep` invocation.
+
+Windowing the pass is not on the table. The reading order, move detection, cosmetic
+folding, search, and the read counts all need the whole diff read before any of them can
+answer, so a pass over what is on screen would give four features a different answer
+depending on where the cursor was.
+
+### 10. Blame, and a heat map of recency
+
+Who last touched a line and how long ago is the context a diff cannot carry, and
+[research/blame-and-recency-2026-09.md](research/blame-and-recency-2026-09.md) has the
+evidence, the commands, and the staged plan. The signal worth drawing is age of last
+change plus how many distinct authors a hunk carries. Churn is the better-supported
+predictor in the literature and it is file-level evidence, so it stays out of a per-line
+column until something argues for it.
+
+It starts in aragonite because gh-repo-dashboard wants the same primitive: a `Blame`
+method on `vcs.Operations`, git over `git blame --porcelain` with one `-L` per hunk range
+so the cost is proportional to the review rather than to the file, and jj over
+`jj file annotate`.
+
+Two things about the jj side are settled by looking rather than by the docs. On jj 0.44.0
+`file annotate` carries no line-range flag, so it annotates the whole file and the
+filtering happens in Go, which the interface has to say out loud rather than pretend both
+backends cost the same. It does carry `-T`, so the output is a template this side writes
+and there is no format to guess at, which is better than git's porcelain. And it snapshots
+the working copy unless `--ignore-working-copy` is passed, so a read-only blame call that
+forgets that flag mutates the repository it was only meant to read.
+
+What comes after the primitive: the per-hunk rollup and its cache, keyed by the old side's
+blob rather than by head, because blame of an unchanged blob does not change when a push
+lands elsewhere. Then `ub` for a one-column age ramp in the gutter, with a glyph per
+bucket so it survives `NO_COLOR`, dropping first when the frame is too narrow. Then the
+hunk header summary. Move-aware blame (`-M`/`-C`) and `.git-blame-ignore-revs` are last
+and opt-in, because both cost real extra passes.
+
+### 11. An agent session is invisible while it is working
+
+`T` hands the todo set over and resumes the session recorded on the review, and that is
+the whole of what the screen knows. It cannot say whether a session is running right now,
+whether it is blocked waiting to be answered, or how to get into the conversation, so the
+one thing a reviewer wants to know mid-review (is it still working, and what is it asking
+me) is only answerable by leaving the screen.
+
+`claude agents --json` answers it: it lists every session with its id, its working
+directory, and a state, `blocked` among them, so matching the review's recorded
+`Agent.Session` against that list is enough for an indicator and for the notification
+boundary [FLOW.md](FLOW.md) wants. Two things have to be decided first.
+
+The dispatcher is deliberately tool-agnostic, configured as argv in `config.toml`, so
+probing with a Claude Code command would be the first thing here that knows which agent it
+is talking to. The consistent shape is a third configured command whose output carries the
+session ids, next to `dispatch` and `resume`.
+
+Getting into the chat is the other half and it is a different act from dispatching. `T`
+runs a headless command and reports one line, whereas attaching means handing the terminal
+over the way the shell key already does, and coming back to a review whose comments the
+agent may have rewritten underneath. `ctrl+t` already reloads rather than clobbers, so the
+machinery for the return is there. What is missing is the key and the decision that
+attaching is worth the handoff.
+
 ## Waiting on use rather than on code
 
 Each of these is a decision I would rather make after a week of the queue than now, and
@@ -200,6 +293,19 @@ second-look may say about a clone without duplicating gh-repo-dashboard) and eac
 step 3 first. `demo/scene.sh` opens each queue on seed data, which is where they get
 argued with.
 
+**Whether the head check should gate the first frame.** It does now: a review opened out
+of the cache draws nothing but a line saying what it is waiting on until the head check
+answers, because a diff staged against an older head has been read by the time the screen
+admits it is the older one. The cost is the property that opening a staged review asked
+the network nothing, which was the whole point of caching it. A failed check releases the
+diff, so being offline costs one round trip rather than the review. Worth a week of the
+queue to see whether the wait is felt.
+
+**A release per push.** The Bump Version workflow fires on every push to main, so a
+session of ten commits pushed in five batches cuts five releases. Batching the pushes is
+one answer and gating the workflow is the other, and which is right depends on whether a
+release is meant to mark a version or a day's work.
+
 **The rating's weights.** They order the cases I could think of, and `internal/rate`'s
 test pins the order rather than the numbers for that reason. The curve that replaced the
 ceiling spread them far enough apart to tell whether one is wrong, so what is left is a
@@ -212,6 +318,38 @@ scan the checkout-less path cannot promise. Cache it by base SHA if it lands.
 **Whether the rating moves to aragonite.** It reads the diff, the symbol graph, and the
 changed symbols, so it may belong next to `codeintel`. Extract it if a second tool wants
 it and leave it here otherwise.
+
+## Ideas with no scope yet
+
+Each of these has been named and none has been argued through far enough to sit in the
+ordered list above.
+
+**A gh extension.** Installing with `gh extension install` needs the repository renamed to
+`gh-second-look`, which is the only shape gh recognizes, and the rename takes the binary
+name, the brew tap, and every link with it. Deferred deliberately rather than rejected.
+
+**GitLab, and jj.** The forge interface exists and has been exercised once. jj already
+works through aragonite's `vcs`, with one hole: `checkout` shells out to `gh pr checkout`,
+which is git-only.
+
+**Diagrams and higher-level views.** Call-graph changes, change frequency, data
+structures, and what production says about the code under review. It waits on `codeintel`
+for the graph and on a decision about what a review is allowed to fetch.
+
+**Review-specific tooling, opt in and not always run.** Similarity detection, a traceback
+resolved against the version of the code under review through gh-lazydispatch, semgrep, or
+a check generated from what the issue tracker says the change is for. Each is a subprocess
+the review screen already knows how to run, and what is missing is the rule for when one
+is worth running.
+
+**Context from TLR, and from GitHub Issues.** Lazily fetched, on the pull request under
+review. It is the same shape as the checkout question: something the reader asks for
+rather than something a screen fetches to open.
+
+**Images and video.** requirements.md carries the finding: `gh --attach` covers a pull
+request comment and not an inline review comment, so half of this is buildable now.
+Rendering an image in the terminal (WezTerm carries the protocol) and handing a video to
+the default viewer are separate and unblocked.
 
 ## Owed in both directions
 
@@ -248,6 +386,11 @@ Enough to answer "is that in there already", newest first. The reasoning behind 
 is in [requirements.md](requirements.md) if it still constrains something, and in the
 commit if it does not.
 
+- Wayfinding: a piece of a split file counts the whole file, the title carries the group
+  and the line once their headings scroll off, and the scrollbar track marks where the
+  file's unread hunks sit off screen
+- A cached review waits on the head check before drawing anything, so the diff on screen
+  is one the forge has agreed still stands
 - Batching a queue: `get` records the branches a pull request joins, `reviews` and its
   `--json` read a stack bottom first, and `inbox --json` carries the triage order with
   `reviewed`, `cost`, `rated`, `added`, and `removed` on every row
