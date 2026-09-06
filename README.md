@@ -371,9 +371,16 @@ are flattenings of their own.
 `structural` is the rich faces with what the parser saw written onto every heading: which
 symbols a hunk touched and how, the same summarized under each file name, and a symbol
 that left one hunk and arrived in another drawn as a move rather than as a delete beside
-an unrelated insert. It reuses the pass the review-cost rating already runs, so it costs
-no extra work. A symbol whose declaration was rewritten on the way is not a move, because
-it is not the same code arriving somewhere else.
+an unrelated insert, whether or not the two hunks are in the same file. It reuses the pass
+the review-cost rating already runs, so it costs no extra work. A symbol whose declaration
+was rewritten on the way is not a move, because it is not the same code arriving somewhere
+else.
+
+The grammar, the columns, and what the parser saw are three independent questions, and `v`
+only walks the four combinations worth naming. `u` toggles one on its own: `ug` the
+grammar, `us` side by side, `up` what the parser saw. So a wide diff can be read in two
+columns with the grammar off, which no step of the cycle offers. A look reached that way
+belongs to no step, so the next `v` starts the walk again from the top.
 
 All three are spikes and ship with their caveats named in the footer when you switch to
 them: a

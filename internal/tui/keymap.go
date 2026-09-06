@@ -55,6 +55,7 @@ type keyMap struct {
 	Search    key.Binding
 	List      key.Binding
 	Renderer  key.Binding
+	Look      key.Binding
 	Order     key.Binding
 	Fold      key.Binding
 	Zed       key.Binding
@@ -112,6 +113,7 @@ func defaultKeyMap() keyMap {
 		Search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 		List:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
 		Renderer:  key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "renderer")),
+		Look:      key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "toggle one of them")),
 		Threads:   key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "conversations")),
 		Restage:   key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "restage")),
 		Order:     key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
@@ -154,6 +156,12 @@ func objects() [][2]string {
 // chord waits, so the second key never has to be remembered.
 func states() [][2]string {
 	return [][2]string{{"r", "ready"}, {"d", "draft"}, {"t", "todo"}, {"x", "skip"}}
+}
+
+// lookObjects are what u accepts: the three questions the renderers answer
+// together and that this toggles one at a time.
+func lookObjects() [][2]string {
+	return [][2]string{{"g", "grammar"}, {"s", "side by side"}, {"p", "what the parser saw"}}
 }
 
 func foldObjects() [][2]string {
@@ -211,7 +219,8 @@ func helpGroups() []helpGroup {
 		{"what is shown", [][2]string{
 			{"c", "the next view: both, the code as it now reads, the comments alone"},
 			{"t", "the conversations already on this pull request, each under the line it answers"},
-			{"v", "the next renderer: plain, rich, side by side, structural; each has a caveat"},
+			{"v", "the next renderer: rich, side by side, structural, plain; each has a caveat"},
+			{"u then g/s/p", "toggle the grammar, side by side, or what the parser saw, on its own"},
 			{"O", "read in the diff's own order instead of gathered by symbol, and back"},
 			{"z then a / i / R / M", "fold what is here, or all of it; invert; open all; fold to the file names"},
 			{"w", "hide hunks that change nothing but whitespace, and show them again"},

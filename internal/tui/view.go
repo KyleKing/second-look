@@ -51,7 +51,7 @@ func (m *Model) title() string {
 		left += "  " + word
 	}
 
-	if m.drawn != renderRich {
+	if m.drawn != opening {
 		left += "  " + m.drawn.String()
 	}
 
@@ -475,7 +475,7 @@ func (m *Model) rowBody(r row, width int) string {
 		switch {
 		case m.sideBySide():
 			return m.splitCode(r, width)
-		case m.drawn != renderPlain:
+		case m.drawn.rich:
 			return m.richCode(r, width)
 		}
 	}

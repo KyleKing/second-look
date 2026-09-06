@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/lucasb-eyer/go-colorful"
@@ -16,65 +17,89 @@ import (
 	"github.com/kyleking/second-look/internal/highlight"
 )
 
-// renderMode is how a line of the diff is drawn. `v` cycles them.
+// look is how a line of the diff is drawn. Side by side, the grammar, and what
+// the parser saw are three independent questions, so each is a toggle of its
+// own: `u` turns one on or off and `v` walks the combinations worth having.
 //
 // They are experiments and they are meant to be: each ships with its caveat in
 // the help and the README, all of them get lived with on real reviews, and the
 // ones that turn out not to earn a keystroke are deleted rather than kept for
 // symmetry.
-type renderMode int
-
-const (
-	// A whole-line color per side and one number per line, which is what a
-	// terminal diff has always looked like.
-	renderPlain renderMode = iota
-	// The grammar in color under a band saying which side the line is on, the
-	// runs that actually changed marked inside it, and both line numbers in the
-	// gutter. This is what a review opens on, so the title names every other
-	// mode and never this one.
-	renderRich
-	// Side by side: the same faces as rich, with each removal beside the
-	// addition that replaced it.
-	renderSplit
-	// The same faces as rich, with what the parser saw on every heading: which
-	// symbols a hunk touched and how, a per-file summary of the same, and a
-	// symbol that left one hunk and arrived in another drawn as a move.
-	renderStructural
-)
-
-func (r renderMode) next() renderMode {
-	if r == renderStructural {
-		return renderPlain
-	}
-
-	return r + 1
+type look struct {
+	// rich is the grammar in color under a band saying which side a line is on,
+	// the runs that actually changed marked inside it, and both line numbers in
+	// the gutter. Off, a line is a whole-line color and one number, which is
+	// what a terminal diff has always looked like.
+	rich bool
+	// split puts each removal beside the addition that replaced it. It is the
+	// one toggle that changes which rows exist rather than only how they are
+	// drawn.
+	split bool
+	// structural writes what the parser saw onto every heading: which symbols a
+	// hunk touched and how, a per-file summary of the same, and a symbol that
+	// left one hunk and arrived in another drawn as a move.
+	structural bool
 }
 
-func (r renderMode) String() string {
-	switch r {
-	case renderRich:
-		return "rich"
-	case renderSplit:
-		return "split"
-	case renderStructural:
-		return "structural"
-	case renderPlain:
+// opening is what a review opens on, which is the one look the title does not
+// name.
+var opening = look{rich: true}
+
+// presets are the combinations v walks, in the order it walks them. A look
+// reached by toggling rather than by cycling is in none of them, and the next v
+// starts the walk again rather than guessing where in it that look belongs.
+func presets() []look {
+	return []look{
+		{rich: true},
+		{rich: true, split: true},
+		{rich: true, structural: true},
+		{},
+	}
+}
+
+func (l look) next() look {
+	all := presets()
+	for i, p := range all {
+		if p == l {
+			return all[(i+1)%len(all)]
+		}
 	}
 
-	return "plain"
+	return all[0]
+}
+
+func (l look) String() string {
+	var on []string
+
+	if !l.rich {
+		on = append(on, "plain")
+	}
+
+	if l.split {
+		on = append(on, "split")
+	}
+
+	if l.structural {
+		on = append(on, "structural")
+	}
+
+	if len(on) == 0 {
+		return "rich"
+	}
+
+	return strings.Join(on, " ")
 }
 
 // caveat is what the mode does not do, said where the mode is named. A spike
 // whose limits are only in the commit message is one nobody can judge.
-func (r renderMode) caveat() string {
-	switch r {
-	case renderRich:
-		return "a hunk is a fragment, so a grammar's state above it is lost"
-	case renderSplit:
+func (l look) caveat() string {
+	switch {
+	case l.split:
 		return "narrower than " + strconv.Itoa(splitWidth) + " columns it draws unified"
-	case renderStructural:
+	case l.structural:
 		return "a hunk is a fragment, so the symbol a body edit sits in is not knowable"
-	case renderPlain:
+	case l.rich:
+		return "a hunk is a fragment, so a grammar's state above it is lost"
 	}
 
 	return ""
@@ -92,7 +117,7 @@ const splitWidth = 120
 // changed which rows exist under them would be a fourth and a fifth screen. So
 // the split applies to the diff, which is the view it is about.
 func (m *Model) sideBySide() bool {
-	return m.drawn == renderSplit && m.view == viewDiff && m.width >= splitWidth
+	return m.drawn.split && m.view == viewDiff && m.width >= splitWidth
 }
 
 // depth is how far toward the middle a band's lightness is lifted and how much
@@ -544,7 +569,31 @@ func (m *Model) cycleRenderer() {
 	// changes which rows exist rather than only how they are drawn, so the
 	// screen is laid out again rather than merely redrawn.
 	m.rebuild()
+	m.sayLook()
+}
 
+// toggleLook flips one of the three questions on its own, which is what the
+// cycle cannot do: reading a wide diff side by side without the grammar, or
+// keeping what the parser saw while turning the columns off.
+func (m *Model) toggleLook(msg tea.KeyPressMsg) {
+	switch msg.String() {
+	case "g":
+		m.drawn.rich = !m.drawn.rich
+	case "s":
+		m.drawn.split = !m.drawn.split
+	case "p":
+		m.drawn.structural = !m.drawn.structural
+	default:
+		m.say("nothing to draw for "+msg.String()+"; g grammar, s side by side, p parser", false)
+
+		return
+	}
+
+	m.rebuild()
+	m.sayLook()
+}
+
+func (m *Model) sayLook() {
 	if caveat := m.drawn.caveat(); caveat != "" {
 		m.say(m.drawn.String()+": "+caveat, false)
 

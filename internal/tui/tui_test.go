@@ -954,6 +954,40 @@ func TestCommentsRenderUnderTheirAnchor(t *testing.T) {
 	}
 }
 
+// The grammar, the columns, and what the parser saw are independent, so u
+// reaches what the cycle cannot: side by side with the grammar off. A look
+// reached that way is in no preset, so the next v starts the walk again rather
+// than guessing where in it that look belongs.
+func TestTogglingOneLookAtATime(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t)
+	m.Update(tea.WindowSizeMsg{Width: 160, Height: 30})
+
+	for _, tc := range []struct {
+		keys []rune
+		want string
+	}{
+		{[]rune{'u', 's'}, "split"},
+		{[]rune{'u', 'g'}, "plain split"},
+		{[]rune{'u', 's'}, "plain"},
+		{[]rune{'v'}, ""},
+	} {
+		for _, k := range tc.keys {
+			press(m, tea.KeyPressMsg{Code: k, Text: string(k)})
+		}
+
+		title := strings.SplitN(plain(m.Frame()), "\n", 2)[0]
+		if !strings.Contains(title, tc.want) {
+			t.Fatalf("after %q the title is %q, want it to name %q", string(tc.keys), title, tc.want)
+		}
+
+		if tc.want == "" && (strings.Contains(title, "plain") || strings.Contains(title, "split")) {
+			t.Fatalf("v did not come back to the look a review opens on: %q", title)
+		}
+	}
+}
+
 func railed(line string) bool {
 	trimmed := strings.TrimSpace(line)
 

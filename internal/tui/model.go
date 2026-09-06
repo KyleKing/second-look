@@ -114,7 +114,7 @@ type Model struct {
 	// drawn is which renderer v is on, and refined and lexed are what the rich
 	// one reads: the runs of each changed line its partner does not carry, and
 	// the grammar's reading of each hunk, lexed the first time it is drawn.
-	drawn   renderMode
+	drawn   look
 	refined diff.Refined
 	lexed   map[hunkAt]map[diff.LineRef][]highlight.Span
 
@@ -223,7 +223,7 @@ func New(
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
 		width: minWidth, height: startHeight, folded: newFolded(),
 		refined: d.Refine(), lexed: map[hunkAt]map[diff.LineRef][]highlight.Span{},
-		drawn:  renderRich,
+		drawn:  opening,
 		made:   generated.New(nil),
 		around: map[hunkAt]int{}, blobs: map[string][]string{},
 	}
@@ -636,6 +636,10 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		return true, m, cmd
 	case m.reshapes(msg):
 		return true, m, nil
+	case key.Matches(msg, m.keys.Look):
+		m.pending = 'u'
+
+		m.say(m.chord("u", lookObjects()), false)
 	case key.Matches(msg, m.keys.Zed):
 		m.pending = 'z'
 
@@ -703,6 +707,10 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case 'S':
 		return m.submitAs(msg)
+	case 'u':
+		m.toggleLook(msg)
+
+		return m, nil
 	case 'H':
 		m.sinceRound(msg.String())
 
@@ -2143,7 +2151,7 @@ func (m *Model) rebuild() {
 	if !m.asDiffed {
 		lay.plan = m.shape.plan
 	}
-	if m.drawn == renderStructural {
+	if m.drawn.structural {
 		lay.parsed = &m.shape
 	}
 

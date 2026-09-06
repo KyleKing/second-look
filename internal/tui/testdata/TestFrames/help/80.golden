@@ -14,11 +14,11 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
                                         what is shown                          │
                                      c  the next view: both, the code as it n… │
                                      t  the conversations already on this pul… │
-                                     v  the next renderer: plain, rich, side … │
+                                     v  the next renderer: rich, side by side… │
+                          u then g/s/p  toggle the grammar, side by side, or … │
                                      O  read in the diff's own order instead … │
                   z then a / i / R / M  fold what is here, or all of it; inve… │
                                      w  hide hunks that change nothing but wh… │
                                      W  hide hunks that change no code at all… │
                                      U  hide every hunk already marked read, … │
-                      H then 1 / 2 / …  hide every hunk an earlier round alre… │
  [j/k] line  []] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit
