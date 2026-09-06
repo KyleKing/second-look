@@ -74,12 +74,13 @@ func (c *comment) note() Note {
 
 //nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 type node struct {
-	IsResolved bool   `json:"isResolved"`
-	IsOutdated bool   `json:"isOutdated"`
-	Path       string `json:"path"`
-	Line       int    `json:"line"`
-	DiffSide   string `json:"diffSide"`
-	Comments   struct {
+	IsResolved   bool   `json:"isResolved"`
+	IsOutdated   bool   `json:"isOutdated"`
+	Path         string `json:"path"`
+	Line         int    `json:"line"`
+	OriginalLine int    `json:"originalLine"`
+	DiffSide     string `json:"diffSide"`
+	Comments     struct {
 		Nodes []comment `json:"nodes"`
 	} `json:"comments"`
 }
@@ -121,11 +122,19 @@ func (r *response) threads() []Thread {
 
 	for i := range nodes {
 		n := &nodes[i]
-		if n.IsResolved || n.IsOutdated || n.Line == 0 || len(n.Comments.Nodes) == 0 {
+
+		// GitHub nulls line for an outdated thread; originalLine is where it
+		// stayed anchored, and is what lets one still be shown at all.
+		line := n.Line
+		if line == 0 {
+			line = n.OriginalLine
+		}
+
+		if line == 0 || len(n.Comments.Nodes) == 0 {
 			continue
 		}
 
-		t := Thread{Path: n.Path, Side: n.DiffSide, Line: n.Line}
+		t := Thread{Path: n.Path, Side: n.DiffSide, Line: line, Resolved: n.IsResolved, Outdated: n.IsOutdated}
 		for _, c := range n.Comments.Nodes {
 			t.Notes = append(t.Notes, c.note())
 		}

@@ -9,7 +9,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look show <pr>            print the prepared review
   second-look show <pr> --diff     print the diff with every comment marked on it
   second-look show <pr> --payload  print exactly what would be sent
-  second-look show <pr> --threads  print the open review threads and their ids
+  second-look show <pr> --threads  print the review threads and their ids
   second-look context <pr> <id>    one comment with its hunk, note, and thread
   second-look todo <pr>            every comment an agent still owes work on
   second-look post <pr>            post the review

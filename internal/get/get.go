@@ -51,7 +51,14 @@ func Run(ctx context.Context, out io.Writer, t Target) error {
 	}
 
 	if !t.Detached() {
-		if err := checkout(ctx, out, t.Work, pr); err != nil {
+		if pr.State == forge.PRStatusOpen {
+			if err := checkout(ctx, out, t.Work, pr); err != nil {
+				return err
+			}
+		} else if err := say(out, fmt.Sprintf(
+			"#%d is %s; its branch may be gone, so refreshing from the API without moving the checkout\n",
+			t.Number, strings.ToLower(pr.State),
+		)); err != nil {
 			return err
 		}
 	}
@@ -110,17 +117,18 @@ func cacheDiff(ctx context.Context, t Target, sha string) error {
 	return nil
 }
 
-// cacheThreads reads the conversations already open on the pull request, so a
-// second pass can answer them. Every run refreshes them, which is what makes
-// get the way to pick up what was said since.
+// cacheThreads reads every conversation on the pull request, resolved and
+// outdated ones included, so a second pass can both answer what is still open
+// and confirm what was addressed. Every run refreshes them, which is what
+// makes get the way to pick up what was said since.
 func cacheThreads(ctx context.Context, out io.Writer, t Target, sha string) error {
-	open, about, err := threads.Fetch(ctx, t.Dir(), t.Owner, t.Repo, t.Number)
+	all, about, err := threads.Fetch(ctx, t.Dir(), t.Owner, t.Repo, t.Number)
 	if err != nil {
 		//nolint:wrapcheck // Fetch's own error already names the pull request
 		return err
 	}
 
-	if err := artifact.SaveThreads(t.Store, sha, open); err != nil {
+	if err := artifact.SaveThreads(t.Store, sha, all); err != nil {
 		return fmt.Errorf("caching the review threads: %w", err)
 	}
 
@@ -128,15 +136,25 @@ func cacheThreads(ctx context.Context, out io.Writer, t Target, sha string) erro
 		return fmt.Errorf("caching the pull request's context: %w", err)
 	}
 
-	if len(open) == 0 {
-		return nil
-	}
-
-	if _, err := fmt.Fprintln(out, humanize.Plural(len(open), "open review thread")); err != nil {
-		return fmt.Errorf("writing output: %w", err)
+	if n := stillOpen(all); n > 0 {
+		if _, err := fmt.Fprintln(out, humanize.Plural(n, "open review thread")); err != nil {
+			return fmt.Errorf("writing output: %w", err)
+		}
 	}
 
 	return nil
+}
+
+func stillOpen(ts []threads.Thread) int {
+	n := 0
+
+	for _, t := range ts {
+		if !t.Resolved {
+			n++
+		}
+	}
+
+	return n
 }
 
 // headOf is the commit the prepared review was last staged against, or empty

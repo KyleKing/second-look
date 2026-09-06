@@ -73,7 +73,7 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 	}
 
 	head := row{
-		kind: rowThread, text: "⤷ " + lead(where) + " · " + plural(len(t.Notes), "comment"),
+		kind: rowThread, text: "⤷ " + lead(where) + status(t) + " · " + plural(len(t.Notes), "comment"),
 		path: path, comment: -1, thread: index, head: true,
 	}
 
@@ -96,7 +96,7 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 	// A folded conversation says so and says how much it is holding back, since
 	// a heading that looks the same either way is one nobody trusts.
 	if lay.fold.threads[index] {
-		head.text = arrow(false) + " " + lead(where) + " · " +
+		head.text = arrow(false) + " " + lead(where) + status(t) + " · " +
 			plural(len(t.Notes), "comment") + " · " + plural(len(rows)-1, "line") + " folded"
 		head.folded = true
 
@@ -104,6 +104,20 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 	}
 
 	return rows
+}
+
+// status names what became of a thread since it was opened, so a resolved or
+// outdated conversation reads as settled rather than as one still asking
+// something. An open thread carries none.
+func status(t *threads.Thread) string {
+	switch {
+	case t.Resolved:
+		return " · resolved"
+	case t.Outdated:
+		return " · outdated"
+	default:
+		return ""
+	}
 }
 
 // scribe draws one thread's comments. It carries what every row of them needs,

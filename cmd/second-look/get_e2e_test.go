@@ -32,10 +32,11 @@ func TestShowThreadsNamesTheIDAReplyAddresses(t *testing.T) {
 	}
 
 	var open []struct {
-		Path    string `json:"path"`
-		Line    int    `json:"line"`
-		ReplyTo int64  `json:"reply_to"`
-		Notes   []struct {
+		Path     string `json:"path"`
+		Line     int    `json:"line"`
+		Resolved bool   `json:"resolved"`
+		ReplyTo  int64  `json:"reply_to"`
+		Notes    []struct {
 			ID int64 `json:"id"`
 		} `json:"notes"`
 	}
@@ -48,6 +49,8 @@ func TestShowThreadsNamesTheIDAReplyAddresses(t *testing.T) {
 		t.Fatal("no threads were printed, so nothing here is exercised")
 	}
 
+	resolved := 0
+
 	for i := range open {
 		if open[i].ReplyTo != open[i].Notes[0].ID {
 			t.Errorf("thread %d answers %d, but its first comment is %d",
@@ -57,6 +60,16 @@ func TestShowThreadsNamesTheIDAReplyAddresses(t *testing.T) {
 		if open[i].Path == "" || open[i].Line == 0 {
 			t.Errorf("thread %d anchors nowhere: %+v", i, open[i])
 		}
+
+		if open[i].Resolved {
+			resolved++
+		}
+	}
+
+	// The recording carries one thread already resolved on GitHub, which must
+	// still print, marked, rather than disappear once addressed.
+	if resolved != 1 {
+		t.Errorf("%d thread(s) printed as resolved, want 1", resolved)
 	}
 }
 
@@ -195,6 +208,43 @@ func TestGetCarriesStagedCommentsOntoANewHead(t *testing.T) {
 
 	if len(review.Comments) != 5 {
 		t.Errorf("%d comment(s) survived the move, want 5", len(review.Comments))
+	}
+}
+
+// TestGetSkipsCheckoutOnAMergedPR is what get looks like once a pull request's
+// branch is gone: GitHub still answers the diff and the threads by number, so
+// there is no reason a missing branch should stop the refresh.
+func TestGetSkipsCheckoutOnAMergedPR(t *testing.T) {
+	t.Parallel()
+
+	dir, _ := scratchRepo(t, "some-other-branch")
+	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "merged", func(c *ghcassette.Cassette) {
+		inCheckout(c)
+		c.Interactions = append(c.Interactions[:reads:reads], threadInteraction(t)...)
+		c.Interactions[0].Stdout = strings.Replace(c.Interactions[0].Stdout, `"state":"OPEN"`, `"state":"MERGED"`, 1)
+	}))
+
+	res := runCLI(t, s, dir, "get", "2")
+	if res.code != 0 {
+		t.Fatalf("get failed: %s%s", res.stdout, res.stderr)
+	}
+
+	if !strings.Contains(res.stdout, "is merged") {
+		t.Errorf("get did not say the pull request was merged:\n%s", res.stdout)
+	}
+
+	if branch := strings.TrimSpace(inRepo(t, dir, "branch", "--show-current")); branch != "some-other-branch" {
+		t.Errorf("the checkout moved to %q, want it left on some-other-branch", branch)
+	}
+
+	// #nosec G304 -- a path under the test's own temporary directory
+	cached, err := os.ReadFile(artifact.DiffPath(stored(t, dir), fixtureHeadSHA))
+	if err != nil {
+		t.Fatalf("the cached diff: %v", err)
+	}
+
+	if !strings.Contains(string(cached), "+++ b/testdata/fixture/sample.go") {
+		t.Error("the cached diff is not the one the recording carried")
 	}
 }
 

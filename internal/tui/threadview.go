@@ -8,7 +8,8 @@ import (
 	"github.com/kyleking/second-look/internal/threads"
 )
 
-// buildThreads is every open conversation on the pull request and nothing else.
+// buildThreads is every conversation on the pull request, open, resolved, and
+// outdated alike, and nothing else.
 //
 // GitHub's own list is unreadable for the reason the conversation queue exists:
 // it interleaves the diff, so what is still being asked spreads through a page
@@ -41,7 +42,7 @@ func buildThreads(d *diff.Diff, ts []threads.Thread, lay layout) screen {
 
 	if len(s.rows) == 0 {
 		s.rows = append(s.rows, row{
-			kind: rowFile, comment: noComment, text: "no open conversations on this pull request",
+			kind: rowFile, comment: noComment, text: "no conversations on this pull request",
 		})
 	}
 

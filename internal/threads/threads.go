@@ -57,12 +57,19 @@ type About struct {
 	Comments []Note `json:"comments,omitempty"`
 }
 
-// Thread is one unresolved conversation anchored in the current diff.
+// Thread is one conversation anchored in the diff. Resolved and Outdated say
+// what became of it since it was opened, so a reviewer can confirm it was
+// addressed rather than have it vanish once it stops being current.
 type Thread struct {
-	Path  string `json:"path"`
-	Side  string `json:"side"`
-	Line  int    `json:"line"`
-	Notes []Note `json:"notes"`
+	Path string `json:"path"`
+	Side string `json:"side"`
+	Line int    `json:"line"`
+	// Resolved is whether someone marked the thread resolved on GitHub.
+	Resolved bool `json:"resolved,omitempty"`
+	// Outdated is whether the diff has moved past the line this thread
+	// anchored to, whether or not anyone has resolved it.
+	Outdated bool   `json:"outdated,omitempty"`
+	Notes    []Note `json:"notes"`
 }
 
 // ReplyTo is the comment a reply to this thread addresses. GitHub threads a
@@ -117,6 +124,7 @@ const query = `query($owner:String!,$repo:String!,$number:Int!){
           isOutdated
           path
           line
+          originalLine
           diffSide
           comments(first:50){nodes{
             id databaseId body author{login}
@@ -128,11 +136,10 @@ const query = `query($owner:String!,$repo:String!,$number:Int!){
   }
 }`
 
-// Fetch reads the pull request's unresolved, still-current review threads.
-//
-// Resolved and outdated threads are dropped: a second pass is about what is
-// still open, and an outdated thread anchors to a line the diff no longer
-// carries, so it has nowhere to render and nothing to answer.
+// Fetch reads every review thread on the pull request that still anchors
+// somewhere, resolved and outdated ones included: a thread that closed out
+// is what confirms a finding was addressed, and losing it the moment it
+// resolves would take that confirmation with it.
 func Fetch(ctx context.Context, root, owner, repo string, number int) ([]Thread, About, error) {
 	//nolint:gosec // every argument is a constant or a value read off the pull request
 	cmd := exec.CommandContext(ctx, "gh", "api", "graphql",
