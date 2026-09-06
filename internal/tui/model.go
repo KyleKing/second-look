@@ -1282,6 +1282,17 @@ func (m *Model) hunksOf(path string) []seen.Ref {
 	return out
 }
 
+// fileProgress is how much of one file has been read. A review opened with no
+// marks to read has none read rather than none at all.
+func (m *Model) fileProgress(path string) (int, int) {
+	refs := m.hunksOf(path)
+	if m.read == nil {
+		return 0, len(refs)
+	}
+
+	return m.read.Count(refs), len(refs)
+}
+
 func (m *Model) allRead(refs []seen.Ref) bool {
 	for _, ref := range refs {
 		if !m.read.Has(ref.ID) {
@@ -2126,6 +2137,7 @@ func (m *Model) rebuild() {
 		grown: func(path string, hunk int, span [2]int) ([]row, []row) {
 			return m.surround(path, hunk, span[0], span[1])
 		},
+		progress: m.fileProgress,
 	}
 	if !m.asDiffed {
 		lay.plan = m.shape.plan

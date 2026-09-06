@@ -140,7 +140,7 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 	merged := mergedHunk(f, at, c, span)
 	rows := []row{{
 		kind: rowFile, path: p, comment: noComment, hunk: merged,
-		text: p + partWord(c.split[at.path]) + sizeWord(f, at.hunks),
+		text: p + c.lay.partWord(p, c.split[at.path]) + sizeWord(f, at.hunks),
 	}}
 
 	if c.lay.shut(p) {

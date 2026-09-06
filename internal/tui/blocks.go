@@ -118,6 +118,9 @@ type layout struct {
 	// there is none: before the pass answers, where nothing parsed, and where
 	// the reader asked for the diff's own order back.
 	plan []order.Group
+	// progress is how many of a file's hunks have been read and how many it
+	// has, which is what a piece of a file cannot say about the whole of it.
+	progress func(path string) (int, int)
 }
 
 // shut reports whether a file is drawn as one row rather than in full. What a

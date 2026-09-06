@@ -157,13 +157,18 @@ func splitFiles(groups []planGroup) map[string]int {
 // partWord says a file is showing only some of itself. A reader who does not
 // know they are looking at half a file draws the wrong conclusion from it, and
 // `]f` walks to the rest.
-func partWord(elsewhere int) string {
+//
+// The count is of the whole file rather than of this piece, because how much of
+// a file is left is the question a piece of it cannot answer.
+func (l layout) partWord(path string, elsewhere int) string {
 	if elsewhere < 1 {
 		return ""
 	}
 
-	return fmt.Sprintf("  part of this file · %s elsewhere · ]f walks to it",
-		plural(elsewhere, "piece"))
+	read, total := l.progress(path)
+
+	return fmt.Sprintf("  part of this file · %s elsewhere · %d/%d read · ]f walks to it",
+		plural(elsewhere, "piece"), read, total)
 }
 
 func fileIndex(d *diff.Diff) map[string]int {

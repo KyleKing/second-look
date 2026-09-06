@@ -1348,6 +1348,12 @@ diff --git a/c/three.go b/c/three.go
 	if !strings.Contains(frame, "]f walks to it") {
 		t.Errorf("nothing says how to reach the rest of it:\n%s", frame)
 	}
+
+	// The count is of the whole file, which is the question a piece of it
+	// cannot answer: both pieces say two hunks, neither says one.
+	if got := strings.Count(frame, "0/2 read"); got != 2 {
+		t.Errorf("%d of the two pieces count the whole file:\n%s", got, frame)
+	}
 }
 
 // gathered opens a review and waits for the structural pass, which is what the
