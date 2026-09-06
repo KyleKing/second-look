@@ -40,8 +40,8 @@ github.com/dlclark/regexp2/v2 v2.2.1 h1:mf4KkFUj0gJuarK8P+LgiS+Lit7m9N1yAwEfPbee
 github.com/dlclark/regexp2/v2 v2.2.1/go.mod h1:avUrQvPaLz2DrFNHJF0taWAFFX2C1GMSSoeiqFjcBmU=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
-github.com/kyleking/aragonite v0.13.0 h1:7Cf/pKOqxvlwo+1yyy3GnyEuq4FoFBmQLeFArJG3KIQ=
-github.com/kyleking/aragonite v0.13.0/go.mod h1:I2pkY5QBtQRrvzqTqVFesNH7yGnTnst0axnOtkm7Qvw=
+github.com/kyleking/aragonite v0.14.0 h1:YpsSqdqv7R6zRw3jvn2rJVLJWeCAlIkeEHCjiX9KzmM=
+github.com/kyleking/aragonite v0.14.0/go.mod h1:I2pkY5QBtQRrvzqTqVFesNH7yGnTnst0axnOtkm7Qvw=
 github.com/lucasb-eyer/go-colorful v1.4.1 h1:1EO+WB73+EH8EVbzlrG3KLAfEypQWVHIBqlTf+2hNss=
 github.com/lucasb-eyer/go-colorful v1.4.1/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/mattn/go-runewidth v0.0.24 h1:cpokDiIn0MGnhdHwuWnJBITySJ20QyNGnY2kR/ay2DU=
