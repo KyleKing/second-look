@@ -1,0 +1,18 @@
+diff --git a/go.sum b/go.sum
+index 1111111..2222222 100644
+--- a/go.sum
++++ b/go.sum
+@@ -1,7 +1,7 @@
+ github.com/charmbracelet/x/exp/golden v0.0.1 h1:mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm=
+-github.com/alecthomas/chroma/v2 v2.26.0 h1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=
+-github.com/alecthomas/chroma/v2 v2.26.0/go.mod h1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb=
+-github.com/kyleking/aragonite v0.12.0 h1:ccccccccccccccccccccccccccccccccccccccccccc=
+-github.com/kyleking/aragonite v0.12.0/go.mod h1:ddddddddddddddddddddddddddddddddddddddddddd=
+-github.com/mattn/go-isatty v0.0.20 h1:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee=
+-github.com/mattn/go-isatty v0.0.20/go.mod h1:fffffffffffffffffffffffffffffffffffffffffff=
++github.com/alecthomas/chroma/v2 v2.27.0 h1:ggggggggggggggggggggggggggggggggggggggggggg=
++github.com/alecthomas/chroma/v2 v2.27.0/go.mod h1:hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh=
++github.com/kyleking/aragonite v0.13.0 h1:iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii=
++github.com/kyleking/aragonite v0.13.0/go.mod h1:jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj=
++github.com/muesli/termenv v0.16.0 h1:kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk=
++github.com/muesli/termenv v0.16.0/go.mod h1:lllllllllllllllllllllllllllllllllllllllllll=

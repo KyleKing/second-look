@@ -144,14 +144,7 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 	}}
 
 	if c.lay.shut(p) {
-		rows[0].text = p + "  " + plural(hunkCount(f), "hunk") + " folded" + staged(c.r, p) + " · za to open"
-		rows[0].folded = true
-
-		for _, ln := range f.Lines {
-			claim(c.byLine, c.placed, p, ln)
-		}
-
-		return rows
+		return foldedFile(f, rows[0], c)
 	}
 
 	rows = append(rows, fileNotes(f, p, c)...)
