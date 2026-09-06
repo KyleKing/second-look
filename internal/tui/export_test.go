@@ -50,6 +50,17 @@ func shapeOf(readings []structure.Reading, refs []HunkRef) (shape, []hunkAt) {
 // terminal.
 func (m *Model) Frame() string { return m.render() }
 
+// HeadChecked delivers what the head check answered, which Init asks behind the
+// first frame and a test has no program loop to run for it.
+func (m *Model) HeadChecked(sha string) {
+	m.applyHead(headMsg{sha: sha, want: m.review.HeadSHA})
+}
+
+// HeadFailed delivers a head check that could not reach the forge.
+func (m *Model) HeadFailed(err error) {
+	m.applyHead(headMsg{want: m.review.HeadSHA, err: err})
+}
+
 // Failure is the submit that did not post, which Run leaves through.
 func (m *Model) Failure() error { return m.failure }
 
@@ -157,3 +168,17 @@ func (m *Model) DimKeys() []string {
 
 // Inert reports a legend key with nothing to act on under the cursor.
 func (m *Model) KeyIsInert(key string) bool { return m.inert(key) }
+
+// Relayout lays out rows for the current view from the whole diff, which is
+// what a fold, toggle, or order change runs again rather than only for the
+// visible window.
+func (m *Model) Relayout() { m.rebuild() }
+
+// Restructure runs the structural pass over the whole diff, one subprocess per
+// hunk side, and applies its answer as the command landing behind the first
+// frame does.
+func (m *Model) Restructure() {
+	if msg, ok := readStructure(m.diff, m.made)().(structureMsg); ok {
+		m.applyStructure(msg)
+	}
+}

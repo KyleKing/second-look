@@ -225,6 +225,12 @@ where what it says is anchored to code and can be resolved. Its pull request com
 coverage tables and linkbacks nobody ever resolves, and admitting them filled the queue
 with 77 rows where 13 were real.
 
+A review opened out of that cache was staged against whatever the head was then, so the
+screen asks the forge whether it still stands and draws nothing but a line saying so until
+the answer comes back. Reading a diff that turns out to be the older one is worse than
+waiting one round trip for the question, and a check that cannot reach the forge releases
+the diff with the failure in the footer.
+
 Every review, read mark, cached diff, and rating lives in one store under the user state
 directory, keyed by owner, repository, and number, so a pull request read from two clones
 is one review rather than two. An artifact directory left in a working copy is moved there

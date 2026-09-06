@@ -2892,3 +2892,142 @@ func TestTheEndOfAReviewHasRoomBelowIt(t *testing.T) {
 		})
 	}
 }
+
+// A review out of the cache was staged against whatever the head was then, so
+// the diff waits behind the one question that says whether it still stands.
+// Drawing it first means the reader has read the older diff by the time the
+// screen admits it is the older one.
+func TestACachedReviewDrawsNothingUntilTheHeadIsChecked(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		sha  string
+		want string
+	}{
+		{"the head still stands", "a1b2c3d", ""},
+		{"the head moved", "9f9f9f9", "head moved"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := &artifact.Review{
+				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+				HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+			}
+
+			path := filepath.Join(t.TempDir(), "pr-42.toml")
+			if err := artifact.Save(path, r); err != nil {
+				t.Fatal(err)
+			}
+
+			m := tui.New(t.Context(), r, diff.Parse([]byte(longPatch(t))), path, (&counter{}).post,
+				tui.WithHeadCheck(func(context.Context) (string, error) { return tc.sha, nil }))
+			m.Init()
+			m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+			before := plain(m.Frame())
+			if strings.Contains(before, "first line 1") {
+				t.Errorf("the cached diff is drawn before the head is checked:\n%s", before)
+			}
+
+			if !strings.Contains(before, "checking the pull request head") {
+				t.Errorf("nothing says what is being waited on:\n%s", before)
+			}
+
+			m.HeadChecked(tc.sha)
+
+			after := plain(m.Frame())
+			if !strings.Contains(after, "first line 1") {
+				t.Errorf("the diff never arrived:\n%s", after)
+			}
+
+			if tc.want != "" && !strings.Contains(after, tc.want) {
+				t.Errorf("the frame does not say %q:\n%s", tc.want, after)
+			}
+		})
+	}
+}
+
+var errOffline = errors.New("offline")
+
+// A head check that failed answers the question as much as it is going to. The
+// network is not the review's problem, so the diff draws with the failure in
+// the footer rather than leaving the reader on a spinner.
+func TestAFailedHeadCheckStillReleasesTheDiff(t *testing.T) {
+	t.Parallel()
+
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(longPatch(t))), path, (&counter{}).post,
+		tui.WithHeadCheck(func(context.Context) (string, error) { return "", errOffline }))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m.HeadFailed(errOffline)
+
+	got := plain(m.Frame())
+	if !strings.Contains(got, "first line 1") {
+		t.Errorf("a failed check left the diff hidden:\n%s", got)
+	}
+
+	if !strings.Contains(got, "could not check the head") {
+		t.Errorf("the failure is not shown:\n%s", got)
+	}
+}
+
+// hunkyPatch is one file in several hunks far enough apart that the frame can
+// hold only one of them.
+func hunkyPatch(t *testing.T) string {
+	t.Helper()
+
+	var b strings.Builder
+
+	fmt.Fprint(&b, "diff --git a/first/file.go b/first/file.go\n"+
+		"index 1111111..2222222 100644\n--- a/first/file.go\n+++ b/first/file.go\n")
+
+	for h := range 3 {
+		at := h*100 + 1
+		fmt.Fprintf(&b, "@@ -%d,20 +%d,20 @@\n", at, at)
+
+		for i := range 20 {
+			fmt.Fprintf(&b, "+part %d line %d\n", h+1, i+1)
+		}
+	}
+
+	return b.String()
+}
+
+// The track says where the rest of a file is. Hunks are gathered by what they
+// touch rather than kept in file order, so a reader on one piece of a file has
+// nothing on the frame saying the other pieces are two screens down.
+func TestTheTrackMarksTheHunksStillToRead(t *testing.T) {
+	t.Parallel()
+
+	m := readable(t, hunkyPatch(t))
+
+	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "•") {
+		t.Errorf("the track marks nothing while two hunks are unread off screen:\n%s", got)
+	}
+
+	// Reading every hunk leaves nothing to point at, which is the same thing the
+	// read count says at the other end of the title.
+	for range 3 {
+		press(m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+		go2(m, ']', 'h')
+	}
+
+	if got := plain(m.Frame()); strings.Contains(got, "•") {
+		t.Errorf("the track still marks a hunk after every one was read:\n%s", got)
+	}
+}

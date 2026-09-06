@@ -39,6 +39,8 @@ func (m *Model) render() string {
 		body = m.helpLines()
 	case m.aboutOpen:
 		body = m.aboutLines()
+	case m.verifying:
+		body = m.loadingLines()
 	}
 
 	return strings.Join(append(append([]string{m.title()}, body...), m.footerLines()...), "\n")
@@ -82,6 +84,19 @@ func (m *Model) title() string {
 
 	return m.styles.title.Render(left) +
 		strings.Repeat(" ", gap) + m.styles.subtitle.Render(right)
+}
+
+// loadingLines stands where the diff goes until the head check answers. A
+// review read out of the cache was staged against whatever the head was then,
+// so drawing it first means the reader has read the older diff by the time the
+// screen says so.
+func (m *Model) loadingLines() []string {
+	out := make([]string, m.viewHeight())
+	if len(out) > 0 {
+		out[0] = " " + m.styles.note.Render(cut("checking the pull request head…", m.width-1))
+	}
+
+	return out
 }
 
 // fitPath keeps the part of a path that says which file it is. Cutting a path
@@ -279,6 +294,55 @@ func (m *Model) headingAbove(at int, kind rowKind) string {
 	return ""
 }
 
+// elsewhere is where the file under the cursor keeps the hunks nobody has read,
+// as rows, leaving out whatever the frame is already showing. Hunks are
+// gathered by what they touch rather than kept in file order, so the rest of a
+// file sits wherever the reading order put it and the frame says nothing about
+// where.
+func (m *Model) elsewhere(height int) []int {
+	if m.view != viewDiff {
+		return nil
+	}
+
+	path := m.cursorPath()
+	if path == "" {
+		return nil
+	}
+
+	var out []int
+
+	for i := range m.screen.rows {
+		r := m.screen.rows[i]
+		if r.path != path || r.hunk == 0 || (r.kind != rowHunk && r.kind != rowFile) {
+			continue
+		}
+
+		if i >= m.offset && i < m.offset+height {
+			continue
+		}
+
+		if m.read != nil && m.read.Has(seen.Hunk(m.diff, r.path, r.hunk)) {
+			continue
+		}
+
+		out = append(out, i)
+	}
+
+	return out
+}
+
+// cursorPath is the file the cursor stands in, taken from the nearest row above
+// that belongs to one so a blank between two hunks does not read as no file.
+func (m *Model) cursorPath() string {
+	for i := min(m.cursor, len(m.screen.rows)-1); i >= 0; i-- {
+		if p := m.screen.rows[i].path; p != "" {
+			return p
+		}
+	}
+
+	return ""
+}
+
 // maxFailLines caps how much of the frame a failure takes. A refusal from gh
 // runs longer than one line, and the reason a post failed is the one message
 // that must not be cut off mid-word.
@@ -437,7 +501,7 @@ func (m *Model) helpLines() []string {
 // is rewriting so the text stays where it was on the screen.
 func (m *Model) rowLines() []string {
 	h := m.viewHeight()
-	bar := scrollbar(h, len(m.screen.rows), m.offset)
+	bar := mark(scrollbar(h, len(m.screen.rows), m.offset), len(m.screen.rows), m.elsewhere(h))
 	width := bodyWidth(m.width, bar)
 
 	out := make([]string, 0, h)

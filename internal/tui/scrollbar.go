@@ -34,6 +34,30 @@ func scrollbar(height, total, offset int) []string {
 	return out
 }
 
+// scrollMark is a row worth knowing the position of that the frame is not
+// showing. The track is where it goes: a second column would cost every row a
+// cell to say something only a handful of rows have to say.
+const scrollMark = "•"
+
+// mark puts rows onto the track by where they sit in the content. The thumb
+// wins a collision, since a row inside the frame is one the reader can see.
+func mark(bar []string, total int, rows []int) []string {
+	if len(bar) == 0 || total < 1 {
+		return bar
+	}
+
+	for _, at := range rows {
+		i := at * len(bar) / total
+		if i < 0 || i >= len(bar) || bar[i] != scrollTrack {
+			continue
+		}
+
+		bar[i] = scrollMark
+	}
+
+	return bar
+}
+
 // alongside puts the bar on the right edge of lines already rendered, padding
 // each to the same column so the bar is straight whatever the lines carry.
 func alongside(lines, bar []string, s styles, width int) []string {
@@ -43,8 +67,12 @@ func alongside(lines, bar []string, s styles, width int) []string {
 
 	for i := range lines {
 		glyph := s.subtitle.Render(bar[i])
-		if bar[i] == scrollThumb {
+
+		switch bar[i] {
+		case scrollThumb:
 			glyph = s.rail.Render(bar[i])
+		case scrollMark:
+			glyph = s.file.Render(bar[i])
 		}
 
 		lines[i] = pad(lines[i], width-1) + glyph

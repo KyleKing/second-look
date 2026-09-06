@@ -172,6 +172,11 @@ type Model struct {
 	next bool
 	// checkout is C, answered by the caller once the screen has closed.
 	checkout bool
+	// verifying is a head check still in flight. Nothing of the diff is drawn
+	// until it answers: a review out of the cache may be the previous head's,
+	// and a diff that turns out to be the older one has already been read by
+	// then.
+	verifying bool
 	// newHead is the head the pull request is on now, set only when it is not
 	// the one this review was staged against. The title says so for as long as
 	// the screen is open, because everything drawn under it belongs to the
@@ -261,6 +266,7 @@ func (m *Model) checkHead() tea.Cmd {
 		return nil
 	}
 
+	m.verifying = true
 	ctx, want := m.ctx, m.review.HeadSHA
 
 	return func() tea.Msg {
@@ -322,6 +328,8 @@ type headMsg struct {
 // A check that failed is reported once: the network is not the review's
 // problem, and the diff on screen is as good as it was before the question.
 func (m *Model) applyHead(msg headMsg) {
+	m.verifying = false
+
 	switch {
 	case msg.err != nil:
 		m.say("could not check the head: "+msg.err.Error(), true)
