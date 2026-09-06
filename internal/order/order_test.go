@@ -37,6 +37,167 @@ func hunk(path string, n int, declares, calls []string) order.Hunk {
 	}
 }
 
+// scenarios is the shapes a diff arrives in, which the invariants below are
+// each asserted against in turn: what holds on one diff and not on another is
+// not an invariant.
+func scenarios() []struct {
+	name  string
+	hunks []order.Hunk
+} {
+	generated := hunk("uv.lock", 1, nil, nil)
+	generated.Made = true
+
+	dear := hunk("a/dear.go", 1, []string{"Signature"}, nil)
+	dear.Cost = 60
+
+	return []struct {
+		name  string
+		hunks []order.Hunk
+	}{
+		{"nothing links", []order.Hunk{
+			hunk("a/one.go", 1, nil, nil),
+			hunk("b/two.go", 1, nil, nil),
+			hunk("a/one.go", 2, nil, nil),
+		}},
+		{"one file in many hunks", []order.Hunk{
+			hunk("a/one.go", 1, nil, nil),
+			hunk("a/one.go", 2, []string{"Middle"}, nil),
+			hunk("a/one.go", 3, nil, nil),
+			hunk("b/two.go", 1, nil, []string{"Middle"}),
+		}},
+		{"a caller in another directory", []order.Hunk{
+			hunk("internal/budget/read.go", 1, []string{"ReadBudget"}, nil),
+			hunk("internal/other/thing.go", 1, nil, nil),
+			hunk("cmd/app/main.go", 1, nil, []string{"ReadBudget"}),
+		}},
+		{"a name too common to link", []order.Hunk{
+			hunk("a/one.go", 1, []string{"New"}, nil),
+			hunk("b/two.go", 1, []string{"New"}, nil),
+			hunk("c/three.go", 1, nil, []string{"New"}),
+		}},
+		{"a link nothing answers", []order.Hunk{
+			hunk("a/one.go", 1, []string{"Alone"}, nil),
+			hunk("b/two.go", 1, nil, nil),
+		}},
+		{"cost reorders the groups", []order.Hunk{
+			hunk("a/cheap.go", 1, []string{"Rename"}, nil),
+			hunk("b/calls.go", 1, nil, []string{"Rename"}),
+			dear,
+			hunk("b/more.go", 1, nil, []string{"Signature"}),
+		}},
+		{"what a machine wrote", []order.Hunk{
+			hunk("a/read.go", 1, []string{"ReadBudget"}, nil),
+			generated,
+			hunk("a/call.go", 1, nil, []string{"ReadBudget"}),
+		}},
+	}
+}
+
+// The plan is a stable partition: it decides which group a hunk belongs to and
+// never which of two hunks comes first. So every group reads in the order the
+// diff named its hunks, and the only rows that moved are the ones a heading
+// gathered.
+//
+// This is the whole of what "the order is disturbed as little as possible"
+// means. A cost sort inside a group, or a file's hunks emitted by size, would
+// each be a real improvement to argue for and would each break this.
+func TestAGroupKeepsTheDiffsOwnOrder(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range scenarios() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			at := map[order.Ref]int{}
+			for i, h := range tc.hunks {
+				at[h.Ref] = i
+			}
+
+			for _, g := range order.Plan(tc.hunks) {
+				last := -1
+
+				for _, h := range g.Hunks {
+					if at[h] <= last {
+						t.Errorf("%s reads %v after the hunk at %d, which the diff put later",
+							g.Name, h, last)
+					}
+
+					last = at[h]
+				}
+			}
+		})
+	}
+}
+
+// pieces is how many places each file is drawn in, and how many of those a
+// symbol gathered it into.
+func pieces(groups []order.Group) (map[string]int, map[string]int) {
+	parts, gathered := map[string]int{}, map[string]int{}
+
+	for _, g := range groups {
+		in := map[string]bool{}
+
+		for _, h := range g.Hunks {
+			if !in[h.Path] {
+				in[h.Path] = true
+				parts[h.Path]++
+			}
+
+			if g.Symbol {
+				gathered[h.Path]++
+			}
+		}
+	}
+
+	return parts, gathered
+}
+
+// Two hunks of one file are never drawn in two places unless a symbol gathered
+// one of them. Splitting a file is what costs a reader the most, so it happens
+// exactly as often as gathering earns it and no more.
+func TestAFileIsSplitOnlyWhereASymbolGathersIt(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range scenarios() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			groups := order.Plan(tc.hunks)
+			parts, gathered := pieces(groups)
+
+			for path, n := range parts {
+				// A file drawn in two places has at least one hunk in a symbol
+				// group, and one more piece for each further symbol that took one.
+				if want := gathered[path] + 1; n > want {
+					t.Errorf("%s is drawn in %d places, want at most %d:\n%s",
+						path, n, want, shown(groups))
+				}
+			}
+		})
+	}
+}
+
+// Two runs over one review agree. Names are gathered out of a map, so an order
+// that leaned on iteration would put a review in a different shape every time
+// it was opened and lose the reader their place on every rebuild.
+func TestThePlanIsTheSameEveryTime(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range scenarios() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			want := shown(order.Plan(tc.hunks))
+
+			for range 20 {
+				if got := shown(order.Plan(tc.hunks)); got != want {
+					t.Fatalf("a second plan is\n%swant\n%s", got, want)
+				}
+			}
+		})
+	}
+}
+
 // A callee whose signature moved and the caller that has to change with it are
 // pages apart in the diff and next to each other here, whatever directories
 // they came from.
