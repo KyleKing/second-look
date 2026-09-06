@@ -8,7 +8,9 @@ extend-exclude = ["CHANGELOG.md"]
 # "f3a9ba6" is not a misspelling of anything.
 extend-ignore-identifiers-re = ["^[0-9a-f]{7,40}$"]
 
-# golangci-lint linter identifiers that typos reads as misspellings.
+# Names typos reads as misspellings: golangci-lint's linter identifiers, and
+# Ratatui, which is a Rust terminal library rather than a French stew.
 [default.extend-words]
+Ratatui = "Ratatui"
 decorder = "decorder"
 importas = "importas"
