@@ -1,3 +1,10 @@
+## v0.12.0 (2026-09-06)
+
+### Feat
+
+- **tui**: carry the group and the line in the title
+- **meta**: read pnpm, yarn, and Gemfile lockfiles too
+
 ## v0.11.0 (2026-09-06)
 
 ### Feat
