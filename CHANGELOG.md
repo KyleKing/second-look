@@ -1,3 +1,28 @@
+## v0.9.0 (2026-09-06)
+
+### Feat
+
+- **tui**: count the whole file on each piece of a split one
+- **tui**: read a lockfile as the dependencies it changed
+- **tui**: read a symbol that moved between files as one move
+- **threads**: keep resolved and outdated conversations, tagged
+- **tui**: put the note under the body and keep room below both
+- **tui**: dim the keys that do nothing where the cursor is
+- **tui**: draw the review body in full rather than folded
+- **review**: post, then open the next staged review checked out
+- **agent**: resume the session an agent records on the review
+- **queue**: filter conversations by kind and mark started work
+- **reviews**: name the change and say what the forge thinks of it
+- **tui**: react with an emoji and fold a whole conversation
+- **tui**: show what the pull request says about itself with i
+- **inbox**: say what a staged review holds and which clone is free
+- **queue**: focus one repository across all three tabs with f
+
+### Fix
+
+- **typos**: let Ratatui through as a library name
+- **tui**: keep the thread on screen while replying to it
+
 ## v0.8.0 (2026-09-04)
 
 ### Feat
