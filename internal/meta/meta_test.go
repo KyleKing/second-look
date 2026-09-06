@@ -265,13 +265,12 @@ func gemfileCases() []readCase {
 			patch: `diff --git a/Gemfile.lock b/Gemfile.lock
 --- a/Gemfile.lock
 +++ b/Gemfile.lock
-@@ -2,6 +2,9 @@
+@@ -2,5 +2,8 @@
    remote: https://rubygems.org/
    specs:
      concurrent-ruby (1.2.2)
 +    i18n (1.14.1)
 +      concurrent-ruby (~> 1.0)
- 
  PLATFORMS
    ruby
 `,
@@ -283,13 +282,12 @@ func gemfileCases() []readCase {
 			patch: `diff --git a/Gemfile.lock b/Gemfile.lock
 --- a/Gemfile.lock
 +++ b/Gemfile.lock
-@@ -2,7 +2,5 @@
+@@ -2,6 +2,4 @@
    remote: https://rubygems.org/
    specs:
      concurrent-ruby (1.2.2)
 -    i18n (1.14.1)
 -      concurrent-ruby (~> 1.0)
- 
  PLATFORMS
    ruby
 `,
