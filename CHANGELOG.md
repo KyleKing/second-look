@@ -1,3 +1,13 @@
+## v0.13.0 (2026-09-06)
+
+### Feat
+
+- **inbox**: walk the queue orders on demand
+
+### Fix
+
+- **meta**: keep a diff fixture the whitespace hook would rewrite
+
 ## v0.12.0 (2026-09-06)
 
 ### Feat
