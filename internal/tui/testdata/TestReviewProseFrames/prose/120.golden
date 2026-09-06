@@ -2,14 +2,14 @@ kyleking/jj-diff #42                                                            
 ▌                                                                                                                      ┃
      internal/vcs/diff.go  +2 -1 ──────────────────────────────────────────────────────────────────────────────────────┃
        func Parse(r io.Reader) ([]Hunk, error) {                                                                       ┃
-  14       first := 1                                                                                                  ┃
-  15 -     lines := split(r)                                                                                           ┃
-  15 +     lines, err := split(r)                                                                                      ┃
-  16 +     if err != nil {                                                                                             ┃
-  17       last := 4                                                                                                   ┃
+  14  14 │      first := 1                                                                                             ┃
+  15     │-     lines := split(r)                                                                                      ┃
+      15 │+     lines, err := split(r)                                                                                 ┃
+      16 │+     if err != nil {                                                                                        ┃
+  16  17 │      last := 4                                                                                              ┃
      internal/vcs/git.go ──────────────────────────────────────────────────────────────────────────────────────────────┃
        func Head() string {                                                                                            ┃
- 201       return head                                                                                                 ┃
+ 200 201 │      return head                                                                                            ┃
                                                                                                                        ┃
       ┃ REVIEW BODY                                                                                                    ┃
       ┃ Picking up the review. I checked production and:                                                               ┃

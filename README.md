@@ -344,11 +344,12 @@ a terminal does. Any comment still over twenty rows after all that ends in a cou
 is left, which `za` opens.
 
 `v` walks the renderers, which change how a line of the diff is drawn rather than which
-lines are drawn. `plain` is a whole-line color per side and one number per line, which is
-what a terminal diff has always looked like. `rich` colors the code by its grammar and
-says which side a line is on with a band behind it instead, marks the runs that actually
-differ from the line the change paired it with, and carries both line numbers in the
-gutter, so a one-word edit reads as one word.
+lines are drawn. `rich` is what a review opens on: it colors the code by its grammar,
+says which side a line is on with a band behind it, marks the runs that actually differ
+from the line the change paired it with, and carries both line numbers in the gutter, so
+a one-word edit reads as one word. `plain` is a whole-line color per side and one number
+per line, which is what a terminal diff has always looked like, and is where `v` lands
+last.
 
 Four things carry a change in `rich`, because no one of them survives every terminal. The
 `+` or `-` sits against the code on a cell of full accent, which is the loudest thing on

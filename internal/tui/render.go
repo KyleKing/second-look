@@ -30,7 +30,8 @@ const (
 	renderPlain renderMode = iota
 	// The grammar in color under a band saying which side the line is on, the
 	// runs that actually changed marked inside it, and both line numbers in the
-	// gutter.
+	// gutter. This is what a review opens on, so the title names every other
+	// mode and never this one.
 	renderRich
 	// Side by side: the same faces as rich, with each removal beside the
 	// addition that replaced it.

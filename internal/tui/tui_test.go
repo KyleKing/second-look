@@ -940,9 +940,10 @@ func TestCommentsRenderUnderTheirAnchor(t *testing.T) {
 			}
 
 			// Walk up off the comment block, its rail and the blank row that
-			// opens it, to the diff line it hangs from.
-			for at > 0 && (strings.TrimSpace(lines[at]) == "" ||
-				strings.Contains(lines[at], "\u2503 ") || strings.Contains(lines[at], "\u2502 ")) {
+			// opens it, to the diff line it hangs from. The rail is what a row
+			// opens with: a code row carries the same glyph in its gutter and
+			// the frame carries it again at the right edge.
+			for at > 0 && railed(lines[at]) {
 				at--
 			}
 
@@ -951,6 +952,12 @@ func TestCommentsRenderUnderTheirAnchor(t *testing.T) {
 			}
 		})
 	}
+}
+
+func railed(line string) bool {
+	trimmed := strings.TrimSpace(line)
+
+	return trimmed == "" || strings.HasPrefix(trimmed, "┃ ") || strings.HasPrefix(trimmed, "│ ")
 }
 
 // Side by side pairs each removal with the addition that replaced it, so both
@@ -966,7 +973,6 @@ func TestSideBySidePairsAnEditOntoOneRow(t *testing.T) {
 
 	m, _, _ := fixtureWith(t, patch)
 	m.Update(tea.WindowSizeMsg{Width: 160, Height: 30})
-	press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
 	press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
 
 	frame := plain(m.Frame())
@@ -1006,7 +1012,6 @@ func TestSideBySideFallsBackWhenNarrow(t *testing.T) {
 
 	m, _ := fixture(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
-	press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
 	press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
 
 	frame := plain(m.Frame())
@@ -1071,7 +1076,7 @@ func TestStructuralNamesWhatEachHunkTouched(t *testing.T) {
 	m.Update(cmd())
 	pressKey(m, 'W')
 
-	for range 3 {
+	for range 2 {
 		pressKey(m, 'v')
 	}
 
@@ -1388,8 +1393,10 @@ func TestAReadHunkRecedes(t *testing.T) {
 			t.Parallel()
 
 			m := readable(t, longPatch(t))
-			if renderer == "rich" {
-				press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+			if renderer == "plain" {
+				for range 3 {
+					press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+				}
 			}
 
 			// space acts on the hunk the cursor is in, and the screen opens on

@@ -51,7 +51,7 @@ func (m *Model) title() string {
 		left += "  " + word
 	}
 
-	if m.drawn != renderPlain {
+	if m.drawn != renderRich {
 		left += "  " + m.drawn.String()
 	}
 

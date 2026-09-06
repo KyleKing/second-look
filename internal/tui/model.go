@@ -223,6 +223,7 @@ func New(
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
 		width: minWidth, height: startHeight, folded: newFolded(),
 		refined: d.Refine(), lexed: map[hunkAt]map[diff.LineRef][]highlight.Span{},
+		drawn:  renderRich,
 		made:   generated.New(nil),
 		around: map[hunkAt]int{}, blobs: map[string][]string{},
 	}

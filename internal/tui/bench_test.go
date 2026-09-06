@@ -74,7 +74,6 @@ func BenchmarkFrame(b *testing.B) {
 func BenchmarkRichFrame(b *testing.B) {
 	m := big(b)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
 	_ = m.Frame()
 
 	for b.Loop() {
