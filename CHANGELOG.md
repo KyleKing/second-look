@@ -1,3 +1,9 @@
+## v0.14.0 (2026-09-06)
+
+### Feat
+
+- **tui**: check the head before drawing, and mark the hunks still to read
+
 ## v0.13.0 (2026-09-06)
 
 ### Feat
