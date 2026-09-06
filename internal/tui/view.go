@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -62,6 +63,8 @@ func (m *Model) title() string {
 	if m.newHead != "" {
 		left += "  head moved to " + short(m.newHead)
 	}
+
+	left += m.groupWord()
 
 	if path := fitPath(m.rowPath(), m.width-textWidth(right)-textWidth(left)-indent); path != "" {
 		left += "  " + path
@@ -227,13 +230,42 @@ func (m *Model) counts() tally {
 	return out
 }
 
-// rowPath is the file the cursor is in, and only once that file's own row has
-// scrolled off the top: a heading the reader can already see is not worth the
-// width, and the one that has gone is exactly what the eye has lost. The list
-// screens carry their section heading the same way.
+// rowPath is the file the cursor is in and the line it is standing on, and only
+// once that file's own row has scrolled off the top: a heading the reader can
+// already see is not worth the width, and the one that has gone is exactly what
+// the eye has lost. The list screens carry their section heading the same way.
 func (m *Model) rowPath() string {
-	for i := min(m.cursor, len(m.screen.rows)-1); i >= 0; i-- {
-		if m.screen.rows[i].kind != rowFile {
+	at := min(m.cursor, len(m.screen.rows)-1)
+
+	path := m.headingAbove(at, rowFile)
+	if path == "" {
+		return ""
+	}
+
+	if n := m.screen.rows[at].line.New; n > 0 {
+		return path + ":" + strconv.Itoa(n)
+	}
+
+	return path
+}
+
+// groupWord is the reading order's own group the cursor is in. A file's hunks
+// are gathered by what they declare and call rather than drawn in file order, so
+// which group a row belongs to is not readable off the file name the way a
+// directory is.
+func (m *Model) groupWord() string {
+	if name := m.headingAbove(min(m.cursor, len(m.screen.rows)-1), rowGroup); name != "" {
+		return "  " + name
+	}
+
+	return ""
+}
+
+// headingAbove is the nearest heading of one kind above a row, and nothing
+// where that heading is still on the screen.
+func (m *Model) headingAbove(at int, kind rowKind) string {
+	for i := at; i >= 0; i-- {
+		if m.screen.rows[i].kind != kind {
 			continue
 		}
 

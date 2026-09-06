@@ -1935,6 +1935,45 @@ func TestTheTitleCarriesTheFileOnceItsHeadingHasScrolledOff(t *testing.T) {
 	if got := plain(m.Frame()); !strings.Contains(got, "internal/vcs/git.go") {
 		t.Errorf("the title lost the file the cursor is in:\n%s", got)
 	}
+
+	// Where in the file is what the file name cannot say, so a code row carries
+	// its line as well. That needs a file long enough for its own heading to be
+	// gone while the cursor is still inside it.
+	long, _, _ := fixtureWith(t, longPatch(t))
+	long.Update(tea.WindowSizeMsg{Width: 100, Height: minFrame})
+
+	for range 40 {
+		if strings.Contains(long.CursorText(), "first line 30") {
+			break
+		}
+
+		press(long, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	}
+
+	if got := plain(long.Frame()); !strings.Contains(got, "first/file.go:30") {
+		t.Errorf("the title does not say which line the cursor is on:\n%s", got)
+	}
+}
+
+// A file's hunks are gathered into groups rather than drawn in file order, so
+// which group a row belongs to cannot be read off the file name. The title
+// carries it on the same terms the file is carried on: once its own heading has
+// gone, and never while the frame still shows it.
+func TestTheTitleCarriesTheGroupOnceItsHeadingHasScrolledOff(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := fixtureWith(t, goSumPatch)
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: minFrame})
+
+	if got := plain(m.Frame()); strings.Contains(got, "#42  generated") {
+		t.Errorf("the title names a group the frame is already showing:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "generated  go.sum") {
+		t.Errorf("the title does not say which group the cursor is in:\n%s", got)
+	}
 }
 
 // Writing a comment with no agent involved was the last thing alpha left out:
