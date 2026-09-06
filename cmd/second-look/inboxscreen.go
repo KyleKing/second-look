@@ -92,6 +92,8 @@ type inboxScreen struct {
 	// rate limit or a dropped connection looks like. Saying so beats a queue
 	// that quietly orders itself by age and looks like it never tried.
 	unread int
+	// order is which of inbox.Orders the queue is arranged by, cycled by s.
+	order int
 }
 
 // howManyAtOnce bounds the diffs the rating pool fetches. It is small because
@@ -126,6 +128,7 @@ var inboxHints = [][2]string{
 	{"m", "comment"},
 	{"A", "approve"},
 	{"o", "GitHub"},
+	{"s", "sort"},
 	{"?", helpArg},
 }
 
@@ -135,6 +138,7 @@ var inboxHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	{"m", "comment on the pull request itself, in $EDITOR"},
 	{"A", "approve it, A again to confirm"},
 	{"o", "open it on GitHub"},
+	{"s", "cycle to the next row order"},
 	{refreshKey, "run the searches again"},
 }, helpLeave(), prose(
 	"The buckets are the sections your config names, or the three built-in ones:",
@@ -157,7 +161,7 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer)
 	case tui.ActComment:
 		err = commentOn(ctx, h.at, stdout)
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActRefresh, tui.ActApprove, tui.ActDiscard:
+		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActSort:
 		return nil
 	}
 
@@ -282,7 +286,7 @@ func (s *inboxScreen) absorbBucket(answered bucketMsg) tea.Cmd {
 		s.asked[key] = true
 	}
 
-	inbox.Rank(answered.bucket.Items, s.known)
+	s.arrange(answered.bucket.Items)
 
 	s.buckets[answered.at] = answered.bucket
 	s.waiting--
@@ -337,7 +341,7 @@ func (s *inboxScreen) absorbCost(answered costMsg) tea.Cmd {
 
 	if answered.rated {
 		for i := range s.buckets {
-			inbox.Rank(s.buckets[i].Items, s.known)
+			s.arrange(s.buckets[i].Items)
 		}
 	}
 
@@ -611,6 +615,7 @@ func (s *inboxScreen) counts() string {
 	}
 
 	out += s.readyWord()
+	out += " · sorted by " + inbox.Orders[s.order].Name
 
 	if failed == 0 {
 		return out
@@ -766,6 +771,12 @@ func waiting(p *inbox.PullRequest) string {
 }
 
 func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
+	// Sorting is about the queue rather than the row the cursor is on, and a
+	// bucket that failed still has one to cycle through.
+	if a == tui.ActSort {
+		return s.sort(), false, nil
+	}
+
 	// A bucket that failed carries one row standing for the failure, which has
 	// no pull request behind it to act on.
 	if row.Key == "" {
@@ -795,9 +806,30 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return "", false, nil
 	case tui.ActMark, tui.ActReply, tui.ActResolve, tui.ActDiscard:
 		return "", false, errNotInInbox
+	case tui.ActSort:
+		// ActSort needs no row, so it returns before this switch is reached.
 	}
 
 	return "", false, nil
+}
+
+// arrange puts one bucket's rows in whichever of inbox.Orders is current, so a
+// bucket arriving after s was pressed lands in the order already chosen rather
+// than back in triage order.
+func (s *inboxScreen) arrange(items []inbox.PullRequest) {
+	inbox.Orders[s.order].Order(items, s.known)
+}
+
+// sort advances to the next of inbox.Orders and puts every bucket back in it,
+// so s cycles the whole queue rather than one section at a time.
+func (s *inboxScreen) sort() string {
+	s.order = (s.order + 1) % len(inbox.Orders)
+
+	for i := range s.buckets {
+		s.arrange(s.buckets[i].Items)
+	}
+
+	return "sorted by " + inbox.Orders[s.order].Name
 }
 
 // leaving says what the screen is closing for, since all three handoffs look
@@ -809,7 +841,7 @@ func leaving(a tui.Action) string {
 	case tui.ActComment:
 		return "commenting on"
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActRefresh, tui.ActApprove, tui.ActDiscard:
+		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActSort:
 	}
 
 	return "opening"

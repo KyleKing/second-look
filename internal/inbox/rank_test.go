@@ -45,6 +45,63 @@ func TestRank(t *testing.T) {
 	}
 }
 
+// Every other order must be total and stable, so a second pass over the same
+// input draws the same rows in the same spots.
+func TestOrders(t *testing.T) {
+	t.Parallel()
+
+	at := func(days int) time.Time {
+		return time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, -days)
+	}
+
+	fixture := func() []inbox.PullRequest {
+		return []inbox.PullRequest{
+			{Repository: "o/fresh", Number: 1, Updated: at(1)},
+			{Repository: "o/stale", Number: 2, Updated: at(9)},
+			{Repository: "o/big", Number: 4, Updated: at(2)},
+			{Repository: "o/small", Number: 5, Updated: at(3)},
+			{Repository: "a/unrated", Number: 6, Updated: at(5)},
+		}
+	}
+
+	known := map[int]inbox.Known{
+		4: {Reviewed: true, Cost: 70, Rated: true},
+		5: {Reviewed: true, Cost: 9, Rated: true},
+	}
+	by := func(p *inbox.PullRequest) inbox.Known { return known[p.Number] }
+
+	for _, tc := range []struct {
+		name  string
+		order inbox.Order
+		first string
+	}{
+		{name: "by age", order: inbox.ByAge, first: "o/stale"},
+		{name: "by cost", order: inbox.ByCost, first: "o/small"},
+		{name: "by repository", order: inbox.ByRepository, first: "a/unrated"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			first := fixture()
+			tc.order(first, by)
+
+			if first[0].Repository != tc.first {
+				t.Errorf("first row is %s, want %s (order: %s)", first[0].Repository, tc.first, names(first))
+			}
+
+			second := fixture()
+			tc.order(second, by)
+
+			for i := range first {
+				if first[i].Repository != second[i].Repository {
+					t.Errorf("row %d is %s on one pass and %s on another, want a stable order",
+						i, first[i].Repository, second[i].Repository)
+				}
+			}
+		})
+	}
+}
+
 func names(items []inbox.PullRequest) string {
 	var out strings.Builder
 	for i := range items {

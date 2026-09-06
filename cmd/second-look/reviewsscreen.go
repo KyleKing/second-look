@@ -318,7 +318,7 @@ func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 
 		return s.counts(), false, nil
 	case tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActComment, tui.ActApprove:
+		tui.ActComment, tui.ActApprove, tui.ActSort:
 		return "", false, errNotHere
 	}
 

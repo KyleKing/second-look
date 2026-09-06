@@ -277,7 +277,7 @@ func (s *threadsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return s.stageReply(c)
 	case tui.ActRefresh:
 		return "", false, nil
-	case tui.ActCheckout, tui.ActComment, tui.ActApprove, tui.ActDiscard:
+	case tui.ActCheckout, tui.ActComment, tui.ActApprove, tui.ActDiscard, tui.ActSort:
 		return "", false, errNotOnAConversation
 	}
 

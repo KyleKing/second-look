@@ -87,6 +87,9 @@ const (
 	// ActDiscard is d: throw the row's local state away. The screen asks
 	// nothing first, so a caller that cannot undo it confirms its own way.
 	ActDiscard
+	// ActSort is s: advance to the next row order. The screen decides what
+	// orders exist and which is next; this list only asks for the change.
+	ActSort
 )
 
 // Act performs an action on a row. What it returns is the one line the footer
@@ -108,6 +111,7 @@ type listKeys struct {
 	Comment  key.Binding
 	Approve  key.Binding
 	Discard  key.Binding
+	Sort     key.Binding
 	Focus    key.Binding
 	Unfocus  key.Binding
 }
@@ -126,6 +130,7 @@ func defaultListKeys() listKeys {
 		Comment:  key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "comment")),
 		Approve:  key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "approve")),
 		Discard:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "discard")),
+		Sort:     key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "sort")),
 		Focus:    key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "focus")),
 		Unfocus:  key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "every repository")),
 	}
@@ -496,6 +501,7 @@ func (l *List) perform(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		{l.list.Comment, ActComment},
 		{l.list.Approve, ActApprove},
 		{l.list.Discard, ActDiscard},
+		{l.list.Sort, ActSort},
 	} {
 		if key.Matches(msg, m.binding) {
 			return l.run(m.action, row)
