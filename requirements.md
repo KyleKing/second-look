@@ -1,8 +1,11 @@
 # second-look requirements
 
 Drafted 2026-08-19, revised 2026-08-20. Evidence for the prior-art claims lives in
-[research/prior-art-2026-08.md](research/prior-art-2026-08.md), which is agent research
-with light human review. The screen and keymap design lives in [DESIGN.md](DESIGN.md).
+[research/prior-art-2026-08.md](research/prior-art-2026-08.md), and the evidence behind
+the reading order and the wayfinding around it lives in
+[research/diff-ordering-2026-09.md](research/diff-ordering-2026-09.md). Both are agent
+research with light human review. The screen and keymap design lives in
+[DESIGN.md](DESIGN.md).
 
 ## The problem
 
@@ -307,7 +310,9 @@ Navigation, only as far as the pipeline needs:
   grouping has to respect both
 - A review inbox as a task list in three buckets, ordered pending my review, reviewed and
   open, then reviewed and merged, with per-PR metadata that makes triage possible without
-  opening it. Searchable and sortable, and available from the CLI as well as the TUI
+  opening it. Searchable and sortable, and available from the CLI as well as the TUI.
+  Built: `s` walks the orders, from the triage order the queue is built in to oldest,
+  cheapest, and by repository, and the subtitle says which one it is in
 - Stacked reviews shown as a stack, with the ability to move between them from the inbox
 - Replace [gh-dash](https://github.com/dlvhdr/gh-dash), which is the tool this one has to
   be better than to be worth opening. Built: sections driven by arbitrary search queries,
@@ -322,17 +327,27 @@ Navigation, only as far as the pipeline needs:
   answering, and posting all work with no working copy, and `C` moves a clone that is
   already here
 - A review-cost rating, deterministic, described below
+- Read a mechanical file as what it changed rather than as the lines it changed. Built for
+  lockfiles: go.sum, go.mod, Cargo.lock, uv.lock, package-lock.json, pnpm-lock.yaml,
+  yarn.lock, and Gemfile.lock fold to a table of dependency changes rather than to a hunk
+  count. A format nothing here reads keeps counting hunks, because a guessed table is
+  worse than an honest count
 - Toggle whitespace and syntax-aware diffs inside a session, which no reviewed tool
-  offers as a toggle
-- Side-by-side view as a toggle
+  offers as a toggle. Built: `w` folds whitespace-only hunks, and `u` toggles the
+  grammar, the columns, and the structural pass independently of each other
+- Side-by-side view as a toggle. Built, as one of the three `u` answers
 - Jump to a definition or its usages outside the diff, and come back. This is the same
   motion as seeing the walking skeleton of a change, so it earns real screen space rather
   than a popup
 
 ### Could
 
-- Move detection with a side-by-side of the origin file. Unbuilt anywhere, and mergiraf's
-  AST reconciliation is the closest working reference
+- Move detection with a side-by-side of the origin file. Built as far as the symbol: a
+  declaration deleted in one place and added in another, spelled the same way on both
+  sides, is one move wherever the two hunks are, and the heading names the file it came
+  from or went to. What is still unbuilt is the side-by-side of the origin, and any move
+  the parser cannot see as a declaration. mergiraf's AST reconciliation is the closest
+  working reference for that half
 - Diagrams generated from the symbol graph, shown in the context pane: where-used, blast
   radius, call and sequence views
 - Posting standalone comments rather than a full review
