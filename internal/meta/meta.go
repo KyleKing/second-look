@@ -37,6 +37,12 @@ func Read(f *diff.File) ([]Row, bool) {
 		removed, added = tomlLock(f.Lines)
 	case "package-lock.json":
 		removed, added = npmLock(f.Lines)
+	case "pnpm-lock.yaml":
+		removed, added = pnpmLock(f.Lines)
+	case "yarn.lock":
+		removed, added = yarnLock(f.Lines)
+	case "Gemfile.lock":
+		removed, added = gemfileLock(f.Lines)
 	default:
 		return nil, false
 	}
@@ -235,4 +241,202 @@ func quoted(s string, n int) (string, bool) {
 	}
 
 	return parts[idx], true
+}
+
+// exactIndent strips exactly n leading spaces, rejecting a line indented
+// one level deeper (which also carries an n-space prefix).
+func exactIndent(text string, n int) (string, bool) {
+	indent := strings.Repeat(" ", n)
+	if !strings.HasPrefix(text, indent) || strings.HasPrefix(text, indent+" ") {
+		return "", false
+	}
+
+	return strings.TrimPrefix(text, indent), true
+}
+
+// unquote strips a matching pair of leading/trailing quotes (either ' or ").
+func unquote(s string) (string, bool) {
+	const minQuoted = 2
+	if len(s) < minQuoted {
+		return "", false
+	}
+
+	q := s[0]
+	if (q != '\'' && q != '"') || s[len(s)-1] != q {
+		return "", false
+	}
+
+	return s[1 : len(s)-1], true
+}
+
+// pnpmLock reads pnpm-lock.yaml's package keys, both the classic
+// "/pkg@1.2.3:" form and the quoted "'@scope/name@1.2.3':" form.
+func pnpmLock(lines []diff.Line) (map[string]string, map[string]string) {
+	removed, added := map[string]string{}, map[string]string{}
+
+	for _, l := range lines {
+		name, version, ok := pnpmEntry(l.Text)
+		if !ok {
+			continue
+		}
+
+		if l.Kind != diff.KindAdd {
+			removed[name] = version
+		}
+
+		if l.Kind != diff.KindRemove {
+			added[name] = version
+		}
+	}
+
+	return removed, added
+}
+
+const pnpmKeyIndent = 2
+
+// pnpmEntry parses one "  /pkg@1.2.3:" or "  '@scope/name@1.2.3':" line.
+// Splitting on the LAST '@' is what gets a scoped name right.
+func pnpmEntry(raw string) (string, string, bool) {
+	rest, ok := exactIndent(raw, pnpmKeyIndent)
+	if !ok {
+		return "", "", false
+	}
+
+	key, ok := strings.CutSuffix(rest, ":")
+	if !ok {
+		return "", "", false
+	}
+
+	if q, ok := unquote(key); ok {
+		key = q
+	}
+
+	key = strings.TrimPrefix(key, "/")
+
+	idx := strings.LastIndex(key, "@")
+	if idx <= 0 {
+		return "", "", false
+	}
+
+	name, version := key[:idx], key[idx+1:]
+	if name == "" || version == "" || strings.ContainsAny(version, "( ") {
+		return "", "", false
+	}
+
+	return name, version, true
+}
+
+// yarnLock reads yarn.lock's classic v1 format: a header line naming one or
+// more specs, followed by an indented "version" line.
+func yarnLock(lines []diff.Line) (map[string]string, map[string]string) {
+	removed, added := map[string]string{}, map[string]string{}
+
+	var lastOld, lastNew string
+
+	for _, l := range lines {
+		if l.Kind != diff.KindAdd {
+			yarnLine(l.Text, &lastOld, removed)
+		}
+
+		if l.Kind != diff.KindRemove {
+			yarnLine(l.Text, &lastNew, added)
+		}
+	}
+
+	return removed, added
+}
+
+func yarnLine(text string, lastName *string, out map[string]string) {
+	if name, ok := yarnHeader(text); ok {
+		*lastName = name
+		return
+	}
+
+	if version, ok := yarnVersion(text); ok && *lastName != "" {
+		out[*lastName] = version
+	}
+}
+
+// yarnHeader parses a spec header line, taking the name from the FIRST
+// comma-separated spec and splitting it on the LAST '@' so a scoped name
+// keeps its own leading '@'.
+func yarnHeader(text string) (string, bool) {
+	if text == "" || text[0] == ' ' || text[0] == '\t' || text[0] == '#' {
+		return "", false
+	}
+
+	trimmed, ok := strings.CutSuffix(text, ":")
+	if !ok {
+		return "", false
+	}
+
+	spec := trimmed
+	if idx := strings.Index(trimmed, ","); idx >= 0 {
+		spec = trimmed[:idx]
+	}
+
+	spec = strings.TrimSpace(spec)
+	if q, ok := unquote(spec); ok {
+		spec = q
+	}
+
+	idx := strings.LastIndex(spec, "@")
+	if idx <= 0 {
+		return "", false
+	}
+
+	return spec[:idx], true
+}
+
+func yarnVersion(text string) (string, bool) {
+	rest, ok := strings.CutPrefix(strings.TrimSpace(text), "version ")
+	if !ok {
+		return "", false
+	}
+
+	return unquote(rest)
+}
+
+const gemSpecIndent = 4
+
+// gemfileLock reads Gemfile.lock's GEM/GIT/PATH "specs:" entries
+// ("    name (1.2.3)"), at the four-space indent a nested dependency lacks.
+func gemfileLock(lines []diff.Line) (map[string]string, map[string]string) {
+	removed, added := map[string]string{}, map[string]string{}
+
+	for _, l := range lines {
+		name, version, ok := gemSpec(l.Text)
+		if !ok {
+			continue
+		}
+
+		if l.Kind != diff.KindAdd {
+			removed[name] = version
+		}
+
+		if l.Kind != diff.KindRemove {
+			added[name] = version
+		}
+	}
+
+	return removed, added
+}
+
+func gemSpec(text string) (string, string, bool) {
+	entry, ok := exactIndent(text, gemSpecIndent)
+	if !ok {
+		return "", "", false
+	}
+
+	open := strings.Index(entry, " (")
+	if open <= 0 || !strings.HasSuffix(entry, ")") {
+		return "", "", false
+	}
+
+	name, version := entry[:open], entry[open+2:len(entry)-1]
+	if version == "" {
+		return "", "", false
+	}
+
+	return name, version, true
 }

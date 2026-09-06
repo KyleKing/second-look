@@ -16,3 +16,19 @@ index 1111111..2222222 100644
 +github.com/kyleking/aragonite v0.13.0/go.mod h1:jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj=
 +github.com/muesli/termenv v0.16.0 h1:kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk=
 +github.com/muesli/termenv v0.16.0/go.mod h1:lllllllllllllllllllllllllllllllllllllllllll=
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 3333333..4444444 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -8,5 +8,7 @@
+ packages:
+-  /lodash@4.17.20:
+-    resolution: {integrity: sha512-aaaa==}
+-  '@types/node@20.11.0':
+-    resolution: {integrity: sha512-bbbb==}
++  /lodash@4.17.21:
++    resolution: {integrity: sha512-cccc==}
++  '@types/node@22.5.4':
++    resolution: {integrity: sha512-dddd==}
++  /picocolors@1.1.1:
++    resolution: {integrity: sha512-eeee==}
