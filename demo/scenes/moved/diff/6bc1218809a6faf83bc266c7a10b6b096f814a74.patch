@@ -1,0 +1,42 @@
+diff --git a/testdata/fixture/lines.go b/testdata/fixture/lines.go
+new file mode 100644
+index 0000000..8ac1f21
+--- /dev/null
++++ b/testdata/fixture/lines.go
+@@ -0,0 +1,16 @@
++package fixture
++
++import "strings"
++
++// splitLines is every non-empty line of the file, trimmed.
++func splitLines(raw string) []string {
++	var out []string
++
++	for _, line := range strings.Split(raw, "\n") {
++		if trimmed := strings.TrimSpace(line); trimmed != "" {
++			out = append(out, trimmed)
++		}
++	}
++
++	return out
++}
+diff --git a/testdata/fixture/sample.go b/testdata/fixture/sample.go
+index 2007e8b..b0d5c74 100644
+--- a/testdata/fixture/sample.go
++++ b/testdata/fixture/sample.go
+@@ -40,15 +40,2 @@ func ReadBudget(path string) (int, error) {
+ 	return total, nil
+ }
+-
+-// splitLines is every non-empty line of the file, trimmed.
+-func splitLines(raw string) []string {
+-	var out []string
+-
+-	for _, line := range strings.Split(raw, "\n") {
+-		if trimmed := strings.TrimSpace(line); trimmed != "" {
+-			out = append(out, trimmed)
+-		}
+-	}
+-
+-	return out
+-}

@@ -23,8 +23,8 @@ type shape struct {
 	// inside is the declarations each hunk sits in, changed or not, which is
 	// what a heading says where nothing about them changed.
 	inside map[hunkAt][]string
-	// moved is the symbols that left one place in a file and arrived in
-	// another, by the declaration they both spell.
+	// moved is the symbols that left one place and arrived in another, whether
+	// or not the two are the same file, by the declaration they both spell.
 	moved map[string]move
 	// plan is the order the review reads in, worked out from the same pass.
 	plan []order.Group
@@ -49,7 +49,7 @@ func readShape(readings []structure.Reading, refs []hunkAt, made generated.Set) 
 		moved:   map[string]move{},
 	}
 
-	gone, came := map[string]move{}, map[string]move{}
+	gone, came, named := map[string][]hunkAt{}, map[string][]hunkAt{}, map[string]string{}
 
 	for i, r := range readings {
 		if i >= len(refs) || !r.Parsed {
@@ -65,22 +65,29 @@ func readShape(readings []structure.Reading, refs []hunkAt, made generated.Set) 
 		out.touched[refs[i]] = r.Symbols
 
 		for _, s := range r.Symbols {
-			at := move{name: s.Name, from: refs[i], to: refs[i]}
+			k := declKey(s)
+			named[k] = s.Name
 
 			switch s.Kind {
 			case structure.KindDeleted:
-				gone[declKey(refs[i].path, s)] = at
+				gone[k] = append(gone[k], refs[i])
 			case structure.KindNew:
-				came[declKey(refs[i].path, s)] = at
+				came[k] = append(came[k], refs[i])
 			case structure.KindBody, structure.KindSignature:
 			}
 		}
 	}
 
 	for k, left := range gone {
-		if arrived, ok := came[k]; ok && arrived.to != left.from {
-			out.moved[k] = move{name: left.name, from: left.from, to: arrived.to}
+		// One declaration leaving or arriving in two places at once is not one
+		// move, and picking a pair out of it would name the wrong file in a
+		// heading. A missed move reads as it does today; a wrong one misleads.
+		arrived := came[k]
+		if len(left) != 1 || len(arrived) != 1 || left[0] == arrived[0] {
+			continue
 		}
+
+		out.moved[k] = move{name: named[k], from: left[0], to: arrived[0]}
 	}
 
 	out.plan = order.Plan(planHunks(readings, refs, made))
@@ -113,11 +120,12 @@ func planHunks(readings []structure.Reading, refs []hunkAt, made generated.Set) 
 	return out
 }
 
-// declKey identifies a declaration across the file it moved within. It carries
-// the head as well as the name, because a symbol whose declaration was rewritten
-// on the way is not the same code arriving somewhere else.
-func declKey(path string, s structure.Symbol) string {
-	return path + "\x00" + s.Name + "\x00" + s.Head
+// declKey identifies a declaration wherever it lands, so a symbol that left one
+// file and arrived in another is the same key in both. It carries the head as
+// well as the name, because a symbol whose declaration was rewritten on the way
+// is not the same code arriving somewhere else.
+func declKey(s structure.Symbol) string {
+	return s.Name + "\x00" + s.Head
 }
 
 // symbolWord is what a hunk did, for its heading: the symbols it touched and
@@ -144,7 +152,7 @@ func (sh shape) symbolWord(at hunkAt) string {
 	parts := make([]string, 0, len(touched))
 
 	for _, s := range touched {
-		if mv, ok := sh.moved[declKey(at.path, s)]; ok {
+		if mv, ok := sh.moved[declKey(s)]; ok {
 			parts = append(parts, moveWord(at, mv))
 
 			continue
@@ -158,7 +166,15 @@ func (sh shape) symbolWord(at hunkAt) string {
 
 func moveWord(at hunkAt, mv move) string {
 	if at == mv.from {
+		if mv.to.path != at.path {
+			return mv.name + " moved to " + mv.to.path
+		}
+
 		return mv.name + " moved out"
+	}
+
+	if mv.from.path != at.path {
+		return mv.name + " moved from " + mv.from.path
 	}
 
 	return mv.name + " moved in"
@@ -180,7 +196,7 @@ func (sh shape) fileWord(path string) string {
 		}
 
 		for _, s := range syms {
-			if _, ok := sh.moved[declKey(path, s)]; ok {
+			if _, ok := sh.moved[declKey(s)]; ok {
 				said[s.Name] = "moved"
 
 				continue

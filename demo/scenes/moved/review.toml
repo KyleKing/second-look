@@ -1,0 +1,9 @@
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 2
+head_sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
+event = "COMMENT"
+body = ""
+note = "Nothing staged: the scene is about what the diff says happened, not about a comment on it."

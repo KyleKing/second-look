@@ -5,7 +5,46 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/theme"
+
+	"github.com/kyleking/second-look/internal/generated"
+	"github.com/kyleking/second-look/internal/structure"
 )
+
+// HunkRef names one hunk for a test that drives the structural pass on readings
+// it supplies, rather than on an ast-grep run over a real diff.
+type HunkRef struct {
+	Path string
+	Hunk int
+}
+
+// SymbolWords is what each hunk's heading says about the symbols it touched, in
+// the order the refs were given, and FileWords is the same for a whole file.
+func SymbolWords(readings []structure.Reading, refs []HunkRef) []string {
+	sh, at := shapeOf(readings, refs)
+
+	out := make([]string, len(at))
+	for i := range at {
+		out[i] = sh.symbolWord(at[i])
+	}
+
+	return out
+}
+
+// FileWord is one file's summary of what the whole file did to its symbols.
+func FileWord(readings []structure.Reading, refs []HunkRef, path string) string {
+	sh, _ := shapeOf(readings, refs)
+
+	return sh.fileWord(path)
+}
+
+func shapeOf(readings []structure.Reading, refs []HunkRef) (shape, []hunkAt) {
+	at := make([]hunkAt, len(refs))
+	for i, r := range refs {
+		at[i] = hunkAt{path: r.Path, hunk: r.Hunk}
+	}
+
+	return readShape(readings, at, generated.Set{}), at
+}
 
 // Frame returns one rendered screen, so a test can check the layout without a
 // terminal.
