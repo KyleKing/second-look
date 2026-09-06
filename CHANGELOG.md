@@ -1,3 +1,9 @@
+## v0.11.0 (2026-09-06)
+
+### Feat
+
+- **tui**: toggle the grammar, the columns, and the parser on their own
+
 ## v0.10.0 (2026-09-06)
 
 ### Feat
