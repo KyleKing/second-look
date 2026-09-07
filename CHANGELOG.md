@@ -1,3 +1,9 @@
+## v0.15.1 (2026-09-07)
+
+### Fix
+
+- **tui**: detect the palette once, before a program owns stdin
+
 ## v0.15.0 (2026-09-07)
 
 ### Feat
