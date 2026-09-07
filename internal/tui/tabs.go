@@ -54,7 +54,7 @@ func NewTabs(tabs []Tab, at int) *List {
 	l := &List{
 		tabs: tabs, at: min(max(at, 0), len(tabs)-1),
 		views: make([]view, len(tabs)),
-		keys:  defaultKeyMap(), list: defaultListKeys(), styles: newStyles(),
+		keys:  defaultKeyMap(), list: defaultListKeys(), styles: loadStyles(),
 		width: minWidth, height: startHeight, expanded: map[string]bool{}, filter: newFilter(),
 	}
 

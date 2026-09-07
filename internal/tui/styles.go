@@ -2,6 +2,7 @@ package tui
 
 import (
 	"image/color"
+	"sync"
 
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/skin"
@@ -46,6 +47,14 @@ type styles struct {
 	ok       lipgloss.Style
 	severity map[string]lipgloss.Style
 }
+
+// loadStyles is the one palette this process draws with. Detecting it writes an
+// escape to the terminal and reads the answer off stdin, which deadlocks
+// against a running program's own reader, so it must happen once and before any
+// screen is on.
+//
+//nolint:gochecknoglobals // a process-wide detection, resolved once
+var loadStyles = sync.OnceValue(newStyles)
 
 func newStyles() styles {
 	p := theme.Detect()

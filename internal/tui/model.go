@@ -222,7 +222,7 @@ func New(
 	ctx context.Context, r *artifact.Review, d *diff.Diff,
 	path string, submit Submitter, opts ...Option,
 ) *Model {
-	st := newStyles()
+	st := loadStyles()
 	m := &Model{
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),

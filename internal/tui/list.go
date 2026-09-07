@@ -229,7 +229,7 @@ type listLine struct {
 func NewList(title string, sections func() []Section, act Act) *List {
 	l := &List{
 		title: title, sections: sections, act: act,
-		keys: defaultKeyMap(), list: defaultListKeys(), styles: newStyles(),
+		keys: defaultKeyMap(), list: defaultListKeys(), styles: loadStyles(),
 		width: minWidth, height: startHeight, expanded: map[string]bool{}, filter: newFilter(),
 	}
 	l.rebuild()
