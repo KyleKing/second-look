@@ -18,7 +18,6 @@ local-prefixes = ["github.com/kyleking/second-look"]
 [linters]
 disable = [
   "depguard",  # requires allowlist/denylist configuration
-  "forbidigo",  # requires custom regex configuration
   "gochecknoglobals",  # BubbleTea/lipgloss styles use package-level vars
   "goheader",  # copyright headers add noise for personal projects
   "wsl",  # whitespace linting too nitpicky
@@ -43,6 +42,7 @@ enable = [
   "errorlint",
   "exhaustive",
   "fatcontext",
+  "forbidigo",
   "forcetypeassert",
   "funlen",
   "ginkgolinter",
@@ -121,6 +121,13 @@ enable = [
 path = "_test\\.go"
 linters = ["cyclop", "goconst"]
 
+[[linters.exclusions.rules]]
+# newStyles/theme.Detect read a terminal capability off stdin; a second call site
+# would race a running program's own stdin reader. Only loadStyles's memoized
+# call in styles.go may reach them.
+path = "internal/tui/styles\\.go"
+linters = ["forbidigo"]
+
 [linters.settings.cyclop]
 max-complexity = 15
 
@@ -133,6 +140,15 @@ check-blank = true
 
 [linters.settings.exhaustive]
 default-signifies-exhaustive = true
+
+[linters.settings.forbidigo]
+[[linters.settings.forbidigo.forbid]]
+pattern = '^theme\.Detect$'
+msg = "races a running program's own stdin reader outside loadStyles; call loadStyles() instead"
+
+[[linters.settings.forbidigo.forbid]]
+pattern = '^newStyles$'
+msg = "races a running program's own stdin reader outside loadStyles; call loadStyles() instead"
 
 [linters.settings.funlen]
 lines = 100
