@@ -1,3 +1,14 @@
+## v0.15.0 (2026-09-07)
+
+### Feat
+
+- **tui**: fold the review screen into the queue's own program
+- **order**: sort directory groups by summed hunk cost
+
+### Refactor
+
+- **tui**: filter through aragonite's shared predicate package
+
 ## v0.14.0 (2026-09-06)
 
 ### Feat
