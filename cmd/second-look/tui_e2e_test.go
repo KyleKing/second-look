@@ -159,19 +159,27 @@ func (s *screen) await(want string) {
 // awaitFrom slices.
 func (s *screen) mark() int { return len(s.text()) }
 
-func (s *screen) awaitFrom(mark int, want string) {
+// awaitFrom returns the position right after want, so a caller chaining a
+// second wait off this one gets a mark with no gap to race: one taken by a
+// separate call to mark() could land after text the second wait needs to see,
+// since the screen keeps writing between the two calls.
+func (s *screen) awaitFrom(mark int, want string) int {
 	s.t.Helper()
 
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		if text := s.text(); len(text) > mark && strings.Contains(text[mark:], want) {
-			return
+		if text := s.text(); len(text) > mark {
+			if i := strings.Index(text[mark:], want); i >= 0 {
+				return mark + i + len(want)
+			}
 		}
 
 		time.Sleep(20 * time.Millisecond)
 	}
 
 	s.t.Fatalf("waiting for %q; the screen wrote:\n%s", want, s.text())
+
+	return 0
 }
 
 func (s *screen) press(keys string) {

@@ -296,12 +296,13 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 	from := sc.mark()
 
 	sc.press("m")
-	sc.awaitFrom(from, "commented on kyleking/aragonite#100")
+	back := sc.awaitFrom(from, "commented on kyleking/aragonite#100")
 
 	// The queue comes back narrowed the way it was left, which is what makes a
-	// comment a detour rather than the end of the session. The mark is where the
-	// second screen starts writing, since both draws carry the same row.
-	back := sc.mark()
+	// comment a detour rather than the end of the session. Both draws carry the
+	// same row, so the wait for the second is anchored to where the first ended
+	// rather than a separately timed mark, which could land after the redraw it
+	// means to catch.
 	sc.awaitFrom(back, "showing 1 of")
 	sc.awaitFrom(back, "kyleking/aragonite#100")
 
