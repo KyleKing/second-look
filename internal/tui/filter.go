@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	filterpkg "github.com/kyleking/aragonite/filter"
 )
 
 // filter narrows a queue to the rows worth looking at. A configured inbox runs
@@ -76,25 +77,22 @@ func (l *List) clearFilter() {
 	l.status, l.failed = "", false
 }
 
-// kindWord is the prefix that filters on what sort of row it is rather than on
-// its text: `kind:thread` where a row's own words would catch the wrong rows,
-// since "review" appears in half of them.
-const kindWord = "kind:"
+// kindScope is the prefix that filters on what sort of row it is rather than
+// on its text: `kind:thread` where a row's own words would catch the wrong
+// rows, since "review" appears in half of them.
+const kindScope = "kind"
 
-// keeps reports whether a row answers the filter. Matching is case-insensitive
-// until the pattern carries an uppercase letter, which is the rule every editor
-// uses and the one nobody has to be told.
-//
-// A kind: word is matched against the row's kind and taken out of the text, so
-// `kind:thread pool` is both at once.
+// keeps reports whether a row answers the filter. A kind: word is matched
+// against the row's kind and taken out of the text, so `kind:thread pool` is
+// both at once.
 func (f filter) keeps(section string, r *Row) bool {
 	if f.query == "" {
 		return true
 	}
 
-	text, kinds := kindsOf(f.query)
+	text, scoped := filterpkg.Tokens(f.query, kindScope)
 
-	for _, want := range kinds {
+	for _, want := range scoped[kindScope] {
 		if !strings.EqualFold(r.Kind, want) {
 			return false
 		}
@@ -104,47 +102,9 @@ func (f filter) keeps(section string, r *Row) bool {
 		return true
 	}
 
-	fold := text == strings.ToLower(text)
 	hay := strings.Join([]string{section, r.Left, r.Mid, r.Tail, r.Under}, "\x00")
 
-	if fold {
-		return strings.Contains(strings.ToLower(hay), text)
-	}
-
-	return strings.Contains(hay, text)
-}
-
-// kindsOf takes the kind: words out of a query and gives back what is left to
-// match as text.
-func kindsOf(query string) (string, []string) {
-	if !strings.Contains(strings.ToLower(query), kindWord) {
-		return query, nil
-	}
-
-	var (
-		text  []string
-		kinds []string
-	)
-
-	for _, word := range strings.Fields(query) {
-		if rest, ok := cutFold(word, kindWord); ok {
-			kinds = append(kinds, rest)
-
-			continue
-		}
-
-		text = append(text, word)
-	}
-
-	return strings.Join(text, " "), kinds
-}
-
-func cutFold(word, prefix string) (string, bool) {
-	if len(word) < len(prefix) || !strings.EqualFold(word[:len(prefix)], prefix) {
-		return "", false
-	}
-
-	return word[len(prefix):], true
+	return filterpkg.Match(text, hay)
 }
 
 // narrow drops the rows the filter does not keep, and the sections left with
