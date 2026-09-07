@@ -196,13 +196,16 @@ func namesInOrder(hunks []Hunk, declared map[string][]int) []string {
 }
 
 // byDirectory is everything no symbol gathered, under the directory it sits in,
-// in the order the diff named them. What a machine wrote is one group at the
-// end however many directories it came from.
+// costliest first and ties broken by the order the diff named them, so a
+// directory with more to read comes before one with less. What a machine
+// wrote is one group at the end however many directories it came from.
 func byDirectory(hunks []Hunk, taken []bool) []Group {
 	var (
-		out  []Group
-		made Group
-		at   = map[string]int{}
+		out   []Group
+		made  Group
+		at    = map[string]int{}
+		cost  []int
+		first []int
 	)
 
 	made.Name, made.Made = Generated, true
@@ -226,10 +229,33 @@ func byDirectory(hunks []Hunk, taken []bool) []Group {
 			at[dir] = j
 
 			out = append(out, Group{Name: dir})
+			cost = append(cost, 0)
+			first = append(first, i)
 		}
 
 		out[j].Hunks = append(out[j].Hunks, hunks[i].Ref)
+		cost[j] += hunks[i].Cost
 	}
+
+	order := make([]int, len(out))
+	for i := range order {
+		order[i] = i
+	}
+
+	slices.SortFunc(order, func(a, b int) int {
+		if by := cmp.Compare(cost[b], cost[a]); by != 0 {
+			return by
+		}
+
+		return cmp.Compare(first[a], first[b])
+	})
+
+	sorted := make([]Group, len(out))
+	for i, j := range order {
+		sorted[i] = out[j]
+	}
+
+	out = sorted
 
 	if len(made.Hunks) == 0 {
 		return out

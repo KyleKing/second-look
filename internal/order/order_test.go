@@ -286,6 +286,26 @@ func TestGroupsAreOrderedByWhatTheyCost(t *testing.T) {
 	}
 }
 
+// A directory group with more to read comes before one with less, the same
+// way a symbol group does, and equal costs keep the order the diff declared
+// them in so two runs over one review agree.
+func TestDirectoryGroupsAreOrderedByWhatTheyCost(t *testing.T) {
+	t.Parallel()
+
+	dear := hunk("b/dear.go", 1, nil, nil)
+	dear.Cost = 60
+
+	got := shown(order.Plan([]order.Hunk{
+		hunk("a/cheap.go", 1, nil, nil),
+		dear,
+		hunk("b/also.go", 2, nil, nil),
+	}))
+
+	if !strings.HasPrefix(got, "b:") {
+		t.Errorf("the costlier directory is not first:\n%s", got)
+	}
+}
+
 // What a machine wrote is one group at the end, and no symbol gathers it: a
 // lockfile that happens to name a function is still a lockfile.
 func TestGeneratedGoesLastAndIsNeverGathered(t *testing.T) {
