@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strconv"
 	"time"
 
@@ -319,21 +318,9 @@ func (l *List) Chosen() string { return l.chosen }
 // stdout and the exit code rather than only a footer the screen took with it.
 func (l *List) Failure() error { return l.failure }
 
-// RunList opens a list screen and blocks until the person leaves it. It returns
-// the screen so the caller can read what was chosen, and the error a failed
-// action left behind, which a footer the alternate screen took with it is not.
-func RunList(l *List) (*List, error) {
-	final, err := tea.NewProgram(l).Run()
-	if err != nil {
-		return l, fmt.Errorf("running the %s screen: %w", l.title, err)
-	}
-
-	if got, ok := final.(*List); ok {
-		return got, got.failure
-	}
-
-	return l, nil
-}
+// say puts a line in the footer, which is where a list reports what an action
+// did or why it could not.
+func (l *List) say(status string, failed bool) { l.status, l.failed = status, failed }
 
 // Init lays out the first frame at the assumed size, which the terminal
 // corrects with a resize before anything is drawn.
@@ -530,7 +517,9 @@ func (l *List) run(a Action, row *Row) (tea.Model, tea.Cmd) {
 	if done {
 		l.chosen = row.Key
 
-		return l, tea.Quit
+		// What leaving means is the shell's: a chosen review opens in place and
+		// everything else gives the terminal back.
+		return l, func() tea.Msg { return chosenMsg{} }
 	}
 
 	l.rebuild()

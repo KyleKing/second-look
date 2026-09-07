@@ -5,9 +5,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
-
-	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -147,28 +144,6 @@ func WithDispatcher(d Dispatcher) Option {
 // key says so rather than appearing to work.
 func WithOpener(open Opener) Option {
 	return func(m *Model) { m.browser = open }
-}
-
-// Run opens the review screen and blocks until the person leaves it. Every
-// change is written to the artifact as it is made, so quitting loses nothing
-// and a crash loses only the keystroke in flight.
-//
-// A submit that failed is returned once the screen has closed, since a footer
-// the alternate screen takes back with it is not a report.
-func Run(
-	ctx context.Context, r *artifact.Review, d *diff.Diff,
-	path string, submit Submitter, opts ...Option,
-) (Outcome, error) {
-	final, err := tea.NewProgram(New(ctx, r, d, path, submit, opts...)).Run()
-	if err != nil {
-		return Outcome{}, fmt.Errorf("running the review screen: %w", err)
-	}
-
-	if m, ok := final.(*Model); ok {
-		return Outcome{Checkout: m.checkout, Next: m.next}, m.failure
-	}
-
-	return Outcome{}, nil
 }
 
 // WithGenerated names what this repository writes by machine, beyond the

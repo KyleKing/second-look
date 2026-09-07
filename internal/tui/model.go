@@ -598,9 +598,10 @@ func (m *Model) overlayKey(msg tea.KeyPressMsg) bool {
 	return true
 }
 
-// leaves answers the two keys that end the screen: q, which closes the legend
-// first where it is open, and enter on a review that has posted, which carries
-// the sitting on to the next one staged rather than ending on each review.
+// leaves answers the two keys that leave the screen: q, which closes the legend
+// first where it is open and otherwise hands back to whatever is behind the
+// review, and enter on a review that has posted, which carries the sitting on
+// to the next one staged rather than ending on each review.
 func (m *Model) leaves(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Quit):
@@ -610,7 +611,7 @@ func (m *Model) leaves(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 
-		return tea.Quit, true
+		return func() tea.Msg { return leftMsg{} }, true
 	case m.posted && key.Matches(msg, m.keys.Accept):
 		m.next = true
 

@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/config"
+	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/tui"
 )
@@ -93,11 +95,39 @@ func queueOnce(
 	}, at).WithFocusNote(func(repo string) tea.Cmd { return cloneNote(ctx, repo) })
 	list.Restore(where)
 
-	_, runErr := tui.RunList(list)
+	// opened is the review the shell last drew, which is what a checkout or a
+	// post asking for the next one is performed against. log is what those
+	// posts wrote, held back until the alternate screen gives the terminal up.
+	var (
+		opened get.Target
+		log    strings.Builder
+	)
+
+	out, runErr := tui.RunShell(tui.NewShell(ctx, list, func() tui.Reviewer {
+		r, ok := chosen(in, rv)
+		if !ok {
+			return nil
+		}
+
+		return func(ctx context.Context) (*tui.Model, error) {
+			t, err := get.Resolve(ctx, ".", r.owner, r.repo, r.number)
+			if err != nil {
+				return nil, fmt.Errorf("opening %s: %w", r, err)
+			}
+
+			opened = t
+
+			return reviewScreen(ctx, t, &log)
+		}
+	}))
 
 	// The marks are worth keeping even when an action failed: what was read was
 	// still read.
 	if err := th.save(); err != nil {
+		return -1, where, err
+	}
+
+	if err := write(stdout, log.String()); err != nil {
 		return -1, where, err
 	}
 
@@ -107,9 +137,33 @@ func queueOnce(
 
 	left := list.Where()
 
+	if out.Checkout || out.Next {
+		return list.Tab(), left, afterReview(ctx, opened, out, stdin, stdout)
+	}
+
 	next, err := afterQueue(ctx, list.Tab(), in, th, rv, stdin, stdout)
 
 	return next, left, err
+}
+
+// chosen is the row the queue was left on when it was left to read one, taken
+// rather than read: what stays behind is what the screen is asked about next,
+// and a row already opened is not a row to open again.
+func chosen(in *inboxScreen, rv *reviewsScreen) (ref, bool) {
+	switch {
+	case rv.open != nil:
+		r := *rv.open
+		rv.open = nil
+
+		return r, true
+	case in.next != nil && in.next.act == tui.ActChoose:
+		r := in.next.at
+		in.next = nil
+
+		return r, true
+	}
+
+	return ref{}, false
 }
 
 // keepAhead is how many reviews the queue stages in front of the cursor. An
@@ -125,25 +179,20 @@ func keepAhead(cfg *config.Config) int {
 // afterQueue runs whatever the screen closed for, then says which tab to come
 // back to. Only one can be set: the screen quits on the action that sets it.
 //
-// Reading a review comes back to the queue rather than ending the session,
-// because twenty-five reviews is one sitting: quitting the program to get to
-// the next row makes the queue a list you consult rather than one you work
-// through.
+// Reading a review is not here: it opens inside the same program and comes back
+// to the queue that chose it. What is left needs the terminal given back, for a
+// question on stdin or an editor.
 func afterQueue(
 	ctx context.Context, at int, in *inboxScreen, th *threadsScreen, rv *reviewsScreen,
 	stdin io.Reader, stdout io.Writer,
 ) (int, error) {
 	switch {
-	case rv.open != nil:
-		return at, openRef(ctx, *rv.open, stdin, stdout)
 	case rv.move != nil:
 		return at, checkoutRef(ctx, *rv.move, stdin, stdout)
 	case th.reply != nil:
 		return at, answer(ctx, th.reply, th.repo, stdin, stdout)
 	case in.next == nil:
 		return -1, nil
-	case in.next.act == tui.ActChoose:
-		return at, openRef(ctx, in.next.at, stdin, stdout)
 	}
 
 	// A checkout that could not move or an editor closed empty is not a reason

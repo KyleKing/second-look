@@ -87,6 +87,16 @@ func (m *Model) SetSender(s Sender) { m.send = s }
 // without a terminal.
 func (l *List) ListFrame() string { return l.render() }
 
+// Frame is the screen the shell is drawing, so a test can say which of the two
+// it has on without a terminal.
+func (s *Shell) Frame() string {
+	if s.at == modeReview {
+		return s.review.render()
+	}
+
+	return s.list.render()
+}
+
 // CursorKey is the row the cursor is on, so a test can check where a motion
 // landed rather than inferring it from the frame.
 func (l *List) CursorKey() string {

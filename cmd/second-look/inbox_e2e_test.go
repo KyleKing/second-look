@@ -163,14 +163,18 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	sc.await("kyleking/aragonite #100")
 
 	// Leaving the review comes back to the queue rather than ending the
-	// session, which is what makes twenty-five reviews one sitting.
+	// session, which is what makes twenty-five reviews one sitting. It is the
+	// same queue: the filter it was narrowed to is still on, and the cassette
+	// holds one round of searches, so nothing was looked up again.
 	at := sc.mark()
 
 	sc.press("q")
-	sc.awaitFrom(at, "pending your review")
+	sc.awaitFrom(at, "showing 1 of")
 
 	sc.press("q")
 	sc.wait()
+
+	s.RequireAllPlayed(t)
 }
 
 // onScreen is the inbox recording plus the one call the screen makes and the
@@ -205,9 +209,6 @@ func inboxThenReview(t *testing.T) string {
 	for i := range opening {
 		c.Interactions = append(c.Interactions, addressed(opening[i], "kyleking/aragonite", 100))
 	}
-
-	// Leaving the review comes back to the queue, which loads its tab again.
-	c.Interactions = append(c.Interactions, onScreen(t).Interactions...)
 
 	path := filepath.Join(t.TempDir(), "inbox-review.golden")
 	if err := ghcassette.Save(path, c); err != nil {

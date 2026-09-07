@@ -233,12 +233,21 @@ func openRef(ctx context.Context, r ref, stdin io.Reader, stdout io.Writer) erro
 // first: the stash question needs stdin, and two programs cannot own the
 // terminal at once.
 func openReview(ctx context.Context, t get.Target, stdin io.Reader, stdout io.Writer) error {
-	for {
-		out, err := review(ctx, t, stdout)
-		if err != nil {
-			return err
-		}
+	out, err := review(ctx, t, stdout)
+	if err != nil {
+		return err
+	}
 
+	return afterReview(ctx, t, out, stdin, stdout)
+}
+
+// afterReview performs what a review screen was left for and carries the
+// sitting on from there, which is the same work whether the screen was opened
+// from the command line or from the queue.
+func afterReview(
+	ctx context.Context, t get.Target, out tui.Outcome, stdin io.Reader, stdout io.Writer,
+) error {
+	for {
 		if out.Next {
 			next, ok, err := afterPosting(ctx, t, stdout)
 			if err != nil || !ok {
@@ -254,12 +263,15 @@ func openReview(ctx context.Context, t get.Target, stdin io.Reader, stdout io.Wr
 
 		// A review with no clone of its repository is read from the API, and
 		// there is nothing to move.
-		if t.Detached() {
-			continue
+		if !t.Detached() {
+			if err := get.Prepare(ctx, stdout, t, confirm(stdin, stdout)); err != nil {
+				return fmt.Errorf("checking out #%d: %w", t.Number, err)
+			}
 		}
 
-		if err := get.Prepare(ctx, stdout, t, confirm(stdin, stdout)); err != nil {
-			return fmt.Errorf("checking out #%d: %w", t.Number, err)
+		var err error
+		if out, err = review(ctx, t, stdout); err != nil {
+			return err
 		}
 	}
 }
@@ -326,15 +338,12 @@ func refOf(r *prepared.Review) ref {
 	return ref{owner: owner, repo: name, number: r.Number}
 }
 
-// review draws the screen once and reports what it was left through.
+// review draws the screen once and reports what it was left through. A pull
+// request named on the command line has no queue behind it, so leaving the
+// screen ends the program.
 func review(ctx context.Context, t get.Target, stdout io.Writer) (tui.Outcome, error) {
 	if !term.IsTerminal(os.Stdin.Fd()) && !term.IsTerminal(os.Stdout.Fd()) {
 		return tui.Outcome{}, errNoTerminal
-	}
-
-	opened, err := get.Open(ctx, t)
-	if err != nil {
-		return tui.Outcome{}, fmt.Errorf("opening #%d: %w", t.Number, err)
 	}
 
 	// The alternate screen owns the terminal until the screen exits, so what the
@@ -342,10 +351,40 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (tui.Outcome, e
 	// as it happens draws over the frame.
 	var log strings.Builder
 
+	m, err := reviewScreen(ctx, t, &log)
+	if err != nil {
+		return tui.Outcome{}, err
+	}
+
+	out, runErr := tui.RunShell(tui.NewReviewShell(ctx, m))
+
+	// The log is written either way: a post that failed partway through still
+	// names the endpoints it reached, which is what says whether anything
+	// landed on GitHub.
+	if err := write(stdout, log.String()); err != nil {
+		return tui.Outcome{}, err
+	}
+
+	if runErr != nil {
+		return tui.Outcome{}, fmt.Errorf("reviewing #%d: %w", t.Number, runErr)
+	}
+
+	return out, nil
+}
+
+// reviewScreen builds the review screen for a target. The log collects what a
+// post writes, which the caller hands to the scrollback once the terminal is
+// back.
+func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder) (*tui.Model, error) {
+	opened, err := get.Open(ctx, t)
+	if err != nil {
+		return nil, fmt.Errorf("opening #%d: %w", t.Number, err)
+	}
+
 	opts := []tui.Option{
 		tui.WithThreads(opened.Threads), tui.WithAbout(opened.About),
 		tui.WithSeen(opened.Read, opened.SeenPath),
-		tui.WithSender(sender(t, opened.Path, &log)), tui.WithTree(tree(opened)),
+		tui.WithSender(sender(t, opened.Path, log)), tui.WithTree(tree(opened)),
 		tui.WithReactor(reactor(t)),
 		tui.WithMerger(merger(t)), tui.WithStore(t.Store), tui.WithOpener(opener(t)),
 		// A config that will not parse leaves the built-in patterns rather than
@@ -369,21 +408,8 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (tui.Outcome, e
 		}))
 	}
 
-	out, runErr := tui.Run(ctx, opened.Review, opened.Diff, opened.Path,
-		submitter(t, opened.Path, &log), opts...)
-
-	// The log is written either way: a post that failed partway through still
-	// names the endpoints it reached, which is what says whether anything
-	// landed on GitHub.
-	if err := write(stdout, log.String()); err != nil {
-		return tui.Outcome{}, err
-	}
-
-	if runErr != nil {
-		return tui.Outcome{}, fmt.Errorf("reviewing #%d: %w", t.Number, runErr)
-	}
-
-	return out, nil
+	return tui.New(ctx, opened.Review, opened.Diff, opened.Path,
+		submitter(t, opened.Path, log), opts...), nil
 }
 
 // tree is where the working copy stands, which is what the shell key can use
