@@ -2239,9 +2239,10 @@ func (m *Model) jump(step int, what string, want func(row) bool) {
 // reveal places the cursor for a jump, stopping at the last full frame of rows
 // so the end of the review is not scrolled into blankness.
 //
-// Landing on a comment centers its block: a finding is explained by the code
-// above the line it hangs from, and anchoring the block near the top puts that
-// code off the frame. Everything else anchors near the top, since scrolling by
+// Landing on a comment or a thread centers its block: a finding or a
+// conversation is explained by the code above the line it hangs from, and
+// anchoring the block near the top puts that code off the frame. Everything
+// else anchors near the top, since scrolling by
 // the least that reaches a heading leaves it on the last line, which is the one
 // place the content under it cannot be read.
 func (m *Model) reveal() {
@@ -2266,17 +2267,51 @@ func (m *Model) reveal() {
 	m.offset = clamp(m.cursor-margin, m.maxOffset())
 }
 
-// blockSpan is where the comment block under the cursor starts and how tall it
-// is. It reports false on anything that is not a comment, which is every row a
-// jump lands on except a comment head.
+// blockKey is what groups the rows of one comment or one thread together, kept
+// as a kind and an index rather than a bare int since a thread's index and a
+// comment's both start at zero and would otherwise collide.
+type blockKey struct {
+	kind rowKind
+	id   int
+}
+
+// groupOf is the block row i belongs to, and false for a row that is not part
+// of one: code, a heading, anything a jump does not land on as its head.
+func (m *Model) groupOf(i int) (blockKey, bool) {
+	if i < 0 || i >= len(m.screen.rows) {
+		return blockKey{}, false
+	}
+
+	switch r := m.screen.rows[i]; r.kind {
+	case rowComment:
+		if r.comment < 0 {
+			return blockKey{}, false
+		}
+
+		return blockKey{rowComment, r.comment}, true
+	case rowThread:
+		return blockKey{rowThread, r.thread}, true
+	default:
+		return blockKey{}, false
+	}
+}
+
+// blockSpan is where the comment or thread block under the cursor starts and
+// how tall it is. It reports false on anything that is neither, which is every
+// row a jump lands on except a comment or a thread head.
 func (m *Model) blockSpan() (int, int, bool) {
-	c := m.current()
-	if c < 0 || m.cursor >= len(m.screen.rows) {
+	at, ok := m.groupOf(m.cursor)
+	if !ok {
 		return 0, 0, false
 	}
 
 	top := m.cursor
-	for top > 0 && m.screen.rows[top-1].comment == c {
+	for top > 0 {
+		k, ok := m.groupOf(top - 1)
+		if !ok || k != at {
+			break
+		}
+
 		top--
 	}
 
@@ -2284,9 +2319,9 @@ func (m *Model) blockSpan() (int, int, bool) {
 }
 
 // follow keeps the cursor on screen with a few rows of context either side,
-// scrolling by the smallest amount that gets there. Landing on a comment
-// reveals the rest of it where the frame has room, since a comment's first
-// line is its severity and the sentence under it is the part worth reading.
+// scrolling by the smallest amount that gets there. Landing on a comment or a
+// thread reveals the rest of its block where the frame has room, since its
+// first line is a heading and what is under it is the part worth reading.
 func (m *Model) follow() {
 	// Half a frame is the most a margin can be before the two bounds below
 	// fight each other and the view flips on every keystroke.
@@ -2300,15 +2335,21 @@ func (m *Model) follow() {
 	m.offset = clamp(m.offset, m.maxOffset())
 }
 
-// blockEnd is the last row of the comment the cursor is in, or the cursor.
+// blockEnd is the last row of the comment or thread the cursor is in, or the
+// cursor.
 func (m *Model) blockEnd() int {
-	c := m.current()
-	if c < 0 {
+	at, ok := m.groupOf(m.cursor)
+	if !ok {
 		return m.cursor
 	}
 
 	end := m.cursor
-	for end+1 < len(m.screen.rows) && m.screen.rows[end+1].comment == c {
+	for {
+		k, ok := m.groupOf(end + 1)
+		if !ok || k != at {
+			break
+		}
+
 		end++
 	}
 

@@ -1564,6 +1564,59 @@ func TestLandingOnACommentCentersIt(t *testing.T) {
 	}
 }
 
+// Landing on a thread centers it the same way a comment does. An open
+// conversation is explained by the code it answers, and anchoring it near the
+// top of the frame put that code off the top same as an uncentered comment did.
+func TestLandingOnAThreadCentersIt(t *testing.T) {
+	t.Parallel()
+
+	const deep = 30
+
+	patch := longPatch(t)
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path,
+		func(context.Context, *artifact.Review) (string, error) { return "", nil },
+		tui.WithThreads([]threads.Thread{{
+			Path: "first/file.go", Side: artifact.SideRight, Line: deep,
+			Notes: []threads.Note{{ID: 1, Author: "KyleKing", Body: "does this handle nil?"}},
+		}}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	go2(m, ']', 't')
+
+	body := strings.Split(plain(m.Frame()), "\n")
+
+	at := -1
+
+	for i, l := range body {
+		if strings.Contains(l, "open thread") {
+			at = i
+		}
+	}
+
+	if at < 0 {
+		t.Fatalf("the thread never rendered:\n%s", strings.Join(body, "\n"))
+	}
+
+	if want := len(body) / 3; at < want {
+		t.Errorf("the thread sits on line %d of %d, want at least %d", at, len(body), want)
+	}
+
+	if !strings.Contains(strings.Join(body[:at], "\n"), fmt.Sprintf("first line %d", deep)) {
+		t.Errorf("the line the thread hangs from is off the frame:\n%s", strings.Join(body, "\n"))
+	}
+}
+
 // A comment on a range renders under its end line like any other, so without
 // the span on its heading it reads as a comment on that one line and the four
 // above it look untouched.
