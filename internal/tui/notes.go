@@ -198,7 +198,7 @@ func (s *scribe) fence(b *ghmd.Block) []row {
 // code draws the lines of a fence under whatever grammar its tag named, and as
 // plain text where the tag named none.
 func (s *scribe) code(b *ghmd.Block, upto int) []row {
-	lit := highlight.Tagged(b.Lang, b.Lines)
+	lit := s.lay.taggedLit(b.Lang, b.Lines)
 	out := make([]row, 0, upto)
 
 	for i, line := range b.Lines[:upto] {

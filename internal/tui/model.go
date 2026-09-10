@@ -58,7 +58,10 @@ type Model struct {
 	threads []threads.Thread
 	// notes is those threads' comments segmented once. Their bodies never
 	// change, and a rebuild happens on every keystroke.
-	notes  map[noteAt][]ghmd.Block
+	notes map[noteAt][]ghmd.Block
+	// lit is every fenced code block inside a note, lexed the first time it is
+	// drawn and kept after that, the same way lexed is for the diff's own hunks.
+	lit    map[string][][]highlight.Span
 	read   *seen.Set
 	seenAt string
 	path   string
@@ -228,6 +231,7 @@ func New(
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
 		width: minWidth, height: startHeight, folded: newFolded(),
 		refined: d.Refine(), lexed: map[hunkAt]map[diff.LineRef][]highlight.Span{},
+		lit:    map[string][][]highlight.Span{},
 		drawn:  opening,
 		made:   generated.New(nil),
 		around: map[hunkAt]int{}, blobs: map[string][]string{},
@@ -2149,7 +2153,7 @@ func (m *Model) rebuild() {
 	}
 
 	lay := layout{
-		width: m.width, hide: m.skipper(), fold: m.folded, notes: m.notes,
+		width: m.width, hide: m.skipper(), fold: m.folded, notes: m.notes, lit: m.lit,
 		split: m.sideBySide(), made: m.made,
 		drifted: artifact.Drifted(m.review.Comments, m.diff),
 		grown: func(path string, hunk int, span [2]int) ([]row, []row) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -78,5 +79,29 @@ func BenchmarkRichFrame(b *testing.B) {
 
 	for b.Loop() {
 		_ = m.Frame()
+	}
+}
+
+// A resize rebuilds the screen, and an open thread's fenced code is drawn
+// again on every one of them. Lexing it fresh each time is the grammar run per
+// keystroke BenchmarkRichFrame exists to catch, moved to the one screen that
+// draws a thread's own code instead of the diff's.
+func BenchmarkResizeWithThreadCode(b *testing.B) {
+	body := "```go\n" + strings.Repeat("fmt.Println(\"a line of code chroma has to lex\")\n", 40) + "```\n"
+
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "second-look", Number: 2,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+
+	m := tui.New(b.Context(), r, diff.Parse([]byte(patch)), b.TempDir()+"/pr-2.toml", nil,
+		tui.WithThreads([]threads.Thread{{
+			Path: parsed, Side: artifact.SideRight, Line: 15,
+			Notes: []threads.Note{{ID: 1, Author: "coderabbitai", Body: body}},
+		}}))
+	m.Init()
+
+	for i := 0; b.Loop(); i++ {
+		m.Update(tea.WindowSizeMsg{Width: 80 + i%40, Height: 24})
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/ghmd"
+	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/order"
 )
 
@@ -98,6 +99,10 @@ type layout struct {
 	// notes is every open thread's comments, already segmented into the blocks
 	// a terminal draws differently.
 	notes map[noteAt][]ghmd.Block
+	// lit is a fenced block's grammar, lexed the first time it is drawn and
+	// kept after that, so a rebuild does not re-run the lexer over prose that
+	// never changed.
+	lit map[string][][]highlight.Span
 	// grown is the file's own lines either side of a hunk, where a reader asked
 	// for more than the patch carried. It is nil for every view but the diff.
 	grown func(path string, hunk int, span [2]int) ([]row, []row)
@@ -132,6 +137,25 @@ func (l layout) shut(path string) bool {
 	}
 
 	return l.fold.files[path]
+}
+
+// taggedLit is a fenced block's grammar, read from the cache once a fence with
+// that language and text has been lexed once.
+func (l layout) taggedLit(lang string, lines []string) [][]highlight.Span {
+	if lang == "" {
+		return nil
+	}
+
+	key := lang + "\x00" + strings.Join(lines, "\n")
+
+	if lit, ok := l.lit[key]; ok {
+		return lit
+	}
+
+	lit := highlight.Tagged(lang, lines)
+	l.lit[key] = lit
+
+	return lit
 }
 
 // hunkWord is what the parser saw of one hunk, and nothing where no pass has
