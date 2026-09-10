@@ -74,9 +74,12 @@ func newStyles() styles {
 		context: base.Foreground(p.Subtext1),
 		// What is already read recedes, which is nightfox's dim_inactive: the
 		// eye then finds what is left instead of counting glyphs.
-		behind:   base.Foreground(p.Overlay0),
-		number:   base.Foreground(p.Overlay0),
-		cursor:   sk.Cursor,
+		behind: base.Foreground(p.Overlay0),
+		number: base.Foreground(p.Overlay0),
+		// The cursor is drawn as a solid chip rather than sk.Cursor's bold text,
+		// since a single lavender character reads the same as the rail and the
+		// title's own accent and is lost in a screen already full of them.
+		cursor:   base.Background(accent(p)).Foreground(p.Base).Bold(true),
 		selected: sk.Accent,
 		rail:     sk.Accent,
 		body:     sk.Body,
