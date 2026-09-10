@@ -307,7 +307,7 @@ func commentMarker(c *artifact.Comment, index int, path string, lay layout, numW
 
 func threadMarker(t *threads.Thread, index int, path string) []row {
 	return []row{{
-		kind: rowThread, path: path, comment: -1, thread: index, head: true,
+		kind: rowThread, path: path, comment: -1, thread: index, head: true, resolved: t.Resolved,
 		text: "▸ ⤷ open thread · " + plural(len(t.Notes), "comment") + " · @" + t.Notes[0].Author,
 	}}
 }

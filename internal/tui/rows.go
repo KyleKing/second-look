@@ -70,6 +70,10 @@ type row struct {
 	hunk int
 	// head marks the first row of a comment block, which is where a jump lands.
 	head bool
+	// resolved marks a thread's head whose conversation is settled, which the
+	// thread motion skips the same way it would skip a hunk with nothing left
+	// in it. Read only where kind is rowThread.
+	resolved bool
 	// folded marks a row standing in for lines it is hiding, which is what za
 	// inverts.
 	folded bool

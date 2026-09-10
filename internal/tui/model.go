@@ -1359,13 +1359,24 @@ func isHunk(r row) bool {
 
 func isComment(r row) bool { return r.head && r.kind == rowComment && r.comment >= 0 }
 
-func isThread(r row) bool { return r.head && r.kind == rowThread }
+// isThread is an open thread's head, which skips a resolved one the way ]c
+// skips a hunk with nothing left to say about it.
+func isThread(r row) bool { return r.head && r.kind == rowThread && !r.resolved }
 
 func isKind(k rowKind) func(row) bool {
 	return func(r row) bool { return r.kind == k }
 }
 
-func isHead(r row) bool { return r.head }
+// isHead is anything tab walks: a staged comment or an open thread, either one
+// still wanting a decision. A resolved thread is neither, so it is skipped the
+// same way isThread skips it on its own.
+func isHead(r row) bool {
+	if !r.head {
+		return false
+	}
+
+	return r.kind != rowThread || isThread(r)
+}
 
 func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Posting removes the prepared review, and every action below writes it

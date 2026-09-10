@@ -2227,6 +2227,48 @@ func TestReplyingToAnOpenThread(t *testing.T) {
 	t.Errorf("no reply was staged: %+v", saved.Comments)
 }
 
+// A resolved thread has nothing left to ask, so tab -- which walks whatever
+// still wants a decision -- skips it and stops on an open one only.
+func TestTabSkipsAResolvedThread(t *testing.T) {
+	t.Parallel()
+
+	resolved := threads.Thread{
+		Path: parsed, Side: artifact.SideRight, Line: 15, Resolved: true,
+		Notes: []threads.Note{{ID: 1, Author: "KyleKing", Body: "fixed in the next commit"}},
+	}
+	open := threads.Thread{
+		Path: parsed, Side: artifact.SideRight, Line: 17,
+		Notes: []threads.Note{{ID: 2, Author: "KyleKing", Body: "still true here?"}},
+	}
+
+	_, path, _ := fixtureWith(t, patch)
+	m := tui.New(t.Context(), reviewAt(t, path), diff.Parse([]byte(patch)), path,
+		func(context.Context, *artifact.Review) (string, error) { return "", nil },
+		tui.WithThreads([]threads.Thread{resolved, open}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+
+	if got := m.CursorText(); strings.Contains(got, "resolved") {
+		t.Fatalf("tab landed on the resolved thread: %q", got)
+	}
+
+	if got := plain(m.Frame()); !strings.Contains(got, "r[e]ply") {
+		t.Fatalf("tab did not land on the open thread:\n%s", got)
+	}
+
+	// Walking on from there never lands back on the resolved thread, since
+	// there is nothing further tab would stop on for it to answer.
+	for range 5 {
+		press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+
+		if got := m.CursorText(); strings.Contains(got, "resolved") {
+			t.Fatalf("tab landed on the resolved thread: %q", got)
+		}
+	}
+}
+
 // Answering a thread used to draw the editor over it, so the finding being
 // replied to left the screen at the moment it was needed. A frame too short for
 // both keeps the last turns, which are the ones the reply is to.

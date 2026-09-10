@@ -74,7 +74,7 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 
 	head := row{
 		kind: rowThread, text: "⤷ " + lead(where) + status(t) + " · " + plural(len(t.Notes), "comment"),
-		path: path, comment: -1, thread: index, head: true,
+		path: path, comment: -1, thread: index, head: true, resolved: t.Resolved,
 	}
 
 	rows := make([]row, 0, len(t.Notes)*2+1)
