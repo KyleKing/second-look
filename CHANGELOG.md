@@ -1,3 +1,17 @@
+## v0.16.0 (2026-09-11)
+
+### Feat
+
+- **artifact**: relocate a comment whose anchor shifted but did not change
+
+### Fix
+
+- **get**: recover from a rebased or force-pushed upstream
+- **tui**: make tab skip a resolved thread
+- **tui**: draw the cursor as a chip instead of bold accent text
+- **tui**: lex a thread's fenced code once instead of on every rebuild
+- **tui**: center a thread the same way landing on a comment does
+
 ## v0.15.1 (2026-09-07)
 
 ### Fix
