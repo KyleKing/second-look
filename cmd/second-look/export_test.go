@@ -1,10 +1,17 @@
 package main
 
 import (
+	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/prepared"
 	"github.com/kyleking/second-look/internal/prstate"
+	"github.com/kyleking/second-look/internal/tui"
 )
+
+// DeleteBranchLocally exposes cleaner to black-box tests: it has to run
+// against a real git checkout to prove the base-branch switch and the branch
+// delete, not something a public constructor stands in for.
+func DeleteBranchLocally(t get.Target) tui.Cleanup { return cleaner(t) }
 
 // RefString parses a pull request reference and renders it back, which is both
 // halves of the parser without exporting its type.

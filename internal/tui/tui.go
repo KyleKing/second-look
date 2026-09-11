@@ -79,6 +79,19 @@ func WithMerger(merge Merger) Option {
 	return func(m *Model) { m.merge = merge }
 }
 
+// Cleanup switches the checkout onto the pull request's base branch and
+// deletes the local head branch, once the review is done with it. It is a
+// separate seam from Merger because it leaves the pull request itself
+// untouched: this is local housekeeping a reviewer does on their own, not
+// something that changes what GitHub has.
+type Cleanup func(ctx context.Context, r *artifact.Review) (string, error)
+
+// WithCleanup allows deleting the local branch from inside the screen.
+// Without one, the key says so rather than appearing to work.
+func WithCleanup(cleanup Cleanup) Option {
+	return func(m *Model) { m.cleanup = cleanup }
+}
+
 // WithSender allows posting a single comment from inside the screen. Without
 // one, the key says so rather than appearing to work.
 func WithSender(send Sender) Option {

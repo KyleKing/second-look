@@ -236,6 +236,91 @@ func TestMergeAsksTwiceAndRefusesAStagedReview(t *testing.T) {
 	})
 }
 
+// Deleting a branch is local housekeeping rather than a review decision, so
+// unlike merge it is not refused while a review is still staged.
+func TestDeleteBranchAsksTwiceAndIgnoresStagedComments(t *testing.T) {
+	t.Parallel()
+
+	t.Run("one press arms and the second sends", func(t *testing.T) {
+		t.Parallel()
+
+		m, deletes := deleteBranchFixture(t)
+
+		pressKey(m, 'D')
+
+		if *deletes != 0 {
+			t.Error("the first D deleted without confirming")
+		}
+
+		if !strings.Contains(plain(m.Frame()), "D again") {
+			t.Errorf("the first D did not ask:\n%s", plain(m.Frame()))
+		}
+
+		pressKey(m, 'D')
+
+		if *deletes != 1 {
+			t.Errorf("%d deletion(s) after confirming, want 1", *deletes)
+		}
+	})
+
+	t.Run("any other key cancels", func(t *testing.T) {
+		t.Parallel()
+
+		m, deletes := deleteBranchFixture(t)
+
+		pressKey(m, 'D')
+		pressKey(m, 'j')
+		pressKey(m, 'D')
+
+		if *deletes != 0 {
+			t.Errorf("%d deletion(s) after a cancel", *deletes)
+		}
+	})
+
+	t.Run("a staged review does not block it", func(t *testing.T) {
+		t.Parallel()
+
+		m, deletes := deleteBranchFixture(t, comment("c1", parsed, "RIGHT", 16, "a word"))
+		pressKey(m, 'D')
+		pressKey(m, 'D')
+
+		if *deletes != 1 {
+			t.Errorf("%d deletion(s) with a review staged, want 1", *deletes)
+		}
+	})
+}
+
+// deleteBranchFixture is a review with nothing staged unless comments are
+// given, and a cleanup that counts rather than deleting anything.
+func deleteBranchFixture(t *testing.T, cs ...artifact.Comment) (*tui.Model, *int) {
+	t.Helper()
+
+	deletes := 0
+	sub := &counter{}
+
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", HeadRef: "feature", BaseRef: "main",
+		Event: artifact.EventComment, Comments: cs,
+	}
+
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithCleanup(func(context.Context, *artifact.Review) (string, error) {
+			deletes++
+
+			return "deleted", nil
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	return m, &deletes
+}
+
 func pressKey(m *tui.Model, c rune) {
 	press(m, tea.KeyPressMsg{Code: c, Text: string(c)})
 }

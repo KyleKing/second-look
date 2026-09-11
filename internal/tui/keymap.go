@@ -23,57 +23,58 @@ const (
 )
 
 type keyMap struct {
-	Up        key.Binding
-	Down      key.Binding
-	HalfUp    key.Binding
-	PeekUp    key.Binding
-	PeekDown  key.Binding
-	HalfDown  key.Binding
-	Top       key.Binding
-	Bottom    key.Binding
-	Forward   key.Binding
-	Backward  key.Binding
-	Again     key.Binding
-	Reverse   key.Binding
-	Repeat    key.Binding
-	NextNote  key.Binding
-	PrevNote  key.Binding
-	Edit      key.Binding
-	Write     key.Binding
-	Note      key.Binding
-	Shell     key.Binding
-	Checkout  key.Binding
-	State     key.Binding
-	Ready     key.Binding
-	Draft     key.Binding
-	Skip      key.Binding
-	Todo      key.Binding
-	Dispatch  key.Binding
-	Threads   key.Binding
-	Restage   key.Binding
-	Seen      key.Binding
-	Search    key.Binding
-	List      key.Binding
-	Renderer  key.Binding
-	Look      key.Binding
-	Order     key.Binding
-	Fold      key.Binding
-	Zed       key.Binding
-	Structure key.Binding
-	OnlyNew   key.Binding
-	Round     key.Binding
-	Suggest   key.Binding
-	Range     key.Binding
-	More      key.Binding
-	Less      key.Binding
-	Accept    key.Binding
-	Send      key.Binding
-	Submit    key.Binding
-	Open      key.Binding
-	Merge     key.Binding
-	React     key.Binding
-	About     key.Binding
-	Help      key.Binding
+	Up           key.Binding
+	Down         key.Binding
+	HalfUp       key.Binding
+	PeekUp       key.Binding
+	PeekDown     key.Binding
+	HalfDown     key.Binding
+	Top          key.Binding
+	Bottom       key.Binding
+	Forward      key.Binding
+	Backward     key.Binding
+	Again        key.Binding
+	Reverse      key.Binding
+	Repeat       key.Binding
+	NextNote     key.Binding
+	PrevNote     key.Binding
+	Edit         key.Binding
+	Write        key.Binding
+	Note         key.Binding
+	Shell        key.Binding
+	Checkout     key.Binding
+	State        key.Binding
+	Ready        key.Binding
+	Draft        key.Binding
+	Skip         key.Binding
+	Todo         key.Binding
+	Dispatch     key.Binding
+	Threads      key.Binding
+	Restage      key.Binding
+	Seen         key.Binding
+	Search       key.Binding
+	List         key.Binding
+	Renderer     key.Binding
+	Look         key.Binding
+	Order        key.Binding
+	Fold         key.Binding
+	Zed          key.Binding
+	Structure    key.Binding
+	OnlyNew      key.Binding
+	Round        key.Binding
+	Suggest      key.Binding
+	Range        key.Binding
+	More         key.Binding
+	Less         key.Binding
+	Accept       key.Binding
+	Send         key.Binding
+	Submit       key.Binding
+	Open         key.Binding
+	Merge        key.Binding
+	DeleteBranch key.Binding
+	React        key.Binding
+	About        key.Binding
+	Help         key.Binding
 	// Back leaves whatever has the keyboard without leaving the screen. It is
 	// esc alone: q shares Quit's binding, and a prompt that reads q as a cancel
 	// cannot be typed a word containing one.
@@ -83,59 +84,60 @@ type keyMap struct {
 
 func defaultKeyMap() keyMap {
 	return keyMap{
-		Up:        key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("j/k", "line")),
-		Down:      key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "line")),
-		HalfUp:    key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
-		PeekUp:    key.NewBinding(key.WithKeys("ctrl+y"), key.WithHelp("ctrl+y/e", "peek")),
-		PeekDown:  key.NewBinding(key.WithKeys("ctrl+e"), key.WithHelp("ctrl+y/e", "peek")),
-		HalfDown:  key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
-		Top:       key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("g/G", "top, bottom")),
-		Bottom:    key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("g/G", "top, bottom")),
-		Forward:   key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "go")),
-		Backward:  key.NewBinding(key.WithKeys("["), key.WithHelp("[", "go back")),
-		Again:     key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "again")),
-		Reverse:   key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "back")),
-		Repeat:    key.NewBinding(key.WithKeys("."), key.WithHelp(".", "repeat")),
-		NextNote:  key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next")),
-		PrevNote:  key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous")),
-		Edit:      key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
-		Write:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
-		Note:      key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "note")),
-		Shell:     key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
-		Checkout:  key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
-		State:     key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "state")),
-		Ready:     key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
-		Draft:     key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
-		Skip:      key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
-		Todo:      key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "hand back")),
-		Dispatch:  key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "dispatch todo")),
-		Seen:      key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
-		Search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
-		List:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
-		Renderer:  key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "renderer")),
-		Look:      key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "toggle one of them")),
-		Threads:   key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "conversations")),
-		Restage:   key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "restage")),
-		Order:     key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
-		Fold:      key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
-		Zed:       key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
-		Structure: key.NewBinding(key.WithKeys("W"), key.WithHelp("W", "no code changed")),
-		OnlyNew:   key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "only what is new")),
-		Round:     key.NewBinding(key.WithKeys("H"), key.WithHelp("H", "since a round")),
-		Suggest:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "suggest")),
-		Range:     key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "range")),
-		More:      key.NewBinding(key.WithKeys("+"), key.WithHelp("+", "more context")),
-		Less:      key.NewBinding(key.WithKeys("-"), key.WithHelp("-", "less context")),
-		Accept:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
-		Send:      key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
-		Submit:    key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
-		Open:      key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "on GitHub")),
-		Merge:     key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
-		React:     key.NewBinding(key.WithKeys(","), key.WithHelp(",", "react")),
-		About:     key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "context")),
-		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		Back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-		Quit:      key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", quitWord)),
+		Up:           key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("j/k", "line")),
+		Down:         key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "line")),
+		HalfUp:       key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
+		PeekUp:       key.NewBinding(key.WithKeys("ctrl+y"), key.WithHelp("ctrl+y/e", "peek")),
+		PeekDown:     key.NewBinding(key.WithKeys("ctrl+e"), key.WithHelp("ctrl+y/e", "peek")),
+		HalfDown:     key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
+		Top:          key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("g/G", "top, bottom")),
+		Bottom:       key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("g/G", "top, bottom")),
+		Forward:      key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "go")),
+		Backward:     key.NewBinding(key.WithKeys("["), key.WithHelp("[", "go back")),
+		Again:        key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "again")),
+		Reverse:      key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "back")),
+		Repeat:       key.NewBinding(key.WithKeys("."), key.WithHelp(".", "repeat")),
+		NextNote:     key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next")),
+		PrevNote:     key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous")),
+		Edit:         key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
+		Write:        key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
+		Note:         key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "note")),
+		Shell:        key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
+		Checkout:     key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
+		State:        key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "state")),
+		Ready:        key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
+		Draft:        key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
+		Skip:         key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
+		Todo:         key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "hand back")),
+		Dispatch:     key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "dispatch todo")),
+		Seen:         key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
+		Search:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
+		List:         key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
+		Renderer:     key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "renderer")),
+		Look:         key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "toggle one of them")),
+		Threads:      key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "conversations")),
+		Restage:      key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "restage")),
+		Order:        key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
+		Fold:         key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
+		Zed:          key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
+		Structure:    key.NewBinding(key.WithKeys("W"), key.WithHelp("W", "no code changed")),
+		OnlyNew:      key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "only what is new")),
+		Round:        key.NewBinding(key.WithKeys("H"), key.WithHelp("H", "since a round")),
+		Suggest:      key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "suggest")),
+		Range:        key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "range")),
+		More:         key.NewBinding(key.WithKeys("+"), key.WithHelp("+", "more context")),
+		Less:         key.NewBinding(key.WithKeys("-"), key.WithHelp("-", "less context")),
+		Accept:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
+		Send:         key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
+		Submit:       key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
+		Open:         key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "on GitHub")),
+		Merge:        key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
+		DeleteBranch: key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "delete branch")),
+		React:        key.NewBinding(key.WithKeys(","), key.WithHelp(",", "react")),
+		About:        key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "context")),
+		Help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Back:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", quitWord)),
 	}
 }
 
@@ -256,6 +258,7 @@ func helpGroups() []helpGroup {
 			{"i", "what the pull request says about itself: its description and the comments on it"},
 			{"o", "open the pull request on GitHub"},
 			{"M", "squash-merge the pull request, M again to confirm"},
+			{"D", "check out the base branch and delete this one locally, D again to confirm"},
 		}},
 		{"leaving", [][2]string{
 			{"? / esc", "this help, back"},

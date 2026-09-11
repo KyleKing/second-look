@@ -98,6 +98,7 @@ type Model struct {
 	send    Sender
 	reactor Reactor
 	merge   Merger
+	cleanup Cleanup
 	head    HeadCheck
 	browser Opener
 	tree    Tree
@@ -129,15 +130,17 @@ type Model struct {
 	last   *motion
 	change *change
 
-	status    string
-	failed    bool
-	posted    bool
-	posting   bool
-	merged    bool
-	merging   bool
-	asking    confirmKind
-	searching bool
-	view      viewMode
+	status        string
+	failed        bool
+	posted        bool
+	posting       bool
+	merged        bool
+	merging       bool
+	branchDeleted bool
+	deleting      bool
+	asking        confirmKind
+	searching     bool
+	view          viewMode
 	// editing is the in-place editor, nil when nothing is being written.
 	editing *editor
 	fold    foldLevel
@@ -388,6 +391,12 @@ type mergedMsg struct {
 	err     error
 }
 
+// branchDeletedMsg is what the local branch cleanup answered with.
+type branchDeletedMsg struct {
+	summary string
+	err     error
+}
+
 // Update routes one message. Movement is separated from the keys that change
 // the review, so what can alter a comment stays a short list.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -433,6 +442,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyMerge(msg)
 
 		return m, tea.ClearScreen
+	case branchDeletedMsg:
+		m.applyBranchDeleted(msg)
+
+		return m, nil
 	case submittedMsg:
 		m.applySubmit(msg)
 
@@ -1424,6 +1437,8 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.browse()
 	case key.Matches(msg, m.keys.Merge):
 		m.askMergeNow()
+	case key.Matches(msg, m.keys.DeleteBranch):
+		m.askDeleteBranchNow()
 	}
 
 	return m, nil
@@ -2018,14 +2033,15 @@ func (m *Model) submitAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// confirmKind is which confirmation owns the keyboard. Two of the screen's keys
-// send something that cannot be taken back, and each is confirmed by its own
-// key rather than by any keystroke at all.
+// confirmKind is which confirmation owns the keyboard. Three of the screen's
+// keys send something that cannot be taken back, and each is confirmed by its
+// own key rather than by any keystroke at all.
 type confirmKind int
 
 const (
 	askNothing confirmKind = iota
 	askMerge
+	askDeleteBranch
 )
 
 // askMergeNow asks before it merges. A merge is the least reversible thing this
@@ -2049,11 +2065,26 @@ func (m *Model) askMergeNow() {
 	}
 }
 
-// answer reads the reply to the merge confirmation. Anything but the same key
-// again cancels and is swallowed, so no keystroke meant for the review merges.
+// answer reads the reply to whichever confirmation is waiting. Each kind owns
+// its own key, so a mistyped reply to one never fires the other.
 func (m *Model) answer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	kind := m.asking
 	m.asking = askNothing
 
+	switch kind {
+	case askMerge:
+		return m.answerMerge(msg)
+	case askDeleteBranch:
+		return m.answerDeleteBranch(msg)
+	default:
+		return m, nil
+	}
+}
+
+// answerMerge reads the reply to the merge confirmation. Anything but the
+// same key again cancels and is swallowed, so no keystroke meant for the
+// review merges.
+func (m *Model) answerMerge(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if !key.Matches(msg, m.keys.Merge) {
 		m.say("canceled, nothing was merged", false)
 
@@ -2070,6 +2101,47 @@ func (m *Model) answer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		summary, err := m.merge(ctx, review)
 
 		return mergedMsg{summary: summary, err: err}
+	}
+}
+
+// askDeleteBranchNow asks before it checks out the base branch and deletes
+// this one locally. It is local housekeeping rather than anything GitHub
+// sees, so unlike merge it is offered even while a review is still staged:
+// nothing here strands work, it only moves the checkout off it.
+func (m *Model) askDeleteBranchNow() {
+	switch {
+	case m.cleanup == nil:
+		m.say("deleting the branch is not available here", true)
+	case m.deleting:
+		m.say("deleting…", false)
+	case m.branchDeleted:
+		m.say("already deleted", false)
+	default:
+		m.asking = askDeleteBranch
+		m.say("D again to check out the base branch and delete "+m.review.HeadRef+" locally, any key cancels", false)
+	}
+}
+
+// answerDeleteBranch reads the reply to the delete-branch confirmation.
+// Anything but the same key again cancels and is swallowed, so no keystroke
+// meant for the review deletes anything.
+func (m *Model) answerDeleteBranch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if !key.Matches(msg, m.keys.DeleteBranch) {
+		m.say("canceled, nothing was deleted", false)
+
+		return m, nil
+	}
+
+	m.deleting = true
+
+	m.say("deleting "+m.review.HeadRef+"…", false)
+
+	ctx, review := m.ctx, m.review
+
+	return m, func() tea.Msg {
+		summary, err := m.cleanup(ctx, review)
+
+		return branchDeletedMsg{summary: summary, err: err}
 	}
 }
 
@@ -2152,6 +2224,20 @@ func (m *Model) applyMerge(msg mergedMsg) {
 
 	m.merged = true
 	m.say(msg.summary+", press q to leave", false)
+}
+
+// applyBranchDeleted reports the cleanup. A failure leaves the checkout
+// wherever it stopped, which the message names, rather than claiming success.
+func (m *Model) applyBranchDeleted(msg branchDeletedMsg) {
+	m.deleting = false
+	if msg.err != nil {
+		m.say(msg.err.Error(), true)
+
+		return
+	}
+
+	m.branchDeleted = true
+	m.say(msg.summary, false)
 }
 
 func (m *Model) rebuild() {

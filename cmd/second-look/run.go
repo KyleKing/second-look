@@ -53,6 +53,7 @@ var (
 	errUsageTodo      = errors.New("usage: second-look todo <pr>")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--diff|--payload|--threads]")
 	errUsageSkill     = errors.New("usage: second-look skill")
+	errCheckoutMoved  = errors.New("the checkout has moved past the reviewed head")
 )
 
 // The two flags every listing command takes, named so the switch and the
@@ -396,6 +397,12 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder) (*tui
 		opts = append(opts, tui.WithDispatcher(d))
 	}
 
+	// Deleting a branch is local housekeeping, so it is only offered where
+	// there is a checkout to move: a detached review has no branch to leave.
+	if t.Work != "" {
+		opts = append(opts, tui.WithCleanup(cleaner(t)))
+	}
+
 	reader := blob.Reader{Work: opened.Work, Repo: t.RepoID(), SHA: opened.Review.HeadSHA}
 	opts = append(opts,
 		tui.WithBlobs(reader.Read), tui.WithRestage(restager(t)), tui.WithRounds(rounds(t)))
@@ -480,6 +487,51 @@ func merger(t get.Target) tui.Merger {
 		}
 
 		return fmt.Sprintf("merged %s/%s #%d", r.Owner, r.Repo, r.Number), nil
+	}
+}
+
+func short(sha string) string {
+	const n = 7
+	if len(sha) <= n {
+		return sha
+	}
+
+	return sha[:n]
+}
+
+// cleaner checks out the pull request's base branch and deletes the head
+// branch locally, once a reviewer is done with the checkout second-look
+// itself moved them onto. It never touches the remote branch: GitHub keeps
+// its own copy, so nothing here is a review decision the way merging is.
+//
+// The delete is forced rather than deferred to git's own "not fully merged"
+// check, which would refuse every branch here since a pull request the
+// reviewer does not own is rarely merged yet. Force is safe because the
+// local branch's tip is checked against r.HeadSHA first: this only ever
+// discards a checkout that reads exactly what the review was staged
+// against, never a commit the reviewer added on top of it.
+func cleaner(t get.Target) tui.Cleanup {
+	return func(ctx context.Context, r *artifact.Review) (string, error) {
+		head, err := vcs.HeadSHA(ctx, t.Work)
+		if err != nil {
+			return "", fmt.Errorf("reading the checkout: %w", err)
+		}
+		if head != r.HeadSHA {
+			return "", fmt.Errorf("%w: at %s, not %s; leaving %s alone",
+				errCheckoutMoved, short(head), short(r.HeadSHA), r.HeadRef)
+		}
+
+		ops := vcs.GetOperations(t.Work)
+
+		if _, _, err := ops.SwitchBranch(ctx, t.Work, r.BaseRef); err != nil {
+			return "", fmt.Errorf("checking out %s: %w", r.BaseRef, err)
+		}
+
+		if _, _, err := ops.DeleteBranch(ctx, t.Work, r.HeadRef, true); err != nil {
+			return "", fmt.Errorf("deleting %s: %w", r.HeadRef, err)
+		}
+
+		return fmt.Sprintf("deleted %s locally; checked out %s", r.HeadRef, r.BaseRef), nil
 	}
 }
 
