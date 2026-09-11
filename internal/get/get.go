@@ -28,7 +28,10 @@ import (
 // Reasons get stops. Each names something only the person at the keyboard can
 // resolve, so none of them is retried.
 var (
-	ErrDirtyTree = errors.New("the working tree has uncommitted changes; commit or stash them first")
+	ErrDirtyTree           = errors.New("the working tree has uncommitted changes; commit or stash them first")
+	ErrDivergedUnknownWork = errors.New(
+		"the checkout has diverged from its upstream at a commit second-look never staged; resolve manually",
+	)
 	ErrHeadMoved = errors.New("the checkout did not land on the pull request head")
 	ErrNoHeadSHA = errors.New("the pull request reported no head commit")
 	ErrNoRemote  = errors.New("no owner/repo could be read from the remote")
@@ -52,7 +55,7 @@ func Run(ctx context.Context, out io.Writer, t Target) error {
 
 	if !t.Detached() {
 		if pr.State == forge.PRStatusOpen {
-			if err := checkout(ctx, out, t.Work, pr); err != nil {
+			if err := checkout(ctx, out, t, pr); err != nil {
 				return err
 			}
 		} else if err := say(out, fmt.Sprintf(
@@ -251,7 +254,9 @@ func identify(ctx context.Context, root string) (repo, error) {
 // Already being on the head never blocks, however dirty the tree: refusing to
 // review a branch you already have because you have unstaged edits would be
 // wrong. Moving the tree is the case that needs a clean one.
-func checkout(ctx context.Context, out io.Writer, root string, pr *forge.PullRequest) error {
+func checkout(ctx context.Context, out io.Writer, t Target, pr *forge.PullRequest) error {
+	root := t.Work
+
 	head, err := vcs.HeadSHA(ctx, root)
 	if err != nil {
 		return fmt.Errorf("reading the checkout: %w", err)
@@ -268,8 +273,8 @@ func checkout(ctx context.Context, out io.Writer, root string, pr *forge.PullReq
 	}
 
 	if branch == pr.HeadRef {
-		if err := vcs.PullFastForward(ctx, root); err != nil {
-			return fmt.Errorf("catching up to %s: %w", pr.HeadRef, err)
+		if err := catchUp(ctx, out, t, pr, head); err != nil {
+			return err
 		}
 	} else {
 		if err := requireCleanTree(ctx, ops, root); err != nil {
@@ -289,6 +294,46 @@ func checkout(ctx context.Context, out io.Writer, root string, pr *forge.PullReq
 	}
 
 	return say(out, fmt.Sprintf("checked out %s at %s\n", pr.HeadRef, short(pr.HeadSHA)))
+}
+
+// catchUp advances the branch already checked out to the pull request head,
+// recovering from a rebased or force-pushed upstream rather than surfacing a
+// raw pull failure.
+func catchUp(ctx context.Context, out io.Writer, t Target, pr *forge.PullRequest, head string) error {
+	err := vcs.PullFastForward(ctx, t.Work)
+	if err == nil {
+		return nil
+	}
+
+	if !errors.Is(err, vcs.ErrDiverged) {
+		return fmt.Errorf("catching up to %s: %w", pr.HeadRef, err)
+	}
+
+	return recoverDiverged(ctx, out, t, pr, head)
+}
+
+// recoverDiverged resets the branch to its upstream when the commit it would
+// discard is one second-look has itself recorded staging a review against
+// (artifact.Round). A rebase or force-push of the upstream leaves the branch
+// pointed at exactly that kind of orphaned commit, which carries no work of
+// its own: second-look never commits to a checkout, so the only way it gets
+// there is a prior get landing on it. A HEAD this checkout reached some other
+// way — the reviewer's own commits, mid-experiment — is not staked, and stays
+// alone rather than being discarded on a guess.
+func recoverDiverged(ctx context.Context, out io.Writer, t Target, pr *forge.PullRequest, head string) error {
+	review, err := artifact.Load(artifact.Path(t.Store, t.Number))
+	if err != nil || !slices.ContainsFunc(review.Rounds, func(r artifact.Round) bool { return r.SHA == head }) {
+		return fmt.Errorf("%w (at %s)", ErrDivergedUnknownWork, short(head))
+	}
+
+	if err := vcs.ResetHardToUpstream(ctx, t.Work); err != nil {
+		return fmt.Errorf("recovering from the rebased %s: %w", pr.HeadRef, err)
+	}
+
+	return say(out, fmt.Sprintf(
+		"%s was rebased past %s, which second-look last staged a review against; reset to match\n",
+		pr.HeadRef, short(head),
+	))
 }
 
 // requireCleanTree guards a checkout that has to move the working copy. A jj
