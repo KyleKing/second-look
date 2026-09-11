@@ -430,7 +430,7 @@ func tree(opened *get.Review) tui.Tree {
 // and the endpoints it touched go to the log instead.
 func submitter(t get.Target, path string, log io.Writer) tui.Submitter {
 	return func(ctx context.Context, r *artifact.Review) (string, error) {
-		if err := post.Guard(ctx, t.Dir(), t.Remote(), r); err != nil {
+		if err := post.Guard(ctx, t.Dir(), t.Remote(), r, log); err != nil {
 			return "", fmt.Errorf("submitting: %w", err)
 		}
 
@@ -447,7 +447,7 @@ func submitter(t get.Target, path string, log io.Writer) tui.Submitter {
 // would land on whatever now sits there.
 func sender(t get.Target, path string, log io.Writer) tui.Sender {
 	return func(ctx context.Context, r *artifact.Review, id string) (string, error) {
-		if err := post.Guard(ctx, t.Dir(), t.Remote(), r); err != nil {
+		if err := post.Guard(ctx, t.Dir(), t.Remote(), r, log); err != nil {
 			return "", fmt.Errorf("posting %s: %w", id, err)
 		}
 
@@ -778,7 +778,7 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	//nolint:wrapcheck // guardAnchors' own error already names what failed
-	if err := post.Guard(ctx, t.Dir(), t.Remote(), r); err != nil {
+	if err := post.Guard(ctx, t.Dir(), t.Remote(), r, stdout); err != nil {
 		return err
 	}
 

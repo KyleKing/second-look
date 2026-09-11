@@ -63,6 +63,65 @@ func TestAnchor(t *testing.T) {
 	}
 }
 
+// A comment two lines above "last := 4" moves by exactly the insertions above
+// it, which is what Relocate has to recover without help: the same text, a
+// different line.
+func TestRelocate(t *testing.T) {
+	t.Parallel()
+
+	d := diff.Parse([]byte(patch))
+
+	tests := []struct {
+		name string
+		path string
+		side string
+		text string
+		want int
+		ok   bool
+	}{
+		{"unique text relocates", "internal/one.go", diff.SideRight, "\tlast := 4", 13, true},
+		{"a removed line relocates on the left", "internal/one.go", diff.SideLeft, "\tdropped := 2", 11, true},
+		{"text nowhere in the diff", "internal/one.go", diff.SideRight, "\tinvented", 0, false},
+		{"text on the wrong side finds nothing", "internal/one.go", diff.SideRight, "\tdropped := 2", 0, false},
+		{"a path the diff never touched", "internal/absent.go", diff.SideRight, "\tlast := 4", 0, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := d.Relocate(tc.path, tc.side, tc.text)
+			if ok != tc.ok || got != tc.want {
+				t.Errorf("Relocate(%q, %s, %q) = (%d, %v), want (%d, %v)",
+					tc.path, tc.side, tc.text, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}
+
+// Two lines that read the same have no single line to relocate to, so a
+// comment resting on one of them must stay put rather than guess.
+func TestRelocate_RefusesADuplicatedLine(t *testing.T) {
+	t.Parallel()
+
+	const duplicated = `diff --git a/internal/dup.go b/internal/dup.go
+index 1111111..2222222 100644
+--- a/internal/dup.go
++++ b/internal/dup.go
+@@ -1,4 +1,4 @@
+ 	same := 1
+-	old := 2
++	same := 1
+ 	tail := 3
+`
+
+	d := diff.Parse([]byte(duplicated))
+
+	if _, ok := d.Relocate("internal/dup.go", diff.SideRight, "\tsame := 1"); ok {
+		t.Error("Relocate() found a unique line among two, want false")
+	}
+}
+
 // series is what `gh pr diff --patch` returns: one diff per commit, so a file
 // touched twice appears twice and the second entry renumbers it.
 const series = `From aaaa Mon Sep 17 00:00:00 2001

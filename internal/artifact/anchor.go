@@ -54,13 +54,22 @@ func Resolve(comments []Comment, d *diff.Diff) error {
 }
 
 // Verify compares each comment's recorded anchor against the live diff byte
-// for byte. Skipped comments and replies never post, so neither is checked.
-func Verify(comments []Comment, d *diff.Diff) error {
+// for byte, relocating one whose line moved but whose text did not: an
+// insertion elsewhere in the file shifts every anchor below it by the same
+// fixed offset, and that shift is unambiguous to reverse. Skipped comments
+// and replies never post, so neither is checked.
+//
+// Moved names each comment relocated this way, for a caller to report before
+// posting rather than silently retargeting a comment nobody looked at again.
+func Verify(comments []Comment, d *diff.Diff) ([]string, error) {
 	if err := usable(d); err != nil {
-		return err
+		return nil, err
 	}
 
-	var errs []error
+	var (
+		errs  []error
+		moved []string
+	)
 
 	for i := range comments {
 		c := &comments[i]
@@ -75,6 +84,25 @@ func Verify(comments []Comment, d *diff.Diff) error {
 		}
 
 		text, ok := d.Anchor(c.Path, c.Side, c.Line)
+		if ok && text == c.Anchor {
+			if err := checkSpan(c, d); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", name(c, i), err))
+			}
+
+			continue
+		}
+
+		if line, relocated := d.Relocate(c.Path, c.Side, c.Anchor); relocated {
+			moved = append(moved, fmt.Sprintf("%s: line %d -> %d", name(c, i), c.Line, line))
+			c.Line = line
+
+			if err := checkSpan(c, d); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", name(c, i), err))
+			}
+
+			continue
+		}
+
 		if !ok {
 			errs = append(errs, fmt.Errorf("%s: %w: %s %s line %d",
 				name(c, i), ErrAnchorMissing, c.Path, c.Side, c.Line))
@@ -82,19 +110,11 @@ func Verify(comments []Comment, d *diff.Diff) error {
 			continue
 		}
 
-		if text != c.Anchor {
-			errs = append(errs, fmt.Errorf("%s: %w\n  staged against: %s\n  now reads:      %s",
-				name(c, i), ErrAnchorMoved, c.Anchor, text))
-
-			continue
-		}
-
-		if err := checkSpan(c, d); err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", name(c, i), err))
-		}
+		errs = append(errs, fmt.Errorf("%s: %w\n  staged against: %s\n  now reads:      %s",
+			name(c, i), ErrAnchorMoved, c.Anchor, text))
 	}
 
-	return errors.Join(errs...)
+	return moved, errors.Join(errs...)
 }
 
 // name identifies a comment in a message, since one with no id still has to be

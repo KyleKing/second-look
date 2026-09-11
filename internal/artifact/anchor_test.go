@@ -81,10 +81,17 @@ func TestVerify(t *testing.T) {
 			want: artifact.ErrAnchorMoved,
 		},
 		{
-			name: "the line left the diff",
+			name: "the line left the diff, but its text still reads uniquely elsewhere: relocated",
 			comment: artifact.Comment{
 				ID: "a", Path: "internal/one.go", Side: artifact.SideRight, Line: 40,
 				Anchor: "\tadded := 2", Status: artifact.StatusReady,
+			},
+		},
+		{
+			name: "the line left the diff, and its text is nowhere else: missing",
+			comment: artifact.Comment{
+				ID: "a", Path: "internal/one.go", Side: artifact.SideRight, Line: 40,
+				Anchor: "\tinvented text", Status: artifact.StatusReady,
 			},
 			want: artifact.ErrAnchorMissing,
 		},
@@ -111,7 +118,7 @@ func TestVerify(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := artifact.Verify([]artifact.Comment{tc.comment}, d)
+			_, err := artifact.Verify([]artifact.Comment{tc.comment}, d)
 			if !errors.Is(err, tc.want) {
 				t.Errorf("err = %v, want %v", err, tc.want)
 			}
@@ -173,7 +180,7 @@ func TestAnchorGuard_RefusesAPatchSeries(t *testing.T) {
 	if err := artifact.Resolve(comments, d); !errors.Is(err, artifact.ErrNotACumulativeDiff) {
 		t.Errorf("Resolve() = %v, want ErrNotACumulativeDiff", err)
 	}
-	if err := artifact.Verify(comments, d); !errors.Is(err, artifact.ErrNotACumulativeDiff) {
+	if _, err := artifact.Verify(comments, d); !errors.Is(err, artifact.ErrNotACumulativeDiff) {
 		t.Errorf("Verify() = %v, want ErrNotACumulativeDiff", err)
 	}
 }
