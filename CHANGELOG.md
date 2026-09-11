@@ -1,3 +1,9 @@
+## v0.17.0 (2026-09-11)
+
+### Feat
+
+- **tui**: add D to check out the base branch and delete this one
+
 ## v0.16.0 (2026-09-11)
 
 ### Feat
