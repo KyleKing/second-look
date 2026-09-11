@@ -1,3 +1,9 @@
+## v0.18.0 (2026-09-11)
+
+### Feat
+
+- **tui**: mention D in the post-submit status line
+
 ## v0.17.0 (2026-09-11)
 
 ### Feat
