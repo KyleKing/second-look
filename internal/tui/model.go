@@ -2208,7 +2208,13 @@ func (m *Model) applySubmit(msg submittedMsg) {
 	}
 
 	m.posted = true
-	m.say(msg.summary+"; enter reviews the next one staged, o opens it on GitHub, q leaves", false)
+
+	hint := msg.summary + "; enter reviews the next one staged, o opens it on GitHub, "
+	if m.cleanup != nil && !m.branchDeleted {
+		hint += "D deletes " + m.review.HeadRef + " locally, "
+	}
+
+	m.say(hint+"q leaves", false)
 }
 
 // applyMerge reports the merge. A failure is carried out of the screen the way
