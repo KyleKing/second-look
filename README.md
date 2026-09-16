@@ -369,16 +369,23 @@ a value is a member of the type it actually has, whether a rule nobody's CI enfo
 object. Both are answered by a program already on the machine, so second-look starts it
 and reads its answers back.
 
-The language server is the one your editor uses, started in the checkout and spoken to
-over its stdio. `typescript-language-server`, `gopls`, and `pyright-langserver` are
-recognized without configuration, and `[[server]]` in the config names any other. The file
-it is asked about travels as an unsaved buffer holding the commit under review, so nothing
-writes to the working tree and a checkout left on another branch still answers for the
-file. What that file imports is resolved from the tree as it stands, which is the limit
-this ships with. The first file costs a few seconds against a monorepo, because a server
-loads the project before it says anything, and every file after it a fraction of one. It
-runs behind the first frame for that reason: the diff is on screen while the pass is out,
-and the count reaches the title when it lands.
+The language server is the one your editor uses, started in the project the file belongs
+to and spoken to over its stdio. In a monorepo that is the nearest directory above the
+file holding a `tsconfig.json`, a `go.mod`, a `pyproject.toml`, or whatever else marks a
+project for that server, because a server rooted at the whole checkout compiles the file
+under settings that are not the project's and reports errors the change did not cause.
+Each project answers at the same time as the others, so a change touching four packages
+costs what one package does. `typescript-language-server`, `gopls`, and
+`pyright-langserver` are recognized without configuration, and `[[server]]` in the config
+names any other. The file it is asked about travels as an unsaved buffer holding the
+commit under review, so nothing writes to the working tree and a checkout left on another
+branch still answers for the file. What that file imports is resolved from the tree as it
+stands, which is the limit this ships with. The first file costs a few seconds against a
+monorepo, because a server loads the project before it says anything, and every file after
+it a fraction of one. It runs behind the first frame for that reason: the diff is on
+screen while the pass is out, and the count reaches the title when it lands. A message
+longer than three lines is cut where it is drawn, since a type error names the whole of an
+anonymous type and the first line of it already said what is wrong.
 
 `[[check]]` names whatever else is worth running over the same files, which is where a
 rule your repository's CI does not enforce goes: a house rule about comment length written

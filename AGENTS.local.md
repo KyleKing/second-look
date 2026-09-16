@@ -179,6 +179,16 @@ whatever language server is installed, and `internal/diag/scan` runs the command
 `[[check]]` names. A file is opened as an unsaved buffer holding the commit under review,
 so nothing writes to the working tree, and what that file imports still comes from disk.
 
+A server is started in the project the file belongs to rather than at the checkout. That
+is a correctness rule: rooted at the whole of a TypeScript monorepo,
+tsserver reads a package's imports as unresolvable and reports a module error the change
+did not cause, and where the root holds no `typescript` at all it refuses to start. The
+root it is told about goes in `rootUri` and `rootPath` both, because that is what a server
+resolving its own toolchain reads. The screen hands over a checkout named `.`, so the
+session makes the root absolute before any of that walking means anything, and every
+project is asked at the same time so the floor below is paid once rather than once per
+package.
+
 Two invariants in `lsp` each cost a session and each have a test that fails without them.
 A server publishes an empty list while it is still loading the project and corrects itself
 seconds later, so the pass waits out a floor before a quiet line means anything. And a
