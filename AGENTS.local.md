@@ -172,6 +172,28 @@ The checkout is rebuilt on every run and kept afterwards, so what the screen wro
 readable at `demo/.work/<name>/.second-look/`. Edits belong in `demo/scenes/`, since the
 work directory is thrown away on the next run.
 
+## The checker pass
+
+`internal/diag` places notes against the diff, `internal/diag/lsp` speaks the protocol to
+whatever language server is installed, and `internal/diag/scan` runs the commands
+`[[check]]` names. A file is opened as an unsaved buffer holding the commit under review,
+so nothing writes to the working tree, and what that file imports still comes from disk.
+
+Two invariants in `lsp` each cost a session and each have a test that fails without them.
+A server publishes an empty list while it is still loading the project and corrects itself
+seconds later, so the pass waits out a floor before a quiet line means anything. And a
+server publishes for every file it loaded on the way to the ones asked about, which
+against a monorepo never stops, so only a file the pass asked about restarts that quiet
+line. Without the second, every pass ran to its 30-second deadline.
+
+The suite and the demo turn the pass off the way a laptop without a server does, with a
+`[[server]]` override claiming the extensions and naming a command nothing has: `settle`
+in `e2e_test.go` for the pty tests, and a written config in `demo/run.sh` and
+`demo/scene.sh`. A configured server that is not installed disables its extensions rather
+than falling back, because silently running a different server than the one named is
+worse. The pass itself is covered against a stub server in `internal/diag/lsp` and against
+a real gopls in `cmd/second-look/probe_test.go`, which skips where gopls is not installed.
+
 ## Driving the review screen
 
 `tmux` for looking at it, the pty tests in `cmd/second-look/tui_e2e_test.go` for pinning
