@@ -1,3 +1,14 @@
+## v0.19.0 (2026-09-16)
+
+### Feat
+
+- **tui**: keep a long note and a hover answer inside the frame
+- **diag**: show what a language server and your own checks make of the change
+
+### Fix
+
+- **diag**: start a language server in the project the file belongs to
+
 ## v0.18.0 (2026-09-11)
 
 ### Feat
