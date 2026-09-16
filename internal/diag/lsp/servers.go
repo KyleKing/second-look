@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,10 @@ type Server struct {
 	// Language is the languageId a didOpen carries, per extension. A server
 	// that is told nothing about a file's language treats it as plain text.
 	Language map[string]string
+	// Roots are the files that mark the project a server is started in, deepest
+	// first. A server rooted above the project compiles the file under settings
+	// that are not the project's and reports errors the change did not cause.
+	Roots []string
 }
 
 // builtin are the servers second-look starts without being configured to.
@@ -43,18 +48,21 @@ var builtin = []Server{
 			".tsx": "typescriptreact", ".jsx": "javascriptreact",
 			".js": langJS, ".mjs": langJS, ".cjs": langJS,
 		},
+		Roots: []string{"tsconfig.json", "jsconfig.json", "package.json"},
 	},
 	{
 		Name:     "gopls",
 		Argv:     []string{"gopls"},
 		Exts:     []string{".go"},
 		Language: map[string]string{".go": "go"},
+		Roots:    []string{"go.work", "go.mod"},
 	},
 	{
 		Name:     "pyright",
 		Argv:     []string{"pyright-langserver", "--stdio"},
 		Exts:     []string{".py", ".pyi"},
 		Language: map[string]string{".py": "python", ".pyi": "python"},
+		Roots:    []string{"pyrightconfig.json", "pyproject.toml", "setup.py", "setup.cfg"},
 	},
 }
 
@@ -71,6 +79,33 @@ func (s Server) languageID(path string) string {
 	}
 
 	return s.Name
+}
+
+// rootFor is the directory a server is started in for one file: the deepest
+// directory between the file and the checkout holding one of the server's root
+// markers, and the checkout itself where none does.
+func (s Server) rootFor(checkout, path string) string {
+	dir := filepath.Dir(filepath.Join(checkout, path))
+
+	for inside(checkout, dir) {
+		for _, marker := range s.Roots {
+			if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
+				return dir
+			}
+		}
+
+		dir = filepath.Dir(dir)
+	}
+
+	return checkout
+}
+
+// inside reports whether a directory is the checkout or under it. A prefix
+// match is not the same question: /repo-two starts with /repo.
+func inside(checkout, dir string) bool {
+	rel, err := filepath.Rel(checkout, dir)
+
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // pick is the server for a path, and false where no configured server claims

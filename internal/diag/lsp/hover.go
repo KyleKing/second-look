@@ -42,7 +42,7 @@ func (s *Session) Hover(ctx context.Context, doc Doc, line int) ([]diag.Symbol, 
 	ctx, cancel := context.WithTimeout(ctx, hoverDeadline)
 	defer cancel()
 
-	c, err := s.serverFor(ctx, srv)
+	c, err := s.serverFor(ctx, srv, srv.rootFor(s.root, doc.Path))
 	if err != nil {
 		return nil, err
 	}

@@ -46,6 +46,14 @@ type Doc struct {
 	Text string
 }
 
+// project is one running server: a language server and the directory it was
+// started in. A monorepo holds several projects one server speaks for, and a
+// file is answered by the one it belongs to.
+type project struct {
+	name string
+	root string
+}
+
 // Session is the servers a review has running, started on demand and kept until
 // the review is left.
 //
@@ -62,7 +70,7 @@ type Session struct {
 	servers []Server
 
 	mu      sync.Mutex
-	running map[string]*client
+	running map[project]*client
 	// opened is every document a server has been told about, so a second pass
 	// over the same file changes it rather than opening it twice.
 	opened map[string]int
@@ -73,9 +81,15 @@ type Session struct {
 func New(ctx context.Context, root string, servers []Server) *Session {
 	base, cancel := context.WithCancel(context.WithoutCancel(ctx))
 
+	// A server is told where its project is as an absolute path, and a caller
+	// standing in the checkout names it as ".".
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+
 	return &Session{
 		base: base, cancel: cancel, root: root, servers: servers,
-		running: map[string]*client{}, opened: map[string]int{},
+		running: map[project]*client{}, opened: map[string]int{},
 	}
 }
 
@@ -100,7 +114,7 @@ func (s *Session) Close() {
 // a polyglot change going unanswered is worth saying, and is not worth losing
 // the rest of the pass over.
 func (s *Session) Notes(ctx context.Context, docs []Doc) ([]diag.Note, error) {
-	byServer := map[string][]Doc{}
+	groups := map[project][]Doc{}
 	known := map[string]Server{}
 
 	for _, d := range docs {
@@ -109,36 +123,54 @@ func (s *Session) Notes(ctx context.Context, docs []Doc) ([]diag.Note, error) {
 			continue
 		}
 
+		at := project{name: srv.Name, root: srv.rootFor(s.root, d.Path)}
 		known[srv.Name] = srv
-		byServer[srv.Name] = append(byServer[srv.Name], d)
+		groups[at] = append(groups[at], d)
 	}
 
 	var (
+		wg   sync.WaitGroup
+		mu   sync.Mutex
 		out  []diag.Note
 		errs []error
 	)
 
-	for name, group := range byServer {
-		notes, err := s.ask(ctx, known[name], group)
-		if err != nil {
-			errs = append(errs, err)
+	// Every project waits out the same floor, so asking them one after another
+	// costs that wait once per project: a change touching four packages of a
+	// monorepo would take four times as long to say the same thing.
+	for at, group := range groups {
+		wg.Add(1)
 
-			continue
-		}
+		go func() {
+			defer wg.Done()
 
-		out = append(out, notes...)
+			notes, err := s.ask(ctx, known[at.name], at.root, group)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if err != nil {
+				errs = append(errs, err)
+
+				return
+			}
+
+			out = append(out, notes...)
+		}()
 	}
+
+	wg.Wait()
 
 	return out, errors.Join(errs...)
 }
 
 // ask opens every document one server answers for and collects what it
 // publishes about them.
-func (s *Session) ask(ctx context.Context, srv Server, docs []Doc) ([]diag.Note, error) {
+func (s *Session) ask(ctx context.Context, srv Server, root string, docs []Doc) ([]diag.Note, error) {
 	ctx, cancel := context.WithTimeout(ctx, deadline)
 	defer cancel()
 
-	c, err := s.serverFor(ctx, srv)
+	c, err := s.serverFor(ctx, srv, root)
 	if err != nil {
 		return nil, err
 	}
@@ -308,14 +340,16 @@ func severityOf(n int) diag.Severity {
 
 // serverFor is the running server for a language, started and initialized on
 // first use.
-func (s *Session) serverFor(ctx context.Context, srv Server) (*client, error) {
+func (s *Session) serverFor(ctx context.Context, srv Server, root string) (*client, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if c, ok := s.running[srv.Name]; ok {
+	at := project{name: srv.Name, root: root}
+
+	if c, ok := s.running[at]; ok {
 		select {
 		case <-c.closed:
-			delete(s.running, srv.Name)
+			delete(s.running, at)
 		default:
 			return c, nil
 		}
@@ -324,28 +358,32 @@ func (s *Session) serverFor(ctx context.Context, srv Server) (*client, error) {
 	// The process outlives the call that started it, so it is bounded by the
 	// session rather than by one pass's deadline.
 	//nolint:contextcheck // the server is the session's, not this call's
-	c, err := dial(s.base, s.root, srv.Argv)
+	c, err := dial(s.base, root, srv.Argv)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.handshake(ctx, c); err != nil {
+	if err := handshake(ctx, c, root); err != nil {
 		c.close()
 
 		return nil, fmt.Errorf("%s: %w", srv.Name, err)
 	}
 
-	s.running[srv.Name] = c
+	s.running[at] = c
 
 	return c, nil
 }
 
-func (s *Session) handshake(ctx context.Context, c *client) error {
+func handshake(ctx context.Context, c *client, root string) error {
 	_, err := c.call(ctx, "initialize", map[string]any{
 		"processId": os.Getpid(),
-		uriKey:      s.uri(""),
+		// rootPath beside rootUri, because a server that resolves its own
+		// toolchain out of the workspace (tsserver finding typescript) reads
+		// the deprecated one and exits where it is absent.
+		"rootUri":  fileURI(root),
+		"rootPath": root,
 		"workspaceFolders": []map[string]any{
-			{uriKey: s.uri(""), "name": filepath.Base(s.root)},
+			{uriKey: fileURI(root), "name": filepath.Base(root)},
 		},
 		"capabilities": map[string]any{
 			documentKey: map[string]any{
@@ -391,5 +429,9 @@ func (s *Session) uri(path string) string {
 		full = filepath.Join(s.root, path)
 	}
 
+	return fileURI(full)
+}
+
+func fileURI(full string) string {
 	return (&url.URL{Scheme: "file", Path: full}).String()
 }

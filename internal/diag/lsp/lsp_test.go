@@ -224,3 +224,87 @@ func TestContextEndsAPassThatIsStillWaiting(t *testing.T) {
 		t.Log("a canceled pass answered with what it had, which is the empty list")
 	}
 }
+
+// A monorepo holds a project per directory, and a server started above one
+// compiles the file under settings that are not the project's: rooted at the
+// checkout, a TypeScript server reads a package's imports as unresolvable and
+// reports errors the change did not cause.
+func TestNotesStartsAServerInTheProjectTheFileBelongsTo(t *testing.T) {
+	t.Parallel()
+
+	checkout := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(checkout, "pkg", "src"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(checkout, "pkg", "tsconfig.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	servers := stubServer()
+	servers[0].Roots = []string{"tsconfig.json"}
+
+	s := lsp.New(t.Context(), checkout, servers)
+	defer s.Close()
+
+	got, err := s.Notes(t.Context(), []lsp.Doc{
+		{Path: filepath.Join("pkg", "src", "root.ts"), Text: "one\n"},
+		{Path: "root.ts", Text: "one\n"},
+	})
+	if err != nil {
+		t.Fatalf("asking the stub: %v", err)
+	}
+
+	// The stub answers with the directory the client said it was started for.
+	want := map[string]string{
+		filepath.Join("pkg", "src", "root.ts"): filepath.Join(checkout, "pkg"),
+		"root.ts":                              checkout,
+	}
+
+	if len(got) != len(want) {
+		t.Fatalf("read %+v, want one note for each file", got)
+	}
+
+	for _, n := range got {
+		if n.Message != want[n.Path] {
+			t.Errorf("%s was answered by a server in %s, want one in %s", n.Path, n.Message, want[n.Path])
+		}
+	}
+}
+
+// A caller standing in the checkout names it ".", and a relative root walks to
+// nothing and is sent to a server as a directory it cannot resolve.
+//
+//nolint:paralleltest // it changes the working directory, which every test shares
+func TestNotesRootsAServerFromARelativeCheckout(t *testing.T) {
+	checkout := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(checkout, "pkg"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(checkout, "pkg", "tsconfig.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	servers := stubServer()
+	servers[0].Roots = []string{"tsconfig.json"}
+
+	t.Chdir(checkout)
+
+	s := lsp.New(t.Context(), ".", servers)
+	defer s.Close()
+
+	got, err := s.Notes(t.Context(), []lsp.Doc{{Path: filepath.Join("pkg", "root.ts"), Text: "one\n"}})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("read %+v, %v", got, err)
+	}
+
+	want, err := filepath.Abs("pkg")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got[0].Message != want {
+		t.Errorf("the server was started for %s, want %s", got[0].Message, want)
+	}
+}

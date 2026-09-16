@@ -25,6 +25,22 @@ type frame struct {
 	Result json.RawMessage  `json:"result,omitempty"`
 }
 
+// rooted is the directory the client said this server is for, which is what a
+// file named root.ts is answered with.
+var rooted string
+
+func rootOf(params json.RawMessage) string {
+	var p struct {
+		RootPath string `json:"rootPath"`
+	}
+
+	if err := json.Unmarshal(params, &p); err != nil {
+		return err.Error()
+	}
+
+	return p.RootPath
+}
+
 func main() {
 	br := bufio.NewReader(os.Stdin)
 	answered := make(chan struct{})
@@ -44,6 +60,8 @@ func main() {
 
 		switch {
 		case f.Method == "initialize":
+			rooted = rootOf(f.Params)
+
 			send(map[string]any{"id": f.ID, "result": map[string]any{"capabilities": map[string]any{}}})
 		case f.Method == "initialized":
 			// Nothing is published until this is answered, which is what a
@@ -68,7 +86,17 @@ func main() {
 
 // publish answers for a file nobody asked about, then for the one that was
 // opened, and then corrects itself once the project is loaded.
+//
+// A file named root.ts is the exception: it is answered at once with the
+// directory the server was started in, which is how a test reads where a
+// client rooted it.
 func publish(uri string) {
+	if strings.HasSuffix(uri, "root.ts") {
+		diagnostics(uri, []map[string]any{{"range": rng(0), "severity": 1, "message": rooted}})
+
+		return
+	}
+
 	diagnostics(uri+".other", []map[string]any{{
 		"range":    rng(0),
 		"severity": 1,

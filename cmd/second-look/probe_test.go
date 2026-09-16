@@ -33,11 +33,9 @@ func TestProberAnswersFromARealServer(t *testing.T) {
 	// The error is one no diff can see: the field is not a member of the type,
 	// which is the question the review screen exists to stop leaving for.
 	write(t, filepath.Join(root, "a.go"), []byte(`package probe
-
 type Row struct {
 	Name string
 }
-
 func Archived(r Row) bool {
 	return r.IsArchived
 }
@@ -48,13 +46,11 @@ func Archived(r Row) bool {
 	d := diff.Parse([]byte(`diff --git a/a.go b/a.go
 --- a/a.go
 +++ b/a.go
-@@ -1,8 +1,8 @@
+@@ -1,6 +1,7 @@
  package probe
- 
  type Row struct {
  	Name string
  }
- 
  func Archived(r Row) bool {
 +	return r.IsArchived
  }
