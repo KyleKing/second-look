@@ -2339,7 +2339,7 @@ func (m *Model) rebuild() {
 
 	switch m.view {
 	case viewTrouble:
-		m.screen = buildTrouble(m.diff, m.trouble, m.probing, lay)
+		m.screen = buildTrouble(m.diff, m.trouble, m.probing, m.troubled, lay)
 	case viewComments:
 		m.screen = buildList(m.review, m.diff, lay)
 	case viewCode:

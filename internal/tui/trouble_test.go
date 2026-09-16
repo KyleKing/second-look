@@ -180,8 +180,8 @@ func TestTroubleSaysWhenNothingCanCheck(t *testing.T) {
 	}
 }
 
-// K is the other question a diff cannot settle: not what is wrong with a line,
-// but what the names on it actually are.
+// K is the other question a diff cannot settle: what the names on a line
+// actually are.
 func TestHoverShowsWhatTheNamesAre(t *testing.T) {
 	t.Parallel()
 
@@ -209,4 +209,84 @@ func TestFramesWithTrouble(t *testing.T) {
 
 	m := checked(t, found())
 	golden.RequireEqual(t, []byte(plain(m.Frame())))
+}
+
+// A type error names the whole of an anonymous type, which against a generated
+// API schema runs to hundreds of characters. Drawn in full it buries the diff
+// under a message whose first line already said what is wrong.
+func TestALongNoteIsCappedWhereItIsDrawn(t *testing.T) {
+	t.Parallel()
+
+	m := checked(t, &prober{notes: []diag.Note{{
+		Path: parsed, Line: 15, Source: "typescript", Code: "2339",
+		Message: "Property 'is_archived' does not exist on type '{ " +
+			strings.Repeat("alpha: string; ", 60) + "}'.",
+		Severity: diag.Error,
+	}}})
+
+	lines := strings.Split(plain(m.Frame()), "\n")
+
+	var drawn []string
+
+	for _, line := range lines {
+		if strings.Contains(line, "alpha: string") {
+			drawn = append(drawn, line)
+		}
+	}
+
+	if len(drawn) == 0 || len(drawn) > 3 {
+		t.Fatalf("the note drew %d rows:\n%s", len(drawn), strings.Join(drawn, "\n"))
+	}
+
+	if !strings.Contains(drawn[0], "typescript 2339: Property 'is_archived'") {
+		t.Errorf("the first row lost the finding: %q", drawn[0])
+	}
+
+	if !strings.HasSuffix(strings.TrimRight(drawn[len(drawn)-1], " "), "…") {
+		t.Errorf("a cut note does not say it was cut: %q", drawn[len(drawn)-1])
+	}
+}
+
+// The hover overlay does not scroll, so a line of long names has to be counted
+// rather than drawn: a frame taller than the terminal loses its own footer off
+// the top of the screen.
+func TestHoverFitsTheFrame(t *testing.T) {
+	t.Parallel()
+
+	syms := make([]diag.Symbol, 0, 12)
+	for i := range 12 {
+		syms = append(syms, diag.Symbol{
+			Name: "name", Text: "(parameter) row: { " + strings.Repeat("alpha: string; ", 30) + "}",
+		})
+		syms[i].Name += string(rune('a' + i))
+	}
+
+	m := checked(t, &prober{syms: syms})
+
+	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(m, tea.KeyPressMsg{Code: 'K', Text: "K"})
+
+	frame := plain(m.Frame())
+	if got := len(strings.Split(frame, "\n")); got > 30 {
+		t.Errorf("the hover answer drew %d rows into a 30-row frame:\n%s", got, frame)
+	}
+
+	if !strings.Contains(frame, "not shown") {
+		t.Errorf("the names left out are not counted:\n%s", frame)
+	}
+}
+
+// The footer message that announced a failed pass is gone by the time anyone
+// presses X, so the empty list has to say the same thing on its own.
+func TestTroubleSaysWhenThePassFailed(t *testing.T) {
+	t.Parallel()
+
+	m := checked(t, &prober{err: errNoServer})
+	press(m, tea.KeyPressMsg{Code: 'X', Text: "X"})
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "nothing ran: gopls is not installed") {
+		t.Errorf("the empty list reads as a clean change:\n%s", frame)
+	}
 }

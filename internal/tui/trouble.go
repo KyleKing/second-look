@@ -112,9 +112,8 @@ func (m *Model) troubleWord() string {
 // language server says each one is.
 //
 // A review screen has no column cursor, so the line is asked about at each of
-// its names rather than at a point. That is the question a diff cannot settle
-// and the reason this exists: whether the field being read off a value is a
-// member of the type it actually has.
+// its names rather than at a point. The question this exists for is whether the
+// field being read off a value is a member of the type it actually has.
 func (m *Model) hover() tea.Cmd {
 	if m.prober == nil {
 		m.say("no language server is configured for this review", false)
@@ -171,7 +170,7 @@ func troubleRows(notes []diag.Note, path string, numWidth, width int) []row {
 	room := max(minTroubleWidth, width-numWidth-indent-troubleRail)
 
 	for _, n := range notes {
-		for i, line := range wrap(troubleWord(n), room) {
+		for i, line := range clip(wrap(troubleWord(n), room), noteLines) {
 			out = append(out, row{
 				kind: rowTrouble, text: line, path: path, comment: noComment,
 				severity: n.Severity, head: i == 0,
@@ -188,6 +187,24 @@ const (
 	troubleRail     = 2
 	minTroubleWidth = 20
 )
+
+// noteLines bounds one note. A type error names the whole of an anonymous type,
+// which against a generated API schema runs to hundreds of characters and
+// buries the diff under a message whose first line already said what is wrong.
+const noteLines = 3
+
+// clip keeps the first lines of a wrapped block and marks that it was cut, so a
+// message too long to draw costs a fixed number of rows rather than the frame.
+func clip(lines []string, keep int) []string {
+	if len(lines) <= keep {
+		return lines
+	}
+
+	out := append([]string(nil), lines[:keep]...)
+	out[keep-1] = strings.TrimRight(out[keep-1], " ") + "…"
+
+	return out
+}
 
 // troubleWord is one note as a line: who said it, under what rule, and what
 // they said. The rule is there because a note nobody can trace to a rule is a
@@ -212,7 +229,7 @@ func troubleWord(n diag.Note) string {
 // line answers "what is wrong with this", and a reader who has not read the
 // diff yet has the other question: what is wrong anywhere, and which file
 // should be opened because of it.
-func buildTrouble(d *diff.Diff, t diag.Placed, probing bool, lay layout) screen {
+func buildTrouble(d *diff.Diff, t diag.Placed, probing bool, failed error, lay layout) screen {
 	s := screen{numWidth: numberWidth(d)}
 	at := anchorLines(d)
 
@@ -238,16 +255,22 @@ func buildTrouble(d *diff.Diff, t diag.Placed, probing bool, lay layout) screen 
 
 	if len(s.rows) == 0 {
 		s.rows = append(s.rows, row{
-			kind: rowFile, comment: noComment, text: emptyTroubleWord(probing),
+			kind: rowFile, comment: noComment, text: emptyTroubleWord(probing, failed),
 		})
 	}
 
 	return s
 }
 
-func emptyTroubleWord(probing bool) string {
-	if probing {
+// emptyTroubleWord is what an empty list says about itself. A pass that could
+// not run has to say so here as well as in the footer, because the message that
+// announced it is gone by the time anyone presses X.
+func emptyTroubleWord(probing bool, failed error) string {
+	switch {
+	case probing:
 		return "still checking…"
+	case failed != nil:
+		return "nothing ran: " + failed.Error()
 	}
 
 	return "nothing to report on the lines this change wrote"
@@ -374,6 +397,10 @@ func (m *Model) troubleStyle(s diag.Severity) lipgloss.Style {
 	return m.styles.note
 }
 
+// hoverChrome is the title, the footer, and the blank lines around them, which
+// the overlay's own rows have to leave room for.
+const hoverChrome = 6
+
 // hoverLines is the answer K left up: each name on the line and what it is.
 func (m *Model) hoverLines() []string {
 	out := []string{
@@ -382,10 +409,21 @@ func (m *Model) hoverLines() []string {
 	}
 
 	room := max(minTroubleWidth, m.width-indent*2)
+	// The overlay does not scroll, so what does not fit is counted rather than
+	// drawn: a frame taller than the terminal loses its own footer off the top.
+	fits := m.height - hoverChrome
 
-	for _, sym := range m.showing.symbols {
-		for i, line := range wrap(sym.Text, room) {
-			if i == 0 {
+	for i, sym := range m.showing.symbols {
+		lines := clip(wrap(sym.Text, room), noteLines)
+		if len(out)+len(lines) > fits {
+			left := plural(len(m.showing.symbols)-i, "more name")
+			out = append(out, "", m.styles.footer.Render("  "+left+" not shown"))
+
+			break
+		}
+
+		for j, line := range lines {
+			if j == 0 {
 				out = append(out, m.styles.body.Render("  "+line))
 
 				continue
