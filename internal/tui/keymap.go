@@ -50,6 +50,8 @@ type keyMap struct {
 	Todo         key.Binding
 	Dispatch     key.Binding
 	Threads      key.Binding
+	Trouble      key.Binding
+	Hover        key.Binding
 	Restage      key.Binding
 	Seen         key.Binding
 	Search       key.Binding
@@ -116,6 +118,8 @@ func defaultKeyMap() keyMap {
 		Renderer:     key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "renderer")),
 		Look:         key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "toggle one of them")),
 		Threads:      key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "conversations")),
+		Trouble:      key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "trouble")),
+		Hover:        key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "what is this")),
 		Restage:      key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "restage")),
 		Order:        key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
 		Fold:         key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
@@ -151,6 +155,7 @@ func objects() [][2]string {
 		{"c", commentWord},
 		{"t", "thread"},
 		{"u", "unread hunk"},
+		{"p", "problem"},
 	}
 }
 
@@ -212,7 +217,7 @@ func helpGroups() []helpGroup {
 			{"ctrl+e / ctrl+y", "scroll without moving the cursor; any motion comes back to it"},
 			{"g / G", "top, bottom"},
 			{"z then z / t / b", "put the cursor's line at the middle, top, bottom of the frame"},
-			{"] / [", "go to the next, previous: d directory, f file, h hunk, c comment, t thread, u unread"},
+			{"] / [", "next, previous: d directory, f file, h hunk, c comment, t thread, u unread, p problem"},
 			{"n / N", "repeat that motion forward, backward"},
 			{"/", "search; tab in the prompt restricts it to hunks not yet read"},
 			{"tab / shift+tab", "next, previous thing wanting a decision"},
@@ -229,6 +234,10 @@ func helpGroups() []helpGroup {
 			{"W", "hide hunks that change no code at all, comments and re-wraps included"},
 			{"U", "hide every hunk already marked read, so what is left is what is new since the last pass"},
 			{"H then 1 / 2 / …", "hide every hunk an earlier round already carried; H again shows them"},
+		}},
+		{"what the code says", [][2]string{
+			{"X", "everything a checker found, each note under the line it lands on"},
+			{"K", "what every name on this line is, asked of the language server"},
 		}},
 		{"marking", [][2]string{
 			{spaceKey, "mark the hunk read, or the whole file from a file line"},

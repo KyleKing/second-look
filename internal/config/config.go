@@ -23,12 +23,41 @@ var (
 	ErrNoName     = errors.New("a section needs a name")
 	ErrNoQuery    = errors.New("a section needs a query")
 	ErrUnknownKey = errors.New("the file carries a key the schema does not know")
+	ErrNoCommand  = errors.New("a check needs a command")
+	ErrNoFormat   = errors.New("a check needs a format: ast-grep, ruff, or text")
+	ErrNoExts     = errors.New("a server needs the extensions it answers for")
 )
 
 // Section is one query the inbox runs, under the name it is shown by.
 type Section struct {
 	Name  string `toml:"name"`
 	Query string `toml:"query"`
+}
+
+// Check is one checker run over the files under review, beyond whatever the
+// repository's own CI runs. A house rule about comment length and a ruff
+// selector the project has not adopted are the same thing here: a command, and
+// the shape it prints in.
+type Check struct {
+	Name string `toml:"name"`
+	// Command is argv. A {files} argument is replaced by the paths under
+	// review; a command without one is run as written and its answers are
+	// filtered against the diff.
+	Command []string `toml:"command"`
+	// Format is ast-grep, ruff, or text, the last being path:line:col: message.
+	Format string `toml:"format"`
+}
+
+// Server is a language server for extensions the built-in list does not cover,
+// or a replacement for one it does. An extension named here wins, which is what
+// makes this an override rather than an addition.
+type Server struct {
+	Name       string   `toml:"name"`
+	Command    []string `toml:"command"`
+	Extensions []string `toml:"extensions"`
+	// Language is the languageId to send per extension, for a server that
+	// serves more than one. A server that serves one needs none.
+	Language map[string]string `toml:"language,omitempty"`
 }
 
 // Config is the whole file.
@@ -61,6 +90,14 @@ type Config struct {
 	// The id is recorded by the agent itself through `second-look session`, so
 	// nothing here has to know how a tool prints one.
 	Resume []string `toml:"resume,omitempty"`
+	// Checks are run over the review's files alongside the language server, and
+	// their findings are listed with its. Unset, the review shows what the
+	// language server says and nothing else: running a command on a keystroke
+	// nobody configured is not something to do by default.
+	Checks []Check `toml:"check,omitempty"`
+	// Servers add languages to the built-in server list, or replace an entry in
+	// it for an extension.
+	Servers []Server `toml:"server,omitempty"`
 }
 
 // Path is where the config lives.
@@ -127,6 +164,51 @@ func (c *Config) validate() error {
 		if strings.TrimSpace(s.Query) == "" {
 			return fmt.Errorf("section %q: %w", s.Name, ErrNoQuery)
 		}
+	}
+
+	for i := range c.Checks {
+		if err := c.Checks[i].validate(i); err != nil {
+			return err
+		}
+	}
+
+	for i := range c.Servers {
+		if err := c.Servers[i].validate(i); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Check) validate(i int) error {
+	if strings.TrimSpace(c.Name) == "" {
+		return fmt.Errorf("check %d: %w", i+1, ErrNoName)
+	}
+
+	if len(c.Command) == 0 {
+		return fmt.Errorf("check %q: %w", c.Name, ErrNoCommand)
+	}
+
+	switch c.Format {
+	case "ast-grep", "ruff", "text", "":
+		return nil
+	}
+
+	return fmt.Errorf("check %q: %w", c.Name, ErrNoFormat)
+}
+
+func (s *Server) validate(i int) error {
+	if strings.TrimSpace(s.Name) == "" {
+		return fmt.Errorf("server %d: %w", i+1, ErrNoName)
+	}
+
+	if len(s.Command) == 0 {
+		return fmt.Errorf("server %q: %w", s.Name, ErrNoCommand)
+	}
+
+	if len(s.Extensions) == 0 {
+		return fmt.Errorf("server %q: %w", s.Name, ErrNoExts)
 	}
 
 	return nil

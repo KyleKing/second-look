@@ -206,6 +206,7 @@ func (s *Shell) back() tea.Cmd {
 		return tea.Quit
 	}
 
+	s.review.close()
 	s.review, s.at = nil, modeList
 
 	if failed != nil {
@@ -254,6 +255,10 @@ func (s *Shell) Failure() error {
 // change is written to the artifact as it is made, so quitting loses nothing
 // and a crash loses only the keystroke in flight.
 func RunShell(s *Shell) (Outcome, error) {
+	// Whatever the shell was holding when it ended is holding language servers,
+	// which are children of this process and outlive it if nobody ends them.
+	defer s.close()
+
 	final, err := tea.NewProgram(s).Run()
 	if err != nil {
 		return Outcome{}, fmt.Errorf("running second-look: %w", err)
@@ -265,4 +270,11 @@ func RunShell(s *Shell) (Outcome, error) {
 	}
 
 	return got.Outcome(), got.Failure()
+}
+
+// close ends what the screens still have running.
+func (s *Shell) close() {
+	if s.review != nil {
+		s.review.close()
+	}
 }

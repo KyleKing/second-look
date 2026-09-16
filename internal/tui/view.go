@@ -39,6 +39,8 @@ func (m *Model) render() string {
 		body = m.helpLines()
 	case m.aboutOpen:
 		body = m.aboutLines()
+	case m.showing != nil:
+		body = m.hoverLines()
 	case m.verifying:
 		body = m.loadingLines()
 	}
@@ -152,6 +154,10 @@ func (m *Model) facts() string {
 
 	if word := m.readCount(); word != "" {
 		parts = append(parts, word)
+	}
+
+	if word := m.troubleWord(); word != "" {
+		parts = append(parts, m.styles.warn.Render(word))
 	}
 
 	return strings.Join(append(parts, m.counts().words()...), " · ")
@@ -685,6 +691,8 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 		return strings.Repeat(" ", m.screen.numWidth+1) + "▁ " + r.text, m.styles.remove
 	case rowThread:
 		return m.threadRow(r)
+	case rowTrouble:
+		return m.troubleRow(r)
 	case rowCode:
 		return m.codeRow(r)
 	}

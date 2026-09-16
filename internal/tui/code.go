@@ -29,12 +29,16 @@ const (
 	// Every open conversation on the pull request, each under the line it
 	// anchors to, with the rest of the diff left out.
 	viewThreads
+	// Everything a checker found, each note under the line it lands on. It is
+	// off the cycle for the reason the conversations are: what is wrong with
+	// the change is a different axis from how the change is drawn.
+	viewTrouble
 )
 
 // next cycles the views: both, the code, then the comments. The conversations
 // are off the cycle, so leaving them goes back to the diff.
 func (v viewMode) next() viewMode {
-	if v == viewComments || v == viewThreads {
+	if v == viewComments || v == viewThreads || v == viewTrouble {
 		return viewDiff
 	}
 
@@ -49,6 +53,8 @@ func (v viewMode) String() string {
 		return "comments"
 	case viewThreads:
 		return "threads"
+	case viewTrouble:
+		return "trouble"
 	case viewDiff:
 	}
 

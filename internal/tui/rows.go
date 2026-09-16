@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/diag"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/humanize"
@@ -34,6 +35,7 @@ const (
 	rowTurn
 	rowGone
 	rowThread
+	rowTrouble
 	rowBlank
 )
 
@@ -87,6 +89,9 @@ type row struct {
 	// skips names the line whose skipped comments a row stands for, and is empty
 	// on every other row.
 	skips anchor
+	// severity is how much a checker's note wants attention, read only where
+	// kind is rowTrouble.
+	severity diag.Severity
 }
 
 // screen is the flattened review: the diff with each open thread and each
@@ -262,6 +267,14 @@ func (s screen) hanger(
 	return func(l diff.Line) []row {
 		a := anchorOf(p, l)
 		out := make([]row, 0, len(byThread[a])+len(byLine[a]))
+
+		// What a checker says about the line comes before what anyone said
+		// about it: it is a fact about the code rather than a turn in a
+		// conversation, and a reply to it reads as an answer.
+		if l.New > 0 {
+			out = append(out, troubleRows(lay.trouble.On[diag.Anchor{Path: p, Line: l.New}],
+				p, s.numWidth, lay.width)...)
+		}
 
 		// What is already on GitHub comes before what this pass is adding, so a
 		// comment reads as an answer to the conversation above it.

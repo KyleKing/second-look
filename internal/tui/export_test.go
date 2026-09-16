@@ -192,3 +192,16 @@ func (m *Model) Restructure() {
 		m.applyStructure(msg)
 	}
 }
+
+// Checked delivers the pass over the review's files, which Init asks behind the
+// first frame and a test has no program loop to run for it.
+func (m *Model) Checked() {
+	cmd := m.probe()
+	if cmd == nil {
+		return
+	}
+
+	if msg, ok := cmd().(notesMsg); ok {
+		m.applyNotes(msg)
+	}
+}

@@ -407,6 +407,13 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder) (*tui
 	opts = append(opts,
 		tui.WithBlobs(reader.Read), tui.WithRestage(restager(t)), tui.WithRounds(rounds(t)))
 
+	// A checker runs in a checkout or not at all: a language server resolves
+	// what a file imports from the tree around it, and a review staged with
+	// none has no tree.
+	if p := probeFor(ctx, opened.Work, opened.Diff, reader); p != nil {
+		opts = append(opts, tui.WithProber(p))
+	}
+
 	// A review read out of the cache reached the screen without asking GitHub
 	// anything, so the screen asks behind the first frame instead.
 	if opened.Unverified {

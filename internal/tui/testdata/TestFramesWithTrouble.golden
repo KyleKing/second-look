@@ -1,0 +1,30 @@
+kyleking/jj-diff #42                                                                 0% · 2 problems
+▌
+     internal/vcs/diff.go  +2 -1 ───────────────────────────────────────────────────────────────────
+       func Parse(r io.Reader) ([]Hunk, error) {
+  14  14 │      first := 1                                                                          
+  15     │-     lines := split(r)                                                                   
+      15 │+     lines, err := split(r)                                                              
+      × typescript 2339: Property 'is_archived' does not exist on type 'Row'.
+      16 │+     if err != nil {                                                                     
+      ! house rules long-comment: a comment block runs past two lines
+  16  17 │      last := 4                                                                           
+     internal/vcs/git.go ───────────────────────────────────────────────────────────────────────────
+       func Head() string {
+ 200 201 │      return head                                                                         
+ 
+      ┃ REVIEW BODY  empty · e to write one
+      ┃ REVIEW NOTE  empty · e to write one
+
+
+
+
+
+
+
+
+
+
+
+
+ [j/k] line  []] go to  [c]ode  [m]ark  writ[e]  [a]dd  [i] context  [S]ubmit  [?] help  [q]uit

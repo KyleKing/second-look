@@ -5,8 +5,8 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
                        ctrl+e / ctrl+y  scroll without moving the cursor; any… ┃
                                  g / G  top, bottom                            ┃
                       z then z / t / b  put the cursor's line at the middle, … ┃
-                                 ] / [  go to the next, previous: d directory… ┃
-                                 n / N  repeat that motion forward, backward   ┃
+                                 ] / [  next, previous: d directory, f file, … ┃
+                                 n / N  repeat that motion forward, backward   │
                                      /  search; tab in the prompt restricts i… │
                        tab / shift+tab  next, previous thing wanting a decisi… │
                                      .  repeat the last change: space, m r/d/… │

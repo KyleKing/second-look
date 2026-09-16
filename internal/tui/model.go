@@ -13,6 +13,7 @@ import (
 	"github.com/kyleking/aragonite/tui/keyhint"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/diag"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/ghmd"
@@ -144,6 +145,17 @@ type Model struct {
 	// editing is the in-place editor, nil when nothing is being written.
 	editing *editor
 	fold    foldLevel
+	// prober is what the review asks about its own files, and nil where nothing
+	// can answer: no checkout, or no checker installed for what it holds.
+	prober Prober
+	// trouble is what the checkers found, placed against this diff, and probing
+	// is a pass still out. troubled is the last pass's failure, which the
+	// trouble list says rather than a footer nobody kept.
+	trouble  diag.Placed
+	probing  bool
+	troubled error
+	// showing is the answer K left up, nil when nothing is.
+	showing *hoverMsg
 	// cosmetic is the structural pass over every hunk, nil until it answers,
 	// and shape is what the same pass saw of each hunk's symbols.
 	cosmetic map[hunkAt]bool
@@ -257,7 +269,7 @@ func (m *Model) Init() tea.Cmd {
 	// t is a redraw by the time anyone presses it.
 	m.wrote, _ = stampOf(m.path)
 
-	cmds := []tea.Cmd{m.checkHead(), m.watch()}
+	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe()}
 	if structure.Available() {
 		cmds = append(cmds, readStructure(m.diff, m.made))
 	}
@@ -397,8 +409,8 @@ type branchDeletedMsg struct {
 	err     error
 }
 
-// Update routes one message. Movement is separated from the keys that change
-// the review, so what can alter a comment stays a short list.
+// Update routes one message. What a command answered with is separated from
+// what the keyboard sent, so neither switch grows into the other.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -406,46 +418,65 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuild()
 
 		return m, nil
+	case tea.KeyPressMsg:
+		return m.handleKey(msg)
+	}
+
+	cmd := m.answered(msg)
+
+	return m, cmd
+}
+
+// answered takes what a command landed with. Every case is a redraw unless it
+// says otherwise, and a message nothing here knows changes nothing.
+func (m *Model) answered(msg tea.Msg) tea.Cmd {
+	switch msg := msg.(type) {
 	case editedMsg:
 		m.applyEdit(msg)
 
-		return m, nil
+		return nil
 	case sentMsg:
 		m.applySent(msg)
 
-		return m, tea.ClearScreen
+		return tea.ClearScreen
 	case dispatchedMsg:
 		m.dispatched(msg)
 
-		return m, nil
+		return nil
 	case restagedMsg:
 		m.applyRestaged(msg)
 
-		return m, nil
+		return nil
 	case reloadMsg:
-		cmd := m.reloaded(msg)
-
-		return m, cmd
+		return m.reloaded(msg)
 	case blobMsg:
 		m.absorbBlob(msg)
 
-		return m, nil
+		return nil
 	case structureMsg:
 		m.applyStructure(msg)
 
-		return m, nil
+		return nil
+	case notesMsg:
+		m.applyNotes(msg)
+
+		return nil
+	case hoverMsg:
+		m.applyHover(msg)
+
+		return nil
 	case headMsg:
 		m.applyHead(msg)
 
-		return m, nil
+		return nil
 	case mergedMsg:
 		m.applyMerge(msg)
 
-		return m, tea.ClearScreen
+		return tea.ClearScreen
 	case branchDeletedMsg:
 		m.applyBranchDeleted(msg)
 
-		return m, nil
+		return nil
 	case submittedMsg:
 		m.applySubmit(msg)
 
@@ -454,12 +485,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// shares with the line it replaces ("posting…" then "posted to …"
 		// renders as "    ed to …"). Drop the repaint once that is fixed
 		// upstream; until then this is the one line that must be readable.
-		return m, tea.ClearScreen
-	case tea.KeyPressMsg:
-		return m.handleKey(msg)
+		return tea.ClearScreen
 	}
 
-	return m, nil
+	return nil
 }
 
 // motion is a direction and what to stop on, kept so n can repeat it.
@@ -491,6 +520,13 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	if m.aboutOpen {
 		return m.readAbout(msg)
+	}
+
+	// The hover answer changes nothing, so any key leaves it.
+	if m.showing != nil {
+		m.showing = nil
+
+		return m, nil
 	}
 
 	if handled, model, cmd := m.mode(msg); handled {
@@ -1011,6 +1047,8 @@ func (m *Model) object(prefix rune, msg tea.KeyPressMsg) {
 		m.repeatable(motion{step, "thread", isThread})
 	case "u":
 		m.repeatable(motion{step, "unread hunk", m.isUnread})
+	case "p":
+		m.repeatable(motion{step, "problem", isTrouble})
 	default:
 		m.say("no motion for "+msg.String(), false)
 	}
@@ -1121,11 +1159,27 @@ func (m *Model) peek(step int) bool {
 //
 // It is off the view cycle, so what it goes back to is the diff however it was
 // reached.
-func (m *Model) showThreads() {
+func (m *Model) showThreads() { m.toggleView(viewThreads) }
+
+// showTrouble opens what the checkers found, and a second press leaves it.
+func (m *Model) showTrouble() {
+	if m.prober == nil {
+		m.say("nothing here can check this change: no checkout, "+
+			"no language server installed for it, and no check configured", false)
+
+		return
+	}
+
+	m.toggleView(viewTrouble)
+}
+
+// toggleView opens one of the views that sit off the cycle, or leaves it for
+// the diff.
+func (m *Model) toggleView(v viewMode) {
 	was := m.view
 
-	m.view = viewThreads
-	if was == viewThreads {
+	m.view = v
+	if was == v {
 		m.view = viewDiff
 	}
 
@@ -1376,6 +1430,10 @@ func isComment(r row) bool { return r.head && r.kind == rowComment && r.comment 
 // skips a hunk with nothing left to say about it.
 func isThread(r row) bool { return r.head && r.kind == rowThread && !r.resolved }
 
+// isTrouble is a note's first row, so ]p walks the notes rather than the lines
+// a long one wrapped onto.
+func isTrouble(r row) bool { return r.head && r.kind == rowTrouble }
+
 func isKind(k rowKind) func(row) bool {
 	return func(r row) bool { return r.kind == k }
 }
@@ -1410,6 +1468,10 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Dispatch):
 		cmd := m.dispatch()
+
+		return m, cmd
+	case key.Matches(msg, m.keys.Hover):
+		cmd := m.hover()
 
 		return m, cmd
 	case key.Matches(msg, m.keys.Seen):
@@ -1512,6 +1574,8 @@ func (m *Model) reshapes(msg tea.KeyPressMsg) bool {
 		m.narrow()
 	case key.Matches(msg, m.keys.Threads):
 		m.showThreads()
+	case key.Matches(msg, m.keys.Trouble):
+		m.showTrouble()
 	default:
 		return false
 	}
@@ -2271,7 +2335,11 @@ func (m *Model) rebuild() {
 		lay.parsed = &m.shape
 	}
 
+	lay.trouble = m.trouble
+
 	switch m.view {
+	case viewTrouble:
+		m.screen = buildTrouble(m.diff, m.trouble, m.probing, lay)
 	case viewComments:
 		m.screen = buildList(m.review, m.diff, lay)
 	case viewCode:

@@ -58,6 +58,17 @@ git init -q .
 git -c user.name=demo -c user.email=demo@example.invalid commit -q --allow-empty -m "the demo's own history"
 git remote add origin https://github.com/KyleKing/second-look.git
 
+# A language server would load this throwaway checkout and draw a count nobody
+# recorded. The override turns the checker pass off the same way a laptop
+# without one does.
+mkdir -p "$work/config/second-look"
+cat > "$work/config/second-look/config.toml" <<'CONF'
+[[server]]
+name = "none"
+command = ["second-look-no-such-language-server"]
+extensions = [".go", ".ts", ".py"]
+CONF
+
 # The scene's own seeds are searched before the shared ones, so overriding an
 # answer is dropping a file of the same name into the scene.
 # shellcheck disable=SC2086 # args is a command line, so it has to split

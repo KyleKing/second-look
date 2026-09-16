@@ -186,6 +186,20 @@ query = "review-requested:@me is:open archived:false sort:updated-desc"
 [[section]]
 name = "my work"
 query = "author:@me org:acme is:open archived:false sort:updated-desc"
+
+# What X runs over the review's files beyond the language server. {files} stands
+# for the files under review; format is ast-grep, ruff, or text.
+[[check]]
+name = "house rules"
+command = ["ast-grep", "scan", "--json=compact", "-c", "~/.config/sgconfig.yml", "{files}"]
+format = "ast-grep"
+
+# A language server for something the built-in list does not cover. An extension
+# named here wins the built-in that claims it.
+[[server]]
+name = "rust-analyzer"
+command = ["rust-analyzer"]
+extensions = [".rs"]
 ```
 
 A query is `gh search prs` terms, which is what GitHub's search box takes. A `sort:`
@@ -348,6 +362,38 @@ markers are taken out, since a terminal row has one face and `_🩺 Stability_` 
 is worse than the words alone; backticks stay, because they mark code and nothing else in
 a terminal does. Any comment still over twenty rows after all that ends in a count of what
 is left, which `za` opens.
+
+`X` is what a checker makes of the change. A review is read against a diff, and the
+questions it turns on are often ones no diff can answer: whether the field being read off
+a value is a member of the type it actually has, whether a rule nobody's CI enforces would
+object. Both are answered by a program already on the machine, so second-look starts it
+and reads its answers back.
+
+The language server is the one your editor uses, started in the checkout and spoken to
+over its stdio. `typescript-language-server`, `gopls`, and `pyright-langserver` are
+recognized without configuration, and `[[server]]` in the config names any other. The file
+it is asked about travels as an unsaved buffer holding the commit under review, so nothing
+writes to the working tree and a checkout left on another branch still answers for the
+file. What that file imports is resolved from the tree as it stands, which is the limit
+this ships with. The first file costs a few seconds against a monorepo, because a server
+loads the project before it says anything, and every file after it a fraction of one. It
+runs behind the first frame for that reason: the diff is on screen while the pass is out,
+and the count reaches the title when it lands.
+
+`[[check]]` names whatever else is worth running over the same files, which is where a
+rule your repository's CI does not enforce goes: a house rule about comment length written
+as an ast-grep rule, a ruff selector the project has not adopted. A check is a command and
+the shape it prints in, `ast-grep`, `ruff`, or `text` for `path:line:col: message`, with
+`{files}` standing for the review's own files.
+
+A note is drawn under the line it is about, because the message is the whole of it: a mark
+in the margin says a line is wrong and leaves you to go somewhere else to find out how,
+which is the trip out to an editor this exists to save. A note on a line the change only
+carried is context rather than a finding, so it waits in the trouble list instead of
+sitting in the diff. `]p` walks the notes, `X` lists every one of them under the line it
+lands on, and `K` asks what each name on the line under the cursor actually is. All of it
+needs a checkout, since a server resolves what a file imports from the tree around it and
+a review staged with none has no tree.
 
 `v` walks the renderers, which change how a line of the diff is drawn rather than which
 lines are drawn. `rich` is what a review opens on: it colors the code by its grammar,

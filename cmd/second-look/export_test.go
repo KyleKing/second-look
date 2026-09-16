@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+
+	"github.com/kyleking/second-look/internal/blob"
+	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/prepared"
@@ -52,4 +56,12 @@ func ReviewAfter(rows []prepared.Review, repo string, was int) (string, bool) {
 	}
 
 	return at.String(), true
+}
+
+// CheckerFor is the checker a review would be given, so a test can drive the
+// wiring between a review's blob reader and a real language server.
+//
+//nolint:ireturn // it is the wiring's own answer, which is the interface
+func CheckerFor(ctx context.Context, root string, d *diff.Diff, reader blob.Reader) tui.Prober {
+	return probeFor(ctx, root, d, reader)
 }

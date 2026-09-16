@@ -5,8 +5,8 @@ kyleking/jj-diff #42                                                            
                        ctrl+e / ctrl+y  scroll without moving the cursor; any motion comes back to it                  ┃
                                  g / G  top, bottom                                                                    ┃
                       z then z / t / b  put the cursor's line at the middle, top, bottom of the frame                  ┃
-                                 ] / [  go to the next, previous: d directory, f file, h hunk, c comment, t thread, u… ┃
-                                 n / N  repeat that motion forward, backward                                           ┃
+                                 ] / [  next, previous: d directory, f file, h hunk, c comment, t thread, u unread, p… ┃
+                                 n / N  repeat that motion forward, backward                                           │
                                      /  search; tab in the prompt restricts it to hunks not yet read                   │
                        tab / shift+tab  next, previous thing wanting a decision                                        │
                                      .  repeat the last change: space, m r/d/x, a fold                                 │

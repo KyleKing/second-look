@@ -272,13 +272,27 @@ func testHome(t *testing.T, dir string) string {
 	return home
 }
 
-// settle turns the background prefetch off. It stages reviews nobody asked for,
-// which against a fixed recording means the interaction the test was going to
-// use has already been played by the time the test asks for it.
+// settle turns off the background work a screen test cannot afford.
+//
+// The prefetch stages reviews nobody asked for, which against a fixed recording
+// means the interaction a test was going to use has already been played by the
+// time it asks. The server override turns the checker pass off the same way a
+// laptop without gopls does: these tests drive the real binary over a scratch
+// checkout of Go files, and a real language server loading it is seconds this
+// suite has no reason to spend. What the pass itself does is covered against a
+// real server in internal/diag/lsp.
 func settle(t *testing.T, home string) {
 	t.Helper()
 
-	write(t, filepath.Join(home, ".config", "second-look", "config.toml"), []byte("prefetch = 0\n"))
+	const quiet = `prefetch = 0
+
+[[server]]
+name = "none"
+command = ["second-look-no-such-language-server"]
+extensions = [".go", ".ts", ".py"]
+`
+
+	write(t, filepath.Join(home, ".config", "second-look", "config.toml"), []byte(quiet))
 }
 
 // quietHome is a home with the prefetch off, which is what every screen test
