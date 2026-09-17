@@ -26,10 +26,17 @@ type Server struct {
 	// Language is the languageId a didOpen carries, per extension. A server
 	// that is told nothing about a file's language treats it as plain text.
 	Language map[string]string
-	// Roots are the files that mark the project a server is started in, deepest
-	// first. A server rooted above the project compiles the file under settings
-	// that are not the project's and reports errors the change did not cause.
-	Roots []string
+	// Roots are the files that mark the project a server is started in, most
+	// telling first, and the names inside one group rank equally. A server
+	// rooted above the project compiles the file under settings that are not
+	// the project's and reports errors the change did not cause, and a server
+	// rooted below a workspace loses the sibling packages that workspace joins.
+	Roots [][]string
+	// Needs are paths, relative to a candidate root, without which the server
+	// cannot run there: tsserver resolves its own typescript out of the
+	// workspace and exits where there is none. A directory holding a marker and
+	// none of these is walked past rather than started in.
+	Needs []string
 }
 
 // builtin are the servers second-look starts without being configured to.
@@ -48,21 +55,22 @@ var builtin = []Server{
 			".tsx": "typescriptreact", ".jsx": "javascriptreact",
 			".js": langJS, ".mjs": langJS, ".cjs": langJS,
 		},
-		Roots: []string{"tsconfig.json", "jsconfig.json", "package.json"},
+		Roots: [][]string{{"tsconfig.json", "jsconfig.json"}, {"package.json"}},
+		Needs: []string{filepath.Join("node_modules", "typescript")},
 	},
 	{
 		Name:     "gopls",
 		Argv:     []string{"gopls"},
 		Exts:     []string{".go"},
 		Language: map[string]string{".go": "go"},
-		Roots:    []string{"go.work", "go.mod"},
+		Roots:    [][]string{{"go.work"}, {"go.mod"}},
 	},
 	{
 		Name:     "pyright",
 		Argv:     []string{"pyright-langserver", "--stdio"},
 		Exts:     []string{".py", ".pyi"},
 		Language: map[string]string{".py": "python", ".pyi": "python"},
-		Roots:    []string{"pyrightconfig.json", "pyproject.toml", "setup.py", "setup.cfg"},
+		Roots:    [][]string{{"pyrightconfig.json"}, {"pyproject.toml", "setup.py", "setup.cfg"}},
 	},
 }
 
@@ -81,23 +89,47 @@ func (s Server) languageID(path string) string {
 	return s.Name
 }
 
-// rootFor is the directory a server is started in for one file: the deepest
-// directory between the file and the checkout holding one of the server's root
-// markers, and the checkout itself where none does.
+// rootFor is the directory a server is started in for one file: each group of
+// markers is searched from the file up to the checkout in turn, and the
+// checkout answers where none of them is found.
+//
+// The groups are tried before the directories on purpose. A go.mod beside the
+// file and a go.work three directories above it both mark a root, and the
+// workspace is the one that resolves the sibling modules the file imports, so
+// depth is the wrong tiebreak between two markers that say different things.
 func (s Server) rootFor(checkout, path string) string {
-	dir := filepath.Dir(filepath.Join(checkout, path))
+	from := filepath.Dir(filepath.Join(checkout, path))
 
-	for inside(checkout, dir) {
-		for _, marker := range s.Roots {
-			if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
+	for _, group := range s.Roots {
+		for dir := from; inside(checkout, dir); dir = filepath.Dir(dir) {
+			if marked(dir, group) && hosts(dir, s.Needs) {
 				return dir
 			}
 		}
-
-		dir = filepath.Dir(dir)
 	}
 
 	return checkout
+}
+
+// hosts reports whether a server can run in a directory at all.
+func hosts(dir string, needs []string) bool {
+	for _, need := range needs {
+		if _, err := os.Stat(filepath.Join(dir, need)); err != nil {
+			return false
+		}
+	}
+
+	return true
+}
+
+func marked(dir string, group []string) bool {
+	for _, marker := range group {
+		if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 // inside reports whether a directory is the checkout or under it. A prefix

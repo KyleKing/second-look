@@ -242,7 +242,7 @@ func TestNotesStartsAServerInTheProjectTheFileBelongsTo(t *testing.T) {
 	}
 
 	servers := stubServer()
-	servers[0].Roots = []string{"tsconfig.json"}
+	servers[0].Roots = [][]string{{"tsconfig.json"}}
 
 	s := lsp.New(t.Context(), checkout, servers)
 	defer s.Close()
@@ -287,7 +287,7 @@ func TestNotesRootsAServerFromARelativeCheckout(t *testing.T) {
 	}
 
 	servers := stubServer()
-	servers[0].Roots = []string{"tsconfig.json"}
+	servers[0].Roots = [][]string{{"tsconfig.json"}}
 
 	t.Chdir(checkout)
 
@@ -306,5 +306,76 @@ func TestNotesRootsAServerFromARelativeCheckout(t *testing.T) {
 
 	if got[0].Message != want {
 		t.Errorf("the server was started for %s, want %s", got[0].Message, want)
+	}
+}
+
+// A workspace marker above the file and a package marker beside it both mark a
+// root, and the workspace is the one that resolves the siblings the file
+// imports. So the markers are ranked before the directories are walked: a
+// go.mod beside a file does not outrank the go.work that joins it to the
+// modules it imports.
+func TestNotesPrefersAWorkspaceMarkerOverANearerPackageOne(t *testing.T) {
+	t.Parallel()
+
+	checkout := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(checkout, "pkg"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, at := range []string{"workspace.json", filepath.Join("pkg", "package.json")} {
+		if err := os.WriteFile(filepath.Join(checkout, at), []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	servers := stubServer()
+	servers[0].Roots = [][]string{{"workspace.json"}, {"package.json"}}
+
+	s := lsp.New(t.Context(), checkout, servers)
+	defer s.Close()
+
+	got, err := s.Notes(t.Context(), []lsp.Doc{{Path: filepath.Join("pkg", "root.ts"), Text: "one\n"}})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("read %+v, %v", got, err)
+	}
+
+	if got[0].Message != checkout {
+		t.Errorf("the server was started for %s, want the workspace at %s", got[0].Message, checkout)
+	}
+}
+
+// A package marked as a project that cannot host the server is not a project
+// this can use: rooted there, tsserver finds no typescript to resolve itself
+// out of and exits without answering. So the walk goes past it.
+func TestNotesWalksPastAProjectThatCannotHostTheServer(t *testing.T) {
+	t.Parallel()
+
+	checkout := t.TempDir()
+	for _, dir := range []string{"pkg", filepath.Join("node_modules", "typescript")} {
+		if err := os.MkdirAll(filepath.Join(checkout, dir), 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, at := range []string{"tsconfig.json", filepath.Join("pkg", "tsconfig.json")} {
+		if err := os.WriteFile(filepath.Join(checkout, at), []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	servers := stubServer()
+	servers[0].Roots = [][]string{{"tsconfig.json"}}
+	servers[0].Needs = []string{filepath.Join("node_modules", "typescript")}
+
+	s := lsp.New(t.Context(), checkout, servers)
+	defer s.Close()
+
+	got, err := s.Notes(t.Context(), []lsp.Doc{{Path: filepath.Join("pkg", "root.ts"), Text: "one\n"}})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("read %+v, %v", got, err)
+	}
+
+	if got[0].Message != checkout {
+		t.Errorf("the server was started in %s, which holds no typescript to run out of", got[0].Message)
 	}
 }
