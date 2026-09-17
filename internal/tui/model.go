@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
 
+	"github.com/kyleking/second-look/internal/advisory"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diag"
 	"github.com/kyleking/second-look/internal/diff"
@@ -154,6 +155,12 @@ type Model struct {
 	trouble  diag.Placed
 	probing  bool
 	troubled error
+
+	// advisor is what a lockfile is asked about, advisories is what came back
+	// for each package, and advised is how the asking went per lockfile.
+	advisor    Advisor
+	advisories map[advisory.Package][]advisory.Note
+	advised    map[string]asked
 	// showing is the answer K left up, nil when nothing is.
 	showing *hoverMsg
 	// cosmetic is the structural pass over every hunk, nil until it answers,
@@ -459,6 +466,10 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 		return nil
 	case notesMsg:
 		m.applyNotes(msg)
+
+		return nil
+	case advisedMsg:
+		m.applyAdvisories(msg)
 
 		return nil
 	case hoverMsg:
@@ -1493,17 +1504,29 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.write(msg)
 
 		return m, cmd
-	case key.Matches(msg, m.keys.Submit):
-		m.askSubmit()
 	case key.Matches(msg, m.keys.Open):
 		m.browse()
+	default:
+		m.confirmKey(msg)
+	}
+
+	return m, nil
+}
+
+// confirmKey answers the keys that ask before they act. Each sends something
+// that cannot be taken back (a review, a merge, a branch, a list of package
+// names), so none of them does anything but put the question up.
+func (m *Model) confirmKey(msg tea.KeyPressMsg) {
+	switch {
+	case key.Matches(msg, m.keys.Submit):
+		m.askSubmit()
 	case key.Matches(msg, m.keys.Merge):
 		m.askMergeNow()
 	case key.Matches(msg, m.keys.DeleteBranch):
 		m.askDeleteBranchNow()
+	case key.Matches(msg, m.keys.Advisories):
+		m.askAdvisoriesNow()
 	}
-
-	return m, nil
 }
 
 // closedWord says why a change was refused, since a merged pull request and a
@@ -2106,6 +2129,7 @@ const (
 	askNothing confirmKind = iota
 	askMerge
 	askDeleteBranch
+	askAdvisories
 )
 
 // askMergeNow asks before it merges. A merge is the least reversible thing this
@@ -2140,6 +2164,8 @@ func (m *Model) answer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.answerMerge(msg)
 	case askDeleteBranch:
 		return m.answerDeleteBranch(msg)
+	case askAdvisories:
+		return m.answerAdvisories(msg)
 	default:
 		return m, nil
 	}
@@ -2327,6 +2353,8 @@ func (m *Model) rebuild() {
 			return m.surround(path, hunk, span[0], span[1])
 		},
 		progress: m.fileProgress,
+		known:    m.advisories,
+		answered: m.advised,
 	}
 	if !m.asDiffed {
 		lay.plan = m.shape.plan

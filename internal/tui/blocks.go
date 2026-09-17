@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kyleking/second-look/internal/advisory"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diag"
 	"github.com/kyleking/second-look/internal/generated"
@@ -110,9 +111,14 @@ type layout struct {
 	// trouble is what the checkers found, placed against this diff. Its zero
 	// value draws no notes, which is every review before the pass answers.
 	trouble diag.Placed
-	width   int
-	hide    hider
-	fold    folded
+	// known is what osv.dev said against each version a lockfile moved to, and
+	// answered is how the question went per lockfile. Both are empty until a
+	// reader asks, because nothing here is fetched to open a review.
+	known    map[advisory.Package][]advisory.Note
+	answered map[string]asked
+	width    int
+	hide     hider
+	fold     folded
 	// split pairs each removal with the addition that replaced it, so the two
 	// sides of an edit share a row. It is the one renderer that changes which
 	// rows exist rather than only how they are drawn.

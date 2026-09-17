@@ -5,6 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/kyleking/second-look/internal/advisory"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/meta"
@@ -14,9 +15,11 @@ import (
 // opened: the dependencies a lockfile changed where the format is readable, and
 // a hunk count where it is not.
 func foldedFile(f *diff.File, head row, c fileCtx) []row {
-	word, deps := lockRows(f, head.path)
+	word, deps := lockRows(f, head.path, c.lay)
 	if word == "" {
 		word = plural(hunkCount(f), "hunk") + " folded"
+	} else {
+		word += askedWord(f, c.lay.answered[head.path])
 	}
 
 	head.text = head.path + "  " + word + staged(c.r, head.path) + " · za to open"
@@ -34,7 +37,7 @@ func foldedFile(f *diff.File, head row, c fileCtx) []row {
 //
 // The heading word comes back with it, because a file whose format is not
 // readable here has to keep counting hunks.
-func lockRows(f *diff.File, path string) (string, []row) {
+func lockRows(f *diff.File, path string, lay layout) (string, []row) {
 	deps, ok := meta.Read(f)
 	if !ok || len(deps) == 0 {
 		return "", nil
@@ -45,6 +48,7 @@ func lockRows(f *diff.File, path string) (string, []row) {
 		width = max(width, lipgloss.Width(d.Name))
 	}
 
+	eco := meta.Ecosystem(f)
 	out := make([]row, 0, len(deps))
 
 	for _, d := range deps {
@@ -52,9 +56,36 @@ func lockRows(f *diff.File, path string) (string, []row) {
 			kind: rowHunk, path: path, comment: noComment,
 			text: fmt.Sprintf("%-*s  %s", width, d.Name, versionWord(d)),
 		})
+
+		for _, n := range lay.known[advisory.Package{Ecosystem: eco, Name: d.Name, Version: d.To}] {
+			out = append(out, row{
+				kind: rowHunk, path: path, comment: noComment,
+				text: fmt.Sprintf("%-*s  %s", width, "", advisoryWord(n)),
+			})
+		}
 	}
 
 	return humanize.Plural(len(deps), "dependency", "dependencies"), out
+}
+
+// askedWord is what the lockfile's own row says about the advisories, because
+// a question still out, a question refused, and an answer of nothing all draw
+// the same rows and mean different things.
+func askedWord(f *diff.File, state asked) string {
+	switch {
+	case state.out:
+		return " · asking osv.dev…"
+	case state.failed != "":
+		return " · osv.dev: " + state.failed
+	case state.settled && state.found > 0:
+		return " · " + plural(state.found, "package") + " with something known against it"
+	case state.settled:
+		return " · nothing known against it"
+	case meta.Ecosystem(f) == "":
+		return ""
+	}
+
+	return " · L to ask osv.dev"
 }
 
 func versionWord(d meta.Row) string {

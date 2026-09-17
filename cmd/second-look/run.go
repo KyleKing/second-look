@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/kyleking/aragonite/vcs"
 
+	"github.com/kyleking/second-look/internal/advisory"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/brief"
@@ -413,6 +414,11 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder) (*tui
 	if p := probeFor(ctx, opened.Work, opened.Diff, reader); p != nil {
 		opts = append(opts, tui.WithProber(p))
 	}
+
+	// A lockfile can be asked what is known against what it moved to. Nothing
+	// leaves the laptop until a reader confirms the question on the file, which
+	// is why it is offered without a checkout and without configuring.
+	opts = append(opts, tui.WithAdvisor(advisory.Client{}))
 
 	// A review read out of the cache reached the screen without asking GitHub
 	// anything, so the screen asks behind the first frame instead.

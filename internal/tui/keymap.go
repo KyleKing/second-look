@@ -51,6 +51,7 @@ type keyMap struct {
 	Dispatch     key.Binding
 	Threads      key.Binding
 	Trouble      key.Binding
+	Advisories   key.Binding
 	Hover        key.Binding
 	Restage      key.Binding
 	Seen         key.Binding
@@ -119,6 +120,7 @@ func defaultKeyMap() keyMap {
 		Look:         key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "toggle one of them")),
 		Threads:      key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "conversations")),
 		Trouble:      key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "trouble")),
+		Advisories:   key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "ask about a lockfile")),
 		Hover:        key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "what is this")),
 		Restage:      key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "restage")),
 		Order:        key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
@@ -238,6 +240,7 @@ func helpGroups() []helpGroup {
 		{"what the code says", [][2]string{
 			{"X", "everything a checker found, each note under the line it lands on"},
 			{"K", "what every name on this line is, asked of the language server"},
+			{"L", "ask osv.dev what is known against the versions this lockfile moved to"},
 		}},
 		{"marking", [][2]string{
 			{spaceKey, "mark the hunk read, or the whole file from a file line"},

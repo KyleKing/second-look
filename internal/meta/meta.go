@@ -21,14 +21,9 @@ type Row struct {
 // Read turns a lockfile's diff into its dependency changes, in name order. It
 // returns false for a file no format here recognizes.
 func Read(f *diff.File) ([]Row, bool) {
-	path := f.NewPath
-	if path == "" {
-		path = f.OldPath
-	}
-
 	var removed, added map[string]string
 
-	switch filepath.Base(path) {
+	switch named(f) {
 	case "go.sum":
 		removed, added = goSum(f.Lines)
 	case "go.mod":
@@ -48,6 +43,36 @@ func Read(f *diff.File) ([]Row, bool) {
 	}
 
 	return pair(removed, added), true
+}
+
+// Ecosystem is what OSV calls the index a lockfile's packages are published
+// in, and the empty string for a file no format here recognizes.
+func Ecosystem(f *diff.File) string {
+	switch named(f) {
+	case "go.sum", "go.mod":
+		return "Go"
+	case "Cargo.lock":
+		return "crates.io"
+	case "uv.lock":
+		return "PyPI"
+	case "package-lock.json", "pnpm-lock.yaml", "yarn.lock":
+		return "npm"
+	case "Gemfile.lock":
+		return "RubyGems"
+	}
+
+	return ""
+}
+
+// named is the file's own name, which is what every format here is told apart
+// by. A deleted file has no new path.
+func named(f *diff.File) string {
+	path := f.NewPath
+	if path == "" {
+		path = f.OldPath
+	}
+
+	return filepath.Base(path)
 }
 
 // pair turns two name-to-version maps into rows, dropping a name whose
