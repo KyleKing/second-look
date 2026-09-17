@@ -165,8 +165,15 @@ diagnosticMode = "workspace"
 		t.Errorf("needs came back as %+v", got.Needs)
 	}
 
-	python, _ := got.Settings["python"].(map[string]any)
-	analysis, _ := python["analysis"].(map[string]any)
+	python, ok := got.Settings["python"].(map[string]any)
+	if !ok {
+		t.Fatalf("settings came back as %+v", got.Settings)
+	}
+
+	analysis, ok := python["analysis"].(map[string]any)
+	if !ok {
+		t.Fatalf("settings came back as %+v", got.Settings)
+	}
 
 	if analysis["diagnosticMode"] != "workspace" {
 		t.Errorf("settings came back as %+v", got.Settings)

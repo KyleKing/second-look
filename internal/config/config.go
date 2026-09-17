@@ -46,6 +46,13 @@ type Check struct {
 	Command []string `toml:"command"`
 	// Format is ast-grep, ruff, or text, the last being path:line:col: message.
 	Format string `toml:"format"`
+	// Roots are the files marking the project the check is run in, in the order
+	// they are believed. Unset, it runs once at the checkout, which in a
+	// monorepo applies one package's settings to every package.
+	Roots []string `toml:"roots,omitempty"`
+	// Bin are directories under a project root holding the project's own copy
+	// of the tool, searched before the PATH.
+	Bin []string `toml:"bin,omitempty"`
 }
 
 // Server is a language server for extensions the built-in list does not cover,

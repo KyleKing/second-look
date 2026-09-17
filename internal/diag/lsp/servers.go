@@ -1,10 +1,11 @@
 package lsp
 
 import (
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/kyleking/second-look/internal/diag/project"
 )
 
 // The languageIds a didOpen carries for the built-in servers, which the
@@ -93,55 +94,9 @@ func (s Server) languageID(path string) string {
 	return s.Name
 }
 
-// rootFor is the directory a server is started in for one file: each group of
-// markers is searched from the file up to the checkout in turn, and the
-// checkout answers where none of them is found.
-//
-// The groups are tried before the directories on purpose. A go.mod beside the
-// file and a go.work three directories above it both mark a root, and the
-// workspace is the one that resolves the sibling modules the file imports, so
-// depth is the wrong tiebreak between two markers that say different things.
+// rootFor is the directory a server is started in for one file.
 func (s Server) rootFor(checkout, path string) string {
-	from := filepath.Dir(filepath.Join(checkout, path))
-
-	for _, group := range s.Roots {
-		for dir := from; inside(checkout, dir); dir = filepath.Dir(dir) {
-			if marked(dir, group) && hosts(dir, s.Needs) {
-				return dir
-			}
-		}
-	}
-
-	return checkout
-}
-
-// hosts reports whether a server can run in a directory at all.
-func hosts(dir string, needs []string) bool {
-	for _, need := range needs {
-		if _, err := os.Stat(filepath.Join(dir, need)); err != nil {
-			return false
-		}
-	}
-
-	return true
-}
-
-func marked(dir string, group []string) bool {
-	for _, marker := range group {
-		if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
-			return true
-		}
-	}
-
-	return false
-}
-
-// inside reports whether a directory is the checkout or under it. A prefix
-// match is not the same question: /repo-two starts with /repo.
-func inside(checkout, dir string) bool {
-	rel, err := filepath.Rel(checkout, dir)
-
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	return project.Root(checkout, path, s.Roots, s.Needs)
 }
 
 // pick is the server for a path, and false where no configured server claims
@@ -149,7 +104,8 @@ func inside(checkout, dir string) bool {
 func pick(servers []Server, path string) (Server, bool) {
 	ext := strings.ToLower(filepath.Ext(path))
 
-	for _, s := range servers {
+	for i := range servers {
+		s := &servers[i]
 		if len(s.Argv) == 0 {
 			continue
 		}
@@ -163,7 +119,7 @@ func pick(servers []Server, path string) (Server, bool) {
 				return Server{}, false
 			}
 
-			return s, true
+			return *s, true
 		}
 	}
 

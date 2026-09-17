@@ -121,7 +121,8 @@ func (p *prober) docs(ctx context.Context) ([]lsp.Doc, []error) {
 func servers(cfg *config.Config) []lsp.Server {
 	out := make([]lsp.Server, 0, len(cfg.Servers)+len(lsp.Builtin()))
 
-	for _, s := range cfg.Servers {
+	for i := range cfg.Servers {
+		s := &cfg.Servers[i]
 		out = append(out, lsp.Server{
 			Name: s.Name, Argv: s.Command, Exts: s.Extensions, Language: s.Language,
 			Roots: ranked(s.Roots), Needs: s.Needs, Settings: s.Settings,
@@ -149,6 +150,7 @@ func checks(cfg *config.Config) []scan.Check {
 	for _, c := range cfg.Checks {
 		out = append(out, scan.Check{
 			Name: c.Name, Command: c.Command, Format: scan.Format(c.Format),
+			Roots: ranked(c.Roots), Bin: c.Bin,
 		})
 	}
 

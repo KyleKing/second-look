@@ -53,7 +53,7 @@ func TestReadCountsLinesTheWayEachProgramPrintsThem(t *testing.T) {
 				t.Fatalf("reading the fixture: %v", err)
 			}
 
-			got, err := scan.Read(tc.format, "house rules", tc.root, raw)
+			got, err := scan.Read(tc.format, "house rules", tc.root, tc.root, raw)
 			if err != nil {
 				t.Fatalf("reading %s: %v", tc.format, err)
 			}
@@ -81,7 +81,7 @@ func TestReadTextFindsTheLineNumberPastAColonInThePath(t *testing.T) {
 		"internal/c.go:no number: ignored",
 	}, "\n")
 
-	got, err := scan.Read(scan.Text, "golangci-lint", "/work", []byte(out))
+	got, err := scan.Read(scan.Text, "golangci-lint", "/work", "/work", []byte(out))
 	if err != nil {
 		t.Fatalf("reading text: %v", err)
 	}
@@ -162,5 +162,54 @@ func TestRunSkipsAFileCommandWithNoFiles(t *testing.T) {
 
 	if _, err := os.Stat(ran); err == nil {
 		t.Error("the command ran with no files to check")
+	}
+}
+
+// A monorepo is several projects sharing a working tree, and a check run at the
+// whole of it uses one package's settings on every package. So a check naming
+// its markers runs in the project each file belongs to, with the tool that
+// project pins rather than whatever is on the PATH, and what it prints is
+// re-anchored to the checkout the diff is spelled against.
+func TestRunUsesTheProjectsOwnToolAndSpellsPathsAgainstTheCheckout(t *testing.T) {
+	t.Parallel()
+
+	checkout := t.TempDir()
+	bin := filepath.Join(checkout, "pkg", ".venv", "bin")
+
+	if err := os.MkdirAll(bin, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(checkout, "pkg", "pyproject.toml"), []byte(""), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// It prints the path it was handed, which is what says where it ran, and
+	// nothing of this name is on the PATH.
+	tool := "second-look-project-tool"
+	script := "#!/bin/sh\necho \"$1:1:1: found in $(basename \"$PWD\")\"\n"
+
+	if err := os.WriteFile(filepath.Join(bin, tool), []byte(script), 0o700); err != nil { //nolint:gosec // it is run
+		t.Fatal(err)
+	}
+
+	got, err := scan.Run(t.Context(), checkout, []scan.Check{{
+		Name: "house rules", Command: []string{tool, "{files}"}, Format: scan.Text,
+		Roots: [][]string{{"pyproject.toml"}}, Bin: []string{filepath.Join(".venv", "bin")},
+	}}, []string{filepath.Join("pkg", "x.py")})
+	if err != nil {
+		t.Fatalf("running the check: %v", err)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("read %+v, want the one note the tool printed", got)
+	}
+
+	if got[0].Path != "pkg/x.py" {
+		t.Errorf("the note landed on %s, which is not how the diff spells it", got[0].Path)
+	}
+
+	if got[0].Message != "found in pkg" {
+		t.Errorf("the check said %q, want it run in the project", got[0].Message)
 	}
 }

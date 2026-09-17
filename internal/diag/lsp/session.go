@@ -46,10 +46,10 @@ type Doc struct {
 	Text string
 }
 
-// project is one running server: a language server and the directory it was
+// instance is one running server: a language server and the directory it was
 // started in. A monorepo holds several projects one server speaks for, and a
 // file is answered by the one it belongs to.
-type project struct {
+type instance struct {
 	name string
 	root string
 }
@@ -70,7 +70,7 @@ type Session struct {
 	servers []Server
 
 	mu      sync.Mutex
-	running map[project]*client
+	running map[instance]*client
 	// opened is every document a server has been told about, so a second pass
 	// over the same file changes it rather than opening it twice.
 	opened map[string]int
@@ -89,7 +89,7 @@ func New(ctx context.Context, root string, servers []Server) *Session {
 
 	return &Session{
 		base: base, cancel: cancel, root: root, servers: servers,
-		running: map[project]*client{}, opened: map[string]int{},
+		running: map[instance]*client{}, opened: map[string]int{},
 	}
 }
 
@@ -114,7 +114,7 @@ func (s *Session) Close() {
 // a polyglot change going unanswered is worth saying, and is not worth losing
 // the rest of the pass over.
 func (s *Session) Notes(ctx context.Context, docs []Doc) ([]diag.Note, error) {
-	groups := map[project][]Doc{}
+	groups := map[instance][]Doc{}
 	known := map[string]Server{}
 
 	for _, d := range docs {
@@ -123,7 +123,7 @@ func (s *Session) Notes(ctx context.Context, docs []Doc) ([]diag.Note, error) {
 			continue
 		}
 
-		at := project{name: srv.Name, root: srv.rootFor(s.root, d.Path)}
+		at := instance{name: srv.Name, root: srv.rootFor(s.root, d.Path)}
 		known[srv.Name] = srv
 		groups[at] = append(groups[at], d)
 	}
@@ -344,7 +344,7 @@ func (s *Session) serverFor(ctx context.Context, srv Server, root string) (*clie
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	at := project{name: srv.Name, root: root}
+	at := instance{name: srv.Name, root: root}
 
 	if c, ok := s.running[at]; ok {
 		select {
