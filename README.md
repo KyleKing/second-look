@@ -200,6 +200,8 @@ format = "ast-grep"
 name = "rust-analyzer"
 command = ["rust-analyzer"]
 extensions = [".rs"]
+# Where its project is, most telling first, and what it cannot run without.
+roots = ["Cargo.toml"]
 ```
 
 A query is `gh search prs` terms, which is what GitHub's search box takes. A `sort:`
@@ -370,28 +372,37 @@ object. Both are answered by a program already on the machine, so second-look st
 and reads its answers back.
 
 The language server is the one your editor uses, started in the project the file belongs
-to and spoken to over its stdio. In a monorepo that is the nearest directory above the
-file holding a `tsconfig.json`, a `go.mod`, a `pyproject.toml`, or whatever else marks a
+to and spoken to over its stdio. In a monorepo that is the directory above the file
+holding a `tsconfig.json`, a `go.mod`, a `pyproject.toml`, or whatever else marks a
 project for that server, because a server rooted at the whole checkout compiles the file
-under settings that are not the project's and reports errors the change did not cause.
-Each project answers at the same time as the others, so a change touching four packages
-costs what one package does. `typescript-language-server`, `gopls`, and
-`pyright-langserver` are recognized without configuration, and `[[server]]` in the config
-names any other. The file it is asked about travels as an unsaved buffer holding the
-commit under review, so nothing writes to the working tree and a checkout left on another
-branch still answers for the file. What that file imports is resolved from the tree as it
-stands, which is the limit this ships with. The first file costs a few seconds against a
-monorepo, because a server loads the project before it says anything, and every file after
-it a fraction of one. It runs behind the first frame for that reason: the diff is on
-screen while the pass is out, and the count reaches the title when it lands. A message
-longer than three lines is cut where it is drawn, since a type error names the whole of an
-anonymous type and the first line of it already said what is wrong.
+under settings that are not the project's and reports errors the change did not cause. The
+markers are ranked before the directories are walked, so a `go.work` three directories up
+wins the `go.mod` beside the file: they mark different things and the workspace is the one
+that resolves the siblings the file imports. A directory a server cannot run in is walked
+past rather than started in, which is what a package carrying no `typescript` of its own
+is. A server asking what it is configured with is answered from `settings` in its
+`[[server]]` entry. Each project answers at the same time as the others, so a change
+touching four packages costs what one package does. `typescript-language-server`, `gopls`,
+and `pyright-langserver` are recognized without configuration, and `[[server]]` in the
+config names any other. The file it is asked about travels as an unsaved buffer holding
+the commit under review, so nothing writes to the working tree and a checkout left on
+another branch still answers for the file. What that file imports is resolved from the
+tree as it stands, which is the limit this ships with. The first file costs a few seconds
+against a monorepo, because a server loads the project before it says anything, and every
+file after it a fraction of one. It runs behind the first frame for that reason: the diff
+is on screen while the pass is out, and the count reaches the title when it lands. A
+message longer than three lines is cut where it is drawn, since a type error names the
+whole of an anonymous type and the first line of it already said what is wrong.
 
 `[[check]]` names whatever else is worth running over the same files, which is where a
 rule your repository's CI does not enforce goes: a house rule about comment length written
 as an ast-grep rule, a ruff selector the project has not adopted. A check is a command and
 the shape it prints in, `ast-grep`, `ruff`, or `text` for `path:line:col: message`, with
-`{files}` standing for the review's own files.
+`{files}` standing for the review's own files. A check naming `roots` is run once per
+project rather than once per checkout, and `bin` names the directories under a project
+holding the tool that project pins, which is searched before your `PATH`: a linter run
+from the `PATH` is a different version under different settings than the one the project
+installed, and the two disagree about the same file.
 
 A note is drawn under the line it is about, because the message is the whole of it: a mark
 in the margin says a line is wrong and leaves you to go somewhere else to find out how,

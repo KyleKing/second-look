@@ -179,15 +179,32 @@ whatever language server is installed, and `internal/diag/scan` runs the command
 `[[check]]` names. A file is opened as an unsaved buffer holding the commit under review,
 so nothing writes to the working tree, and what that file imports still comes from disk.
 
-A server is started in the project the file belongs to rather than at the checkout. That
-is a correctness rule: rooted at the whole of a TypeScript monorepo,
-tsserver reads a package's imports as unresolvable and reports a module error the change
-did not cause, and where the root holds no `typescript` at all it refuses to start. The
-root it is told about goes in `rootUri` and `rootPath` both, because that is what a server
-resolving its own toolchain reads. The screen hands over a checkout named `.`, so the
-session makes the root absolute before any of that walking means anything, and every
-project is asked at the same time so the floor below is paid once rather than once per
-package.
+A server is started in the project the file belongs to rather than at the checkout, and
+`internal/diag/project` answers where that is for the language server and for a
+`[[check]]` alike. That is a correctness rule: rooted at the whole of a TypeScript
+monorepo, tsserver reads a package's imports as unresolvable and reports a module error
+the change did not cause, and where the root holds no `typescript` at all it refuses to
+start. The root it is told about goes in `rootUri` and `rootPath` both, because that is
+what a server resolving its own toolchain reads. The screen hands over a checkout named
+`.`, so the session makes the root absolute before any of that walking means anything, and
+every project is asked at the same time so the floor below is paid once rather than once
+per package.
+
+`Root` ranks the marker groups before it walks the directories, which is
+`vim.fs.root`'s own order and not the obvious one. A `go.mod` beside the file and a
+`go.work` above it both mark a root, and the workspace resolves the siblings the file
+imports, so depth is the wrong tiebreak between two markers that say different things. A
+directory holding a marker and none of the server's `Needs` is walked past, because a
+project with no `typescript` of its own hosts nothing.
+
+A server that pulls its settings is answered rather than refused.
+`workspace/configuration` is answered a section at a time out of `Settings`, and
+`workspace/didChangeConfiguration` carries the whole of it once at the handshake.
+Answering that request null leaves a server on its own defaults however it is
+configured, which is the failure to watch for. A `[[check]]` resolves its command out of
+the project first (`bin`), because a linter from the `PATH` is a different version under
+different settings than the one the project pins, and what it prints is re-anchored from
+the project it ran in to the checkout the diff is spelled against.
 
 Two invariants in `lsp` each cost a session and each have a test that fails without them.
 A server publishes an empty list while it is still loading the project and corrects itself
