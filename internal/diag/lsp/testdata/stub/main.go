@@ -29,6 +29,10 @@ type frame struct {
 // file named root.ts is answered with.
 var rooted string
 
+// configured is what the client answered this server's request for a section of
+// its settings with, which is what a file named settings.ts is answered with.
+var configured string
+
 func rootOf(params json.RawMessage) string {
 	var p struct {
 		RootPath string `json:"rootPath"`
@@ -39,6 +43,17 @@ func rootOf(params json.RawMessage) string {
 	}
 
 	return p.RootPath
+}
+
+// sectionOf reads the one section this server asked for out of the array the
+// protocol answers a configuration request with.
+func sectionOf(result json.RawMessage) string {
+	var got []any
+	if err := json.Unmarshal(result, &got); err != nil || len(got) == 0 || got[0] == nil {
+		return "unconfigured"
+	}
+
+	return fmt.Sprint(got[0])
 }
 
 func main() {
@@ -66,7 +81,10 @@ func main() {
 		case f.Method == "initialized":
 			// Nothing is published until this is answered, which is what a
 			// client that ignores a server's requests hangs on.
-			send(map[string]any{"id": json.RawMessage("9001"), "method": "workspace/configuration"})
+			send(map[string]any{
+				"id": json.RawMessage("9001"), "method": "workspace/configuration",
+				"params": map[string]any{"items": []map[string]any{{"section": "stub.mode"}}},
+			})
 		case f.Method == "textDocument/hover":
 			send(map[string]any{"id": f.ID, "result": hover(f.Params)})
 		case f.Method == "textDocument/didOpen", f.Method == "textDocument/didChange":
@@ -78,6 +96,7 @@ func main() {
 			}()
 		case f.ID != nil && f.Method == "" && !once:
 			once = true
+			configured = sectionOf(f.Result)
 
 			close(answered)
 		}
@@ -89,10 +108,17 @@ func main() {
 //
 // A file named root.ts is the exception: it is answered at once with the
 // directory the server was started in, which is how a test reads where a
-// client rooted it.
+// client rooted it. A file named settings.ts is answered with the configuration
+// the client gave back, the same way.
 func publish(uri string) {
 	if strings.HasSuffix(uri, "root.ts") {
 		diagnostics(uri, []map[string]any{{"range": rng(0), "severity": 1, "message": rooted}})
+
+		return
+	}
+
+	if strings.HasSuffix(uri, "settings.ts") {
+		diagnostics(uri, []map[string]any{{"range": rng(0), "severity": 1, "message": configured}})
 
 		return
 	}

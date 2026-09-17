@@ -124,10 +124,23 @@ func servers(cfg *config.Config) []lsp.Server {
 	for _, s := range cfg.Servers {
 		out = append(out, lsp.Server{
 			Name: s.Name, Argv: s.Command, Exts: s.Extensions, Language: s.Language,
+			Roots: ranked(s.Roots), Needs: s.Needs, Settings: s.Settings,
 		})
 	}
 
 	return append(out, lsp.Builtin()...)
+}
+
+// ranked reads a configured marker list as one group per marker, which is what
+// makes the order it is written in the order it is believed.
+func ranked(roots []string) [][]string {
+	out := make([][]string, 0, len(roots))
+
+	for _, r := range roots {
+		out = append(out, []string{r})
+	}
+
+	return out
 }
 
 func checks(cfg *config.Config) []scan.Check {

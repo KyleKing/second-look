@@ -358,7 +358,7 @@ func (s *Session) serverFor(ctx context.Context, srv Server, root string) (*clie
 	// The process outlives the call that started it, so it is bounded by the
 	// session rather than by one pass's deadline.
 	//nolint:contextcheck // the server is the session's, not this call's
-	c, err := dial(s.base, root, srv.Argv)
+	c, err := dial(s.base, root, srv.Argv, srv.Settings)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +397,15 @@ func handshake(ctx context.Context, c *client, root string) error {
 		return err
 	}
 
-	return c.notify("initialized", map[string]any{})
+	if err := c.notify("initialized", map[string]any{}); err != nil {
+		return err
+	}
+
+	if len(c.settings) == 0 {
+		return nil
+	}
+
+	return c.notify("workspace/didChangeConfiguration", map[string]any{"settings": c.settings})
 }
 
 // open tells a server about a document, or about a new version of one it

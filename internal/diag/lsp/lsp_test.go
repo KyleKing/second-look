@@ -379,3 +379,25 @@ func TestNotesWalksPastAProjectThatCannotHostTheServer(t *testing.T) {
 		t.Errorf("the server was started in %s, which holds no typescript to run out of", got[0].Message)
 	}
 }
+
+// A server asks for its settings before it loads a project, and what it is told
+// decides what it reports: pyright answers every import of a monorepo as
+// unresolved until it is given the environment to resolve them in.
+func TestNotesAnswersAServerAskingForItsSettings(t *testing.T) {
+	t.Parallel()
+
+	servers := stubServer()
+	servers[0].Settings = map[string]any{"stub": map[string]any{"mode": "workspace"}}
+
+	s := lsp.New(t.Context(), t.TempDir(), servers)
+	defer s.Close()
+
+	got, err := s.Notes(t.Context(), []lsp.Doc{{Path: "settings.ts", Text: "one\n"}})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("read %+v, %v", got, err)
+	}
+
+	if got[0].Message != "workspace" {
+		t.Errorf("the server was told %q, want the settings it asked for", got[0].Message)
+	}
+}

@@ -72,6 +72,10 @@ type client struct {
 	notes  chan published
 	closed chan struct{}
 	once   sync.Once
+	// settings is what a server asking for its configuration is answered with.
+	// It is written before the server is spoken to and only read after, so the
+	// reader goroutine needs no lock to answer from it.
+	settings map[string]any
 }
 
 // published is one file's diagnostics as the server currently sees them. A
@@ -104,7 +108,7 @@ type position struct {
 
 // dial starts a server and begins reading from it. The context bounds the
 // process: canceling it kills the server, which is what closing a review does.
-func dial(ctx context.Context, dir string, argv []string) (*client, error) {
+func dial(ctx context.Context, dir string, argv []string, settings map[string]any) (*client, error) {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) // #nosec G204 -- a configured server command
 	cmd.Dir = dir
 
@@ -129,6 +133,7 @@ func dial(ctx context.Context, dir string, argv []string) (*client, error) {
 	c := &client{
 		cmd: cmd, in: in, waits: map[int]chan frame{},
 		notes: make(chan published, notesBuffer), closed: make(chan struct{}),
+		settings: settings,
 	}
 
 	go c.read(out)
@@ -169,11 +174,13 @@ const readBuffer = 1 << 16
 
 func (c *client) route(f frame) {
 	switch {
+	case f.ID != nil && f.Method == "workspace/configuration":
+		c.answer(*f.ID, c.configuration(f.Params))
 	case f.ID != nil && f.Method != "":
 		// A request from the server. Answering nothing at all is what stalls
 		// gopls, which waits on workspace/configuration before it loads a
 		// package, so every one is answered and none is acted on.
-		c.reply(*f.ID)
+		c.answer(*f.ID, nil)
 	case f.ID != nil:
 		c.deliver(f)
 	case f.Method == "textDocument/publishDiagnostics":
@@ -206,15 +213,60 @@ func (c *client) deliver(f frame) {
 	}
 }
 
-// reply answers a server's request with null. What every one of them asks for
-// is a setting this has none of, and null is the protocol's word for that.
-//
-// A reply that cannot be written means the pipe is gone, so the client shuts
-// rather than leaving a server waiting on an answer that will never arrive.
-func (c *client) reply(id json.RawMessage) {
-	if err := c.write(map[string]any{rpcKey: rpcVersion, "id": id, "result": nil}); err != nil {
+// answer replies to a server's request. A reply that cannot be written means
+// the pipe is gone, so the client shuts rather than leaving a server waiting on
+// an answer that will never arrive.
+func (c *client) answer(id json.RawMessage, result any) {
+	if err := c.write(map[string]any{rpcKey: rpcVersion, "id": id, "result": result}); err != nil {
 		c.shut()
 	}
+}
+
+// configuration answers a server asking what it is configured with, one entry
+// per item and in the order asked. A server that pulls its settings this way
+// asks before it loads a package, which is why an unconfigured server is still
+// answered: null is the protocol's word for "use your own default".
+func (c *client) configuration(params json.RawMessage) []any {
+	var p struct {
+		Items []struct {
+			Section string `json:"section"`
+		} `json:"items"`
+	}
+
+	if err := json.Unmarshal(params, &p); err != nil {
+		return nil
+	}
+
+	out := make([]any, 0, len(p.Items))
+
+	for _, item := range p.Items {
+		out = append(out, section(c.settings, item.Section))
+	}
+
+	return out
+}
+
+// section walks a dotted path into the settings, which is how the protocol
+// names one part of them.
+func section(settings map[string]any, path string) any {
+	var at any = settings
+
+	if path == "" {
+		return at
+	}
+
+	for _, key := range strings.Split(path, ".") {
+		held, ok := at.(map[string]any)
+		if !ok {
+			return nil
+		}
+
+		if at, ok = held[key]; !ok {
+			return nil
+		}
+	}
+
+	return at
 }
 
 // call sends a request and waits for its response.

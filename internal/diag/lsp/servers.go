@@ -37,6 +37,10 @@ type Server struct {
 	// workspace and exits where there is none. A directory holding a marker and
 	// none of these is walked past rather than started in.
 	Needs []string
+	// Settings is what the server is configured with, in the shape that server
+	// documents. A server reads it by being told once and by asking for a
+	// section of it whenever it wants one, and both are answered from here.
+	Settings map[string]any
 }
 
 // builtin are the servers second-look starts without being configured to.

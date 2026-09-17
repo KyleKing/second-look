@@ -128,3 +128,47 @@ func TestPathFollowsXDG(t *testing.T) {
 		t.Errorf("Path = %q, want %q", path, want)
 	}
 }
+
+// A configured server says where its project is and what it is configured with,
+// or it is the built-in servers' poor relation: rooted at the checkout, told
+// nothing, reporting a monorepo's imports as unresolvable.
+func TestLoadReadsWhatAServerIsRootedAndConfiguredWith(t *testing.T) {
+	t.Parallel()
+
+	path := write(t, `
+[[server]]
+name = "pyright"
+command = ["pyright-langserver", "--stdio"]
+extensions = [".py"]
+roots = ["pyrightconfig.json", "pyproject.toml"]
+needs = [".venv/bin/python"]
+
+[server.settings.python.analysis]
+diagnosticMode = "workspace"
+`)
+
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(cfg.Servers) != 1 {
+		t.Fatalf("%d server(s), want 1", len(cfg.Servers))
+	}
+
+	got := cfg.Servers[0]
+	if len(got.Roots) != 2 || got.Roots[0] != "pyrightconfig.json" {
+		t.Errorf("roots came back as %+v", got.Roots)
+	}
+
+	if len(got.Needs) != 1 || got.Needs[0] != ".venv/bin/python" {
+		t.Errorf("needs came back as %+v", got.Needs)
+	}
+
+	python, _ := got.Settings["python"].(map[string]any)
+	analysis, _ := python["analysis"].(map[string]any)
+
+	if analysis["diagnosticMode"] != "workspace" {
+		t.Errorf("settings came back as %+v", got.Settings)
+	}
+}

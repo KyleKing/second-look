@@ -58,6 +58,19 @@ type Server struct {
 	// Language is the languageId to send per extension, for a server that
 	// serves more than one. A server that serves one needs none.
 	Language map[string]string `toml:"language,omitempty"`
+	// Roots are the files marking the project the server is started in, in the
+	// order they are believed: each is looked for from the file up to the
+	// checkout before the next is tried, so a workspace marker named first wins
+	// over a package marker nearer the file. Unset, the server is started at
+	// the checkout.
+	Roots []string `toml:"roots,omitempty"`
+	// Needs are paths, relative to a candidate root, without which the server
+	// cannot run there. A directory holding a marker and none of these is
+	// walked past rather than started in.
+	Needs []string `toml:"needs,omitempty"`
+	// Settings is what the server is configured with, in the shape that server
+	// documents.
+	Settings map[string]any `toml:"settings,omitempty"`
 }
 
 // Config is the whole file.
