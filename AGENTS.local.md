@@ -221,6 +221,29 @@ than falling back, because silently running a different server than the one name
 worse. The pass itself is covered against a stub server in `internal/diag/lsp` and against
 a real gopls in `cmd/second-look/probe_test.go`, which skips where gopls is not installed.
 
+## `internal/advisory`
+
+The one thing this tool fetches from anywhere but GitHub. `L` on a lockfile puts the
+question up and names what it will send, and only a second `L` sends it, because every
+package name in the file leaves the laptop when it does. A review is given a client
+unconditionally and still asks nobody until a reader says so twice, which is why there
+is no config key for it.
+
+OSV's batch call carries advisory ids and nothing else, so each hit is read again from
+`/v1/vulns/{id}`. That second read is what carries the summary, the severity word, and
+the version it was fixed in, and the severity is the one the record states rather than
+one computed from its CVSS vector: a number invented here would read as the publisher's.
+The batch answer is positional, so an answer shorter than the question is refused rather
+than lined up.
+
+Three things the API cannot do, each of which shapes what the screen may say. It says
+the same thing about a package it has never heard of as about one it has and finds
+clean, so "nothing known against it" cannot be narrowed to "every name resolved". Two
+databases publish one finding under their own ids and name each other as aliases, so a
+Go module otherwise reads twice. And being offline, being rate limited, and a private
+registry all arrive as the same refusal, which the lockfile's own row says rather than a
+footer nobody kept.
+
 ## Driving the review screen
 
 `tmux` for looking at it, the pty tests in `cmd/second-look/tui_e2e_test.go` for pinning

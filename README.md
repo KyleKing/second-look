@@ -349,7 +349,18 @@ Files a machine wrote are grouped last, folded, and counted rather than read. Lo
 `go.sum`, `*.pb.go`, snapshots, and vendored trees are recognized without configuration;
 `generated` in the config names whatever else this repository writes. What matters about
 one is that it moved and by how much, so the group says how many files and hunks it holds
-and `za` opens any of them.
+and `za` opens any of them. A lockfile in a format this reads (`go.sum`, `go.mod`,
+`Cargo.lock`, `uv.lock`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`,
+`Gemfile.lock`) draws what moved rather than a hunk count, and `L` on it asks
+[osv.dev](https://osv.dev) what is known against the versions it moved to. That is the
+only thing here that reaches anywhere but GitHub, so `L` puts the question up and names
+what it will send, and a second `L` sends it. The answer is drawn under the dependency it
+is about, leading with the version it was fixed in, and the file's own row says when the
+question was refused: being offline, being rate limited, and a private registry all read
+the same way, and a card that quietly omitted a package would be worse than no card at
+all. OSV also says the same thing about a package it has never heard of as about one it
+has and finds clean, so "nothing known against it" is not the same as "every name
+resolved".
 
 A comment from GitHub is markdown somebody wrote for a browser, and a bot's is mostly
 machinery: routing state in an HTML comment, the scripts it ran, and the output of each,

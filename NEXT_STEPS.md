@@ -82,10 +82,22 @@ hashes. A format nothing here reads keeps counting hunks, because a guessed tabl
 than an honest count. Folding is also what makes a comment on a lockfile placeable, since
 the anchor was otherwise whichever of four hundred lines the cursor happened to be on.
 
-The other three all need the network. The next card is advisories and nothing else, which
-is the half that changes a review decision and the half that costs one request.
-[OSV](https://osv.dev) answers a whole lockfile in one POST to `/v1/querybatch`, with no
-key and no auth, in about 700ms.
+Advisories are built. `L` on a lockfile names what it will send and a second `L` sends it,
+which is the consent this needed: every package name in the file leaves the laptop when it
+does, and nothing else this screen draws reaches anywhere but GitHub.
+[OSV](https://osv.dev) answers a whole lockfile in one POST to `/v1/querybatch` with no
+key and no auth, in about 450ms measured, and that call carries advisory ids alone, so
+each hit is read again from `/v1/vulns/{id}` for the summary, the severity, and the
+version it was fixed in. A finding two databases publish under their own ids is said once,
+because they name each other as aliases. There is no disk cache: one request answers the
+whole file, which is the cost shape the cache below exists for and this does not have.
+
+Two of the three open questions answered themselves in the building. Offline, rate
+limited, and a private registry all arrive the same way, so the file's own row says the
+question was refused and the diff is still there. And OSV says the same thing about a
+package it has never heard of as about one it has and finds clean, so naming which
+packages could not be resolved is not something this API can answer: the screen says
+"nothing known against it" and means exactly that.
 
 Version age, what the latest is, and the detail block a package new to the file deserves
 are deferred on measurement: the Go module proxy is 194 bytes for a version and a release
@@ -95,18 +107,12 @@ bump would be a hundred requests of that size, which makes the cache by package 
 version mandatory rather than an optimization and leaves the first cold card slow however
 it is written.
 
-Three things still have to be answered before this is buildable:
+Two questions are still open, and neither blocks the version cards:
 
-- What happens offline, on a private registry, or when a lookup fails. The hunk is still
-  there, so the fallback is the diff and a line naming which packages could not be
-  resolved, because a card that quietly omits a package is worse than no card
-- Which files count as lockfiles, and whether that list is configurable
+- Which files count as lockfiles, and whether that list is configurable. It is the eight
+  names `internal/meta` knows and nothing else
 - What "popular alternatives" means. No definition exists that is not somebody's ranking,
   so it stays out until there is one I would trust in a review
-
-This is also the first thing second-look would fetch from anywhere but GitHub, which is a
-real change to what the tool is, because every request is a package name leaving the
-laptop. So the fetch is opt-in per repository and says what it will query before it does.
 
 ### 4. Definitions and usages, which wait on codeintel
 
@@ -366,6 +372,13 @@ Enough to answer "is that in there already", newest first. The reasoning behind 
 is in [requirements.md](requirements.md) if it still constrains something, and in the
 commit if it does not.
 
+- `L` on a lockfile asks osv.dev what is known against the versions it moved to, behind a
+  confirmation that names what it will send, with the answer drawn under the dependency
+  and the version it was fixed in leading
+- A server is started in the project a file belongs to, its markers ranked before their
+  depth, past any directory it cannot run in; it is answered when it asks what it is
+  configured with; and a `[[check]]` runs in that project too, with the tool the project
+  pins rather than whatever is on the `PATH`
 - The session shell: the review screen is a view inside one `tui.Shell` rather than a
   program the queue hands off to, so opening a row switches modes in place and leaving it
   returns to the same queue, filter and cursor intact, with no re-search
