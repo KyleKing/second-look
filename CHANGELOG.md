@@ -1,3 +1,15 @@
+## v0.20.0 (2026-09-17)
+
+### Feat
+
+- **tui**: ask osv.dev what is known against the versions a lockfile moved to
+- **diag**: run a check in the project its files belong to, with that project's tool
+- **diag**: answer a server asking what it is configured with
+
+### Fix
+
+- **diag**: root a server where it can answer, ranking markers before depth
+
 ## v0.19.0 (2026-09-16)
 
 ### Feat
