@@ -232,6 +232,59 @@ func TestLookedSurvivesARestartAndForgetsWhatIsGone(t *testing.T) {
 	}
 }
 
+// Two shells open at once each mark a different conversation. A save that
+// overwrote the file would erase the other's mark, so the save merges: a mark
+// the file holds for a conversation this session never fetched survives, and
+// on a conversation both marked the newer mark wins.
+func TestSaveLookedMergesWhatAnotherShellMarked(t *testing.T) {
+	t.Parallel()
+
+	q := fixture(t)
+	path := filepath.Join(t.TempDir(), "conversations.toml")
+	old := at("2026-09-01T12:00:00Z")
+	later := at("2026-09-02T12:00:00Z")
+
+	first := conversations.NewLooked()
+	first.Mark(&q.Conversations[0], old)
+	first.Mark(&q.Conversations[1], old)
+
+	if err := conversations.SaveLooked(path, first, q.Conversations[:2]); err != nil {
+		t.Fatal(err)
+	}
+
+	// The second shell fetched a queue that no longer carries the first
+	// conversation, marked the second one later, and saved.
+	second := conversations.NewLooked()
+	second.Mark(&q.Conversations[1], later)
+
+	if err := conversations.SaveLooked(path, second, q.Conversations[1:2]); err != nil {
+		t.Fatal(err)
+	}
+
+	back, err := conversations.LoadLooked(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !back.Since(&q.Conversations[0]) {
+		t.Error("the first shell's mark was erased by the second's save")
+	}
+
+	if !back.Since(&q.Conversations[1]) {
+		t.Error("the second shell's newer mark did not win")
+	}
+
+	// The newer mark winning is only true if the file took it rather than the
+	// old one: a conversation that moved between the two marks reads read
+	// under the newer and unread under the older.
+	c := q.Conversations[1]
+	c.Notes[len(c.Notes)-1].Created = at("2026-09-01T13:00:00Z")
+
+	if !back.Since(&c) {
+		t.Error("the file kept the older mark instead of the newer one")
+	}
+}
+
 // A missing file is an empty set, so the first run reports every conversation
 // as new rather than failing.
 func TestLoadLookedTreatsAMissingFileAsNothingRead(t *testing.T) {

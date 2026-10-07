@@ -60,9 +60,24 @@ func LookedPath() (string, error) {
 func LoadLooked(path string) (*Looked, error) {
 	l := NewLooked()
 
+	records, err := readRecords(path)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, r := range records {
+		l.at[r.Key] = r.Looked
+	}
+
+	return l, nil
+}
+
+// readRecords is the file as written, so a save can carry a record it has no
+// conversation for rather than dropping the mark on the floor.
+func readRecords(path string) ([]record, error) {
 	raw, err := os.ReadFile(path) //nolint:gosec // the user config directory plus a constant
 	if os.IsNotExist(err) {
-		return l, nil
+		return nil, nil
 	}
 
 	if err != nil {
@@ -78,31 +93,22 @@ func LoadLooked(path string) (*Looked, error) {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 
-	for _, r := range f.Conversation {
-		l.at[r.Key] = r.Looked
-	}
-
-	return l, nil
+	return f.Conversation, nil
 }
 
-// SaveLooked writes the marks, keeping only the conversations the queue still
-// carries. A mark for a resolved thread is dead weight, and a file that grows
-// forever is one nobody can read.
+// SaveLooked writes the marks this session holds for conversations still in
+// the queue, merged over whatever the file already holds. Two shells open at
+// once mark different conversations, and overwriting the file with this
+// session's view would erase the other's; the newer mark wins a conversation
+// both marked, and a mark the file holds for one this session never fetched is
+// kept, since the other session may be holding it live.
 func SaveLooked(path string, l *Looked, live []Conversation) error {
-	var f file
-
-	for i := range live {
-		c := &live[i]
-
-		at, ok := l.at[c.Key()]
-		if !ok {
-			continue
-		}
-
-		f.Conversation = append(f.Conversation, record{
-			Key: c.Key(), Looked: at, Where: c.Where(), Anchor: c.Anchor(),
-		})
+	earlier, err := readRecords(path)
+	if err != nil {
+		return err
 	}
+
+	f := mergedFile(l, earlier, live)
 
 	if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
 		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
@@ -118,6 +124,60 @@ func SaveLooked(path string, l *Looked, live []Conversation) error {
 	}
 
 	return nil
+}
+
+// mergedFile folds this session's marks over what the file already held, per
+// the merge SaveLooked documents, and returns what the file should now say.
+func mergedFile(l *Looked, earlier []record, live []Conversation) file {
+	merged := NewLooked()
+	stray := map[string]record{}
+
+	for _, r := range earlier {
+		merged.at[r.Key] = r.Looked
+		stray[r.Key] = r
+	}
+
+	liveKeys := make(map[string]bool, len(live))
+	for i := range live {
+		liveKeys[live[i].Key()] = true
+	}
+
+	for k, at := range l.at {
+		if !liveKeys[k] {
+			continue
+		}
+
+		if prev, ok := merged.at[k]; !ok || at.After(prev) {
+			merged.at[k] = at
+		}
+	}
+
+	var f file
+
+	for i := range live {
+		c := &live[i]
+
+		at, ok := merged.at[c.Key()]
+		if !ok {
+			continue
+		}
+
+		f.Conversation = append(f.Conversation, record{
+			Key: c.Key(), Looked: at, Where: c.Where(), Anchor: c.Anchor(),
+		})
+	}
+
+	for k, r := range stray {
+		if _, seen := liveKeys[k]; seen {
+			continue
+		}
+
+		if _, ok := merged.at[k]; ok {
+			f.Conversation = append(f.Conversation, r)
+		}
+	}
+
+	return f
 }
 
 // Since reports whether you have read the conversation as it now stands. A
