@@ -119,10 +119,10 @@ type Model struct {
 
 	// drawn is which renderer v is on, and refined and lexed are what the rich
 	// one reads: the runs of each changed line its partner does not carry, and
-	// the grammar's reading of each hunk, lexed the first time it is drawn.
+	// the grammar's reading of each file, lexed the first time it is drawn.
 	drawn   look
 	refined diff.Refined
-	lexed   map[hunkAt]map[diff.LineRef][]highlight.Span
+	lexed   map[string]map[diff.LineRef][]highlight.Span
 
 	// pending is the ] or [ waiting for the object that completes it.
 	pending rune
@@ -197,10 +197,15 @@ type Model struct {
 	next bool
 	// checkout is C, answered by the caller once the screen has closed.
 	checkout bool
-	// verifying is a head check still in flight. Nothing of the diff is drawn
-	// until it answers: a review out of the cache may be the previous head's,
-	// and a diff that turns out to be the older one has already been read by
-	// then.
+	// landing is the comment id the screen was opened on, consumed by the first
+	// rebuild with rows to search. A conversation opened out of the queue lands
+	// on the thread being answered instead of at the top of the diff.
+	landing int64
+	// verifying is a head check still in flight, named in the title until it
+	// answers. A check that lands late marks the moved head rather than
+	// holding the diff back: a review out of the cache is the current head's
+	// far more often than not, and a blank frame waiting on the forge is a
+	// wait paid on every open.
 	verifying bool
 	// newHead is the head the pull request is on now, set only when it is not
 	// the one this review was staged against. The title says so for as long as
@@ -241,6 +246,15 @@ func WithThreads(ts []threads.Thread) Option {
 	return func(m *Model) { m.threads = ts }
 }
 
+// WithAnchor lands the cursor on the thread whose first comment carries this
+// id, which is how the conversation queue opens the review at the thread being
+// answered rather than at the top of the diff. Zero lands nowhere, and a
+// thread the cached review does not carry is said to rather than searched for
+// forever.
+func WithAnchor(id int64) Option {
+	return func(m *Model) { m.landing = id }
+}
+
 // New builds the review screen for a prepared review and the diff it was
 // staged against.
 func New(
@@ -252,7 +266,7 @@ func New(
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
 		width: minWidth, height: startHeight, folded: newFolded(),
-		refined: d.Refine(), lexed: map[hunkAt]map[diff.LineRef][]highlight.Span{},
+		refined: d.Refine(), lexed: map[string]map[diff.LineRef][]highlight.Span{},
 		lit:    map[string][][]highlight.Span{},
 		drawn:  opening,
 		made:   generated.New(nil),
@@ -438,56 +452,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // says otherwise, and a message nothing here knows changes nothing.
 func (m *Model) answered(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
-	case editedMsg:
-		m.applyEdit(msg)
-
-		return nil
 	case sentMsg:
 		m.applySent(msg)
 
 		return tea.ClearScreen
-	case dispatchedMsg:
-		m.dispatched(msg)
-
-		return nil
 	case restagedMsg:
-		m.applyRestaged(msg)
-
-		return nil
+		return m.applyRestaged(msg)
 	case reloadMsg:
 		return m.reloaded(msg)
-	case blobMsg:
-		m.absorbBlob(msg)
-
-		return nil
-	case structureMsg:
-		m.applyStructure(msg)
-
-		return nil
-	case notesMsg:
-		m.applyNotes(msg)
-
-		return nil
-	case advisedMsg:
-		m.applyAdvisories(msg)
-
-		return nil
-	case hoverMsg:
-		m.applyHover(msg)
-
-		return nil
-	case headMsg:
-		m.applyHead(msg)
-
-		return nil
 	case mergedMsg:
 		m.applyMerge(msg)
 
 		return tea.ClearScreen
-	case branchDeletedMsg:
-		m.applyBranchDeleted(msg)
-
-		return nil
 	case submittedMsg:
 		m.applySubmit(msg)
 
@@ -499,7 +475,36 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 		return tea.ClearScreen
 	}
 
+	m.absorb(msg)
+
 	return nil
+}
+
+// absorb takes the messages that only add data, which is every answered()
+// case that hands nothing back to run.
+func (m *Model) absorb(msg tea.Msg) {
+	switch msg := msg.(type) {
+	case editedMsg:
+		m.applyEdit(msg)
+	case dispatchedMsg:
+		m.dispatched(msg)
+	case blobMsg:
+		m.absorbBlob(msg)
+	case structureMsg:
+		m.applyStructure(msg)
+	case notesMsg:
+		m.applyNotes(msg)
+	case advisedMsg:
+		m.applyAdvisories(msg)
+	case hoverMsg:
+		m.applyHover(msg)
+	case headMsg:
+		m.applyHead(msg)
+	case roundMsg:
+		m.applyRound(msg)
+	case branchDeletedMsg:
+		m.applyBranchDeleted(msg)
+	}
 }
 
 // motion is a direction and what to stop on, kept so n can repeat it.
@@ -785,9 +790,9 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case 'H':
-		m.sinceRound(msg.String())
+		cmd := m.sinceRound(msg.String())
 
-		return m, nil
+		return m, cmd
 	case ',':
 		m.reactTo(msg)
 
@@ -2381,6 +2386,36 @@ func (m *Model) rebuild() {
 	m.done = m.readHunks()
 	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()
+
+	if m.landing != 0 {
+		m.land()
+	}
+}
+
+// land puts the cursor on the thread the screen was opened at, once, on the
+// first rebuild with rows to find it in. The conversation's first comment id
+// is the thread's first note's, which is the id a reply quotes. A thread the
+// review does not carry is said to rather than landed nowhere in silence.
+func (m *Model) land() {
+	id := m.landing
+	m.landing = 0
+
+	for i := range m.screen.rows {
+		r := &m.screen.rows[i]
+		if r.kind != rowThread || !r.head {
+			continue
+		}
+
+		t := &m.threads[r.thread]
+		if len(t.Notes) > 0 && t.Notes[0].ID == id {
+			m.cursor = i
+			m.reveal()
+
+			return
+		}
+	}
+
+	m.say("the conversation is not in the threads this review carries", true)
 }
 
 // readHunks is every hunk already marked read, hashed once per rebuild rather

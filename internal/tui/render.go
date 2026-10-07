@@ -99,7 +99,7 @@ func (l look) caveat() string {
 	case l.structural:
 		return "a hunk is a fragment, so the symbol a body edit sits in is not knowable"
 	case l.rich:
-		return "a hunk is a fragment, so a grammar's state above it is lost"
+		return "a diff is a fragment, so a grammar's state above the file's first hunk is lost"
 	}
 
 	return ""
@@ -132,27 +132,23 @@ type depth struct {
 // text is colored by grammar, so the side has to be said by something that
 // leaves the foreground alone.
 //
-// The mark cannot go deeper than this. Moving it away from the band's lightness
-// moves it toward the text's, and the code on it stops being readable before the
-// two backgrounds are far enough apart to see, which is why the mark is
-// underlined as well.
+// The band is a hint rather than a wash, the way delta and GitHub draw it:
+// barely off the frame's own color, with the mark a clear step deeper so the
+// runs that changed are the loudest thing on the line. Deepening either one
+// past this trades the code on it for the band, which is the wrong side of
+// the line for a screen that exists to be read.
 //
 // A 256-color terminal gets deeper values, since the cube carries almost no
 // dark tints: held back there, added and removed both quantize into the grey
 // ramp and the band says nothing.
 const (
 	// What a terminal that mixes its own colors gets.
-	trueBandLift, trueBandSat = 0.12, 0.60
-	trueMarkLift, trueMarkSat = 0.32, 1.0
+	trueBandLift, trueBandSat = 0.11, 0.75
+	trueMarkLift, trueMarkSat = 0.34, 0.95
 	// What a 256-color terminal gets, deep enough to survive the cube.
 	cubeBandLift, cubeMarkLift = 0.14, 0.34
 	cubeSat                    = 1.0
 )
-
-// quietShare is how much of a context line's saturation is taken away. It has
-// to be saturation rather than lightness, which is what keeps every class as
-// legible against the frame as it was.
-const quietShare = 0.5
 
 var (
 	bandMix, markMix = depths(supportsMillions())
@@ -182,24 +178,20 @@ func supportsMillions() bool {
 // gh-sweep stay one visual family rather than each carrying a theme.
 type richStyles struct {
 	class map[highlight.Class]lipgloss.Style
-	// quiet is the same classes with half their saturation, which is what a
-	// context line is drawn in.
-	quiet map[highlight.Class]lipgloss.Style
 	// band and mark are the two depths of each side, indexed by the diff's own
 	// spelling of the line kind. A context line is in neither, which is what
 	// says it has no side.
 	band map[byte]color.Color
 	mark map[byte]color.Color
-	// sign is the one cell of full accent that says which side a line is on,
-	// painted in the column the +/- was already spending.
-	sign map[byte]lipgloss.Style
-	// gutter is the two line numbers, dimmer than the code they index.
+	// side is the green or red a line's side is said with: its sign and the
+	// line number the side carries, the way delta and GitHub color them rather
+	// than inverted.
+	side   map[byte]lipgloss.Style
 	gutter lipgloss.Style
 }
 
 func newRichStyles(s styles) richStyles {
 	p, base := s.palette, lipgloss.NewStyle()
-	chip := base.Foreground(p.Base).Bold(true)
 
 	faces := map[highlight.Class]lipgloss.Style{
 		highlight.Comment:     base.Foreground(p.Overlay1).Italic(true),
@@ -215,10 +207,9 @@ func newRichStyles(s styles) richStyles {
 
 	return richStyles{
 		class: faces,
-		quiet: quieted(faces),
-		sign: map[byte]lipgloss.Style{
-			diff.KindAdd:    chip.Background(p.Green),
-			diff.KindRemove: chip.Background(p.Red),
+		side: map[byte]lipgloss.Style{
+			diff.KindAdd:    base.Foreground(p.Green),
+			diff.KindRemove: base.Foreground(p.Red),
 		},
 		band: map[byte]color.Color{
 			diff.KindAdd:    blend(p.Base, p.Green, bandMix),
@@ -230,25 +221,6 @@ func newRichStyles(s styles) richStyles {
 		},
 		gutter: base.Foreground(p.Overlay0),
 	}
-}
-
-// quieted is the faces a context line is drawn in.
-func quieted(faces map[highlight.Class]lipgloss.Style) map[highlight.Class]lipgloss.Style {
-	out := make(map[highlight.Class]lipgloss.Style, len(faces))
-
-	for class := range faces {
-		face := faces[class]
-		out[class] = face.Foreground(dull(face.GetForeground()))
-	}
-
-	return out
-}
-
-func dull(c color.Color) color.Color {
-	from, _ := colorful.MakeColor(c)
-	hue, sat, light := from.Hsl()
-
-	return colorful.Hsl(hue, sat*quietShare, light).Clamped()
 }
 
 // richCode draws one line of the diff at exactly width cells: both line
@@ -282,20 +254,28 @@ func (m *Model) gutterWidth() int {
 }
 
 // richGutter is the old and the new number, the rule, and then the sign, which
-// sits against the code so it reads as the code's own left edge. A line on one
-// side leaves the other number blank rather than repeating itself, so the column
-// of numbers says at a glance which side each line is on even where color is
-// gone.
+// sits against the code so it reads as the code's own left edge. The number a
+// line's side carries is colored the way delta colors it, and a line on one
+// side leaves the other blank rather than repeating itself, so the column of
+// numbers says which side each line is on even where color is gone.
 func (m *Model) richGutter(l diff.Line) string {
-	return m.rich.gutter.Render(fmt.Sprintf("%s %s %s",
-		number(l.Old, m.screen.numWidth), number(l.New, m.screen.numWidth), rule)) +
-		m.signCell(l.Kind) + " "
+	oldNum := m.rich.gutter.Render(number(l.Old, m.screen.numWidth))
+	newNum := m.rich.gutter.Render(number(l.New, m.screen.numWidth))
+
+	switch l.Kind {
+	case diff.KindAdd:
+		newNum = m.rich.side[l.Kind].Render(number(l.New, m.screen.numWidth))
+	case diff.KindRemove:
+		oldNum = m.rich.side[l.Kind].Render(number(l.Old, m.screen.numWidth))
+	}
+
+	return oldNum + " " + newNum + " " + m.rich.gutter.Render(rule) + m.signCell(l.Kind) + " "
 }
 
-// signCell is the +/- on its own accent. The glyph stays, so a monochrome
-// terminal loses the emphasis and keeps the meaning.
+// signCell is the line's +/-. The glyph stays, so a monochrome terminal loses
+// the color and keeps the meaning.
 func (m *Model) signCell(kind byte) string {
-	style, ok := m.rich.sign[kind]
+	style, ok := m.rich.side[kind]
 	if !ok {
 		return " "
 	}
@@ -347,10 +327,6 @@ func (m *Model) richText(r row, l diff.Line, width int) (string, int) {
 	// A hunk already read keeps its band and loses its grammar: what the code
 	// says has been read, and what is left to read is the question.
 	faces := m.rich.class
-	if !ok {
-		faces = m.rich.quiet
-	}
-
 	if m.behind(r) {
 		faces = nil
 	}
@@ -363,7 +339,7 @@ func (m *Model) richText(r row, l diff.Line, width int) (string, int) {
 
 		style := under(face, band, ok)
 		if ok && covered(marked, piece.from) {
-			style = under(face, mark, true).Bold(true).Underline(true)
+			style = under(face, mark, true)
 		}
 
 		text, spent := expandFrom(l.Text[piece.from:piece.to], cols)
@@ -475,57 +451,70 @@ func refOf(path string, l diff.Line) diff.LineRef {
 }
 
 // spansFor is the grammar's reading of one line, lexed with the rest of its
-// hunk the first time the hunk is drawn and kept after that.
+// file the first time any of it is drawn and kept after that.
 //
-// A hunk rather than a file is what there is to lex: the patch carries no more
-// than that, which is also what makes the rich renderer work on a review
-// prepared with no checkout. The state above the hunk is what it loses, and the
-// caveat says so.
+// The diff's copy of the file rather than the file itself is what there is to
+// lex, which is also what makes the rich renderer work on a review prepared
+// with no checkout. Lexing the whole file's hunks together lets the grammar
+// carry state across them, so the only state lost is above the file's first
+// hunk; the caveat says so.
 func (m *Model) spansFor(r row, l diff.Line) []highlight.Span {
-	at := hunkAt{path: r.path, hunk: r.hunk}
-
-	read, ok := m.lexed[at]
+	read, ok := m.lexed[r.path]
 	if !ok {
-		read = m.lexHunk(at)
-		m.lexed[at] = read
+		read = m.lexFile(r.path)
+		m.lexed[r.path] = read
 	}
 
 	return read[refOf(r.path, l)]
 }
 
-// lexHunk lexes both sides of a hunk as whole texts and hands each line back
-// its own spans. The two sides are lexed apart because a patch interleaves
+// lexFile lexes both sides of a file's diff as whole texts and hands each line
+// back its own spans. The two sides are lexed apart because a patch interleaves
 // them, and a removed line followed by the line that replaced it is not a
 // program either side of it would recognize.
-func (m *Model) lexHunk(at hunkAt) map[diff.LineRef][]highlight.Span {
-	before, after := m.diff.Sides(at.path, at.hunk)
-	lexedBefore, lexedAfter := highlight.Lines(at.path, before), highlight.Lines(at.path, after)
+func (m *Model) lexFile(path string) map[diff.LineRef][]highlight.Span {
+	var file *diff.File
+	for i := range m.diff.Files {
+		if filePath(&m.diff.Files[i]) == path {
+			file = &m.diff.Files[i]
+
+			break
+		}
+	}
+	if file == nil {
+		return nil
+	}
+
+	var before, after []string
+	for _, l := range file.Lines {
+		switch l.Kind {
+		case diff.KindRemove:
+			before = append(before, l.Text)
+		case diff.KindAdd:
+			after = append(after, l.Text)
+		default:
+			before = append(before, l.Text)
+			after = append(after, l.Text)
+		}
+	}
+
+	lexedBefore, lexedAfter := highlight.Lines(path, before), highlight.Lines(path, after)
 
 	out := map[diff.LineRef][]highlight.Span{}
 	oldAt, newAt := 0, 0
 
-	for i := range m.diff.Files {
-		if filePath(&m.diff.Files[i]) != at.path {
-			continue
-		}
-
-		for _, l := range m.diff.Files[i].Lines {
-			if l.Hunk != at.hunk {
-				continue
-			}
-
-			switch l.Kind {
-			case diff.KindRemove:
-				out[refOf(at.path, l)] = spanAt(lexedBefore, oldAt)
-				oldAt++
-			case diff.KindAdd:
-				out[refOf(at.path, l)] = spanAt(lexedAfter, newAt)
-				newAt++
-			default:
-				out[refOf(at.path, l)] = spanAt(lexedAfter, newAt)
-				oldAt++
-				newAt++
-			}
+	for _, l := range file.Lines {
+		switch l.Kind {
+		case diff.KindRemove:
+			out[refOf(path, l)] = spanAt(lexedBefore, oldAt)
+			oldAt++
+		case diff.KindAdd:
+			out[refOf(path, l)] = spanAt(lexedAfter, newAt)
+			newAt++
+		default:
+			out[refOf(path, l)] = spanAt(lexedAfter, newAt)
+			oldAt++
+			newAt++
 		}
 	}
 

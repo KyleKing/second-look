@@ -1702,6 +1702,49 @@ func TestLandingOnAThreadCentersIt(t *testing.T) {
 	}
 }
 
+// The conversation queue opens the review at the thread being answered, not at
+// the top of the diff, which is what WithAnchor carries: the comment id the
+// reply quotes names the thread, and the first frame already sits on it. One
+// the review does not carry is said to rather than searched for.
+func TestOpeningAtAConversationLandsOnItsThread(t *testing.T) {
+	t.Parallel()
+
+	const deep = 30
+
+	patch := longPatch(t)
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	thread := threads.Thread{
+		Path: "first/file.go", Side: artifact.SideRight, Line: deep,
+		Notes: []threads.Note{{ID: 77, Author: "KyleKing", Body: "does this handle nil?"}},
+	}
+	open := func(id int64) *tui.Model {
+		m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path,
+			func(context.Context, *artifact.Review) (string, error) { return "", nil },
+			tui.WithThreads([]threads.Thread{thread}), tui.WithAnchor(id))
+		m.Init()
+		m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+		return m
+	}
+
+	if got := plain(open(77).Frame()); !strings.Contains(got, "does this handle nil?") {
+		t.Errorf("the first frame is not on the thread being answered:\n%s", got)
+	}
+
+	if got := plain(open(88).Frame()); !strings.Contains(got, "not in the threads") {
+		t.Errorf("a thread the review does not carry left no word:\n%s", got)
+	}
+}
+
 // A comment on a range renders under its end line like any other, so without
 // the span on its heading it reads as a comment on that one line and the four
 // above it look untouched.
@@ -3073,11 +3116,10 @@ func TestTheEndOfAReviewHasRoomBelowIt(t *testing.T) {
 	}
 }
 
-// A review out of the cache was staged against whatever the head was then, so
-// the diff waits behind the one question that says whether it still stands.
-// Drawing it first means the reader has read the older diff by the time the
-// screen admits it is the older one.
-func TestACachedReviewDrawsNothingUntilTheHeadIsChecked(t *testing.T) {
+// A review out of the cache draws immediately rather than waiting on the
+// forge: a staged diff is the current head's far more often than not, and a
+// head that moved is marked rather than waited for.
+func TestACachedReviewDrawsWhileTheHeadIsChecked(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -3107,19 +3149,19 @@ func TestACachedReviewDrawsNothingUntilTheHeadIsChecked(t *testing.T) {
 			m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
 			before := plain(m.Frame())
-			if strings.Contains(before, "first line 1") {
-				t.Errorf("the cached diff is drawn before the head is checked:\n%s", before)
+			if !strings.Contains(before, "first line 1") {
+				t.Errorf("the cached diff waits on the head check instead of drawing:\n%s", before)
 			}
 
-			if !strings.Contains(before, "checking the pull request head") {
-				t.Errorf("nothing says what is being waited on:\n%s", before)
+			if !strings.Contains(before, "checking head") {
+				t.Errorf("nothing says the check is still out:\n%s", before)
 			}
 
 			m.HeadChecked(tc.sha)
 
 			after := plain(m.Frame())
-			if !strings.Contains(after, "first line 1") {
-				t.Errorf("the diff never arrived:\n%s", after)
+			if strings.Contains(after, "checking head") {
+				t.Errorf("the check is still claimed after it answered:\n%s", after)
 			}
 
 			if tc.want != "" && !strings.Contains(after, tc.want) {

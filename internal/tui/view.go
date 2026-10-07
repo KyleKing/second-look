@@ -41,8 +41,6 @@ func (m *Model) render() string {
 		body = m.aboutLines()
 	case m.showing != nil:
 		body = m.hoverLines()
-	case m.verifying:
-		body = m.loadingLines()
 	}
 
 	return strings.Join(append(append([]string{m.title()}, body...), m.footerLines()...), "\n")
@@ -86,19 +84,6 @@ func (m *Model) title() string {
 
 	return m.styles.title.Render(left) +
 		strings.Repeat(" ", gap) + m.styles.subtitle.Render(right)
-}
-
-// loadingLines stands where the diff goes until the head check answers. A
-// review read out of the cache was staged against whatever the head was then,
-// so drawing it first means the reader has read the older diff by the time the
-// screen says so.
-func (m *Model) loadingLines() []string {
-	out := make([]string, m.viewHeight())
-	if len(out) > 0 {
-		out[0] = " " + m.styles.note.Render(cut("checking the pull request head…", m.width-1))
-	}
-
-	return out
 }
 
 // fitPath keeps the part of a path that says which file it is. Cutting a path
@@ -154,6 +139,10 @@ func (m *Model) facts() string {
 
 	if word := m.readCount(); word != "" {
 		parts = append(parts, word)
+	}
+
+	if m.verifying {
+		parts = append(parts, m.styles.note.Render("checking head…"))
 	}
 
 	if word := m.troubleWord(); word != "" {

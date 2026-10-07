@@ -62,8 +62,8 @@ func TestBothSidesStayApartAtEveryDepth(t *testing.T) {
 // tuned to, measured the way an eye reads them, so a palette change or a depth
 // tweak that flattens the diff fails here rather than in a review.
 //
-// The mark carries an underline as well, which is what lets its floor be the
-// low one: a background alone cannot get further from its band without getting
+// The mark is color alone, so its floor is the one that has to carry the
+// change: a background cannot get further from its band without getting
 // closer to the text sitting on it.
 func TestAChangeIsVisibleAndItsCodeStaysReadable(t *testing.T) {
 	t.Parallel()

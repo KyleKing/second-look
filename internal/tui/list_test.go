@@ -115,6 +115,31 @@ func TestListMovesARowAtATime(t *testing.T) {
 	}
 }
 
+// A queue is triaged by jumping between what is still unread, so u lands on
+// the next unread row whatever stands between and wraps around the end, and U
+// does the same walking back.
+func TestListJumpsBetweenUnreadRows(t *testing.T) {
+	t.Parallel()
+
+	l := list(t, nil)
+
+	for key, want := range map[string][]string{
+		"u": {"T2", "T1", "T2"},
+		"U": {"T2", "T1", "T2"},
+	} {
+		for i, at := range want {
+			code, _ := utf8.DecodeRuneInString(key)
+			l.Update(tea.KeyPressMsg{Code: code, Text: key})
+
+			if got := l.CursorKey(); got != at {
+				t.Errorf("%s press %d landed on %q, want %q", key, i+1, got, at)
+			}
+		}
+
+		l.Update(tea.KeyPressMsg{Code: 'g', Text: "g"})
+	}
+}
+
 // Expanding a row must not move the cursor off it, which is what happens if the
 // lines an expansion adds are counted as rows.
 func TestListKeepsTheCursorWhenARowExpands(t *testing.T) {

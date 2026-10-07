@@ -37,6 +37,14 @@ type Row struct {
 	Tail    string
 	Under   string
 
+	// Tone is the face the state word and the unread mark are drawn in. Zero
+	// leaves them plain, which is what most of a queue is.
+	Tone Tone
+	// Remote is what the forge says of the row, drawn after the tail in its
+	// own face, since it is the one thing local state cannot know.
+	Remote     string
+	RemoteTone Tone
+
 	// Unread marks a row that has moved since it was last read, which is the
 	// one distinction a queue exists to draw.
 	Unread bool
@@ -44,6 +52,27 @@ type Row struct {
 	// whose rows carry none is not expandable.
 	Detail []string
 }
+
+// Tone is how loud a word on a row is, mapped to a face by the screen rather
+// than the caller, which knows what it wants to say but not what this
+// terminal's warning looks like.
+type Tone int
+
+const (
+	// ToneOrdinary draws plain text, or the accent where the mark is drawn.
+	ToneOrdinary Tone = iota
+	// ToneGood marks work that is ready to go or already done.
+	ToneGood
+	// ToneWarn marks work that needs a decision.
+	ToneWarn
+	// ToneBad marks work that can no longer do what it was meant for.
+	ToneBad
+	// ToneMuted marks a word worth saying nowhere loudly.
+	ToneMuted
+	// ToneMerged marks work the pull request's merge made moot, drawn in the
+	// forge's own color for a merge.
+	ToneMerged
+)
 
 // Section is a group of rows under a heading. An empty section keeps its
 // heading, because "nothing is waiting on you" is the answer most worth seeing.
@@ -113,6 +142,8 @@ type listKeys struct {
 	Sort     key.Binding
 	Focus    key.Binding
 	Unfocus  key.Binding
+	Unread   key.Binding
+	UnreadUp key.Binding
 }
 
 func defaultListKeys() listKeys {
@@ -132,6 +163,8 @@ func defaultListKeys() listKeys {
 		Sort:     key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "sort")),
 		Focus:    key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "focus")),
 		Unfocus:  key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "every repository")),
+		Unread:   key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "next unread")),
+		UnreadUp: key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "last unread")),
 	}
 }
 
@@ -622,6 +655,24 @@ func (l *List) nextSection() {
 	l.to(0)
 }
 
+// nextUnread jumps to the next row carrying the unread mark, wrapping at the
+// ends, which is the motion a queue is triaged with: u, read or act, u again.
+func (l *List) nextUnread(step int) {
+	n := len(l.lines)
+	if n == 0 {
+		return
+	}
+
+	for d := step; d*step <= n; d += step {
+		i := ((l.cursor+d)%n + n) % n
+		if l.selectable(i) && l.lines[i].row.Unread {
+			l.to(i)
+
+			return
+		}
+	}
+}
+
 // scroll keeps scrollOff lines of context between the cursor and the edge of
 // the frame, so what is next is visible before the cursor reaches it.
 func (l *List) scroll() {
@@ -825,6 +876,10 @@ func (l *List) moved(msg tea.KeyPressMsg) bool {
 		l.to(len(l.lines) - 1)
 	case key.Matches(msg, l.list.Section):
 		l.nextSection()
+	case key.Matches(msg, l.list.Unread):
+		l.nextUnread(1)
+	case key.Matches(msg, l.list.UnreadUp):
+		l.nextUnread(-1)
 	default:
 		return false
 	}

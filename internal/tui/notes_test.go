@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -77,6 +78,40 @@ func TestABotsCommentArrivesFoldedAndOpensWhereItIsAsked(t *testing.T) {
 		if !strings.Contains(frame, want) {
 			t.Errorf("%q is missing:\n%s", want, frame)
 		}
+	}
+}
+
+// A size message arrives before the screen has ever drawn, and a terminal that
+// reports nothing (a pty nobody sized, a window narrower than the minimum)
+// used to take the layout into a negative Repeat. The draw gate still says the
+// screen is too small; the layout just has to survive getting there.
+func TestResizeBelowMinimum_LaysOutAThreadWithARule(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range []tea.WindowSizeMsg{
+		{Width: 0, Height: 0},
+		{Width: 10, Height: 5},
+		{Width: 79, Height: 9},
+	} {
+		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
+			t.Parallel()
+
+			open := threads.Thread{
+				Path: parsed, Side: artifact.SideRight, Line: 15,
+				Notes: []threads.Note{{ID: 77, Author: "bot", Body: "one side\n\n---\n\nother side"}},
+			}
+
+			_, path, _ := fixtureWith(t, patch)
+			m := tui.New(t.Context(), reviewAt(t, path), diff.Parse([]byte(patch)), path,
+				func(context.Context, *artifact.Review) (string, error) { return "", nil },
+				tui.WithThreads([]threads.Thread{open}))
+			m.Init()
+			m.Update(size)
+
+			if frame := m.Frame(); !strings.Contains(frame, "second-look needs") {
+				t.Errorf("a too-small screen should say so:\n%s", frame)
+			}
+		})
 	}
 }
 

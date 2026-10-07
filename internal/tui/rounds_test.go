@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -38,7 +39,7 @@ func TestComparingAgainstAnEarlierRoundHidesWhatItAlreadyCarried(t *testing.T) {
 			{SHA: "a1b2c3d", Staged: time.Now()},
 		},
 	}, patch)
-	m.SetRounds(func(string) (*diff.Diff, error) { return diff.Parse([]byte(earlier)), nil })
+	m.SetRounds(func(context.Context, string) (*diff.Diff, error) { return diff.Parse([]byte(earlier)), nil })
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	pressKey(m, 'H')

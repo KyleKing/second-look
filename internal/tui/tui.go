@@ -112,13 +112,17 @@ func WithHeadCheck(check HeadCheck) Option {
 
 // Restaged is a review prepared again against the head the pull request is on
 // now: the diff its comments anchor to, the conversations open on it, and the
-// hunks an earlier pass had already read.
+// hunks an earlier pass had already read. Blobs and Prober re-read context and
+// checkers at the new head; a restage that carries neither leaves the screen
+// without the old head's copies.
 type Restaged struct {
 	Review  *artifact.Review
 	Diff    *diff.Diff
 	Threads []threads.Thread
 	Read    *seen.Set
 	HeadSHA string
+	Blobs   Blobs
+	Prober  Prober
 }
 
 // Restager prepares the review again against the current head. It moves no

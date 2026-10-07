@@ -25,6 +25,10 @@ type Tab struct {
 	Subtitle func() string
 	Hints    [][2]string
 	Help     [][2]string
+	// Note is a short count drawn beside the tab's name in the strip, so a
+	// queue says how much it holds without being switched to. Empty draws
+	// nothing, which is what an unstarted or empty queue says.
+	Note func() string
 	// Loader fills the tab in as its answers arrive. It is started when the tab
 	// is first looked at rather than when the screen opens, so a queue nobody
 	// switched to costs no requests.
@@ -174,6 +178,12 @@ func (l *List) tabStrip() string {
 
 	for i := range l.tabs {
 		label := "[" + strconv.Itoa(i+1) + "] " + l.tabs[i].Name
+
+		if l.tabs[i].Note != nil {
+			if note := l.tabs[i].Note(); note != "" {
+				label += " · " + note
+			}
+		}
 
 		style := l.styles.subtitle
 		if i == l.at {

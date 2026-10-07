@@ -45,6 +45,7 @@ type styles struct {
 	warn     lipgloss.Style
 	fail     lipgloss.Style
 	ok       lipgloss.Style
+	merged   lipgloss.Style
 	severity map[string]lipgloss.Style
 }
 
@@ -90,6 +91,7 @@ func newStyles() styles {
 		warn:     sk.Warning,
 		fail:     sk.Error,
 		ok:       sk.Success,
+		merged:   base.Foreground(p.Mauve),
 		severity: map[string]lipgloss.Style{
 			"blocker": base.Foreground(p.Red).Bold(true),
 			"major":   base.Foreground(p.Peach).Bold(true),

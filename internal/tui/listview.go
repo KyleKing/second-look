@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // View draws the list. It is the same three bands as the review screen -- a
@@ -165,13 +166,19 @@ func (l *List) row(r *Row, cols columns) string {
 	b.WriteString(" ")
 
 	if r.Unread {
-		b.WriteString(l.styles.rail.Render("●"))
+		b.WriteString(l.toneFace(r.Tone).Render("●"))
 	} else {
 		b.WriteString(" ")
 	}
 
 	b.WriteString(" " + pad(cutTail(r.Left, cols.left), cols.left))
-	b.WriteString("  " + pad(cut(r.Mid, cols.mid), cols.mid))
+
+	mid := pad(cut(r.Mid, cols.mid), cols.mid)
+	if r.Tone != ToneOrdinary {
+		mid = l.toneFace(r.Tone).Render(mid)
+	}
+
+	b.WriteString("  " + mid)
 	// The age column is fixed rather than measured: "13h" and "4d" are the whole
 	// range, and letting it vary would move the columns beside it between lists.
 	const ageWidth = 5
@@ -193,7 +200,36 @@ func (l *List) row(r *Row, cols columns) string {
 		b.WriteString("  " + r.Tail)
 	}
 
+	if r.Remote != "" {
+		if r.Tail != "" {
+			b.WriteString(" · ")
+		} else {
+			b.WriteString("  ")
+		}
+
+		b.WriteString(l.toneFace(r.RemoteTone).Render(r.Remote))
+	}
+
 	return b.String()
+}
+
+// toneFace is the face a word is drawn at, with the ordinary tone taking the
+// accent, which is the mark's own color.
+func (l *List) toneFace(t Tone) lipgloss.Style {
+	switch t {
+	case ToneGood:
+		return l.styles.ok
+	case ToneWarn:
+		return l.styles.warn
+	case ToneBad:
+		return l.styles.fail
+	case ToneMuted:
+		return l.styles.hunk
+	case ToneMerged:
+		return l.styles.merged
+	default:
+		return l.styles.rail
+	}
 }
 
 // signed draws one side of a row's size: the sign in a column of its own so the

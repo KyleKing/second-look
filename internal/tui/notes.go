@@ -69,7 +69,8 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 	s := scribe{
 		at: index, path: path, lay: lay,
 		// bodyIndent is applied after wrapping, so it comes off the width first.
-		avail: proseCols(lay.width, numWidth) - bodyIndent,
+		// A frame laid out before its first size has width zero, so it floors.
+		avail: max(1, proseCols(lay.width, numWidth)-bodyIndent),
 	}
 
 	head := row{

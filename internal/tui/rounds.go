@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"context"
 	"strconv"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -10,10 +13,11 @@ import (
 	"github.com/kyleking/second-look/internal/seen"
 )
 
-// Rounds reads the diff cached at a head this review was read against, which is
-// what comparing against an earlier round needs. Every round is kept for as
-// long as the review is, so nothing here reaches the network.
-type Rounds func(sha string) (*diff.Diff, error)
+// Rounds reads the diff a head this review was read against carried, which is
+// what comparing against an earlier round needs. The cache answers while it
+// holds one; a head the pull request moved past is rebuilt from the forge, so
+// the call can take a network round trip.
+type Rounds func(ctx context.Context, sha string) (*diff.Diff, error)
 
 // WithRounds lets the screen compare against an earlier round. Without one the
 // key says the review carries none.
@@ -75,31 +79,50 @@ func roundHints(was []artifact.Round, now time.Time) [][2]string {
 
 // sinceRound answers the second key of the H chord: what has not changed since
 // the round it names is hidden, the way U hides what has already been read.
-func (m *Model) sinceRound(key string) {
+// The round's diff can be a fetch away, so it is read behind the frame rather
+// than on the key.
+func (m *Model) sinceRound(key string) tea.Cmd {
 	was := m.earlier()
 
 	at, err := strconv.Atoi(key)
 	if err != nil || at < 1 || at > len(was) {
 		m.say("no round for "+key+"; "+hintLine(styles{}, roundHints(was, time.Now())), false)
 
-		return
+		return nil
 	}
 
 	if m.rounds == nil {
 		m.say("this screen cannot read an earlier round's diff", true)
 
+		return nil
+	}
+
+	ctx, sha := m.ctx, was[at-1].SHA
+	m.say("reading the round at "+short(sha)+"…", false)
+
+	return func() tea.Msg {
+		old, err := m.rounds(ctx, sha)
+
+		return roundMsg{sha: sha, diff: old, err: err}
+	}
+}
+
+// roundMsg is the diff an earlier round was read against.
+type roundMsg struct {
+	sha  string
+	diff *diff.Diff
+	err  error
+}
+
+func (m *Model) applyRound(msg roundMsg) {
+	if msg.err != nil {
+		m.say("could not read the diff at "+short(msg.sha)+": "+msg.err.Error(), true)
+
 		return
 	}
 
-	old, err := m.rounds(was[at-1].SHA)
-	if err != nil {
-		m.say("could not read the diff at "+short(was[at-1].SHA)+": "+err.Error(), true)
-
-		return
-	}
-
-	m.since = hunksOf(old)
-	m.sinceSHA = was[at-1].SHA
+	m.since = hunksOf(msg.diff)
+	m.sinceSHA = msg.sha
 
 	m.rebuild()
 	m.reveal()
