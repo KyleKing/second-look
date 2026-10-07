@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/kyleking/aragonite/forge"
 	"github.com/kyleking/aragonite/forge/github"
@@ -23,6 +25,10 @@ var (
 	ErrNoPRForBranch = errors.New("this branch has no pull request; name one, or check one out")
 	ErrStaleReview   = errors.New("the prepared review was staged against an older head")
 )
+
+// A review whose base branch was never recorded leaves a head it moved past
+// with nothing to compare against.
+var errNoBase = errors.New("the review names no base to compare the head against")
 
 // Review is everything the review screen reads: the prepared review, the diff
 // its comments anchor to, and where the review is written back.
@@ -359,6 +365,49 @@ func load(t Target, pr *forge.PullRequest) (*artifact.Review, string, error) {
 	}
 
 	return review, path, nil
+}
+
+// RoundPatch reads the diff the pull request carried at an earlier head. A
+// round's patch is kept while the cache happens to hold it and rebuilt from
+// the forge when it does not: GitHub keeps a head reachable after the pull
+// request has moved past it, so a three-dot compare against the base branch
+// answers for the diff the round saw.
+func RoundPatch(ctx context.Context, t Target, base, sha string) ([]byte, error) {
+	if patch, err := artifact.LoadDiff(t.Store, sha); err == nil {
+		return patch, nil
+	}
+
+	if base == "" {
+		return nil, fmt.Errorf("%w: %s", errNoBase, short(sha))
+	}
+
+	//nolint:gosec // the endpoint is built from the review's own owner, repo, and two commit names
+	cmd := exec.CommandContext(ctx, "gh", "api",
+		"repos/"+t.Owner+"/"+t.Repo+"/compare/"+base+"..."+sha,
+		"-H", "Accept: application/vnd.github.diff")
+	cmd.Dir = t.Dir()
+
+	patch, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("reading the diff at %s: %w", short(sha), ghReason(err))
+	}
+
+	if err := artifact.SaveDiff(t.Store, sha, patch); err != nil {
+		return nil, fmt.Errorf("caching the diff at %s: %w", short(sha), err)
+	}
+
+	return patch, nil
+}
+
+// ghReason puts gh's own stderr in the message, which is where its reason for
+// refusing lives; the exit status alone says nothing.
+func ghReason(err error) error {
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && len(exit.Stderr) > 0 {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(exit.Stderr)))
+	}
+
+	return err
 }
 
 // patchFor reads the diff the review's comments were anchored against, fetching
