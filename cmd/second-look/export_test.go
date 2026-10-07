@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
@@ -45,6 +46,14 @@ func StagedRow(review prepared.Review, repo, head string, remote ...prstate.Stat
 	}
 
 	return tail, err == nil
+}
+
+// StagedAgent is what a staged row says of the session recorded on it and how
+// loudly, given the listing's last answer.
+func StagedAgent(review prepared.Review, live map[string]agents.Live) (string, tui.Tone) {
+	s := &reviewsScreen{rows: []prepared.Review{review}, live: live}
+
+	return s.agentWord(&s.rows[0]), s.agentTone(&s.rows[0])
 }
 
 // StagedOrder is the order the staged tab would list the reviews in, across

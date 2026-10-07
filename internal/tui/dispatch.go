@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/brief"
 )
@@ -86,4 +87,45 @@ func (m *Model) dispatched(msg dispatchedMsg) {
 	}
 
 	m.say(msg.line, false)
+}
+
+// probeAgent asks what the session recorded on the review is doing, behind the
+// first frame like the other reads. A review with no session recorded asks
+// nothing, the same as one with no listing configured.
+func (m *Model) probeAgent() tea.Cmd {
+	if m.agentProbe == nil || m.review.Agent.Session == "" {
+		return nil
+	}
+
+	ask, session := m.agentProbe, m.review.Agent.Session
+
+	return func() tea.Msg {
+		state, err := ask(context.Background(), session)
+		if err != nil {
+			return nil
+		}
+
+		return agentStateMsg{state: state}
+	}
+}
+
+// agentStateMsg is what the listing last said of the recorded session.
+type agentStateMsg struct {
+	state string
+}
+
+// agentWord is the fact the title carries about the session working the
+// review: the tool's own state word, said loudly only when it is waiting on an
+// answer.
+func (m *Model) agentWord() string {
+	switch m.agentState {
+	case "":
+		return ""
+	case agents.Blocked:
+		return m.styles.warn.Render("agent blocked")
+	case agents.Done:
+		return m.styles.ok.Render("agent done")
+	default:
+		return "agent " + m.agentState
+	}
 }

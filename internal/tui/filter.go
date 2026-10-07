@@ -102,7 +102,7 @@ func (f filter) keeps(section string, r *Row) bool {
 		return true
 	}
 
-	hay := strings.Join([]string{section, r.Left, r.Mid, r.Tail, r.Under}, "\x00")
+	hay := strings.Join([]string{section, r.Left, r.Mid, r.Tail, r.Under, r.Agent}, "\x00")
 
 	return filterpkg.Match(text, hay)
 }

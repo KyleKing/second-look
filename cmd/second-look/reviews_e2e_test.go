@@ -12,9 +12,11 @@ import (
 	"github.com/kyleking/aragonite/ghcassette"
 
 	main "github.com/kyleking/second-look/cmd/second-look"
+	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/prepared"
 	"github.com/kyleking/second-look/internal/prstate"
+	"github.com/kyleking/second-look/internal/tui"
 )
 
 // `reviews` reads the directory and nothing else, so its cassette is empty and
@@ -287,6 +289,46 @@ func TestAStagedRowSaysWhetherThisDirectoryHoldsItsCode(t *testing.T) {
 
 			if acts != tc.acts {
 				t.Errorf("C acting on it is %v, want %v", acts, tc.acts)
+			}
+		})
+	}
+}
+
+// The row's last word is what the session recorded on it is doing: a blocked
+// agent is the loudest thing on the list, a finished one is work to read, and
+// one the listing no longer names ended, which is nothing to say.
+func TestAStagedRowSaysWhatItsAgentIsDoing(t *testing.T) {
+	t.Parallel()
+
+	live := map[string]agents.Live{
+		"sess-blocked": {Session: "sess-blocked", State: agents.Blocked},
+		"sess-done":    {Session: "sess-done", State: agents.Done},
+		"sess-busy":    {Session: "sess-busy", State: "busy"},
+	}
+
+	for _, tc := range []struct {
+		name    string
+		session string
+		want    string
+		tone    tui.Tone
+	}{
+		{name: "asking a question", session: "sess-blocked", want: "agent blocked", tone: tui.ToneWarn},
+		{name: "work waiting to be read", session: "sess-done", want: "agent done", tone: tui.ToneGood},
+		{name: "still running", session: "sess-busy", want: "agent busy", tone: tui.ToneMuted},
+		{name: "ended", session: "sess-gone", want: "", tone: tui.ToneOrdinary},
+		{name: "none recorded", want: "", tone: tui.ToneOrdinary},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			review := prepared.Review{
+				Repository: "acme/api", Number: 5,
+				Agent: artifact.Agent{Session: tc.session},
+			}
+
+			got, tone := main.StagedAgent(review, live)
+			if got != tc.want || tone != tc.tone {
+				t.Errorf("the row says %q/%v, want %q/%v", got, tone, tc.want, tc.tone)
 			}
 		})
 	}

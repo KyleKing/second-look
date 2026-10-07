@@ -58,6 +58,10 @@ type Review struct {
 	// store, which is what an artifact tree that could not be moved looks like.
 	Stray bool `json:"stray,omitempty"`
 
+	// Agent is the session an agent recorded working this review, empty where
+	// none has. The queue's probe looks it up to say what the agent is doing.
+	Agent artifact.Agent `json:"agent,omitzero"`
+
 	// Broken is why a file on disk could not be read as a review. The row still
 	// lists: a file that no longer parses is the one most worth knowing about,
 	// and dropping it silently would hide the only report anyone gets.
@@ -275,6 +279,7 @@ func read(path string, number int) Review {
 		row.Rounds = append(row.Rounds, r.Rounds[i].SHA)
 	}
 
+	row.Agent = r.Agent
 	row.Body = strings.TrimSpace(r.Body) != ""
 
 	for i := range r.Comments {

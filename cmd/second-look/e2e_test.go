@@ -5,6 +5,7 @@ package main_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -354,6 +355,12 @@ func scratchRepo(t *testing.T, branch string) (string, string) {
 func seedReview(t *testing.T, dir, sha string) {
 	t.Helper()
 
+	seedReviewAt(t, stored(t, dir), sha)
+}
+
+func seedReviewAt(t *testing.T, root, sha string) {
+	t.Helper()
+
 	// #nosec G304,G703 -- a fixture in this package
 	raw, err := os.ReadFile(filepath.Join("testdata", "review", "staged.toml"))
 	if err != nil {
@@ -361,7 +368,27 @@ func seedReview(t *testing.T, dir, sha string) {
 	}
 
 	body := strings.ReplaceAll(string(raw), fixtureHeadSHA, sha)
-	write(t, artifact.Path(stored(t, dir), 2), []byte(body))
+	write(t, artifact.Path(root, 2), []byte(body))
+}
+
+// seedReviewSessionAt writes a bare review carrying a recorded agent session,
+// which is what the screens and status look a live session up by.
+func seedReviewSessionAt(t *testing.T, root, sha, session string, number int) {
+	t.Helper()
+
+	body := fmt.Sprintf(`version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = %d
+head_sha = "%s"
+
+[agent]
+session = "%s"
+tool = "claude"
+`, number, sha, session)
+
+	write(t, artifact.Path(root, number), []byte(body))
 }
 
 // seedThreads caches the recorded conversations onto the scratch head, which is

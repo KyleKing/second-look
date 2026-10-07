@@ -17,6 +17,7 @@ import (
 	"github.com/kyleking/aragonite/vcs"
 
 	"github.com/kyleking/second-look/internal/advisory"
+	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/brief"
@@ -137,7 +138,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		"threads": func() error { return threadsCmd(ctx, args[1:], stdin, stdout) },
 		"reviews": func() error { return reviewsCmd(ctx, args[1:], stdin, stdout) },
 		"session": func() error { return sessionCmd(ctx, args[1:], stdout) },
-		"status":  func() error { return statusCmd(args[1:], stdout) },
+		"status":  func() error { return statusCmd(ctx, args[1:], stdout) },
 		"gc":      func() error { return gcCmd(ctx, args[1:], stdout) },
 		"skill":   func() error { return skillCmd(args[1:], stdout) },
 	}
@@ -400,6 +401,10 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 
 	if d := dispatcher(); d != nil {
 		opts = append(opts, tui.WithDispatcher(d))
+	}
+
+	if p := agentProbe(); p != nil {
+		opts = append(opts, tui.WithAgentProbe(p))
 	}
 
 	// Deleting a branch is local housekeeping, so it is only offered where
@@ -1010,6 +1015,33 @@ func dispatcher() tui.Dispatcher {
 	}
 }
 
+// agentProbe answers what a recorded session is doing by running the
+// configured listing once per ask. It is nil where the config names none, the
+// same default the dispatcher keeps: probing is not something to run because a
+// review happens to record a session.
+func agentProbe() tui.AgentProbe {
+	cfg, err := loadConfig()
+	if err != nil || len(cfg.Agents) == 0 {
+		return nil
+	}
+
+	argv := slices.Clone(cfg.Agents)
+
+	return func(ctx context.Context, session string) (string, error) {
+		live, err := agents.List(ctx, argv)
+		if err != nil {
+			return "", fmt.Errorf("listing the agent's sessions: %w", err)
+		}
+
+		one, ok := live[session]
+		if !ok {
+			return "", nil
+		}
+
+		return one.State, nil
+	}
+}
+
 func generatedPatterns() []string {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -1117,7 +1149,7 @@ func reviewsCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.W
 // queue's last read left unanswered and what is staged on this disk. It reads
 // nothing remote, so it can run at every prompt; the conversation count is as
 // old as the last refresh and the line says so.
-func statusCmd(args []string, stdout io.Writer) error {
+func statusCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	if len(args) != 0 {
 		return errUsageStatus
 	}
@@ -1164,6 +1196,10 @@ func statusCmd(args []string, stdout io.Writer) error {
 		parts = append(parts, word)
 	}
 
+	if live := liveAgents(ctx, rows); live != "" {
+		parts = append(parts, live)
+	}
+
 	if last.Updated.IsZero() {
 		parts = append(parts, "the queue has not been read")
 	} else {
@@ -1171,6 +1207,49 @@ func statusCmd(args []string, stdout io.Writer) error {
 	}
 
 	return write(stdout, strings.Join(parts, " · ")+"\n")
+}
+
+// liveAgents is what the configured listing says of the sessions recorded on
+// staged reviews, run fresh rather than read off the snapshot: an agent that
+// blocked since the queue last ran is the notification the line exists for.
+// It is a local subprocess and it only runs when `agents` is configured, which
+// is the opt-in a per-prompt call would otherwise pay for blindly.
+func liveAgents(ctx context.Context, rows []prepared.Review) string {
+	cfg, err := loadConfig()
+	if err != nil || len(cfg.Agents) == 0 {
+		return ""
+	}
+
+	live, err := agents.List(ctx, cfg.Agents)
+	if err != nil {
+		return ""
+	}
+
+	waiting, done := 0, 0
+
+	for i := range rows {
+		one, ok := live[rows[i].Agent.Session]
+		if !ok {
+			continue
+		}
+
+		switch one.State {
+		case agents.Blocked:
+			waiting++
+		case agents.Done:
+			done++
+		}
+	}
+
+	var out []string
+	if waiting > 0 {
+		out = append(out, humanize.Plural(waiting, "agent")+" waiting on you")
+	}
+	if done > 0 {
+		out = append(out, humanize.Plural(done, "agent")+" finished")
+	}
+
+	return strings.Join(out, " · ")
 }
 
 // staleFor is how long a review with nothing postable sits before --stale

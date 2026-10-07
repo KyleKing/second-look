@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/tui"
@@ -192,6 +193,61 @@ func TestDispatchCarriesTheSessionTheAgentRecorded(t *testing.T) {
 
 			if written == "" {
 				t.Error("T ran the agent without writing the set out")
+			}
+		})
+	}
+}
+
+// The title says what the session recorded on the review is doing, loudly when
+// it is the one thing waiting on the reader, and says nothing where the
+// listing does not name the session: an absent session ended.
+func TestTheTitleSaysWhatTheAgentIsDoing(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		name    string
+		state   string
+		listed  bool
+		want    string
+		wantNot string
+	}{
+		{name: "waiting on an answer", state: agents.Blocked, listed: true, want: "agent blocked"},
+		{name: "work that landed", state: agents.Done, listed: true, want: "agent done"},
+		{name: "still running", state: "busy", listed: true, want: "agent busy"},
+		{name: "a session that ended", listed: false, wantNot: "agent "},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			review := &artifact.Review{
+				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+				HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+				Agent: artifact.Agent{Session: "sess-1"},
+			}
+
+			path := filepath.Join(t.TempDir(), "pr-42.toml")
+			if err := artifact.Save(path, review); err != nil {
+				t.Fatal(err)
+			}
+
+			m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path, (&counter{}).post,
+				tui.WithAgentProbe(func(_ context.Context, session string) (string, error) {
+					if session != "sess-1" || !c.listed {
+						return "", nil
+					}
+
+					return c.state, nil
+				}))
+			m.Init()
+			m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+			m.Probed()
+
+			frame := plain(m.Frame())
+			if c.want != "" && !strings.Contains(frame, c.want) {
+				t.Errorf("the title is missing %q:\n%s", c.want, frame)
+			}
+			if c.wantNot != "" && strings.Contains(frame, c.wantNot) {
+				t.Errorf("an ended session still speaks in the title:\n%s", frame)
 			}
 		})
 	}

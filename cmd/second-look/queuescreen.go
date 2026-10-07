@@ -74,7 +74,13 @@ func queueOnce(
 		return -1, where, err
 	}
 
-	rv := &reviewsScreen{ctx: ctx, rows: rows, here: currentRepo(ctx), head: currentHead(ctx)}
+	rv := &reviewsScreen{
+		ctx:   ctx,
+		rows:  rows,
+		here:  currentRepo(ctx),
+		head:  currentHead(ctx),
+		probe: cfg.Agents,
+	}
 
 	list := tui.NewTabs([]tui.Tab{
 		{

@@ -157,6 +157,18 @@ func WithDispatcher(d Dispatcher) Option {
 	return func(m *Model) { m.dispatcher = d }
 }
 
+// AgentProbe answers what the session recorded on the review is doing, in the
+// tool's own word: blocked, busy, or done. Empty is a session the listing no
+// longer names, which is an ended run rather than an answer.
+type AgentProbe func(ctx context.Context, session string) (string, error)
+
+// WithAgentProbe lets the title say what the agent working the review is
+// doing. Without one it says nothing, which is also what a review with no
+// session recorded gets.
+func WithAgentProbe(p AgentProbe) Option {
+	return func(m *Model) { m.agentProbe = p }
+}
+
 // WithOpener allows o to open the pull request in a browser. Without one, the
 // key says so rather than appearing to work.
 func WithOpener(open Opener) Option {

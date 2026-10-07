@@ -70,6 +70,11 @@ type Model struct {
 	// store is the directory this review's caches live in, which is where the
 	// rating is left for the queue to read.
 	store string
+	// agentProbe asks what the review's recorded session is doing, and
+	// agentState is its last answer. A session the listing does not name is an
+	// ended run, so the title says nothing rather than a stale word.
+	agentProbe AgentProbe
+	agentState string
 	// dispatcher hands the todo set to an agent, and is nil where nothing is
 	// configured to receive it.
 	dispatcher Dispatcher
@@ -290,7 +295,7 @@ func (m *Model) Init() tea.Cmd {
 	// t is a redraw by the time anyone presses it.
 	m.wrote, _ = stampOf(m.path)
 
-	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe()}
+	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe(), m.probeAgent()}
 	if structure.Available() {
 		cmds = append(cmds, readStructure(m.diff, m.made))
 	}
@@ -500,6 +505,8 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applyHover(msg)
 	case headMsg:
 		m.applyHead(msg)
+	case agentStateMsg:
+		m.agentState = msg.state
 	case roundMsg:
 		m.applyRound(msg)
 	case branchDeletedMsg:

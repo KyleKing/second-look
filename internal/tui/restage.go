@@ -94,7 +94,7 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 
 	m.say(restagedWord(was, len(m.review.Comments), msg.fresh.HeadSHA), false)
 
-	cmds := []tea.Cmd{m.probe()}
+	cmds := []tea.Cmd{m.probe(), m.probeAgent()}
 	if structure.Available() {
 		cmds = append(cmds, readStructure(m.diff, m.made))
 	}

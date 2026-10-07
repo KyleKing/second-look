@@ -59,11 +59,11 @@ built yet. [FLOW.md](FLOW.md) is what the shell is for: the whole motion from op
 queue to posting the last review, one repository at a time. `f` focuses a repository across
 all three tabs, which is what makes the two steps after it single-valued. One of those is
 built: an agent records its own session with `second-look session` and `T` resumes it, so a
-second hand-over reaches the agent that already read the diff. Leasing a checkout for the
-focused repository is what is left, and the notification boundary still wants a source,
-which `claude agents --json` has: it says which session is blocked on a prompt. The session
-cutoff line and the recently-opened list are the other two, both waiting on a week of use
-rather than on code (see below).
+second hand-over reaches the agent that already read the diff. The configured `agents`
+listing gives the notification boundary its source now — a blocked session shows on the
+staged row and in `status`. Leasing a checkout for the focused repository is what is left.
+The session cutoff line and the recently-opened list are the other two, both waiting on a
+week of use rather than on code (see below).
 
 `C` (checkout) and a posted review asking for the next one staged still quit the shell's
 program the way the old handoff did, since both need the terminal released or a fresh
@@ -227,28 +227,27 @@ and opt-in, because both cost real extra passes.
 
 ### 10. An agent session is invisible while it is working
 
-`T` hands the todo set over and resumes the session recorded on the review, and that is
-the whole of what the screen knows. It cannot say whether a session is running right now,
-whether it is blocked waiting to be answered, or how to get into the conversation, so the
-one thing a reviewer wants to know mid-review (is it still working, and what is it asking
-me) is only answerable by leaving the screen.
-
-`claude agents --json` answers it: it lists every session with its id, its working
-directory, and a state, `blocked` among them, so matching the review's recorded
-`Agent.Session` against that list is enough for an indicator and for the notification
-boundary [FLOW.md](FLOW.md) wants. Two things have to be decided first.
-
-The dispatcher is deliberately tool-agnostic, configured as argv in `config.toml`, so
-probing with a Claude Code command would be the first thing here that knows which agent it
-is talking to. The consistent shape is a third configured command whose output carries the
-session ids, next to `dispatch` and `resume`.
+The visibility half is built. `agents` is the third configured command next to `dispatch`
+and `resume`, whose stdout is a JSON array of `sessionId` and `state` (or `status`), in the
+shape `claude agents --json` prints. The staged tab and the review screen match a review's
+recorded `Agent.Session` against it and draw `agent blocked`/`agent done` where the listing
+names the session, and `second-look status` counts the sessions waiting on an answer. A
+session absent from the listing ended, so nothing says anything stale.
 
 Getting into the chat is the other half and it is a different act from dispatching. `T`
 runs a headless command and reports one line, whereas attaching means handing the terminal
-over the way the shell key already does, and coming back to a review whose comments the
-agent may have rewritten underneath. `ctrl+t` already reloads rather than clobbers, so the
-machinery for the return is there. What is missing is the key and the decision that
-attaching is worth the handoff.
+over the way the shell key already does. The stronger answer is ACP (the Agent Client
+Protocol, Zed's JSON-RPC-over-stdio analogue of LSP): second-look stays the client, spawns
+the agent's ACP adapter, and gets `session/update` pushes and inbound permission requests
+rather than a state discovered by polling. Claude Code reaches it through
+`@zed-industries/claude-agent-acp`, which now supports `session/load` and
+`session/list`, so resuming a dispatched session in-band is real. ACP also generalizes past
+one tool, where `claude attach <id>` does not. It does not replace the listing probe: a
+session dispatched with `--bg` hours ago, with no second-look running, is only knowable
+through the listing. What is missing is the pane — streaming updates, a prompt box, and
+permission handling inside the review screen — which is a feature of its own rather than a
+keybinding, and an SDK choice (`caelis-labs/acp-go-sdk` and `coder/acp-go-sdk` are the Go
+options) made when it is spiked rather than before.
 
 ## Waiting on use rather than on code
 

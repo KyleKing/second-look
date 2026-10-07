@@ -210,6 +210,16 @@ func (l *List) row(r *Row, cols columns) string {
 		b.WriteString(l.toneFace(r.RemoteTone).Render(r.Remote))
 	}
 
+	if r.Agent != "" {
+		if r.Tail != "" || r.Remote != "" {
+			b.WriteString(" · ")
+		} else {
+			b.WriteString("  ")
+		}
+
+		b.WriteString(l.toneFace(r.AgentTone).Render(r.Agent))
+	}
+
 	return b.String()
 }
 

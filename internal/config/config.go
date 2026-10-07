@@ -110,6 +110,13 @@ type Config struct {
 	// The id is recorded by the agent itself through `second-look session`, so
 	// nothing here has to know how a tool prints one.
 	Resume []string `toml:"resume,omitempty"`
+	// Agents is the command that lists an agent tool's live sessions, in argv.
+	// Its stdout is a JSON array in the shape `claude agents --json` prints:
+	// objects carrying sessionId, which is the id a review records, and state,
+	// which the screen repeats rather than interprets. Unset, nothing probes
+	// and a session's state stays invisible, which is what a tool with no
+	// listing gets.
+	Agents []string `toml:"agents,omitempty"`
 	// Checks are run over the review's files alongside the language server, and
 	// their findings are listed with its. Unset, the review shows what the
 	// language server says and nothing else: running a command on a keystroke

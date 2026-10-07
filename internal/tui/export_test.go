@@ -205,3 +205,16 @@ func (m *Model) Checked() {
 		m.applyNotes(msg)
 	}
 }
+
+// Probed delivers the agent listing's answer the way Init's command landing
+// does, since a test has no program loop to run it through.
+func (m *Model) Probed() {
+	cmd := m.probeAgent()
+	if cmd == nil {
+		return
+	}
+
+	if msg, ok := cmd().(agentStateMsg); ok {
+		m.agentState = msg.state
+	}
+}

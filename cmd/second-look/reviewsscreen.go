@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/prepared"
@@ -53,6 +54,11 @@ type reviewsScreen struct {
 	// asked is every row already read, so a cursor moving back and forth costs
 	// one request per row rather than one per pass.
 	asked map[string]bool
+	// probe is the configured command listing an agent's live sessions, and
+	// live is its last answer keyed by the session id a review records. A row
+	// whose agent is asking a question is the one still moving.
+	probe []string
+	live  map[string]agents.Live
 }
 
 // Start reads the directory again and forgets what the forge said, which is
@@ -68,7 +74,31 @@ func (s *reviewsScreen) Start() tea.Cmd {
 	s.rows = rows
 	s.remote, s.asked = nil, nil
 
-	return s.askAll()
+	return tea.Batch(s.askAll(), s.probeAgents())
+}
+
+// agentsMsg is every session the configured listing answered, keyed by the id
+// a review records.
+type agentsMsg map[string]agents.Live
+
+// probeAgents asks the configured listing once for the whole screen. A listing
+// nobody configured costs nothing and says nothing, the same as a tool that
+// cannot name its sessions.
+func (s *reviewsScreen) probeAgents() tea.Cmd {
+	if len(s.probe) == 0 {
+		return nil
+	}
+
+	argv := s.probe
+
+	return func() tea.Msg {
+		live, err := agents.List(s.ctx, argv)
+		if err != nil {
+			return nil
+		}
+
+		return agentsMsg(live)
+	}
 }
 
 // stateMsg is one row's remote state.
@@ -179,6 +209,8 @@ func (s *reviewsScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
 		for key, state := range answered {
 			s.remote[key] = state
 		}
+	case agentsMsg:
+		s.live = answered
 	default:
 		return nil, false
 	}
@@ -241,20 +273,30 @@ func (s *reviewsScreen) counts() string {
 }
 
 // note is what the tab strip says: how many staged reviews are holding a
-// draft, which is the number that means there is a decision to make here.
+// draft, which is the number that means there is a decision to make here, and
+// how many agents are waiting on an answer, which is the reason to open it.
 func (s *reviewsScreen) note() string {
-	blocked := 0
+	blocked, waiting := 0, 0
+
 	for i := range s.rows {
 		if s.rows[i].Blocked() {
 			blocked++
 		}
+
+		if live, ok := s.live[s.rows[i].Agent.Session]; ok && live.State == agents.Blocked {
+			waiting++
+		}
 	}
 
-	if blocked == 0 {
-		return ""
+	var parts []string
+	if blocked > 0 {
+		parts = append(parts, fmt.Sprintf("%d blocked", blocked))
+	}
+	if waiting > 0 {
+		parts = append(parts, humanize.Plural(waiting, "agent")+" waiting")
 	}
 
-	return fmt.Sprintf("%d blocked", blocked)
+	return strings.Join(parts, " · ")
 }
 
 // sections puts each stack in its own group, then splits what is left by where
@@ -361,6 +403,42 @@ func (s *reviewsScreen) reviewRow(r *prepared.Review, now time.Time) tui.Row {
 		Unread:     r.Blocked() || r.Broken != "",
 		Remote:     word,
 		RemoteTone: tone,
+		Agent:      s.agentWord(r),
+		AgentTone:  s.agentTone(r),
+	}
+}
+
+// agentWord is what the session recorded on a review is doing, and empty where
+// no session is recorded or the listing does not name it. A recorded session
+// absent from the listing ended, which is nothing the row needs to say.
+func (s *reviewsScreen) agentWord(r *prepared.Review) string {
+	if r.Agent.Session == "" {
+		return ""
+	}
+
+	live, ok := s.live[r.Agent.Session]
+	if !ok || live.State == "" {
+		return ""
+	}
+
+	return "agent " + live.State
+}
+
+// agentTone is how loud the session's state is: blocked is the one asking to
+// be answered, done is work that landed, and the rest say a run is in motion.
+func (s *reviewsScreen) agentTone(r *prepared.Review) tui.Tone {
+	live, ok := s.live[r.Agent.Session]
+	if !ok {
+		return tui.ToneOrdinary
+	}
+
+	switch live.State {
+	case agents.Blocked:
+		return tui.ToneWarn
+	case agents.Done:
+		return tui.ToneGood
+	default:
+		return tui.ToneMuted
 	}
 }
 

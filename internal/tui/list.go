@@ -44,6 +44,11 @@ type Row struct {
 	// own face, since it is the one thing local state cannot know.
 	Remote     string
 	RemoteTone Tone
+	// Agent is what the agent working the review is doing, drawn last in its
+	// own face: a session asking a question is the one thing on the row still
+	// moving.
+	Agent     string
+	AgentTone Tone
 
 	// Unread marks a row that has moved since it was last read, which is the
 	// one distinction a queue exists to draw.

@@ -145,6 +145,10 @@ func (m *Model) facts() string {
 		parts = append(parts, m.styles.note.Render("checking head…"))
 	}
 
+	if word := m.agentWord(); word != "" {
+		parts = append(parts, word)
+	}
+
 	if word := m.troubleWord(); word != "" {
 		parts = append(parts, m.styles.warn.Render(word))
 	}

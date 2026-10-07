@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -46,6 +47,50 @@ func TestStatus(t *testing.T) {
 		if !strings.Contains(res.stdout, want) {
 			t.Errorf("the status line %q is missing %q", res.stdout, want)
 		}
+	}
+}
+
+// A configured listing runs fresh, and what it says of the sessions recorded
+// on staged reviews joins the line: a blocked agent is the notification the
+// line exists for. A session the listing does not name ended, so it counts
+// for nothing.
+func TestStatusCountsWhatTheListingSays(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, "main")
+	home := quietHome(t)
+
+	list := filepath.Join(home, "agents.sh")
+	write(t, list, []byte("#!/bin/sh\nprintf '%s' '["+
+		`{"sessionId":"sess-waiting","state":"blocked"},`+
+		`{"sessionId":"sess-done","state":"done"},`+
+		`{"sessionId":"sess-unstaged","state":"blocked"}`+
+		"]'\n"))
+	if err := os.Chmod(list, 0o700); err != nil { // #nosec G302 -- the stub has to run
+		t.Fatalf("marking the stub listing executable: %v", err)
+	}
+
+	write(t, filepath.Join(home, ".config", "second-look", "config.toml"),
+		[]byte("agents = [\""+list+"\"]\n"))
+
+	root := storeFor(t, home, "KyleKing", "second-look")
+	seedReviewAt(t, root, sha)
+	seedReviewSessionAt(t, root, sha, "sess-waiting", 3)
+
+	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "status-agents", func(c *ghcassette.Cassette) {
+		c.Interactions = nil
+	}))
+
+	res := runCLIEnv(t, s, dir, homeEnv(home), "status")
+	if res.code != 0 {
+		t.Fatalf("status: %s", res.stderr)
+	}
+
+	if !strings.Contains(res.stdout, "1 agent waiting on you") {
+		t.Errorf("the blocked session is missing from %q", res.stdout)
+	}
+	if strings.Contains(res.stdout, "sess-unstaged") || strings.Contains(res.stdout, "finished") {
+		t.Errorf("sessions staged on no review leaked into %q", res.stdout)
 	}
 }
 

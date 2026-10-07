@@ -417,7 +417,14 @@ CONFIG
       second-look session, so nothing here has to know how a tool prints one.
       Unset, every T starts a fresh session.
 
-  limit, prefetch, generated, dispatch, and resume are top-level keys, so they
+  agents = ["claude", "agents", "--json"]
+      What lists the agent's live sessions, printing a JSON array of objects
+      carrying sessionId and state (or status). A review's recorded session
+      found in it draws its state on the staged row, in the review's title,
+      and in second-look status; a session absent from it ended. Unset,
+      nothing probes.
+
+  limit, prefetch, generated, dispatch, resume, and agents are top-level keys, so they
   belong above the first [[section]]: TOML reads a bare key after a table header
   as part of that table, where it is refused as a key the schema does not know.
 
