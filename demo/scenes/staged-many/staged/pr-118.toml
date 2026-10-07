@@ -1,0 +1,40 @@
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 118
+head_sha = "2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c"
+head_ref = "feat-status-line"
+base_ref = "feat-anchor-guard"
+event = "COMMENT"
+body = ""
+
+[[comment]]
+id = "status-fresh"
+path = "internal/queue/status.go"
+line = 30
+side = "RIGHT"
+body = "A prompt reads this every few seconds; an age older than a day should round up, not down."
+anchor = "	return fmt.Sprintf(\"%dm\", int(d.Minutes()))"
+severity = "minor"
+status = "ready"
+
+[[comment]]
+id = "status-lock"
+path = "internal/queue/status.go"
+line = 44
+side = "RIGHT"
+body = "Two shells writing at once lose a mark; read the file back and merge before writing."
+anchor = "	return os.WriteFile(path, body, 0o600)"
+severity = "major"
+status = "draft"
+
+[[comment]]
+id = "status-name"
+path = "internal/queue/status.go"
+line = 9
+side = "RIGHT"
+body = "Counts is a better name than Status for a file a prompt reads."
+anchor = "type Status struct {"
+severity = "minor"
+status = "ready"

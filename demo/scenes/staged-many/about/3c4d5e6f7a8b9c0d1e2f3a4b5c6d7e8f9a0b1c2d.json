@@ -1,0 +1,9 @@
+{
+  "title": "chore(deps): bump the charm packages",
+  "author": "dependabot",
+  "body": "Weekly bump of the charm stack.",
+  "labels": ["dependencies"],
+  "added": 12,
+  "removed": 12,
+  "comments": []
+}

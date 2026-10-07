@@ -1,0 +1,9 @@
+{
+  "title": "feat(anchor): keep a draft on the line that moved",
+  "author": "octocat",
+  "body": "A comment written against a line that later moved used to anchor nowhere.",
+  "labels": ["needs-review"],
+  "added": 88,
+  "removed": 21,
+  "comments": []
+}

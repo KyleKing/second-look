@@ -624,6 +624,34 @@ func (s *inboxScreen) counts() string {
 	return out + " · " + humanize.Plural(failed, "search", "searches") + " failed"
 }
 
+// note is what the tab strip says: how much is waiting on you, once the
+// searches have answered. It counts the same rows counts does, so the strip
+// and the header never disagree.
+func (s *inboxScreen) note() string {
+	if s.waiting > 0 {
+		return ""
+	}
+
+	rows := 0
+	for i := range s.buckets {
+		if s.buckets[i].Err != "" {
+			continue
+		}
+
+		if !s.configured && i > 0 {
+			continue
+		}
+
+		rows += len(s.buckets[i].Items)
+	}
+
+	if rows == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%d waiting", rows)
+}
+
 // budgetWord says why the order stopped where it did, and when it can be
 // finished, since the reader can do nothing about it until then.
 func (s *inboxScreen) budgetWord() string {

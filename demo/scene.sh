@@ -37,6 +37,25 @@ if [ -f "$scene/review.toml" ]; then
   cp "$scene/review.toml" "$work/.second-look/pr-2.toml"
 fi
 
+# A scene wanting more than the fixture's one staged review brings the rest,
+# and the pull request context to draw under each, keyed by head commit like
+# the cache itself is.
+if [ -d "$scene/staged" ]; then
+  cp -p "$scene"/staged/*.toml "$work/.second-look/"
+
+  # A file a TOML checker must not see carries .broken and lands under its
+  # plain name: an unparsable staged review is a state worth drawing.
+  for f in "$scene"/staged/*.broken; do
+    if [ -e "$f" ]; then
+      cp -p "$f" "$work/.second-look/$(basename "$f" .broken)"
+    fi
+  done
+fi
+
+if [ -d "$scene/about" ]; then
+  cp "$scene"/about/*.json "$work/.second-look/about/"
+fi
+
 # A scene comparing against an earlier round brings that round's cached diff,
 # since the round is only readable where its patch is on disk.
 if [ -d "$scene/diff" ]; then

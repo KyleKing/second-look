@@ -1,0 +1,6 @@
+# The pull request states this scene draws on its rows. Narrower routes go
+# first, so each number answers its own file before the fixture's default does.
+api graphql -F pr=117           merged-state.json
+api graphql -F pr=118           approved-state.json
+api graphql -F pr=130           closed-state.json
+api graphql -F pr=140           closed-state.json

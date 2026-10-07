@@ -1,0 +1,40 @@
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 117
+head_sha = "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b"
+head_ref = "feat-anchor-guard"
+base_ref = "main"
+event = "APPROVE"
+body = "Reads clean. The two halves of the guard are where they belong."
+
+[[comment]]
+id = "guard-one"
+path = "internal/anchor/guard.go"
+line = 41
+side = "RIGHT"
+body = "Nice: the second half of the check lands exactly where the first half promises it."
+anchor = "	if moved.Line == anchor.Line {"
+severity = "nit"
+status = "ready"
+
+[[comment]]
+id = "guard-two"
+path = "internal/anchor/guard.go"
+line = 58
+side = "RIGHT"
+body = "This names the invariant in one line, which is all it needed."
+anchor = "	return anchor.Intact()"
+severity = "nit"
+status = "ready"
+
+[[comment]]
+id = "guard-three"
+path = "internal/anchor/guard_test.go"
+line = 12
+side = "RIGHT"
+body = "Covers the drift case the old guard missed."
+anchor = "func TestAnchorKeepsAMovedLine(t *testing.T) {"
+severity = "nit"
+status = "ready"

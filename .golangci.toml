@@ -147,7 +147,7 @@ pattern = '^theme\.Detect$'
 msg = "races a running program's own stdin reader outside loadStyles; call loadStyles() instead"
 
 [[linters.settings.forbidigo.forbid]]
-pattern = '^newStyles$'
+pattern = "^newStyles$"
 msg = "races a running program's own stdin reader outside loadStyles; call loadStyles() instead"
 
 [linters.settings.funlen]

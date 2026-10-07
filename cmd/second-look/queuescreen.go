@@ -81,16 +81,19 @@ func queueOnce(
 			Name: "inbox", Title: "second-look inbox",
 			Sections: in.sections, Act: in.act, Subtitle: in.counts,
 			Hints: inboxHints, Help: inboxHelp, Loader: in, Rest: in.restedOn,
+			Note: in.note,
 		},
 		{
 			Name: "conversations", Title: "second-look conversations",
 			Sections: th.sections, Act: th.act, Subtitle: th.counts,
 			Hints: threadsHints, Help: threadsHelp, Loader: th,
+			Note: th.note,
 		},
 		{
 			Name: "staged", Title: "second-look staged reviews",
 			Sections: rv.sections, Act: rv.act, Subtitle: rv.counts,
 			Hints: reviewsHints, Help: reviewsHelp, Loader: rv, Rest: rv.restedOn,
+			Note: rv.note,
 		},
 	}, at).WithFocusNote(func(repo string) tea.Cmd { return cloneNote(ctx, repo) })
 	list.Restore(where)
@@ -117,7 +120,7 @@ func queueOnce(
 
 			opened = t
 
-			return reviewScreen(ctx, t, &log)
+			return reviewScreen(ctx, t, &log, 0)
 		}
 	}))
 
@@ -138,7 +141,7 @@ func queueOnce(
 	left := list.Where()
 
 	if out.Checkout || out.Next {
-		return list.Tab(), left, afterReview(ctx, opened, out, stdin, stdout)
+		return list.Tab(), left, afterReview(ctx, opened, out, stdin, stdout, 0)
 	}
 
 	next, err := afterQueue(ctx, list.Tab(), in, th, rv, stdin, stdout)

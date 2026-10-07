@@ -106,13 +106,27 @@ func (s *threadsScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
 	return nil, true
 }
 
-// save writes the read marks back. They are saved once, on the way out, rather
-// than on every keystroke: the file is user-level state that every checkout
-// shares, and rewriting it under the cursor would make a crash mid-queue lose
-// more than the keystroke in flight.
+// save writes the read marks back and the counts the prompt reads. It runs on
+// every mark rather than once on the way out: a crash mid-queue loses nothing,
+// and the save merges over what is on disk, so a second open session's marks
+// survive this one's writes.
 func (s *threadsScreen) save() error {
 	if err := conversations.SaveLooked(s.path, s.looked, s.queue.Conversations); err != nil {
 		return fmt.Errorf("saving what you read: %w", err)
+	}
+
+	path, err := conversations.StatusPath()
+	if err != nil {
+		return fmt.Errorf("saving the queue counts: %w", err)
+	}
+
+	err = conversations.SaveStatus(path, conversations.Status{
+		Updated: time.Now(),
+		Unread:  s.unread(),
+		Open:    len(s.queue.Conversations),
+	})
+	if err != nil {
+		return fmt.Errorf("saving the queue counts: %w", err)
 	}
 
 	return nil
@@ -157,15 +171,36 @@ func (s *threadsScreen) counts() string {
 		return "searching…"
 	}
 
-	unread := 0
+	return fmt.Sprintf("%d conversations · %d unread", len(s.queue.Conversations), s.unread())
+}
+
+// unread is how many conversations have moved since they were last read, which
+// is the number the tab strip carries so a queue says what it holds without
+// being switched to.
+func (s *threadsScreen) unread() int {
+	n := 0
 
 	for i := range s.queue.Conversations {
 		if !s.looked.Since(&s.queue.Conversations[i]) {
-			unread++
+			n++
 		}
 	}
 
-	return fmt.Sprintf("%d conversations · %d unread", len(s.queue.Conversations), unread)
+	return n
+}
+
+// note is what the tab strip says: the unread count once it is known, and
+// nothing while the queue is still out or refused.
+func (s *threadsScreen) note() string {
+	if s.waiting || s.failed != nil {
+		return ""
+	}
+
+	if n := s.unread(); n > 0 {
+		return fmt.Sprintf("%d unread", n)
+	}
+
+	return ""
 }
 
 // sections turns the snapshot into rows. The unread mark is read live, so
@@ -268,6 +303,10 @@ func (s *threadsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 	case tui.ActMark, tui.ActChoose:
 		s.looked.Mark(c, time.Now())
 
+		if err := s.save(); err != nil {
+			return "", false, err
+		}
+
 		return "read " + c.Where() + " " + c.Anchor(), false, nil
 	case tui.ActBrowse:
 		return s.browse(c)
@@ -346,6 +385,10 @@ func (s *threadsScreen) stageReply(c *conversations.Conversation) (string, bool,
 
 	s.reply = c
 	s.looked.Mark(c, time.Now())
+
+	if err := s.save(); err != nil {
+		return "", false, err
+	}
 
 	return "opening " + c.Where(), true, nil
 }

@@ -28,7 +28,7 @@ func answer(
 	ctx context.Context, c *conversations.Conversation, here string, stdin io.Reader, stdout io.Writer,
 ) error {
 	owner, name, _ := strings.Cut(c.Repository, "/")
-	at := ref{owner: owner, repo: name, number: c.Number}
+	at := ref{owner: owner, repo: name, number: c.Number, land: c.ReplyTo()}
 
 	if here != "" && strings.EqualFold(here, c.Repository) {
 		return openRef(ctx, at, stdin, stdout)

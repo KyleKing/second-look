@@ -1,0 +1,12 @@
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 140
+head_sha = "4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e"
+event = "COMMENT"
+body = "a body half-written
+
+[[comment]]
+id = "unterminated
+path = "internal/queue/status.go"

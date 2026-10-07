@@ -21,6 +21,10 @@ type ref struct {
 	owner  string
 	repo   string
 	number int
+	// land is the comment id of the conversation the review should open on,
+	// zero for the top of the diff. Only a caller carrying a conversation has
+	// one; a number typed on the command line opens at the top.
+	land int64
 }
 
 // here reports a reference that names no repository, so the checkout's own is

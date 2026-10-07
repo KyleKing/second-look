@@ -185,8 +185,9 @@ pending my review, then reviewed and open, then reviewed and merged.
 The merged bucket reads submitted reviews back from the API rather than from anything
 kept here. A successful post deletes the artifact and GitHub is the source of truth from
 that moment, so no comment ids are written back and nothing local outlives the post. The
-caches keyed by head commit live exactly as long as the review does, every round it was
-read at pinned together, so posting or discarding takes them as a group.
+caches keyed by head commit live exactly as long as the review does, so posting or
+discarding takes them as a group; only the head the review stands on is pinned, since
+the diff an earlier round saw can be rebuilt from the forge.
 
 **A machine account is `__typename`, not a list of logins.** The conversation queue
 admits what a bot says only where it is anchored to code, so telling a bot from a person

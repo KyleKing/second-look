@@ -29,6 +29,7 @@ import (
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/prepared"
+	"github.com/kyleking/second-look/internal/prstate"
 	"github.com/kyleking/second-look/internal/react"
 	"github.com/kyleking/second-look/internal/skill"
 	"github.com/kyleking/second-look/internal/threads"
@@ -54,6 +55,8 @@ var (
 	errUsageTodo      = errors.New("usage: second-look todo <pr>")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--diff|--payload|--threads]")
 	errUsageSkill     = errors.New("usage: second-look skill")
+	errUsageGC        = errors.New("usage: second-look gc [--dry-run] [--stale]")
+	errUsageStatus    = errors.New("usage: second-look status")
 	errCheckoutMoved  = errors.New("the checkout has moved past the reviewed head")
 )
 
@@ -76,6 +79,7 @@ func helpMove() [][2]string {
 	return [][2]string{
 		{"j/k, ctrl+u/d, g/G", "move, half page, top and bottom"},
 		{"ctrl+e/ctrl+y", "scroll without moving the cursor"},
+		{"u/U", "the next and previous row that still needs a look"},
 		{"1/2/3, ] / [", "the queue to read: the inbox, the conversations, what is staged here"},
 	}
 }
@@ -122,32 +126,30 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		return reviewCurrent(ctx, stdin, stdout)
 	}
 
+	commands := map[string]func() error{
+		"get":     func() error { return getCmd(ctx, args[1:], stdin, stdout) },
+		"comment": func() error { return commentCmd(ctx, args[1:], stdin, stdout) },
+		"show":    func() error { return showCmd(ctx, args[1:], stdout) },
+		"context": func() error { return contextCmd(ctx, args[1:], stdout) },
+		"todo":    func() error { return todoCmd(ctx, args[1:], stdout) },
+		"post":    func() error { return postCmd(ctx, args[1:], stdout) },
+		"inbox":   func() error { return inboxCmd(ctx, args[1:], stdin, stdout) },
+		"threads": func() error { return threadsCmd(ctx, args[1:], stdin, stdout) },
+		"reviews": func() error { return reviewsCmd(ctx, args[1:], stdin, stdout) },
+		"session": func() error { return sessionCmd(ctx, args[1:], stdout) },
+		"status":  func() error { return statusCmd(args[1:], stdout) },
+		"gc":      func() error { return gcCmd(ctx, args[1:], stdout) },
+		"skill":   func() error { return skillCmd(args[1:], stdout) },
+	}
+
 	switch args[0] {
 	case "-h", "--help", helpArg:
 		return write(stdout, helpText(args[0]))
-	case "get":
-		return getCmd(ctx, args[1:], stdin, stdout)
-	case "comment":
-		return commentCmd(ctx, args[1:], stdin, stdout)
-	case "show":
-		return showCmd(ctx, args[1:], stdout)
-	case "context":
-		return contextCmd(ctx, args[1:], stdout)
-	case "todo":
-		return todoCmd(ctx, args[1:], stdout)
-	case "post":
-		return postCmd(ctx, args[1:], stdout)
-	case "inbox":
-		return inboxCmd(ctx, args[1:], stdin, stdout)
-	case "threads":
-		return threadsCmd(ctx, args[1:], stdin, stdout)
-	case "reviews":
-		return reviewsCmd(ctx, args[1:], stdin, stdout)
-	case "session":
-		return sessionCmd(ctx, args[1:], stdout)
-	case "skill":
-		return skillCmd(args[1:], stdout)
 	default:
+		if cmd, ok := commands[args[0]]; ok {
+			return cmd()
+		}
+
 		return reviewCmd(ctx, args, stdin, stdout)
 	}
 }
@@ -225,7 +227,7 @@ func openRef(ctx context.Context, r ref, stdin io.Reader, stdout io.Writer) erro
 		return fmt.Errorf("opening %s: %w", r, err)
 	}
 
-	return openReview(ctx, t, stdin, stdout)
+	return openReview(ctx, t, stdin, stdout, r.land)
 }
 
 // openReview draws the review screen, and answers C by moving the working copy
@@ -234,20 +236,20 @@ func openRef(ctx context.Context, r ref, stdin io.Reader, stdout io.Writer) erro
 // The move happens out here because the screen has to give the terminal back
 // first: the stash question needs stdin, and two programs cannot own the
 // terminal at once.
-func openReview(ctx context.Context, t get.Target, stdin io.Reader, stdout io.Writer) error {
-	out, err := review(ctx, t, stdout)
+func openReview(ctx context.Context, t get.Target, stdin io.Reader, stdout io.Writer, land int64) error {
+	out, err := review(ctx, t, stdout, land)
 	if err != nil {
 		return err
 	}
 
-	return afterReview(ctx, t, out, stdin, stdout)
+	return afterReview(ctx, t, out, stdin, stdout, land)
 }
 
 // afterReview performs what a review screen was left for and carries the
 // sitting on from there, which is the same work whether the screen was opened
 // from the command line or from the queue.
 func afterReview(
-	ctx context.Context, t get.Target, out tui.Outcome, stdin io.Reader, stdout io.Writer,
+	ctx context.Context, t get.Target, out tui.Outcome, stdin io.Reader, stdout io.Writer, land int64,
 ) error {
 	for {
 		if out.Next {
@@ -256,7 +258,9 @@ func afterReview(
 				return err
 			}
 
-			t = next
+			// The next review is another pull request, and the landing belongs
+			// to the one just posted.
+			t, land = next, 0
 		}
 
 		if !out.Checkout && !out.Next {
@@ -272,7 +276,7 @@ func afterReview(
 		}
 
 		var err error
-		if out, err = review(ctx, t, stdout); err != nil {
+		if out, err = review(ctx, t, stdout, land); err != nil {
 			return err
 		}
 	}
@@ -343,7 +347,7 @@ func refOf(r *prepared.Review) ref {
 // review draws the screen once and reports what it was left through. A pull
 // request named on the command line has no queue behind it, so leaving the
 // screen ends the program.
-func review(ctx context.Context, t get.Target, stdout io.Writer) (tui.Outcome, error) {
+func review(ctx context.Context, t get.Target, stdout io.Writer, land int64) (tui.Outcome, error) {
 	if !term.IsTerminal(os.Stdin.Fd()) && !term.IsTerminal(os.Stdout.Fd()) {
 		return tui.Outcome{}, errNoTerminal
 	}
@@ -353,7 +357,7 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (tui.Outcome, e
 	// as it happens draws over the frame.
 	var log strings.Builder
 
-	m, err := reviewScreen(ctx, t, &log)
+	m, err := reviewScreen(ctx, t, &log, land)
 	if err != nil {
 		return tui.Outcome{}, err
 	}
@@ -377,7 +381,7 @@ func review(ctx context.Context, t get.Target, stdout io.Writer) (tui.Outcome, e
 // reviewScreen builds the review screen for a target. The log collects what a
 // post writes, which the caller hands to the scrollback once the terminal is
 // back.
-func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder) (*tui.Model, error) {
+func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land int64) (*tui.Model, error) {
 	opened, err := get.Open(ctx, t)
 	if err != nil {
 		return nil, fmt.Errorf("opening #%d: %w", t.Number, err)
@@ -419,6 +423,10 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder) (*tui
 	// leaves the laptop until a reader confirms the question on the file, which
 	// is why it is offered without a checkout and without configuring.
 	opts = append(opts, tui.WithAdvisor(advisory.Client{}))
+
+	if land != 0 {
+		opts = append(opts, tui.WithAnchor(land))
+	}
 
 	// A review read out of the cache reached the screen without asking GitHub
 	// anything, so the screen asks behind the first frame instead.
@@ -1105,6 +1113,190 @@ func reviewsCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.W
 	return prepared.Write(stdout, rows, time.Now())
 }
 
+// statusCmd prints the one line a prompt or a shell greeting wants: what the
+// queue's last read left unanswered and what is staged on this disk. It reads
+// nothing remote, so it can run at every prompt; the conversation count is as
+// old as the last refresh and the line says so.
+func statusCmd(args []string, stdout io.Writer) error {
+	if len(args) != 0 {
+		return errUsageStatus
+	}
+
+	rows, err := staged()
+	if err != nil {
+		return err
+	}
+
+	path, err := conversations.StatusPath()
+	if err != nil {
+		return fmt.Errorf("reading the queue counts: %w", err)
+	}
+
+	last, err := conversations.LoadStatus(path)
+	if err != nil {
+		return fmt.Errorf("reading the last queue read: %w", err)
+	}
+
+	blocked := 0
+	for i := range rows {
+		if rows[i].Blocked() {
+			blocked++
+		}
+	}
+
+	var parts []string
+
+	switch {
+	case last.Unread == 0 && blocked == 0:
+		parts = append(parts, "nothing new")
+	case last.Unread > 0:
+		parts = append(parts, humanize.Plural(last.Unread, "new conversation"))
+	}
+
+	if len(rows) == 0 {
+		parts = append(parts, "nothing staged")
+	} else {
+		word := humanize.Plural(len(rows), "staged review")
+		if blocked > 0 {
+			word += fmt.Sprintf(" · %d blocked", blocked)
+		}
+
+		parts = append(parts, word)
+	}
+
+	if last.Updated.IsZero() {
+		parts = append(parts, "the queue has not been read")
+	} else {
+		parts = append(parts, "queue read "+humanize.Ago(last.Updated, time.Now()))
+	}
+
+	return write(stdout, strings.Join(parts, " · ")+"\n")
+}
+
+// staleFor is how long a review with nothing postable sits before --stale
+// calls it abandoned. Work somebody was writing a week ago is work in
+// progress; a file untouched for a month is one nobody is coming back to.
+const staleFor = 30 * 24 * time.Hour
+
+// gcCmd throws away what a finished pull request left behind: the review
+// staged for one that merged or closed, and every cache no staged review
+// points at. A review whose pull request is still open is kept, and so is one
+// the forge would not answer for. A review carrying nothing postable is
+// unfinished rather than finished, and it goes only under --stale.
+func gcCmd(ctx context.Context, args []string, stdout io.Writer) error {
+	var dry, stale bool
+
+	for _, a := range args {
+		switch a {
+		case "--dry-run":
+			dry = true
+		case "--stale":
+			stale = true
+		default:
+			return errUsageGC
+		}
+	}
+
+	rows, err := staged()
+	if err != nil {
+		return err
+	}
+
+	var (
+		out     strings.Builder
+		dropped int
+		now     = time.Now()
+	)
+
+	for i := range rows {
+		r := &rows[i]
+		where := r.Where()
+
+		why, drop, note := gcVerdict(ctx, r, now, stale)
+		if note != "" {
+			fmt.Fprintf(&out, "kept %s (%s)\n", where, note)
+		}
+
+		if !drop {
+			continue
+		}
+
+		dropped++
+
+		if dry {
+			fmt.Fprintf(&out, "would drop %s (%s)\n", where, why)
+
+			continue
+		}
+
+		if err := prepared.Discard(r); err != nil {
+			return fmt.Errorf("dropping %s: %w", where, err)
+		}
+
+		fmt.Fprintf(&out, "dropped %s (%s)\n", where, why)
+	}
+
+	if dry {
+		fmt.Fprintf(&out, "%s would go; caches not swept under --dry-run\n",
+			humanize.Plural(dropped, "staged review"))
+
+		return write(stdout, out.String())
+	}
+
+	swept, err := sweepEverywhere()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(&out, "dropped %s and swept %s\n",
+		humanize.Plural(dropped, "staged review"), humanize.Plural(swept, "file"))
+
+	return write(stdout, out.String())
+}
+
+// gcVerdict is what one staged review should do under gc: whether to drop it
+// and why, and a note when it stays so a person can see why it did.
+func gcVerdict(ctx context.Context, r *prepared.Review, now time.Time, stale bool) (string, bool, string) {
+	state, err := prstate.Fetch(ctx, ".", r.Repository, r.Number)
+
+	switch {
+	case err != nil:
+		return "", false, "its state could not be read"
+	case state.Merged(), state.Closed():
+		return strings.ToLower(state.State), true, ""
+	case r.Ready == 0 && !r.Body && now.Sub(r.Modified) > staleFor:
+		if !stale {
+			return "", false, "untouched " + humanize.Ago(r.Modified, now) + "; --stale drops it"
+		}
+
+		return "untouched " + humanize.Ago(r.Modified, now), true, ""
+	default:
+		return "", false, ""
+	}
+}
+
+// sweepEverywhere runs the cache sweep over every repository root in the store
+// and over this directory, which is where a review staged in a working copy
+// keeps its caches.
+func sweepEverywhere() (int, error) {
+	home, err := artifact.StateHome()
+	if err != nil {
+		return 0, fmt.Errorf("finding the state store: %w", err)
+	}
+
+	all, err := prepared.SweepAll(home)
+	if err != nil {
+		return 0, fmt.Errorf("sweeping the store: %w", err)
+	}
+
+	here, err := prepared.Sweep(".")
+	if err != nil {
+		return 0, fmt.Errorf("sweeping this directory: %w", err)
+	}
+
+	return all + here, nil
+}
+
 // staged is every review on disk: the store's, and anything an artifact tree in
 // the working directory still holds. The second is a leftover by definition,
 // since opening a review moves what it finds into the store, and it lists
@@ -1247,18 +1439,23 @@ func oneOf(args []string, usage error, want ...string) (string, error) {
 	return "", usage
 }
 
-// rounds reads the diff cached at an earlier head, which is what comparing
-// against a round the review was already read at needs. Every round a review
-// has been read at is kept for as long as the review is, so nothing here
-// reaches the network.
+// rounds reads the diff an earlier head carried, which is what comparing
+// against a round the review was already read at needs. The cache answers
+// while it holds one; a head the pull request moved past is rebuilt from the
+// forge rather than kept.
 func rounds(t get.Target) tui.Rounds {
-	return func(sha string) (*diff.Diff, error) {
-		cached, err := artifact.LoadDiff(t.Store, sha)
+	return func(ctx context.Context, sha string) (*diff.Diff, error) {
+		review, err := artifact.Load(artifact.Path(t.Store, t.Number))
 		if err != nil {
-			return nil, fmt.Errorf("reading the diff cached at %s: %w", sha, err)
+			return nil, fmt.Errorf("reading the prepared review: %w", err)
 		}
 
-		return diff.Parse(cached), nil
+		patch, err := get.RoundPatch(ctx, t, review.BaseRef, sha)
+		if err != nil {
+			return nil, fmt.Errorf("reading the diff that round saw: %w", err)
+		}
+
+		return diff.Parse(patch), nil
 	}
 }
 
@@ -1280,9 +1477,12 @@ func restager(t get.Target) tui.Restager {
 			return nil, fmt.Errorf("reading #%d back: %w", t.Number, err)
 		}
 
+		reader := blob.Reader{Work: opened.Work, Repo: t.RepoID(), SHA: opened.Review.HeadSHA}
+
 		return &tui.Restaged{
 			Review: opened.Review, Diff: opened.Diff, Threads: opened.Threads,
 			Read: opened.Read, HeadSHA: opened.Review.HeadSHA,
+			Blobs: reader.Read, Prober: probeFor(ctx, opened.Work, opened.Diff, reader),
 		}, nil
 	}
 }

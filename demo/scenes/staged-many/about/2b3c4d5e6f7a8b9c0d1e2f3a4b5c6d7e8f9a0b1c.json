@@ -1,0 +1,9 @@
+{
+  "title": "feat(queue): one line of queue state for the prompt",
+  "author": "hubot",
+  "body": "The shell prompt wants to know whether the queue is worth opening without paying for a fetch.",
+  "labels": ["needs-review"],
+  "added": 64,
+  "removed": 3,
+  "comments": []
+}

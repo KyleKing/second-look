@@ -39,7 +39,28 @@ func StagedRow(review prepared.Review, repo, head string, remote ...prstate.Stat
 
 	_, _, err := s.checkout(review.Where())
 
-	return s.tail(&s.rows[0]), err == nil
+	tail := s.tail(&s.rows[0])
+	if word, _ := s.remoteWord(&s.rows[0]); word != "" {
+		tail += " · " + word
+	}
+
+	return tail, err == nil
+}
+
+// StagedOrder is the order the staged tab would list the reviews in, across
+// its sections, so a test can check the triage order without a terminal.
+func StagedOrder(rows []prepared.Review, remote map[string]prstate.State) []string {
+	s := &reviewsScreen{rows: rows, remote: remote}
+
+	var keys []string
+
+	for _, sec := range s.sections() {
+		for j := range sec.Rows {
+			keys = append(keys, sec.Rows[j].Key)
+		}
+	}
+
+	return keys
 }
 
 // Holding renders what a review staged here carries, which is the queue's only

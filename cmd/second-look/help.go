@@ -18,6 +18,8 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look inbox                the review queue, in your own sections
   second-look threads              conversations that moved since you looked
   second-look reviews              what is staged locally, in the store
+  second-look gc                   drop reviews for merged or closed PRs, sweep caches
+  second-look status               one line of what the queue holds, for a prompt
   second-look session <pr> <id>    record the agent session working this review
   second-look skill                print the agent instructions this binary carries
 
@@ -337,6 +339,24 @@ NAMING A PULL REQUEST
       is grouped with the bottom first, which is the order the diffs read in.
       The pipe and --json carry that order too, so whatever reviews them in turn
       reads the bottom of a stack before what sits on it.
+
+  second-look gc [--dry-run] [--stale]
+      Ask the forge about every staged review, drop the ones whose pull request
+      merged or closed, then sweep every cache no staged review's head still
+      points at. A review whose pull request is still open is kept, and so is
+      one the forge would not answer for, since deleting work on a guess is how
+      a cleanup turns destructive. --dry-run lists what would go and changes
+      nothing. --stale also drops a review that holds nothing postable -- only
+      drafts, skips, and no body -- and has sat untouched for a month, which is
+      a draft abandoned rather than work in progress.
+
+  second-look status
+      Print one line of what the queues hold: unread conversations, staged
+      reviews, and how many of them are blocked, ended with how old the queue
+      read behind those numbers is. It asks GitHub nothing -- the counts are
+      what the conversations tab wrote the last time it was open -- so it is
+      cheap enough for a shell prompt or a new tab to run. A queue that has
+      never been read says so rather than reporting an old count as live.
 
   second-look session <pr> [<session-id> [tool]]
       Record the agent session this review is being worked in, or print the one

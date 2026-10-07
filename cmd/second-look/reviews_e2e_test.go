@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/kyleking/aragonite/ghcassette"
 
 	main "github.com/kyleking/second-look/cmd/second-look"
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/prepared"
 	"github.com/kyleking/second-look/internal/prstate"
 )
@@ -163,6 +165,76 @@ func TestReviewsScreen(t *testing.T) {
 	}
 }
 
+// gc is the destructive twin of the list: a staged review whose pull request
+// is finished goes, caches and all. --dry-run says what would go and changes
+// nothing, and a review the forge cannot answer for is kept rather than
+// guessed away.
+func TestGC(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	seedReview(t, dir, sha)
+	seedDiffAt(t, dir, sha)
+	broken(t, dir, 9)
+
+	merged := func() ghcassette.Interaction {
+		return ghcassette.Interaction{
+			Args: []string{
+				"api", "graphql",
+				"-F", "owner=KyleKing", "-F", "repo=second-look", "-F", "pr=2",
+				"-f", "query=" + prstate.Query,
+			},
+			Stdout: `{"data":{"repository":{"pullRequest":{"state":"MERGED",` +
+				`"reviewDecision":"APPROVED","viewerLatestReview":{"state":"APPROVED"}}}}}`,
+		}
+	}
+
+	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "gc", func(c *ghcassette.Cassette) {
+		c.Interactions = []ghcassette.Interaction{merged(), merged()}
+	}))
+
+	review := artifact.Path(stored(t, dir), 2)
+	patch := artifact.DiffPath(stored(t, dir), sha)
+
+	res := runCLI(t, s, dir, "gc", "--dry-run")
+	if res.code != 0 {
+		t.Fatalf("gc --dry-run failed: %s%s", res.stdout, res.stderr)
+	}
+
+	for _, want := range []string{
+		"would drop KyleKing/second-look#2 (merged)",
+		"kept #9 (its state could not be read)",
+	} {
+		if !strings.Contains(res.stdout, want) {
+			t.Errorf("%q is missing:\n%s", want, res.stdout)
+		}
+	}
+
+	if _, err := os.Stat(review); err != nil {
+		t.Errorf("a dry run removed the review: %v", err)
+	}
+
+	res = runCLI(t, s, dir, "gc")
+	if res.code != 0 {
+		t.Fatalf("gc failed: %s%s", res.stdout, res.stderr)
+	}
+
+	for _, want := range []string{
+		"dropped KyleKing/second-look#2 (merged)",
+		"dropped 1 staged review",
+	} {
+		if !strings.Contains(res.stdout, want) {
+			t.Errorf("%q is missing:\n%s", want, res.stdout)
+		}
+	}
+
+	for _, path := range []string{review, patch} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("%s is still on disk: %v", path, err)
+		}
+	}
+}
+
 // The indicator marks the row the directory stands on and the rows it cannot
 // reach, and nothing else: a tree of one repository would otherwise repeat
 // itself on every row.
@@ -174,7 +246,7 @@ func TestAStagedRowSaysWhetherThisDirectoryHoldsItsCode(t *testing.T) {
 		HeadSHA: "60f9fb9", Ready: 1,
 	}
 
-	const held = "1 ready · @60f9fb9"
+	const held = "1 ready"
 
 	for _, tc := range []struct {
 		name   string
@@ -199,11 +271,11 @@ func TestAStagedRowSaysWhetherThisDirectoryHoldsItsCode(t *testing.T) {
 			name: "the same repository elsewhere", repo: "coverbasedev/irm", head: "aaaaaaa",
 			want: held, acts: true,
 		},
-		{
-			name: "another repository", repo: "deanmalmgren/textract", head: "aaaaaaa",
-			want: held + " · not here",
-		},
-		{name: "no checkout at all", want: held + " · not here"},
+		// A row this directory cannot reach says nothing at all: a queue of
+		// several repositories repeating it on every row is noise, and a C
+		// pressed anyway names the refusal in the footer.
+		{name: "another repository", repo: "deanmalmgren/textract", head: "aaaaaaa", want: held},
+		{name: "no checkout at all", want: held},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -217,6 +289,30 @@ func TestAStagedRowSaysWhetherThisDirectoryHoldsItsCode(t *testing.T) {
 				t.Errorf("C acting on it is %v, want %v", acts, tc.acts)
 			}
 		})
+	}
+}
+
+// The staged tab is a queue, not a history: what needs a hand sorts ahead of
+// what is already finished, and a pull request the forge has closed or merged
+// sorts after everything, however much work the file holds.
+func TestTheStagedTabReadsAsAQueue(t *testing.T) {
+	t.Parallel()
+
+	rows := []prepared.Review{
+		{Repository: "acme/api", Number: 5},
+		{Repository: "acme/api", Number: 1, Ready: 1},
+		{Repository: "acme/api", Number: 3, Draft: 1},
+		{Repository: "acme/api", Number: 4, Broken: "nope"},
+		{Repository: "acme/api", Number: 2, Ready: 2},
+	}
+	remote := map[string]prstate.State{
+		"acme/api#2": {State: "MERGED"},
+		"acme/api#3": {State: "CLOSED"},
+	}
+
+	want := []string{"acme/api#1", "acme/api#5", "acme/api#4", "acme/api#3", "acme/api#2"}
+	if got := main.StagedOrder(rows, remote); !slices.Equal(got, want) {
+		t.Errorf("the queue reads %v, want %v", got, want)
 	}
 }
 

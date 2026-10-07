@@ -106,10 +106,10 @@ is drawn. It is the posting guard asked at read time, because finding out at sub
 four comments moved under a force-push is finding out too late.
 
 `H` compares against an earlier round. A review records every head it has been prepared
-against, the diff cached at each one is kept for as long as the review is, and `H` lists
-them so a second pass can hide every hunk the round it names already carried. It reaches
-nothing, since both diffs are already on disk, and a hunk is matched by what it says
-rather than by where it sits.
+against, and `H` lists them so a second pass can hide every hunk the round it names
+already carried. Only the current head's diff is kept: a round the pull request moved
+past is rebuilt from the forge the first time it is asked for, and a hunk is matched by
+what it says rather than by where it sits.
 
 `U` narrows the review to what is new since the last pass: every hunk already marked read
 is hidden, and the marks are keyed by what a hunk says rather than by the commit it sat
@@ -255,7 +255,10 @@ the store already holds stays in the working copy instead, since two copies of o
 request can carry different staged work and overwriting either would lose it; `reviews`
 lists what stayed under "left in a working copy" for a person to settle.
 
-`second-look reviews` lists what is staged, newest first. `enter` opens one. Everything it lists is unfinished, because the artifact is deleted the moment a
+`second-look reviews` lists what is staged, ordered as a queue rather than a history:
+what still owes a draft or a todo first, what is ready to post next, and a pull request
+the forge has merged or closed last, in the forge's own colors for the two. `enter`
+opens one. Everything it lists is unfinished, because the artifact is deleted the moment a
 review posts. `d`, twice, throws one away along with the diff, threads, rating, and read
 marks kept for it.
 
@@ -265,6 +268,18 @@ you have not seen yet is a diff you cannot review. The branches are read when th
 is prepared, so a stack is visible where both of its pull requests have a review staged
 on this laptop. A pipe or `--json` carries that order too, which is what lets something
 reviewing a batch in turn reach the bottom of a stack first.
+
+`second-look gc` throws out what is already done: a pull request the forge has merged or
+closed leaves its staged review moot, and the diff, threads, and rating kept for it go
+with it. A review that kept nothing postable for a month goes too where `--stale` is
+given, `--dry-run` lists what would go without going, and a review whose state could not
+be read is kept, because a `gh` outage should not empty the shelf.
+
+`second-look status` is the one line a prompt needs: how many conversations are still
+unread, how many reviews are staged and how many of those are blocked, and how long ago
+the queue last looked. It reads only the snapshot the conversations tab writes when it
+runs, so putting it in `.zshrc` to print in a new shell asks GitHub for nothing, and the
+age it names is how stale the numbers are.
 
 Answering a conversation on a repository you are not standing in works too. second-look
 asks `gh repo-dashboard --cli` (from its cache, so no network) which clones of that
