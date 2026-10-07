@@ -35,14 +35,16 @@ type Review struct {
 	HeadRef  string    `json:"head_ref,omitempty"`
 	BaseRef  string    `json:"base_ref,omitempty"`
 	Modified time.Time `json:"modified"`
-	// Rounds is every head the review has been read against, which is what the
-	// sweep has to keep: comparing against an earlier round reads the diff
-	// cached at it.
+	// Rounds is every head the review has been read against, in the order each
+	// was read at.
 	Rounds []string `json:"rounds,omitempty"`
 
 	Ready int `json:"ready"`
 	Draft int `json:"draft"`
 	Skip  int `json:"skip"`
+	// How many comments still owe work, which blocks the submit the same way
+	// a draft does.
+	Todo int `json:"todo"`
 	// Replies is how many comments answer an existing thread rather than
 	// opening one. A review that is all replies posts through a different
 	// endpoint, which is worth seeing before submitting it.
@@ -63,12 +65,12 @@ type Review struct {
 }
 
 // Total is how many comments the review carries, skipped ones included.
-func (r *Review) Total() int { return r.Ready + r.Draft + r.Skip }
+func (r *Review) Total() int { return r.Ready + r.Draft + r.Skip + r.Todo }
 
-// Blocked reports whether submitting would be refused as it stands. A draft
-// blocks the submit rather than posting or vanishing, so a review with one is
-// staged but not finished.
-func (r *Review) Blocked() bool { return r.Draft > 0 }
+// Blocked reports whether submitting would be refused as it stands. A draft or
+// a todo blocks the submit rather than posting or vanishing, so a review
+// holding one is staged but not finished.
+func (r *Review) Blocked() bool { return r.Draft > 0 || r.Todo > 0 }
 
 // Where names the pull request, falling back to the number alone for a file
 // that could not be read.
@@ -101,14 +103,15 @@ const (
 )
 
 // State is the one word that says what to do with the review: a draft blocks
-// the submit, and everything else is ready to post.
+// the submit, and everything else is ready to post. A review carrying only its
+// event is ready too, since an approval posts bare.
 func State(r *Review) string {
 	switch {
 	case r.Broken != "":
 		return StateUnreadable
 	case r.Blocked():
 		return StateBlocked
-	case r.Ready > 0 || r.Body:
+	case r.Ready > 0 || r.Body || r.Event != "" && r.Event != artifact.EventComment:
 		return StateReady
 	default:
 		return StateEmpty
@@ -284,6 +287,8 @@ func read(path string, number int) Review {
 			row.Draft++
 		case artifact.StatusSkip:
 			row.Skip++
+		case artifact.StatusTodo:
+			row.Todo++
 		}
 
 		if c.InReplyTo != 0 {
@@ -294,18 +299,22 @@ func read(path string, number int) Review {
 	return row
 }
 
-// oneLine flattens a load failure onto the row, dropping the line that names
-// the file. A load error opens with the path and puts the reason underneath, and
-// the row already says which file it is, so keeping the path would spend the
-// width on the one thing the reader can already see.
+// oneLine flattens a load failure onto the row, shortening the file's path to
+// its name and dropping a line that says only it. A load error opens with the
+// path and puts the reason underneath, and the row already says which file it
+// is, so keeping the path would spend the width on the one thing the reader
+// can already see.
 func oneLine(path, s string) string {
 	const limit = 90
+
+	base := filepath.Base(path)
 
 	var kept []string
 
 	for line := range strings.SplitSeq(s, "\n") {
 		line = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line), ":"))
-		if line == "" || strings.HasSuffix(line, path) {
+		line = strings.ReplaceAll(line, path, base)
+		if line == "" || strings.HasSuffix(line, base) {
 			continue
 		}
 

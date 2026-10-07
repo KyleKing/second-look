@@ -41,9 +41,9 @@ func DiscardAt(root string, number int) error {
 // Sweep drops the diff, threads, and rating cached against a head commit no
 // staged review is pinned to, and reports how many files it removed.
 //
-// A review pins every head it has been read against rather than only its
-// current one, since comparing against an earlier round reads the diff cached
-// at it. They all go when the review does, so nothing outlives what it is for.
+// A review pins only the head it stands on. The diff an earlier round saw is
+// rebuilt from the forge when a comparison asks for it rather than kept, so
+// the pins a long-lived pull request leaves behind stay at one.
 //
 // A review that will not parse leaves the sweep alone: its head is unknown, so
 // every cache under the root could be the one it needs to be repaired against.
@@ -61,16 +61,34 @@ func Sweep(root string) (int, error) {
 		}
 
 		keep[rows[i].HeadSHA] = true
-
-		for _, sha := range rows[i].Rounds {
-			keep[sha] = true
-		}
 	}
 
 	removed := 0
 
 	for _, kind := range cached {
 		n, err := sweepDir(filepath.Join(root, artifact.Dir, kind), keep)
+		if err != nil {
+			return removed, err
+		}
+
+		removed += n
+	}
+
+	return removed, nil
+}
+
+// SweepAll runs Sweep over every repository root under home, plus home itself
+// when it holds an artifact directory, and totals what went.
+func SweepAll(home string) (int, error) {
+	roots, err := repoDirs(home)
+	if err != nil {
+		return 0, err
+	}
+
+	removed := 0
+
+	for _, root := range append(roots, home) {
+		n, err := Sweep(root)
 		if err != nil {
 			return removed, err
 		}

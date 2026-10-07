@@ -36,13 +36,16 @@ type State struct {
 // Merged reports the one state that makes a staged review moot.
 func (s State) Merged() bool { return s.State == "MERGED" }
 
+// Closed reports the other state that makes a staged review moot.
+func (s State) Closed() bool { return s.State == "CLOSED" }
+
 // Word is the state in a few characters, and empty where there is nothing worth
 // saying: an open pull request nobody has reviewed is what the queue is full of.
 func (s State) Word() string {
 	switch {
 	case s.Merged():
 		return "merged"
-	case s.State == "CLOSED":
+	case s.Closed():
 		return "closed"
 	case s.Mine == "APPROVED":
 		return "you approved it"
@@ -59,7 +62,10 @@ func (s State) Word() string {
 	return ""
 }
 
-const query = `query($owner:String!,$repo:String!,$pr:Int!){
+// Query is the request Fetch sends. It is exported because a test's cassette
+// matches on the call byte for byte, and a second copy of the query would be
+// the fact kept in two places.
+const Query = `query($owner:String!,$repo:String!,$pr:Int!){
   repository(owner:$owner,name:$repo){
     pullRequest(number:$pr){
       state
@@ -98,7 +104,7 @@ func Fetch(ctx context.Context, root, repo string, number int) (State, error) {
 	//nolint:gosec // every argument is a constant or a value read off the pull request
 	cmd := exec.CommandContext(ctx, "gh", "api", "graphql",
 		"-F", "owner="+owner, "-F", "repo="+name, "-F", "pr="+strconv.Itoa(number),
-		"-f", "query="+query)
+		"-f", "query="+Query)
 	cmd.Dir = root
 
 	out, err := cmd.Output()

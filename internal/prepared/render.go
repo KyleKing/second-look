@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/humanize"
 )
 
@@ -51,6 +52,12 @@ func line(r *Review, now time.Time, whereWidth int) string {
 
 	b.WriteString("  " + Holds(r))
 
+	// The head names which diff the review was staged against, which a pipe
+	// listing several needs and the screen's row does not.
+	if r.HeadSHA != "" {
+		b.WriteString(" · @" + r.Short())
+	}
+
 	return b.String()
 }
 
@@ -70,6 +77,7 @@ func Holds(r *Review) string {
 	}{
 		{r.Ready, StateReady, StateReady},
 		{r.Draft, "draft", "drafts"},
+		{r.Todo, "todo", "todos"},
 		{r.Skip, "skipped", "skipped"},
 		{r.Replies, "reply", "replies"},
 	} {
@@ -89,12 +97,10 @@ func Holds(r *Review) string {
 		parts = append(parts, "body")
 	}
 
-	if r.Event != "" {
+	// The default event says nothing the counts do not; what posts as an
+	// approval or a request for changes is the case worth naming.
+	if r.Event != "" && r.Event != artifact.EventComment {
 		parts = append(parts, strings.ToLower(r.Event))
-	}
-
-	if r.HeadSHA != "" {
-		parts = append(parts, "@"+r.Short())
 	}
 
 	if len(parts) == 0 {

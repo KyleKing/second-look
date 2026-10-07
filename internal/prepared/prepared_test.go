@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/prepared"
 )
 
@@ -73,7 +74,9 @@ func stage(t *testing.T) string {
 func TestListReadsEveryStagedReviewNewestFirst(t *testing.T) {
 	t.Parallel()
 
-	rows, err := prepared.List(stage(t))
+	root := stage(t)
+
+	rows, err := prepared.List(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,15 +115,88 @@ func TestListReadsEveryStagedReviewNewestFirst(t *testing.T) {
 		t.Errorf("the counts do not add up: %+v", staged)
 	}
 
-	// A file that no longer parses is the row most worth seeing, and the reason
-	// lives past the first line of the failure, which only names the file.
-	broken := got[9]
-	if broken.Broken == "" || !strings.Contains(broken.Broken, "required") {
-		t.Errorf("the unreadable review does not say why: %q", broken.Broken)
+	if broken := got[9]; broken.Where() != "#9" {
+		t.Errorf("an unreadable review names itself %q, want #9", broken.Where())
+	}
+}
+
+// A file that no longer parses is the row most worth seeing, and the reason
+// lives past the first line of the failure, which only names the file.
+func TestListSaysWhyAFileWillNotParse(t *testing.T) {
+	t.Parallel()
+
+	root := stage(t)
+
+	rows, err := prepared.List(root)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if broken.Where() != "#9" {
-		t.Errorf("an unreadable review names itself %q, want #9", broken.Where())
+	var broken *prepared.Review
+
+	for i := range rows {
+		if rows[i].Number == 9 {
+			broken = &rows[i]
+		}
+	}
+
+	if broken == nil || broken.Broken == "" || !strings.Contains(broken.Broken, "required") {
+		t.Fatalf("the unreadable review does not say why: %+v", broken)
+	}
+
+	if strings.Contains(broken.Broken, root) {
+		t.Errorf("the reason leaks the path the row already names: %q", broken.Broken)
+	}
+}
+
+// A bare approval posts while a comment event with nothing behind it does
+// not, and a todo stops the submit the same way a draft does, so State has to
+// tell those rows apart before a person reads the counts.
+func TestStateSaysWhatToDoWithTheReview(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		review prepared.Review
+		want   string
+	}{
+		{"a bare approval is postable", prepared.Review{Event: artifact.EventApprove}, prepared.StateReady},
+		{"requesting changes is postable", prepared.Review{Event: artifact.EventRequestChanges}, prepared.StateReady},
+		{"a comment event alone carries nothing", prepared.Review{Event: artifact.EventComment}, prepared.StateEmpty},
+		{"a todo stops the submit", prepared.Review{Todo: 1}, prepared.StateBlocked},
+		{"a draft stops the submit", prepared.Review{Draft: 2}, prepared.StateBlocked},
+		{"comments ready to post", prepared.Review{Ready: 2}, prepared.StateReady},
+		{"a body alone is postable", prepared.Review{Body: true}, prepared.StateReady},
+		{"a file that will not parse", prepared.Review{Broken: "nope"}, prepared.StateUnreadable},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := prepared.State(&tc.review); got != tc.want {
+				t.Errorf("State = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// The row reads "comment" off the event field while the remote word beside it
+// reads "you commented", so the default event is left unsaid; an approval is
+// the case worth naming.
+func TestHoldsNamesOnlyTheNotableEvent(t *testing.T) {
+	t.Parallel()
+
+	if got := prepared.Holds(&prepared.Review{Ready: 2, Event: artifact.EventComment}); got != "2 ready" {
+		t.Errorf("a comment review holds %q, want just the counts", got)
+	}
+
+	if got := prepared.Holds(&prepared.Review{Ready: 2, Event: artifact.EventApprove}); got != "2 ready · approve" {
+		t.Errorf("an approval holds %q, want the event named", got)
+	}
+
+	if got := prepared.Holds(&prepared.Review{Todo: 1}); got != "1 todo" {
+		t.Errorf("a todo holds %q, want it counted", got)
 	}
 }
 

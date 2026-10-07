@@ -90,10 +90,11 @@ func TestSweepDropsTheCachesOfEveryHeadNoReviewIsStagedAgainst(t *testing.T) {
 	}
 }
 
-// Comparing against an earlier round reads the diff cached at it, so a round
-// the review still lists is a round the sweep has to leave alone. They all go
-// when the review does, so nothing outlives what it is for.
-func TestSweepKeepsEveryRoundAReviewWasReadAt(t *testing.T) {
+// The round a review was read at is a commit the forge still answers for, so
+// its caches are not pinned: comparing against it rebuilds the diff rather
+// than reading a kept one, and keeping it would leave one patch behind for
+// every push a pull request outlived.
+func TestSweepDropsTheCachesOfARoundTheReviewStillLists(t *testing.T) {
 	t.Parallel()
 
 	root := cachedRoot(t)
@@ -110,17 +111,16 @@ func TestSweepKeepsEveryRoundAReviewWasReadAt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	n, err := prepared.Sweep(root)
-	if err != nil {
+	if _, err := prepared.Sweep(root); err != nil {
 		t.Fatal(err)
 	}
 
-	if n != 0 {
-		t.Errorf("removed %d files, and both heads are rounds the review was read at", n)
+	if exists(t, artifact.DiffPath(root, older)) {
+		t.Error("the diff of a round the pull request moved past was kept")
 	}
 
-	if !exists(t, artifact.DiffPath(root, older)) {
-		t.Error("the diff of a round the review was read at was swept")
+	if !exists(t, artifact.DiffPath(root, head)) {
+		t.Error("the diff of the head the review is on was swept")
 	}
 }
 
