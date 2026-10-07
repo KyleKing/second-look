@@ -1,3 +1,16 @@
+## v0.21.0 (2026-10-07)
+
+### Feat
+
+- **second-look**: the staged tab as a queue, with gc and status commands
+- **queue**: merge read marks across shells and keep a status snapshot
+- **review**: fetch an earlier round's diff on demand
+- **tui**: delta-style diff rendering and shared list plumbing
+
+### Fix
+
+- **prepared**: todos block, approvals are postable, broken rows name the file
+
 ## v0.20.0 (2026-09-17)
 
 ### Feat
