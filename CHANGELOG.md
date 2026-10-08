@@ -1,3 +1,9 @@
+## v0.27.0 (2026-10-08)
+
+### Feat
+
+- **tui**: keep ctrl+\ for the screen to end a pane's program
+
 ## v0.26.1 (2026-10-08)
 
 ### Fix
