@@ -66,8 +66,10 @@ func (s *Session) Hover(ctx context.Context, doc Doc, line int) ([]diag.Symbol, 
 // collapsing two different names that happen to share a type.
 func askLine(ctx context.Context, c *client, uri, text string, row int) ([]diag.Symbol, error) {
 	var (
-		out  []diag.Symbol
-		seen = map[string]bool{}
+		out      []diag.Symbol
+		seen     = map[string]bool{}
+		answered int
+		firstErr error
 	)
 
 	for i, at := range names(text) {
@@ -80,8 +82,16 @@ func askLine(ctx context.Context, c *client, uri, text string, row int) ([]diag.
 			"position":  position{Line: row, Character: unitsTo(text, at)},
 		})
 		if err != nil {
-			return out, fmt.Errorf("asking about %s: %w", uri, err)
+			// One refused position is a name with no answer, not a failed ask.
+			// The refusal counts only when nothing on the line was answered.
+			if firstErr == nil {
+				firstErr = err
+			}
+
+			continue
 		}
+
+		answered++
 
 		name, says := readHover(raw, text, at)
 		if says == "" || seen[says] {
@@ -90,6 +100,10 @@ func askLine(ctx context.Context, c *client, uri, text string, row int) ([]diag.
 
 		seen[says] = true
 		out = append(out, diag.Symbol{Name: name, Text: says})
+	}
+
+	if answered == 0 && firstErr != nil {
+		return nil, fmt.Errorf("asking about %s: %w", uri, firstErr)
 	}
 
 	return out, nil

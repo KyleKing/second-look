@@ -246,6 +246,12 @@ func TestPlacesRefusesWhatItCannotAnswer(t *testing.T) {
 	if _, err := s.References(t.Context(), lsp.Doc{Path: "README.md", Text: "one\n"}, 1); err == nil {
 		t.Error("a file nothing claims was answered")
 	}
+
+	// The stub refuses every ask pointed at column zero, so a line whose only
+	// name sits there is a line the server could not answer at all.
+	if _, err := s.References(t.Context(), lsp.Doc{Path: "a.ts", Text: "func\n"}, 1); err == nil {
+		t.Error("a line whose only name was refused read as answered")
+	}
 }
 
 // A path no configured server claims is not an error and not an answer: the

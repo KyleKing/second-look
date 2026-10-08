@@ -58,8 +58,10 @@ func (s *Session) places(
 	text := lines[line-1]
 
 	var (
-		out  []diag.Jump
-		seen = map[string]bool{}
+		out      []diag.Jump
+		seen     = map[string]bool{}
+		answered int
+		firstErr error
 	)
 
 	for i, at := range names(text) {
@@ -77,8 +79,17 @@ func (s *Session) places(
 
 		raw, err := c.call(ctx, method, params)
 		if err != nil {
-			return out, fmt.Errorf("asking about %s: %w", uri, err)
+			// One refused position is a name with no answer: gopls errors
+			// references at a keyword where definition gets null. The refusal
+			// counts only when nothing on the line was answered.
+			if firstErr == nil {
+				firstErr = err
+			}
+
+			continue
 		}
+
+		answered++
 
 		sites := s.sites(raw)
 		// The same name twice collapses; a different name at the same place is
@@ -91,6 +102,10 @@ func (s *Session) places(
 
 		seen[key] = true
 		out = append(out, diag.Jump{Name: name, At: sites})
+	}
+
+	if answered == 0 && firstErr != nil {
+		return nil, fmt.Errorf("asking about %s: %w", uri, firstErr)
 	}
 
 	return out, nil

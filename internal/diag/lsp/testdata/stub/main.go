@@ -90,7 +90,13 @@ func main() {
 		case f.Method == "textDocument/definition":
 			send(map[string]any{"id": f.ID, "result": definition(f.Params)})
 		case f.Method == "textDocument/references":
-			send(map[string]any{"id": f.ID, "result": references(f.Params)})
+			if res, refused := references(f.Params); refused {
+				send(map[string]any{"id": f.ID, "error": map[string]any{
+					"code": -32803, "message": "no identifier found",
+				}})
+			} else {
+				send(map[string]any{"id": f.ID, "result": res})
+			}
 		case f.Method == "textDocument/didOpen", f.Method == "textDocument/didChange":
 			uri := uriOf(f.Params)
 
@@ -240,11 +246,16 @@ func definition(params json.RawMessage) any {
 
 // references answers a list: one read in the asked file, one in a file beside
 // it so a client spells both shapes of path, and the declaration itself unless
-// the request said not to send it.
-func references(params json.RawMessage) any {
+// the request said not to send it. An ask pointed at column zero is refused
+// outright, the way a real server refuses a keyword it cannot place.
+func references(params json.RawMessage) (any, bool) {
 	uri, char, declared := at(params)
-	if uri == "" || char > 20 {
-		return nil
+	if uri == "" || char == 0 {
+		return nil, true
+	}
+
+	if char > 20 {
+		return nil, false
 	}
 
 	locs := []map[string]any{
@@ -255,7 +266,7 @@ func references(params json.RawMessage) any {
 		locs = append([]map[string]any{{"uri": uri, "range": rng(99)}}, locs...)
 	}
 
-	return locs
+	return locs, false
 }
 
 func uriOf(params json.RawMessage) string {
