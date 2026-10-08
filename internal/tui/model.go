@@ -574,14 +574,24 @@ type motion struct {
 	want func(row) bool
 }
 
-func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	// A pane owns the keyboard outright while it runs: the child is a modal
-	// program of its own, and taking keys back is how a half-forwarded esc
-	// sequence would strand it.
-	if m.pane != nil {
-		m.pane.send(msg)
+// paneKey is the keyboard while a pane runs. The child is a modal program of
+// its own, so every key is its except the one that ends it — taking keys back
+// piecemeal is how a half-forwarded esc sequence would strand it.
+func (m *Model) paneKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if key.Matches(msg, m.keys.EndPane) {
+		m.pane.stop()
 
 		return m, nil
+	}
+
+	m.pane.send(msg)
+
+	return m, nil
+}
+
+func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.pane != nil {
+		return m.paneKey(msg)
 	}
 
 	// A prompt, a confirmation, and a half-typed motion each own the keyboard

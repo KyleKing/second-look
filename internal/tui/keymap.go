@@ -78,6 +78,10 @@ type keyMap struct {
 	React        key.Binding
 	About        key.Binding
 	Help         key.Binding
+	// EndPane is the one key a pane does not get. It is the chord that ends a
+	// program which will not leave on its own, chosen because the terminal
+	// convention already says hard quit with it.
+	EndPane key.Binding
 	// Back leaves whatever has the keyboard without leaving the screen. It is
 	// esc alone: q shares Quit's binding, and a prompt that reads q as a cancel
 	// cannot be typed a word containing one.
@@ -142,6 +146,7 @@ func defaultKeyMap() keyMap {
 		React:        key.NewBinding(key.WithKeys(","), key.WithHelp(",", "react")),
 		About:        key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "context")),
 		Help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		EndPane:      key.NewBinding(key.WithKeys("ctrl+\\"), key.WithHelp("ctrl+\\", "end the pane's program")),
 		Back:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", quitWord)),
 	}
@@ -283,6 +288,7 @@ func helpGroups() []helpGroup {
 		}},
 		{"leaving", [][2]string{
 			{"? / esc", "this help, back"},
+			{"ctrl+\\", "end the program a pane is running"},
 			{"q", quitWord},
 		}},
 	}

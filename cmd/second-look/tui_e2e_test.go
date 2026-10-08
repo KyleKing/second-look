@@ -490,6 +490,40 @@ func TestReviewScreenAttachesAShellTranscript(t *testing.T) {
 	}
 }
 
+// The pane's child owns the keyboard, which leaves no way out of a program
+// that will not leave on its own. The screen keeps one key for itself, and
+// ending the child has to hand the screen back.
+func TestReviewScreenEndsAWedgedPane(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, openCassette(t, sha))
+	seedReview(t, dir, sha)
+
+	shell := filepath.Join(t.TempDir(), "shell")
+	script := "#!/bin/sh\nexec sleep 60\n"
+
+	if err := os.WriteFile(shell, []byte(script), 0o700); err != nil { //nolint:gosec // it has to run
+		t.Fatalf("writing the shell: %v", err)
+	}
+
+	sc := openReview(t, s, dir, "SHELL="+shell, "2")
+	sc.await("testdata/fixture/sample.go")
+
+	sc.press("]c")
+	sc.press("!")
+	sc.await("the pane has the keyboard")
+	sc.press("\x1c")
+	sc.await("signal: killed")
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("the screen exited %d:\n%s", code, sc.text())
+	}
+
+	s.RequireAllPlayed(t)
+}
+
 // The skill tells an agent not to open the review screen, and an agent that
 // does has no terminal. What it gets back has to name the command to run
 // instead, since Bubble Tea's own refusal reports a missing device.

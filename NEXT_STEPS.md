@@ -37,11 +37,17 @@ lands the buffer the way the hand-off always did. The pane is also the
 
 `!` is the second tenant now: the shell runs in the pane and what it printed
 tees off the pty straight to the transcript, which is what `script(1)` nested a
-second pty to get and is no longer a dependency. Attaching to an agent (item
-10) is the third tenant and the one ACP is for. Focus is undecided: the child
-owns every key while the pane is open because nvim needs all of them, and a
-binding that hands focus back to scroll the review without closing the editor
-is a second cut only if the first turns out to need it.
+second pty to get and is no longer a dependency. Its wart is a heavy prompt: a
+shell's cursor-addressed redraws land in the transcript as textual residue
+`Clean` cannot know is noise, and a live one (p10k, a mise trust dialog) reads
+like it. The fix wants a controlled shell — non-login, plain PS1 — rather than
+a filter guessing which bytes were decoration, and it waits on real use.
+Attaching to an agent (item 10) is the third tenant and the one ACP is for.
+Focus is undecided: the child owns every key while the pane is open because
+nvim needs all of them — all but ctrl+\, which the screen keeps for a program
+that will not leave — and a binding that hands focus back to scroll the review
+without closing the editor is a second cut only if the first turns out to need
+it.
 
 ### 2. Definitions and usages, built before codeintel
 

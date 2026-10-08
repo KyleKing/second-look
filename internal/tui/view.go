@@ -55,7 +55,7 @@ func (m *Model) render() string {
 // rows it returns are fixed-height: the emulator's screen is exactly the pane
 // even where the program has drawn nothing yet.
 func (m *Model) paneLines() []string {
-	head := " " + m.paneTitle + " — the pane has the keyboard; leave the program to come back"
+	head := " " + m.paneTitle + " — the pane has the keyboard; leave it to come back, ctrl+\\ ends it"
 
 	rest := m.width - textWidth(head) - 1
 	if rest >= ruleFloor {

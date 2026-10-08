@@ -178,6 +178,15 @@ func (p *pane) resize(w, h int) {
 	_ = pty.Setsize(p.tty, &pty.Winsize{Rows: cells(h), Cols: cells(w)})
 }
 
+// stop ends the child and leaves the teardown to the pump, which still
+// drains the pty and reports through paneGoneMsg, where the closing happens.
+func (p *pane) stop() {
+	if p.cmd.Process != nil {
+		//nolint:errcheck // the child is already gone often enough to not be news
+		_ = p.cmd.Process.Kill()
+	}
+}
+
 // kill ends a pane the screen is done with without waiting for the child.
 func (p *pane) kill() {
 	if p.cmd.Process != nil {
