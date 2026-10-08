@@ -297,9 +297,9 @@ func New(
 func (m *Model) Init() tea.Cmd {
 	m.rebuild()
 
-	// The pass costs a subprocess per hunk side, so it runs behind the first
-	// frame rather than in front of it: the rating appears when it is ready and
-	// t is a redraw by the time anyone presses it.
+	// The pass shells out to ast-grep, so it runs behind the first frame rather
+	// than in front of it: the rating appears when it is ready and t is a
+	// redraw by the time anyone presses it.
 	m.wrote, _ = stampOf(m.path)
 
 	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe(), m.probeAgent()}

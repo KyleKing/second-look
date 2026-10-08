@@ -36,9 +36,12 @@ var Available = sync.OnceValue(func() bool {
 // declaration in, and a hunk is a fragment, where a pattern anchored to a whole
 // file matches nothing.
 type Lang struct {
-	Name  string
-	Decls []string
-	Calls []string
+	Name string
+	// Comments is how the grammar spells a comment node. Every grammar here
+	// calls it "comment" except the two that split it into line and block.
+	Comments []string
+	Decls    []string
+	Calls    []string
 }
 
 // Node kinds shared by several grammars.
@@ -71,9 +74,10 @@ var (
 		Calls: []string{kindCall},
 	}
 	java = Lang{
-		Name:  "java",
-		Decls: []string{kindMethod, kindClass},
-		Calls: []string{"method_invocation"},
+		Name:     "java",
+		Comments: []string{"line_comment", "block_comment"},
+		Decls:    []string{kindMethod, kindClass},
+		Calls:    []string{"method_invocation"},
 	}
 	js  = Lang{Name: "javascript", Decls: ecmaDecls, Calls: ecmaCalls}
 	php = Lang{
@@ -88,9 +92,10 @@ var (
 	}
 	ruby = Lang{Name: "ruby", Decls: []string{"method", "class"}, Calls: []string{"call"}}
 	rust = Lang{
-		Name:  "rust",
-		Decls: []string{"function_item", "impl_item", "struct_item"},
-		Calls: []string{kindCall, "macro_invocation"},
+		Name:     "rust",
+		Comments: []string{"line_comment", "block_comment"},
+		Decls:    []string{"function_item", "impl_item", "struct_item"},
+		Calls:    []string{kindCall, "macro_invocation"},
 	}
 	ts  = Lang{Name: "typescript", Decls: ecmaDecls, Calls: ecmaCalls}
 	tsx = Lang{Name: "tsx", Decls: ecmaDecls, Calls: ecmaCalls}

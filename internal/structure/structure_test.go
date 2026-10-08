@@ -163,6 +163,24 @@ def total(rows):
 		kind:   structure.KindBody,
 	},
 	{
+		// java's grammar splits a comment into line and block kinds; a bare
+		// "comment" kind fails to compile there and took the whole pass down.
+		name: "only the comment changed, where a comment is not one kind",
+		path: "A.java",
+		before: `
+class A {
+    // old wording
+    void m() { add(rows); }
+}`,
+		after: `
+class A {
+    // new wording
+    void m() { add(rows); }
+}`,
+		change: structure.ChangeComment,
+		kind:   structure.KindBody,
+	},
+	{
 		name: "the parameters changed",
 		path: "a.py",
 		before: `
@@ -246,6 +264,48 @@ func TestReadWithAParser(t *testing.T) {
 
 			c.check(t, got)
 		})
+	}
+}
+
+// TestReadAllBatches is the pass over a whole diff at once: every fragment is
+// scanned in a single invocation, so a mixed-language batch is what proves a
+// match found its way back to the hunk and side it came from.
+func TestReadAllBatches(t *testing.T) {
+	t.Parallel()
+
+	needsParser(t)
+
+	hs := make([]structure.Hunk, 0, len(parsedCases)+2)
+	for _, c := range parsedCases {
+		hs = append(hs, structure.Hunk{Path: c.path, Before: lines(c.before), After: lines(c.after)})
+	}
+
+	hs = append(hs,
+		structure.Hunk{Path: "notes.txt", Before: lines("\none"), After: lines("\ntwo")},
+		structure.Hunk{Path: "a.py", Before: lines("\nx = 1"), After: lines("\nx  =  1")},
+	)
+
+	got, err := structure.ReadAll(t.Context(), hs)
+	if err != nil {
+		t.Fatalf("reading the batch: %v", err)
+	}
+
+	if len(got) != len(hs) {
+		t.Fatalf("readings = %d, want %d", len(got), len(hs))
+	}
+
+	for i, c := range parsedCases {
+		c.check(t, got[i])
+	}
+
+	if got[len(parsedCases)].Change != structure.ChangeCode {
+		t.Errorf("a file with no grammar: change = %v, want %v",
+			got[len(parsedCases)].Change, structure.ChangeCode)
+	}
+
+	if got[len(parsedCases)+1].Change != structure.ChangeLayout {
+		t.Errorf("a re-space: change = %v, want %v",
+			got[len(parsedCases)+1].Change, structure.ChangeLayout)
 	}
 }
 

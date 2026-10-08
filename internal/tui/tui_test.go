@@ -610,8 +610,8 @@ func TestCosmeticHunksFoldAway(t *testing.T) {
 
 	m, _, _ := fixtureWith(t, patch)
 
-	// The pass costs a subprocess per hunk side, which is more than the shared
-	// helper's patience, so the command is waited on here.
+	// The pass shells out to ast-grep, which is more than the shared helper's
+	// patience, so the command is waited on here.
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'W', Text: "W"})
 	if cmd == nil {
 		t.Fatal("W started no structural pass")
@@ -1185,8 +1185,8 @@ func TestStructuralNamesWhatEachHunkTouched(t *testing.T) {
 	m, _, _ := fixtureWith(t, patch)
 	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
 
-	// The pass costs a subprocess per hunk side, which is more than the shared
-	// helper's patience, so the command is waited on here.
+	// The pass shells out to ast-grep, which is more than the shared helper's
+	// patience, so the command is waited on here.
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'W', Text: "W"})
 	if cmd == nil {
 		t.Fatal("W started no structural pass")
@@ -1488,8 +1488,8 @@ func gathered(t *testing.T, patch string) *tui.Model {
 	m, _, _ := fixtureWith(t, patch)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	// The pass costs a subprocess per hunk side, which is more than the shared
-	// helper's patience, so the command is waited on here.
+	// The pass shells out to ast-grep, which is more than the shared helper's
+	// patience, so the command is waited on here.
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'W', Text: "W"})
 	if cmd == nil {
 		t.Fatal("W started no structural pass")

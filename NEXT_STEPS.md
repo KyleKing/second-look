@@ -186,26 +186,7 @@ own token-splitting and case-fold matching. gh-repo-dashboard is still on its ow
 it onto `aragonite/filter` is deliberately not done, so it stays a decision for whenever
 that repository is next touched rather than a mid-air rewrite here.
 
-### 8. The structural pass is the only thing that gets slow
-
-[research/open-cost-2026-09.md](research/open-cost-2026-09.md) measured every stage of
-opening a review, and the answer is that nothing about the diff itself needs a limit.
-Parsing, building the model, laying out rows, and drawing a frame together stay under
-10ms at 20,000 lines, and the frame is windowed, so it costs the same on a hundred files
-as on five. The first frame would not cross 100ms until roughly 1,100 files.
-
-The structural pass is the exception. It costs 1.2-1.9ms a hunk almost regardless of how
-long the hunk is, which is the process rather than the reading, so it crosses 100ms at
-around 65 hunks and reaches 155ms at 100. Raising the worker count was tried against the
-benchmark and bought nothing, so the lever left is batching several hunks into one
-`ast-grep` invocation.
-
-Windowing the pass is not on the table. The reading order, move detection, cosmetic
-folding, search, and the read counts all need the whole diff read before any of them can
-answer, so a pass over what is on screen would give four features a different answer
-depending on where the cursor was.
-
-### 9. Blame, and a heat map of recency
+### 8. Blame, and a heat map of recency
 
 Who last touched a line and how long ago is the context a diff cannot carry, and
 [research/blame-and-recency-2026-09.md](research/blame-and-recency-2026-09.md) has the
@@ -234,7 +215,7 @@ bucket so it survives `NO_COLOR`, dropping first when the frame is too narrow. T
 hunk header summary. Move-aware blame (`-M`/`-C`) and `.git-blame-ignore-revs` are last
 and opt-in, because both cost real extra passes.
 
-### 10. An agent session is invisible while it is working
+### 9. An agent session is invisible while it is working
 
 The visibility half is built. `agents` is the third configured command next to `dispatch`
 and `resume`, whose stdout is a JSON array of `sessionId` and `state` (or `status`), in the
@@ -380,6 +361,12 @@ Enough to answer "is that in there already", newest first. The reasoning behind 
 is in [requirements.md](requirements.md) if it still constrains something, and in the
 commit if it does not.
 
+- The structural pass stages every fragment that needs a grammar as a file and scans
+  them in one `ast-grep scan` rather than a subprocess per hunk side — the per-hunk
+  floor was the process, so the batch pays it once (~127ms → ~88ms at 100 hunks, and
+  ast-grep's per-file cost is what is left). Java and Rust hunks parse now too: their
+  grammars spell a comment as `line_comment`/`block_comment`, and a bare `comment` kind
+  there failed the rule compile and took the whole pass down
 - `L` on a lockfile asks osv.dev what is known against the versions it moved to, behind a
   confirmation that names what it will send, with the answer drawn under the dependency
   and the version it was fixed in leading

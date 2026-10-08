@@ -62,33 +62,24 @@ type Reading struct {
 	Parsed bool
 }
 
-// Read is one hunk's whole structural pass: two subprocesses, three answers.
+// Read is one hunk's whole structural pass: a batch of one.
 //
 // A layout-only change is settled without a parser, because comparing every
 // non-whitespace byte of the two sides answers it exactly and costs nothing.
 // Everything past that needs the grammar.
 func Read(ctx context.Context, h Hunk) (Reading, error) {
-	before, after := strings.Join(h.Before, "\n"), strings.Join(h.After, "\n")
-
-	if bare(before) == bare(after) {
-		return Reading{Change: ChangeLayout}, nil
-	}
-
-	lang, ok := langFor(h.Path)
-	if !ok || !Available() {
-		return Reading{Change: ChangeCode}, nil
-	}
-
-	was, err := scan(ctx, lang, before)
+	rs, err := ReadAll(ctx, []Hunk{h})
 	if err != nil {
 		return Reading{Change: ChangeCode}, err
 	}
 
-	now, err := scan(ctx, lang, after)
-	if err != nil {
-		return Reading{Change: ChangeCode}, err
-	}
+	return rs[0], nil
+}
 
+// analyze is the whole reading once the grammar has answered: what the hunk
+// did to the symbols it touches, what the after side calls, and whether what
+// is left once the comments are cut still differs.
+func analyze(before, after string, was, now []match) Reading {
 	syms := symbolsOf(was, now)
 	r := Reading{
 		Change:   ChangeCode,
@@ -104,7 +95,7 @@ func Read(ctx context.Context, h Hunk) (Reading, error) {
 		r.Change = ChangeComment
 	}
 
-	return r, nil
+	return r
 }
 
 // without cuts the comments out of a fragment, so what is left is the code the

@@ -132,9 +132,8 @@ func BenchmarkOpenFrame(b *testing.B) {
 }
 
 // BenchmarkOpenStructural is the re-layout that runs when the structural pass
-// answers behind the first frame: one ast-grep subprocess per hunk side,
-// capped at 8 concurrent, followed by the same rebuild BenchmarkOpenRebuild
-// measures alone.
+// answers behind the first frame: one ast-grep scan over every staged
+// fragment, followed by the same rebuild BenchmarkOpenRebuild measures alone.
 func BenchmarkOpenStructural(b *testing.B) {
 	if !structure.Available() {
 		b.Skip("ast-grep is not installed")
