@@ -1,3 +1,10 @@
+## v0.22.0 (2026-10-08)
+
+### Feat
+
+- **second-look**: lease the checkout C claims, handed back when focus leaves
+- **agent**: say what a recorded session is doing, on the row, the title, and status
+
 ## v0.21.0 (2026-10-07)
 
 ### Feat
