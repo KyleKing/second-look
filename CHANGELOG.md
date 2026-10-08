@@ -1,3 +1,9 @@
+## v0.25.0 (2026-10-08)
+
+### Feat
+
+- **blame**: keep each file's answer under its old-side blob
+
 ## v0.24.0 (2026-10-08)
 
 ### Feat
