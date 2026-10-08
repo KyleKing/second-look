@@ -53,6 +53,7 @@ index aaaaaaa..bbbbbbb 100644
 // it was asked so the test can check the path and the spans.
 type recorder struct {
 	mu    sync.Mutex
+	calls int
 	asked map[string][]vcs.LineRange
 }
 
@@ -60,6 +61,7 @@ func (r *recorder) query(_ context.Context, path string, ranges []vcs.LineRange)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	r.calls++
 	if r.asked == nil {
 		r.asked = map[string][]vcs.LineRange{}
 	}
@@ -123,6 +125,55 @@ func TestRead(t *testing.T) {
 	}
 	if _, ok := got["added.go"]; ok {
 		t.Error("added.go has blame it never could have had")
+	}
+}
+
+// A second read of the same diff asks nothing, because the first answer is
+// kept under the old side's blob. A diff whose writer named no objects has no
+// key to keep it under, so it asks every time.
+func TestReadCached(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	d := diff.Parse([]byte(patch))
+	rec := &recorder{}
+
+	read := func() (blame.Map, error) {
+		return blame.Read(t.Context(), blame.Cached(root, rec.query, d), d)
+	}
+
+	first, err := read()
+	if err != nil {
+		t.Fatalf("first cached read: %v", err)
+	}
+	if rec.calls != 2 {
+		t.Fatalf("first pass made %d calls, want 2 (main.go and the rename's old side)", rec.calls)
+	}
+
+	second, err := read()
+	if err != nil {
+		t.Fatalf("second cached read: %v", err)
+	}
+	if rec.calls != 2 {
+		t.Errorf("the second pass asked again; the blob-keyed answers were already kept")
+	}
+	if len(second["main.go"]) != len(first["main.go"]) {
+		t.Errorf("cached read gave %d lines for main.go, want %d", len(second["main.go"]), len(first["main.go"]))
+	}
+
+	// No index line, no blob, no place to keep the answer.
+	rec.calls = 0
+
+	const blobless = "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n@@ -1,2 +1,2 @@\n a\n-b\n+c\n"
+
+	less := diff.Parse([]byte(blobless))
+	for range 2 {
+		if _, err := blame.Read(t.Context(), blame.Cached(root, rec.query, less), less); err != nil {
+			t.Fatalf("blobless cached read: %v", err)
+		}
+	}
+	if rec.calls != 2 {
+		t.Errorf("a diff naming no blobs made %d calls, want 2", rec.calls)
 	}
 }
 

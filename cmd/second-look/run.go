@@ -537,10 +537,12 @@ func blamer(t get.Target, opened *get.Review) tui.Blamer {
 
 		ops := vcs.GetOperations(opened.Work)
 
-		return blame.Read(ctx,
+		query := blame.Cached(t.Store,
 			func(ctx context.Context, path string, ranges []vcs.LineRange) ([]vcs.BlameLine, error) {
 				return ops.Blame(ctx, opened.Work, base, path, ranges)
 			}, opened.Diff)
+
+		return blame.Read(ctx, query, opened.Diff)
 	}
 }
 

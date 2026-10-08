@@ -210,6 +210,24 @@ new mode 100755
 	}
 }
 
+// The index line names the object each side's content is, which is what a
+// blob-keyed cache keys its answer by.
+func TestParse_IndexBlobs(t *testing.T) {
+	t.Parallel()
+
+	files := diff.Parse([]byte(patch)).Files
+	if len(files) != 2 {
+		t.Fatalf("parsed %d files, want 2", len(files))
+	}
+
+	if files[0].OldBlob != "1111111" || files[0].NewBlob != "2222222" {
+		t.Errorf("one.go blobs = %q..%q, want 1111111..2222222", files[0].OldBlob, files[0].NewBlob)
+	}
+	if files[1].OldBlob != "0000000" || files[1].NewBlob != "3333333" {
+		t.Errorf("new.go blobs = %q..%q, want 0000000..3333333", files[1].OldBlob, files[1].NewBlob)
+	}
+}
+
 // A reformat is a hunk a reviewer can skip and a rename of one variable is not,
 // and telling them apart is what makes hiding whitespace safe to offer.
 func TestWhitespaceOnly(t *testing.T) {

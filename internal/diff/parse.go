@@ -37,6 +37,11 @@ type Line struct {
 type File struct {
 	OldPath string
 	NewPath string
+	// OldBlob and NewBlob are the object names the index line carries, which
+	// pin each side's content for a cache keyed by it. They are empty for a
+	// patch whose writer named no objects.
+	OldBlob string
+	NewBlob string
 	// Note says why a file carries no lines: renamed, binary, or mode changed.
 	// It is empty for a file whose content the patch spells out.
 	Note  string
@@ -270,6 +275,8 @@ func fileHeader(current *File, raw string) bool {
 		current.OldPath = headerPath(raw[len("--- "):])
 	case strings.HasPrefix(raw, "+++ "):
 		current.NewPath = headerPath(raw[len("+++ "):])
+	case strings.HasPrefix(raw, "index "):
+		current.OldBlob, current.NewBlob = indexBlobs(raw[len("index "):])
 	case strings.HasPrefix(raw, "rename from "):
 		current.Note = "renamed from " + headerPath(raw[len("rename from "):])
 	case strings.HasPrefix(raw, "Binary files "):
@@ -295,6 +302,19 @@ func gitHeader(s string) File {
 	}
 
 	return File{OldPath: headerPath(fields[0]), NewPath: headerPath(fields[1])}
+}
+
+// indexBlobs reads the two object names off an "index <old>..<new>" line. The
+// mode some diffs append after the new name is not part of either.
+func indexBlobs(s string) (string, string) {
+	old, rest, ok := strings.Cut(s, "..")
+	if !ok {
+		return "", ""
+	}
+
+	newBlob, _, _ := strings.Cut(rest, " ")
+
+	return old, newBlob
 }
 
 // headerPath strips the a/ or b/ prefix git writes and the trailing tab some

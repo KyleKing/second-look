@@ -6,13 +6,18 @@ package blame
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/kyleking/aragonite/vcs"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 )
 
@@ -39,6 +44,79 @@ type Query func(ctx context.Context, path string, ranges []vcs.LineRange) ([]vcs
 // the parallel blame calls share.
 const blameAll = 8
 
+// Cached keeps a query's per-file answers under root, keyed by the blob the
+// file's old side is: a push that lands elsewhere leaves the answer worth
+// keeping, where a head key would throw it away. A file whose diff names no
+// old blob asks fresh every time.
+func Cached(root string, query Query, d *diff.Diff) Query {
+	blobs := make(map[string]string, len(d.Files))
+	for i := range d.Files {
+		blobs[askPath(&d.Files[i])] = d.Files[i].OldBlob
+	}
+
+	return func(ctx context.Context, path string, rs []vcs.LineRange) ([]vcs.BlameLine, error) {
+		key := cacheKey(blobs[path], path, rs)
+		if key != "" {
+			var lines []vcs.BlameLine
+			if err := artifact.LoadBlame(root, key, &lines); err != nil {
+				return nil, fmt.Errorf("reading the kept blame: %w", err)
+			}
+
+			if lines != nil {
+				return lines, nil
+			}
+		}
+
+		lines, err := query(ctx, path, rs)
+		if err != nil {
+			return nil, err
+		}
+
+		if key != "" {
+			if err := artifact.SaveBlame(root, key, lines); err != nil {
+				return nil, fmt.Errorf("keeping %s's blame: %w", path, err)
+			}
+		}
+
+		return lines, nil
+	}
+}
+
+// cacheKey hashes the one question blame answers for a file: this path's old
+// blob, these ranges. An empty blob means the diff named no objects, and no
+// key means the caller asks fresh.
+func cacheKey(blob, path string, rs []vcs.LineRange) string {
+	if blob == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString(path)
+	b.WriteByte(0)
+	b.WriteString(blob)
+
+	for _, r := range rs {
+		b.WriteString(strconv.Itoa(r.From))
+		b.WriteByte(':')
+		b.WriteString(strconv.Itoa(r.To))
+		b.WriteByte(';')
+	}
+
+	sum := sha256.Sum256([]byte(b.String()))
+
+	return hex.EncodeToString(sum[:])
+}
+
+// askPath is the path the file's old side lives under: its own name, and the
+// name it was renamed from when it has one.
+func askPath(f *diff.File) string {
+	if f.OldPath != "" {
+		return f.OldPath
+	}
+
+	return f.NewPath
+}
+
 // Read blames every file's old side, one call per file. A file with no
 // old-side lines, an added file, asks nothing, and a failed query fails the
 // pass, since a gutter half-drawn reads as history answered rather than
@@ -62,10 +140,7 @@ func Read(ctx context.Context, query Query, d *diff.Diff) (Map, error) {
 
 		// A rename's old side lives at the old path, while its rows are drawn
 		// under the new one.
-		ask := f.OldPath
-		if ask == "" {
-			ask = f.NewPath
-		}
+		path := askPath(f)
 
 		show := f.NewPath
 		if show == "" {
@@ -73,9 +148,9 @@ func Read(ctx context.Context, query Query, d *diff.Diff) (Map, error) {
 		}
 
 		group.Go(func() error {
-			lines, err := query(ctx, ask, rs)
+			lines, err := query(ctx, path, rs)
 			if err != nil {
-				return fmt.Errorf("blaming %s: %w", ask, err)
+				return fmt.Errorf("blaming %s: %w", path, err)
 			}
 
 			found := make(map[int]Line, len(lines))

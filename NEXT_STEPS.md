@@ -195,25 +195,22 @@ change plus how many distinct authors a hunk carries. Churn is the better-suppor
 predictor in the literature and it is file-level evidence, so it stays out of a per-line
 column until something argues for it.
 
-It starts in aragonite because gh-repo-dashboard wants the same primitive: a `Blame`
-method on `vcs.Operations`, git over `git blame --porcelain` with one `-L` per hunk range
-so the cost is proportional to the review rather than to the file, and jj over
-`jj file annotate`.
+The primitive is built: `vcs.Operations.Blame` takes a revision (v0.16.0), git over
+`git blame --porcelain` with one `-L` per hunk range so the cost is proportional to the
+review rather than to the file, jj over `jj file annotate`. The rollup is built too:
+`internal/blame` batches each file's old-side ranges into one call, the merge base comes
+from `gh api .../pulls/<n>`'s `merge_base_sha`, and the answer is cached under
+`.second-look/blame/` keyed by the old side's blob and ranges rather than by head, because
+blame of an unchanged blob does not change when a push lands elsewhere. `u` then `b`
+draws the one-column age ramp in the gutter, with a glyph per bucket so it survives
+`NO_COLOR`.
 
-Two things about the jj side are settled by looking rather than by the docs. On jj 0.44.0
-`file annotate` carries no line-range flag, so it annotates the whole file and the
-filtering happens in Go, which the interface has to say out loud rather than pretend both
-backends cost the same. It does carry `-T`, so the output is a template this side writes
-and there is no format to guess at, which is better than git's porcelain. And it snapshots
-the working copy unless `--ignore-working-copy` is passed, so a read-only blame call that
-forgets that flag mutates the repository it was only meant to read.
-
-What comes after the primitive: the per-hunk rollup and its cache, keyed by the old side's
-blob rather than by head, because blame of an unchanged blob does not change when a push
-lands elsewhere. Then `ub` for a one-column age ramp in the gutter, with a glyph per
-bucket so it survives `NO_COLOR`, dropping first when the frame is too narrow. Then the
-hunk header summary. Move-aware blame (`-M`/`-C`) and `.git-blame-ignore-revs` are last
-and opt-in, because both cost real extra passes.
+What is left is the hunk header summary ("N authors, oldest Xd ago" in the header's right
+margin), which is additive to the same data and wants a stretch of the per-line column
+first. The narrow-frame drop the research called for has no squeeze case yet: the column
+costs one cell and the context pane that would contend for the width does not exist, so
+the rule lands with whichever optional column comes second. Move-aware blame (`-M`/`-C`)
+and `.git-blame-ignore-revs` are last and opt-in, because both cost real extra passes.
 
 ### 9. An agent session is invisible while it is working
 
