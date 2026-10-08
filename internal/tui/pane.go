@@ -26,6 +26,12 @@ type pane struct {
 	tty  *os.File
 	cmd  *exec.Cmd
 	done chan error
+	// sink copies the session's raw output for the caller that wants a
+	// transcript, which is what script(1) nested a second pty to get. sinkErr
+	// keeps the first write failure so an empty transcript reads as the error
+	// it is rather than as a quiet session.
+	sink    io.WriteCloser
+	sinkErr error
 	// woke is signaled when the emulator's contents changed, buffered to one
 	// because every wake redraws the whole pane anyway.
 	woke chan struct{}
@@ -40,7 +46,7 @@ var errNoProgram = errors.New("no program to run")
 // startPane runs argv on a pty w by h cells. The emulator answers the child's
 // terminal queries itself, so a program that asks before drawing does not
 // stall waiting on a reply nothing else was going to send.
-func startPane(ctx context.Context, argv []string, w, h int) (*pane, error) {
+func startPane(ctx context.Context, argv []string, w, h int, sink io.WriteCloser) (*pane, error) {
 	if len(argv) == 0 {
 		return nil, errNoProgram
 	}
@@ -48,6 +54,7 @@ func startPane(ctx context.Context, argv []string, w, h int) (*pane, error) {
 	p := &pane{
 		emu:  vt.NewSafeEmulator(w, h),
 		done: make(chan error, 1),
+		sink: sink,
 		woke: make(chan struct{}, 1),
 	}
 	p.emu.SetCallbacks(vt.Callbacks{
@@ -91,6 +98,10 @@ func (p *pane) pump() {
 	for {
 		n, err := p.tty.Read(buf)
 		if n > 0 {
+			if p.sink != nil && p.sinkErr == nil {
+				_, p.sinkErr = p.sink.Write(buf[:n])
+			}
+
 			if _, werr := p.emu.Write(buf[:n]); werr != nil {
 				break
 			}
@@ -176,6 +187,11 @@ func (p *pane) kill() {
 
 	//nolint:errcheck // the emulator's close is cleanup, not a decision
 	_ = p.emu.Close()
+
+	if p.sink != nil {
+		//nolint:errcheck // same
+		_ = p.sink.Close()
+	}
 
 	//nolint:errcheck // a closed pty is the wanted state either way
 	_ = p.tty.Close()

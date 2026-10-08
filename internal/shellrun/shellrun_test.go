@@ -1,8 +1,6 @@
 package shellrun_test
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -59,32 +57,6 @@ func TestCleanKeepsTheTail(t *testing.T) {
 		if line != "a line of build output that says very little" && line != "FAIL: the one that matters" {
 			t.Errorf("the cut landed mid-line: %q", line)
 		}
-	}
-}
-
-// Capture is the only place that knows how the two script(1) flavors differ,
-// and the proof is that a session actually reaches the file.
-func TestCaptureRecordsTheSession(t *testing.T) {
-	t.Parallel()
-
-	transcript := filepath.Join(t.TempDir(), "typescript")
-
-	cmd, err := shellrun.Capture(t.Context(), transcript, "echo", "the-evidence")
-	if err != nil {
-		t.Skipf("no script(1) here: %v", err)
-	}
-
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("running the capture: %v", err)
-	}
-
-	raw, err := os.ReadFile(transcript) //nolint:gosec // the test's own temp file
-	if err != nil {
-		t.Fatalf("reading the transcript: %v", err)
-	}
-
-	if got := shellrun.Clean(raw); !strings.Contains(got, "the-evidence") {
-		t.Errorf("the transcript does not carry what ran: %q", got)
 	}
 }
 

@@ -436,6 +436,10 @@ type editedMsg struct {
 	// suggests marks a buffer whose text replaces the line rather than
 	// describing it, so what comes back is fenced rather than posted as prose.
 	suggests bool
+	// transcript marks a pane whose file is what the child printed rather
+	// than what it was asked to edit, so the text is cleaned and appended
+	// instead of replacing the body.
+	transcript bool
 }
 
 type sentMsg struct {
@@ -1798,10 +1802,6 @@ func (m *Model) editNote() tea.Cmd {
 		m.review.Comments[i].Note, editedMsg{index: i, replyTo: -1, field: fieldNote})
 }
 
-// shell hands the terminal to $SHELL in the repository and appends what the
-// session printed to the note under the cursor. Running the code under review
-// and then writing the comment is the flow this exists for, and a transcript is
-// what makes the comment evidence rather than a claim.
 // C leaves the screen so the working copy can be moved onto the pull request,
 // which is the one thing reviewing from the API cannot supply.
 func (m *Model) wantCheckout() tea.Cmd {
@@ -1827,6 +1827,11 @@ func (m *Model) noTree() string {
 	return "the checkout is on another branch; C moves it onto this pull request"
 }
 
+// shell runs $SHELL in the pane and appends what the session printed to the
+// note under the cursor. Running the code under review and then writing the
+// comment is the flow this exists for, and a transcript is what makes the
+// comment evidence rather than a claim. The pane's own pty is what the
+// transcript tees off, which is what script(1) nested a second one for.
 func (m *Model) shell() tea.Cmd {
 	if m.tree != TreeOnHead {
 		m.say(m.noTree(), true)
@@ -1848,38 +1853,22 @@ func (m *Model) shell() tea.Cmd {
 		return nil
 	}
 
-	name := file.Name()
-	if err := file.Close(); err != nil {
-		m.say(err.Error(), true)
+	shell := shellrun.Shell()
 
-		return nil
-	}
-
-	cmd, err := shellrun.Capture(m.ctx, name, shellrun.Shell())
+	p, err := startPane(m.ctx, []string{shell}, m.width, m.paneHeight(), file)
 	if err != nil {
+		//nolint:errcheck // the transcript is only the sink here, not the edit
+		_ = file.Close()
+		//nolint:gosec,errcheck // a temp file that outlives the pane is not worth an error path
+		os.Remove(file.Name())
 		m.say(err.Error(), true)
 
 		return nil
 	}
 
-	return tea.ExecProcess(cmd, func(err error) tea.Msg {
-		//nolint:errcheck // a temp file that outlives the session is not worth an error path
-		defer os.Remove(name)
-
-		if err != nil {
-			return editedMsg{index: i, replyTo: -1, field: fieldNote, err: err}
-		}
-
-		raw, err := os.ReadFile(name) //nolint:gosec // our own temp file
-		if err != nil {
-			return editedMsg{index: i, replyTo: -1, field: fieldNote, err: err}
-		}
-
-		return editedMsg{
-			index: i, replyTo: -1, field: fieldNote,
-			body: appendTranscript(m.review.Comments[i].Note, shellrun.Clean(raw)),
-		}
-	})
+	return m.seat(p, file.Name(), editedMsg{
+		index: i, replyTo: -1, field: fieldNote, transcript: true,
+	}, filepath.Base(shell))
 }
 
 // appendTranscript keeps what the note already said. A second session is more
@@ -1922,7 +1911,7 @@ func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 
 	argv := editorArgv(name)
 
-	p, err := startPane(m.ctx, argv, m.width, m.paneHeight())
+	p, err := startPane(m.ctx, argv, m.width, m.paneHeight(), nil)
 	if err != nil {
 		//nolint:gosec,errcheck // a temp file that outlives the edit is not worth an error path
 		os.Remove(name)
@@ -1931,8 +1920,15 @@ func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 		return nil
 	}
 
+	return m.seat(p, name, msg, filepath.Base(argv[0]))
+}
+
+// seat installs a started pane as the screen's child: paneFile is the temp
+// file its exit leaves worth reading, paneMsg the shape that read takes, and
+// title what the divider names it.
+func (m *Model) seat(p *pane, name string, msg editedMsg, title string) tea.Cmd {
 	m.pane, m.paneFile, m.paneMsg = p, name, msg
-	m.paneTitle = filepath.Base(argv[0])
+	m.paneTitle = title
 
 	// A hover answer still in flight would draw over the shrunken body while
 	// the pane holds the keyboard, so it is dismissed rather than left up.
@@ -1941,21 +1937,31 @@ func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 	return p.watch
 }
 
-// paneGone is the editor exiting: read the buffer back and land it the way
-// the hand-off always did.
+// paneGone is the child exiting: the buffer an editor wrote replaces the
+// body, the transcript a shell printed is cleaned and appended to it.
 func (m *Model) paneGone(err error) tea.Cmd {
 	p, name, msg := m.pane, m.paneFile, m.paneMsg
 	m.pane, m.paneFile, m.paneTitle = nil, "", ""
 	p.kill()
 
-	//nolint:errcheck // a temp file that outlives the edit is not worth an error path
+	//nolint:errcheck // a temp file that outlives the pane is not worth an error path
 	defer os.Remove(name)
 
-	if err != nil {
+	body, rerr := os.ReadFile(name) //nolint:gosec // our own temp file
+	switch {
+	case err != nil && msg.transcript && len(body) > 0:
+		// A shell that exits non-zero still ran, and what it printed is still
+		// the evidence the pane existed to keep.
+		msg.body = appendTranscript(m.review.Comments[msg.index].Note, shellrun.Clean(body))
+	case err != nil:
 		msg.err = err
-	} else if body, err := os.ReadFile(name); err != nil { //nolint:gosec // our own temp file
-		msg.err = err
-	} else {
+	case p.sinkErr != nil && len(body) == 0:
+		msg.err = p.sinkErr
+	case rerr != nil:
+		msg.err = rerr
+	case msg.transcript:
+		msg.body = appendTranscript(m.review.Comments[msg.index].Note, shellrun.Clean(body))
+	default:
 		msg.body = strings.TrimRight(string(body), "\n")
 	}
 

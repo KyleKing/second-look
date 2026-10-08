@@ -1,11 +1,15 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/kyleking/second-look/internal/shellrun"
 )
 
 // paneWait polls the emulated screen rather than sleeping, because the child
@@ -44,7 +48,7 @@ func paneGone(t *testing.T, p *pane) paneGoneMsg {
 func TestPaneGivesTheChildItsSize(t *testing.T) {
 	t.Parallel()
 
-	p, err := startPane(t.Context(), []string{"sh", "-c", "stty size"}, 97, 11)
+	p, err := startPane(t.Context(), []string{"sh", "-c", "stty size"}, 97, 11, nil)
 	if err != nil {
 		t.Fatalf("starting the pane: %v", err)
 	}
@@ -61,7 +65,7 @@ func TestPaneGivesTheChildItsSize(t *testing.T) {
 func TestPaneSendsKeysToTheChild(t *testing.T) {
 	t.Parallel()
 
-	p, err := startPane(t.Context(), []string{"cat"}, 60, 10)
+	p, err := startPane(t.Context(), []string{"cat"}, 60, 10, nil)
 	if err != nil {
 		t.Fatalf("starting the pane: %v", err)
 	}
@@ -78,7 +82,7 @@ func TestPaneSendsKeysToTheChild(t *testing.T) {
 func TestPaneReportsTheExit(t *testing.T) {
 	t.Parallel()
 
-	ok, err := startPane(t.Context(), []string{"true"}, 40, 6)
+	ok, err := startPane(t.Context(), []string{"true"}, 40, 6, nil)
 	if err != nil {
 		t.Fatalf("starting the pane: %v", err)
 	}
@@ -87,7 +91,7 @@ func TestPaneReportsTheExit(t *testing.T) {
 		t.Errorf("a clean exit reported %v", msg.err)
 	}
 
-	bad, err := startPane(t.Context(), []string{"false"}, 40, 6)
+	bad, err := startPane(t.Context(), []string{"false"}, 40, 6, nil)
 	if err != nil {
 		t.Fatalf("starting the pane: %v", err)
 	}
@@ -102,7 +106,7 @@ func TestPaneReportsTheExit(t *testing.T) {
 func TestPaneKillEndsTheWatch(t *testing.T) {
 	t.Parallel()
 
-	p, err := startPane(t.Context(), []string{"cat"}, 40, 6)
+	p, err := startPane(t.Context(), []string{"cat"}, 40, 6, nil)
 	if err != nil {
 		t.Fatalf("starting the pane: %v", err)
 	}
@@ -114,12 +118,43 @@ func TestPaneKillEndsTheWatch(t *testing.T) {
 	}
 }
 
+// The sink is what a shell session leaves behind: everything the pty printed,
+// raw enough that Clean turns it into the transcript a note attaches.
+func TestPaneSinkKeepsTheSession(t *testing.T) {
+	t.Parallel()
+
+	sink, err := os.Create(filepath.Join(t.TempDir(), "typescript"))
+	if err != nil {
+		t.Fatalf("opening the sink: %v", err)
+	}
+
+	p, err := startPane(t.Context(), []string{"sh", "-c", "echo the-evidence"}, 40, 6, sink)
+	if err != nil {
+		t.Fatalf("starting the pane: %v", err)
+	}
+
+	if msg := paneGone(t, p); msg.err != nil {
+		t.Fatalf("the session exited with %v", msg.err)
+	}
+
+	p.kill()
+
+	raw, err := os.ReadFile(sink.Name())
+	if err != nil {
+		t.Fatalf("reading the transcript: %v", err)
+	}
+
+	if got := shellrun.Clean(raw); !strings.Contains(got, "the-evidence") {
+		t.Errorf("the transcript does not carry what ran: %q", got)
+	}
+}
+
 // A resize reaches both sides of the pane: the emulator the screen draws, and
 // the winsize the child would ask about.
 func TestPaneResize(t *testing.T) {
 	t.Parallel()
 
-	p, err := startPane(t.Context(), []string{"cat"}, 40, 6)
+	p, err := startPane(t.Context(), []string{"cat"}, 40, 6, nil)
 	if err != nil {
 		t.Fatalf("starting the pane: %v", err)
 	}

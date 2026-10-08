@@ -437,7 +437,7 @@ func TestReviewScreenMarksHunksRead(t *testing.T) {
 
 // Attaching evidence is the flow the schema's local note exists for: run the
 // code under review, come back, and what it printed is on the comment. The
-// terminal has to be handed over for real, which is why this is a pty test.
+// shell runs on a real pty in the pane, which is why this is a pty test.
 func TestReviewScreenAttachesAShellTranscript(t *testing.T) {
 	t.Parallel()
 

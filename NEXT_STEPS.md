@@ -35,12 +35,13 @@ same hand-off as before, except the frame stays up beside it — and its exit
 lands the buffer the way the hand-off always did. The pane is also the
 `tui/editor` debt owed to aragonite, now with a place to live.
 
-What is left is the other tenants and one open shape. `!` still takes the whole
-terminal for a shell and is the next tenant, and attaching to an agent (item 10)
-is the third. Focus is undecided: the child owns every key while the pane is
-open because nvim needs all of them, and a binding that hands focus back to
-scroll the review without closing the editor is a second cut only if the first
-turns out to need it.
+`!` is the second tenant now: the shell runs in the pane and what it printed
+tees off the pty straight to the transcript, which is what `script(1)` nested a
+second pty to get and is no longer a dependency. Attaching to an agent (item
+10) is the third tenant and the one ACP is for. Focus is undecided: the child
+owns every key while the pane is open because nvim needs all of them, and a
+binding that hands focus back to scroll the review without closing the editor
+is a second cut only if the first turns out to need it.
 
 ### 2. Definitions and usages, built before codeintel
 
