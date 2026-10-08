@@ -192,7 +192,8 @@ type Model struct {
 	showing *answerMsg
 	// pane is a program running on a pty inside the frame — $EDITOR on the
 	// comment's temp file — with paneMsg saying where its buffer lands and
-	// paneFile naming that file. The child owns the keys while it runs.
+	// paneFile naming that file, empty where the pane's own screen is the
+	// result. The child owns the keys while it runs.
 	pane      *pane
 	paneFile  string
 	paneMsg   editedMsg
@@ -1895,8 +1896,7 @@ func (m *Model) noTree() string {
 // shell runs $SHELL in the pane and appends what the session printed to the
 // note under the cursor. Running the code under review and then writing the
 // comment is the flow this exists for, and a transcript is what makes the
-// comment evidence rather than a claim. The pane's own pty is what the
-// transcript tees off, which is what script(1) nested a second one for.
+// comment evidence rather than a claim.
 func (m *Model) shell() tea.Cmd {
 	if m.tree != TreeOnHead {
 		m.say(m.noTree(), true)
@@ -1911,27 +1911,16 @@ func (m *Model) shell() tea.Cmd {
 		return nil
 	}
 
-	file, err := os.CreateTemp("", "second-look-*.transcript")
-	if err != nil {
-		m.say(err.Error(), true)
-
-		return nil
-	}
-
 	shell := shellrun.Shell()
 
-	p, err := startPane(m.ctx, []string{shell}, m.width, m.paneHeight(), file)
+	p, err := startPane(m.ctx, shellrun.Argv(), m.width, m.paneHeight())
 	if err != nil {
-		//nolint:errcheck // the transcript is only the sink here, not the edit
-		_ = file.Close()
-		//nolint:gosec,errcheck // a temp file that outlives the pane is not worth an error path
-		os.Remove(file.Name())
 		m.say(err.Error(), true)
 
 		return nil
 	}
 
-	return m.seat(p, file.Name(), editedMsg{
+	return m.seat(p, "", editedMsg{
 		index: i, replyTo: -1, field: fieldNote, transcript: true,
 	}, filepath.Base(shell))
 }
@@ -1976,7 +1965,7 @@ func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 
 	argv := editorArgv(name)
 
-	p, err := startPane(m.ctx, argv, m.width, m.paneHeight(), nil)
+	p, err := startPane(m.ctx, argv, m.width, m.paneHeight())
 	if err != nil {
 		//nolint:gosec,errcheck // a temp file that outlives the edit is not worth an error path
 		os.Remove(name)
@@ -1989,8 +1978,9 @@ func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 }
 
 // seat installs a started pane as the screen's child: paneFile is the temp
-// file its exit leaves worth reading, paneMsg the shape that read takes, and
-// title what the divider names it.
+// file its exit leaves worth reading — empty for a shell, whose transcript is
+// the screen itself — paneMsg the shape that read takes, and title what the
+// divider names it.
 func (m *Model) seat(p *pane, name string, msg editedMsg, title string) tea.Cmd {
 	m.pane, m.paneFile, m.paneMsg = p, name, msg
 	m.paneTitle = title
@@ -2003,29 +1993,35 @@ func (m *Model) seat(p *pane, name string, msg editedMsg, title string) tea.Cmd 
 }
 
 // paneGone is the child exiting: the buffer an editor wrote replaces the
-// body, the transcript a shell printed is cleaned and appended to it.
+// body, the session a shell ran is appended to it as the pane drew it.
 func (m *Model) paneGone(err error) tea.Cmd {
 	p, name, msg := m.pane, m.paneFile, m.paneMsg
 	m.pane, m.paneFile, m.paneTitle = nil, "", ""
 	p.kill()
+
+	if msg.transcript {
+		// A shell that exits non-zero still ran, and what the pane drew is
+		// still the evidence it existed to keep.
+		text := p.transcript()
+		if err == nil || text != "" {
+			msg.body = appendTranscript(m.review.Comments[msg.index].Note, text)
+		} else {
+			msg.err = err
+		}
+		m.applyEdit(msg)
+
+		return tea.ClearScreen
+	}
 
 	//nolint:errcheck // a temp file that outlives the pane is not worth an error path
 	defer os.Remove(name)
 
 	body, rerr := os.ReadFile(name) //nolint:gosec // our own temp file
 	switch {
-	case err != nil && msg.transcript && len(body) > 0:
-		// A shell that exits non-zero still ran, and what it printed is still
-		// the evidence the pane existed to keep.
-		msg.body = appendTranscript(m.review.Comments[msg.index].Note, shellrun.Clean(body))
 	case err != nil:
 		msg.err = err
-	case p.sinkErr != nil && len(body) == 0:
-		msg.err = p.sinkErr
 	case rerr != nil:
 		msg.err = rerr
-	case msg.transcript:
-		msg.body = appendTranscript(m.review.Comments[msg.index].Note, shellrun.Clean(body))
 	default:
 		msg.body = strings.TrimRight(string(body), "\n")
 	}

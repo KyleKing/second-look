@@ -35,13 +35,13 @@ same hand-off as before, except the frame stays up beside it — and its exit
 lands the buffer the way the hand-off always did. The pane is also the
 `tui/editor` debt owed to aragonite, now with a place to live.
 
-`!` is the second tenant now: the shell runs in the pane and what it printed
-tees off the pty straight to the transcript, which is what `script(1)` nested a
-second pty to get and is no longer a dependency. Its wart is a heavy prompt: a
-shell's cursor-addressed redraws land in the transcript as textual residue
-`Clean` cannot know is noise, and a live one (p10k, a mise trust dialog) reads
-like it. The fix wants a controlled shell — non-login, plain PS1 — rather than
-a filter guessing which bytes were decoration, and it waits on real use.
+`!` is the second tenant now: the shell runs in the pane and the transcript
+is the pane itself — scrollback plus the screen's last frame, so a redraw the
+terminal resolved (a `\r` rewrite, a prompt's transient marks) never reaches
+the note as residue. The shell starts with its rc files skipped
+(`shellrun.Argv`: `zsh -f -o no_prompt_sp`, `bash --norc`, `fish --no-config`),
+which keeps a heavy prompt out of the transcript and an interactive rc ask
+(mise trust) out of the pane.
 Attaching to an agent (item 10) is the third tenant and the one ACP is for.
 Focus is undecided: the child owns every key while the pane is open because
 nvim needs all of them — all but ctrl+\, which the screen keeps for a program
@@ -272,9 +272,11 @@ listed agent is the default. `dispatch`, `resume`, and the `agents` listing
 stay untouched: they still cover tools with no adapter, sessions dispatched
 while second-look was closed, and the visibility half of this item.
 
-What is left is proof against the real adapters rather than the stub: a turn
-with `devin acp` live in the pane, authentication included, and the same for
-the Claude shim. Both wait on a configured laptop rather than on code.
+Both adapters are proven live: `devin acp` ran a full turn in the pane under
+stored credentials — todo set in, tool calls streamed, permission asks
+answered in-band, and the agent's `second-look comment` turn landed back on
+the review — and the Claude shim answered a turn over `npx` on the same
+client. What is left is using them in real reviews rather than proving them.
 
 ## Waiting on use rather than on code
 

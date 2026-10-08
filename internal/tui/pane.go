@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"strings"
 	"sync/atomic"
 
 	tea "charm.land/bubbletea/v2"
@@ -26,12 +27,6 @@ type pane struct {
 	tty  *os.File
 	cmd  *exec.Cmd
 	done chan error
-	// sink copies the session's raw output for the caller that wants a
-	// transcript, which is what script(1) nested a second pty to get. sinkErr
-	// keeps the first write failure so an empty transcript reads as the error
-	// it is rather than as a quiet session.
-	sink    io.WriteCloser
-	sinkErr error
 	// woke is signaled when the emulator's contents changed, buffered to one
 	// because every wake redraws the whole pane anyway.
 	woke chan struct{}
@@ -46,7 +41,7 @@ var errNoProgram = errors.New("no program to run")
 // startPane runs argv on a pty w by h cells. The emulator answers the child's
 // terminal queries itself, so a program that asks before drawing does not
 // stall waiting on a reply nothing else was going to send.
-func startPane(ctx context.Context, argv []string, w, h int, sink io.WriteCloser) (*pane, error) {
+func startPane(ctx context.Context, argv []string, w, h int) (*pane, error) {
 	if len(argv) == 0 {
 		return nil, errNoProgram
 	}
@@ -54,7 +49,6 @@ func startPane(ctx context.Context, argv []string, w, h int, sink io.WriteCloser
 	p := &pane{
 		emu:  vt.NewSafeEmulator(w, h),
 		done: make(chan error, 1),
-		sink: sink,
 		woke: make(chan struct{}, 1),
 	}
 	p.emu.SetCallbacks(vt.Callbacks{
@@ -98,10 +92,6 @@ func (p *pane) pump() {
 	for {
 		n, err := p.tty.Read(buf)
 		if n > 0 {
-			if p.sink != nil && p.sinkErr == nil {
-				_, p.sinkErr = p.sink.Write(buf[:n])
-			}
-
 			if _, werr := p.emu.Write(buf[:n]); werr != nil {
 				break
 			}
@@ -197,41 +187,58 @@ func (p *pane) kill() {
 	//nolint:errcheck // the emulator's close is cleanup, not a decision
 	_ = p.emu.Close()
 
-	if p.sink != nil {
-		//nolint:errcheck // same
-		_ = p.sink.Close()
-	}
-
 	//nolint:errcheck // a closed pty is the wanted state either way
 	_ = p.tty.Close()
+}
+
+// row is one screen line as cells.
+func (p *pane) row(y int) uv.Line {
+	w := p.emu.Width()
+	row := make(uv.Line, w)
+
+	for x := range w {
+		row[x] = uv.EmptyCell
+		if c := p.emu.CellAt(x, y); c != nil {
+			row[x] = *c.Clone()
+		}
+	}
+
+	return row
 }
 
 // lines is the emulated screen as styled rows, with the program's cursor
 // drawn as a reversed cell where it wants one.
 func (p *pane) lines() []string {
-	w, h := p.emu.Width(), p.emu.Height()
 	at := p.emu.CursorPosition()
+	out := make([]string, 0, p.emu.Height())
 
-	out := make([]string, 0, h)
+	for y := range p.emu.Height() {
+		row := p.row(y)
 
-	for y := range h {
-		row := make(uv.Line, w)
-
-		for x := range w {
-			cell := uv.EmptyCell
-			if c := p.emu.CellAt(x, y); c != nil {
-				cell = *c.Clone()
-			}
-
-			if p.cursor.Load() && at.X == x && at.Y == y {
-				cell.Style.Attrs |= uv.AttrReverse
-			}
-
-			row[x] = cell
+		if p.cursor.Load() && at.Y == y && at.X < len(row) {
+			row[at.X].Style.Attrs |= uv.AttrReverse
 		}
 
 		out = append(out, row.Render())
 	}
 
 	return out
+}
+
+// transcript is the session as the pane rendered it: scrollback plus the
+// screen's last frame. Rendering is what resolves the escape sequences a raw
+// byte log would carry, so the note gets what ran rather than how it was
+// drawn.
+func (p *pane) transcript() string {
+	sb := p.emu.Scrollback().Lines()
+	rows := make([]string, 0, len(sb)+p.emu.Height())
+
+	for _, l := range sb {
+		rows = append(rows, l.String())
+	}
+	for y := range p.emu.Height() {
+		rows = append(rows, p.row(y).String())
+	}
+
+	return strings.TrimRight(strings.Join(rows, "\n"), " \n")
 }
