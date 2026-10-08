@@ -19,16 +19,16 @@ request inside it.
 | Step | Built | Missing |
 | --- | --- | --- |
 | Open on what is owed | three buckets or configured sections, drawn as each search lands | nothing |
-| Narrow to one repository | `f` focuses the cursor row's repository across all three tabs, `F` clears it | the clone it would use in the header, and a motion to the next repository |
+| Narrow to one repository | `f` focuses the cursor row's repository across all three tabs, `F` clears it, and the header says which clone `C` would take | a motion to the next repository |
 | Take the ordering advice | `inbox.Rank`, `inbox --json` carries it, and a started row says what it holds | why a row sits where it does, `s` to sort another way, and the stack drawn as a stack |
-| Get a checkout | `C` where the cwd is a clone of that repository, and the header says which clone is free | the `internal/checkouts` ranking behind `C` itself, and a lease |
+| Get a checkout | `C` leases the best-ranked clone of the row's repository and moves it, asking before it stashes; the header says which clone it would take | nothing |
 | Stage the batch | `get` with no clone, prefetch ahead of the cursor, `reviews --json` | nothing |
-| Ask an agent | `T` hands the set over, and resumes the session the agent recorded on the review | a key that asks a question rather than handing work back |
+| Ask an agent | `T` hands the set over in the leased checkout, and resumes the session the agent recorded on the review | a key that asks a question rather than handing work back |
 | Read and answer | the review screen, the conversation queue, notes, threads | the narrative pass, which is its own problem |
 | Post and move on | `S`, and leaving a review returns to the queue | nothing |
 
-Six of eight steps are done. The lease is the one left in the middle, and it is what
-decides where the agent runs.
+Seven of eight steps are done. What is left in the middle is a way to ask the agent a
+question rather than hand work over, which ACP is the shape for.
 
 ## 1. Open on what is owed
 
@@ -75,23 +75,17 @@ against changes nobody has seen.
 
 ## 4. Lease a checkout
 
-`C` today calls `get.Resolve` against the cwd and refuses when the cwd is a checkout of
-something else, so the key works for one repository per terminal. `internal/checkouts`
-already ranks every clone and worktree of a remote by on-branch, then clean, then
-needs-a-stash, and it is wired only into the threads reply path.
+Built. `C` asks `checkouts.Find` for every clone of the row's repository — this
+directory counts when the scan does not reach it — ranked on-branch, then clean, then
+needs-a-stash, and claims the best one a live session does not already hold. The claim is
+a file under the repository's state directory naming the path and the pid holding it,
+taken atomically and swept when the pid is gone, so a second second-look sees it and a
+dead one leaves nothing behind.
 
-What the step needs:
-
-- `C` asks `checkouts.Find` for the focused repository rather than reading the cwd, and
-  moves the best-ranked clone, asking before it stashes, which is the question
-  `get.Prepare` already knows how to ask. The header already names that clone, so half of
-  this is the same call moved behind the key
-- a lease, held for the focused repository and released when focus moves, written where
-  a second second-look and a dispatched agent can both see it. Two agents claiming the
-  one clean clone is the failure this exists to stop
-- the answer for a repository with no clone at all, which is the common case and is
-  already handled everywhere else: read it from the API and say in the review's note
-  that nothing was checked against the code
+A review that reads detached adopts the claim as its working copy: the shell key and a
+dispatched agent run in the leased tree. Releasing is the sitting's to make: focus moving
+off the repository hands the claim back, `F` and leaving the queue hand back all of them,
+and a repository whose staged reviews still hold drafts warns as it lets go.
 
 Only two things actually need a working tree: checking a finding that cites code outside
 the diff, and running something to prove a claim about behaviour. Everything else reads
@@ -184,15 +178,13 @@ being separate sittings.
 ## 8. Post and move on
 
 `S` posts, and leaving a review returns to the queue on the row it came from. Built. The
-end of a repository is `]` on the repository object, which releases the lease, and the
-next repository's rows are already staged if prefetch reached them.
+end of a repository is focus moving or clearing, which releases the lease, and the next
+repository's rows are already staged if prefetch reached them.
 
 ## What I would not decide here
 
 - Whether focus is one repository or a set. A set is the honest shape for a monorepo org
   and it makes the lease ambiguous again, so start with one
-- What a lease does when a review is left with drafts in it. Releasing loses the tree the
-  drafts were written against, and holding blocks the next repository
 - Whether the agent column costs a `claude agents --json` per refresh or a poll. It is
   local and it is 0.65s, so per refresh until that hurts
 - What a tool with no resumable session does. wavez resumes a thread with `-resume <id>`

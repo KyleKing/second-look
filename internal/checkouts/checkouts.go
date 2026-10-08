@@ -136,7 +136,7 @@ func Find(ctx context.Context, r Runner, repo, head string) ([]Checkout, error) 
 		return nil, ErrNoRemotes
 	}
 
-	rank(out, head)
+	Rank(out, head)
 
 	return out, nil
 }
@@ -172,10 +172,10 @@ func holds(remote, remoteID, repo string) bool {
 	return remoteID != "" && strings.HasSuffix(strings.ToLower(remoteID), "/"+strings.ToLower(repo))
 }
 
-// rank orders the candidates by how little the reviewer has to give up to use
+// Rank orders the candidates by how little the reviewer has to give up to use
 // one: already on the branch costs nothing, a clean tree costs a branch switch,
 // and a dirty tree costs the stash question.
-func rank(out []Checkout, head string) {
+func Rank(out []Checkout, head string) {
 	// What each candidate costs to use: nothing, a branch switch, or the stash
 	// question.
 	const (

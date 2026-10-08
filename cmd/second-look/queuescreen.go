@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -38,7 +39,9 @@ func openQueue(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) e
 	for {
 		next, left, err := queueOnce(ctx, at, where, stdin, stdout)
 		if err != nil || next < 0 {
-			return err
+			// Leaving the sitting hands back every checkout it claimed. A
+			// warning written next to the error keeps both honest.
+			return errors.Join(err, releaseClaims(stdout))
 		}
 
 		at, where = next, left
@@ -101,7 +104,9 @@ func queueOnce(
 			Hints: reviewsHints, Help: reviewsHelp, Loader: rv, Rest: rv.restedOn,
 			Note: rv.note,
 		},
-	}, at).WithFocusNote(func(repo string) tea.Cmd { return cloneNote(ctx, repo) })
+	}, at).
+		WithFocusNote(func(repo string) tea.Cmd { return cloneNote(ctx, repo) }).
+		WithFocusChange(func(from, _ string) tea.Cmd { return releaseClaim(from) })
 	list.Restore(where)
 
 	// opened is the review the shell last drew, which is what a checkout or a
@@ -124,9 +129,9 @@ func queueOnce(
 				return nil, fmt.Errorf("opening %s: %w", r, err)
 			}
 
-			opened = t
+			opened = adoptLease(ctx, t)
 
-			return reviewScreen(ctx, t, &log, 0)
+			return reviewScreen(ctx, opened, &log, 0)
 		}
 	}))
 

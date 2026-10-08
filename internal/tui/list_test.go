@@ -807,6 +807,58 @@ func TestFocusNarrowsEveryQueueAndSurvivesAHandoff(t *testing.T) {
 	shows(t, after, []string{"belongs to no repository", "kyleking/wavez#7"}, nil)
 }
 
+// runMsgs executes the commands a keypress returns, the way the program loop
+// does for a BatchMsg, feeding the messages they answer back into the list.
+func runMsgs(l *tui.List, cmd tea.Cmd) {
+	if cmd == nil {
+		return
+	}
+
+	switch msg := cmd().(type) {
+	case tea.BatchMsg:
+		for _, c := range msg {
+			runMsgs(l, c)
+		}
+	default:
+		l.Update(msg)
+	}
+}
+
+// Leaving a focused repository runs the hook hung on the list, which is how a
+// claimed checkout is handed back, and the message it answers with lands in
+// the footer. Focusing fires nothing: there is nothing to hand back yet.
+func TestLeavingFocusRunsTheChangeHook(t *testing.T) {
+	t.Parallel()
+
+	var left []string
+
+	l := tui.NewTabs(focusQueues(), 0).
+		WithFocusChange(func(from, _ string) tea.Cmd {
+			return func() tea.Msg {
+				left = append(left, from)
+
+				return tui.StatusMsg{Text: "released " + from}
+			}
+		})
+	l.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+
+	_, cmd := l.Update(tea.KeyPressMsg{Code: 'f', Text: "f"})
+	runMsgs(l, cmd)
+
+	if len(left) != 0 {
+		t.Fatalf("focusing fired the hook for %v, want silence", left)
+	}
+
+	_, cmd = l.Update(tea.KeyPressMsg{Code: 'F', Text: "F"})
+	runMsgs(l, cmd)
+
+	if len(left) != 1 || left[0] != "kyleking/tlr" {
+		t.Fatalf("the hook fired for %v, want kyleking/tlr leaving", left)
+	}
+
+	shows(t, l, []string{"released kyleking/tlr"}, nil)
+}
+
 // A conversation queue holds three kinds of row, and answering a review thread
 // is different work from answering a comment on the pull request itself. The
 // rows' own words cannot tell them apart: "review" appears in half of them.

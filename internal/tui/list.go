@@ -220,7 +220,10 @@ type List struct {
 	focused   string
 	focusNote string
 	onFocus   func(repo string) tea.Cmd
-	loader    Loader
+	// onFocusChange runs when focus leaves a repository, so what the sitting
+	// claimed for it can be handed back.
+	onFocusChange func(from, to string) tea.Cmd
+	loader        Loader
 	// onRest is called with the row the cursor has stopped on, and moves counts
 	// the moves so far, so an answer about a row already left is dropped.
 	onRest func(row string) tea.Cmd
@@ -398,6 +401,10 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Repo == l.focused {
 			l.focusNote = msg.Note
 		}
+
+		return l, nil
+	case StatusMsg:
+		l.say(msg.Text, msg.Failed)
 
 		return l, nil
 	}

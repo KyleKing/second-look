@@ -10,6 +10,8 @@ import (
 
 	"github.com/kyleking/second-look/internal/checkouts"
 	"github.com/kyleking/second-look/internal/conversations"
+	"github.com/kyleking/second-look/internal/get"
+	"github.com/kyleking/second-look/internal/lease"
 )
 
 // errNoneChosen is every offered checkout turned down, which is a decision
@@ -84,8 +86,23 @@ func pick(
 		return "", nil
 	}
 
+	found, err = unheld(found, c.Repository)
+	if err != nil {
+		return "", err
+	}
+
 	if len(found) == 0 {
 		return "", nil
+	}
+
+	// The sitting's own leased clone is the one a reply opens in without
+	// asking: it is already claimed and likely already on the branch.
+	if ours := lease.Ours(get.Host, c.Repository); ours != nil {
+		for i := range found {
+			if found[i].Path == ours.Record.Path {
+				return found[i].Path, nil
+			}
+		}
 	}
 
 	if len(found) == 1 {
@@ -106,6 +123,28 @@ func pick(
 	}
 
 	return "", errNoneChosen
+}
+
+// unheld drops the checkouts a live session of second-look holds, since
+// opening a review in one moves the tree it was claimed for. A repository
+// whose every clone is claimed is an answer of its own.
+func unheld(found []checkouts.Checkout, repo string) ([]checkouts.Checkout, error) {
+	held := lease.List(get.Host, repo)
+	free := make([]checkouts.Checkout, 0, len(found))
+
+	for i := range found {
+		if rec, ok := held[found[i].Path]; ok && rec.PID != os.Getpid() {
+			continue
+		}
+
+		free = append(free, found[i])
+	}
+
+	if len(free) == 0 && len(found) > 0 {
+		return nil, fmt.Errorf("%s: %w", repo, errEveryCloneLeased)
+	}
+
+	return free, nil
 }
 
 // describe is what a candidate costs to use, which is what the answer turns on.

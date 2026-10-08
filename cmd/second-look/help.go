@@ -61,11 +61,12 @@ NAMING A PULL REQUEST
       answered, and posted with no working copy at all. What a tree adds is
       reading around the change and running it, which is what C and ! are for.
 
-      C moves the working copy onto the pull request, asking before it stashes
-      anything, and draws the screen again. It is offered while standing in a
-      checkout of the same repository on another branch. Cloning is never done
-      for you: a repository with no clone here is reviewed from the API, and C
-      says so.
+      C claims the best clone of the repository on this laptop and moves it
+      onto the pull request, asking before it stashes anything, then draws the
+      screen again. Cloning is never done for you: a repository with no clone
+      here is reviewed from the API, and C says so. The claim is a lease the
+      session holds, so a second second-look does not move the tree out from
+      under this one; it is handed back when the review closes.
 
       Moving is a grammar rather than a key per destination: ] or [ followed by
       h, f, c, t, or u goes to the next or previous hunk, file, comment, thread,

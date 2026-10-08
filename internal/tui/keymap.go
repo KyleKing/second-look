@@ -264,7 +264,7 @@ func helpGroups() []helpGroup {
 		}},
 		{"the pull request", [][2]string{
 			{refreshKey, "take a head that moved: prepare the review again against it, keeping what is read"},
-			{"C", "move the checkout onto this pull request"},
+			{"C", "move a checkout onto this pull request, claiming it for the session"},
 			{"P", "post the comment under the cursor on its own, now"},
 			{"S then a / r / c", "submit, approving, requesting changes, or commenting"},
 			{"i", "what the pull request says about itself: its description and the comments on it"},

@@ -61,9 +61,12 @@ all three tabs, which is what makes the two steps after it single-valued. One of
 built: an agent records its own session with `second-look session` and `T` resumes it, so a
 second hand-over reaches the agent that already read the diff. The configured `agents`
 listing gives the notification boundary its source now — a blocked session shows on the
-staged row and in `status`. Leasing a checkout for the focused repository is what is left.
-The session cutoff line and the recently-opened list are the other two, both waiting on a
-week of use rather than on code (see below).
+staged row and in `status`. The checkout lease is built too: `C` claims the best-ranked
+unheld clone of the row's repository, a detached review adopts the claim as its working
+copy so `!` and a dispatched agent run in it, and the claim goes back when focus leaves the
+repository or the sitting ends, warning first when drafts are still staged on it. The
+session cutoff line and the recently-opened list are the other two, both waiting on a week
+of use rather than on code (see below).
 
 `C` (checkout) and a posted review asking for the next one staged still quit the shell's
 program the way the old handoff did, since both need the terminal released or a fresh

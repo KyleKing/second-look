@@ -28,6 +28,7 @@ import (
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/lease"
 	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/prepared"
 	"github.com/kyleking/second-look/internal/prstate"
@@ -228,7 +229,32 @@ func openRef(ctx context.Context, r ref, stdin io.Reader, stdout io.Writer) erro
 		return fmt.Errorf("opening %s: %w", r, err)
 	}
 
-	return openReview(ctx, t, stdin, stdout, r.land)
+	// A review run on its own owes the same exit a queue does: any checkout it
+	// leased on the way is handed back.
+	return errors.Join(openReview(ctx, adoptLease(ctx, t), stdin, stdout, r.land),
+		releaseClaims(stdout))
+}
+
+// adoptLease points a detached target's working copy at the checkout this
+// session leased, so the shell key and a dispatched agent read the tree the
+// sitting claimed. A lease whose directory no longer holds the repository is
+// left alone rather than adopted.
+func adoptLease(ctx context.Context, t get.Target) get.Target {
+	if !t.Detached() {
+		return t
+	}
+
+	ours := lease.Ours(get.Host, t.RepoID())
+	if ours == nil {
+		return t
+	}
+
+	here, err := get.Here(ctx, ours.Record.Path, t.Number)
+	if err != nil || !strings.EqualFold(here.RepoID(), t.RepoID()) {
+		return t
+	}
+
+	return here
 }
 
 // openReview draws the review screen, and answers C by moving the working copy
@@ -268,19 +294,42 @@ func afterReview(
 			return nil
 		}
 
-		// A review with no clone of its repository is read from the API, and
-		// there is nothing to move.
-		if !t.Detached() {
-			if err := get.Prepare(ctx, stdout, t, confirm(stdin, stdout)); err != nil {
-				return fmt.Errorf("checking out #%d: %w", t.Number, err)
-			}
+		var err error
+		if t, err = moveTree(ctx, t, out, stdin, stdout); err != nil {
+			return err
 		}
 
-		var err error
 		if out, err = review(ctx, t, stdout, land); err != nil {
 			return err
 		}
 	}
+}
+
+// moveTree puts the working copy where the next read needs it. A detached
+// target claims a clone when C asked for one, which is what gives the shell
+// key and a dispatched agent a tree; an attached one moves onto the pull
+// request head, asking before it stashes.
+func moveTree(
+	ctx context.Context, t get.Target, out tui.Outcome, stdin io.Reader, stdout io.Writer,
+) (get.Target, error) {
+	if t.Detached() {
+		if !out.Checkout {
+			return t, nil
+		}
+
+		r := ref{owner: t.Owner, repo: t.Repo, number: t.Number}
+		if err := checkoutRef(ctx, r, stdin, stdout); err != nil {
+			return t, err
+		}
+
+		return adoptLease(ctx, t), nil
+	}
+
+	if err := get.Prepare(ctx, stdout, t, confirm(stdin, stdout)); err != nil {
+		return t, fmt.Errorf("checking out #%d: %w", t.Number, err)
+	}
+
+	return t, nil
 }
 
 // afterPosting is the next review to read once one has posted: the same
@@ -304,6 +353,8 @@ func afterPosting(ctx context.Context, was get.Target, stdout io.Writer) (get.Ta
 	if err != nil {
 		return get.Target{}, false, fmt.Errorf("opening %s: %w", at, err)
 	}
+
+	next = adoptLease(ctx, next)
 
 	if err := write(stdout, "next: "+at.String()+"\n"); err != nil {
 		return get.Target{}, false, err
@@ -399,7 +450,7 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 		tui.WithGenerated(generatedPatterns()),
 	}
 
-	if d := dispatcher(); d != nil {
+	if d := dispatcher(t.Dir()); d != nil {
 		opts = append(opts, tui.WithDispatcher(d))
 	}
 
@@ -979,7 +1030,7 @@ func configSections(cfg *config.Config) []inbox.Section {
 // The command's own output goes to a log beside the set, since the screen owns
 // the terminal while it runs and a line of an agent's reasoning drawn over the
 // frame is worse than none.
-func dispatcher() tui.Dispatcher {
+func dispatcher(work string) tui.Dispatcher {
 	const logPerm = 0o600
 
 	cfg, err := loadConfig()
@@ -1005,6 +1056,7 @@ func dispatcher() tui.Dispatcher {
 		defer f.Close() //nolint:errcheck // the child holds its own handle
 
 		cmd := exec.CommandContext(ctx, argv[0], append(argv[1:], path)...) // #nosec G204 -- the caller's own config
+		cmd.Dir = work
 		cmd.Stdout, cmd.Stderr = f, f
 
 		if err := cmd.Start(); err != nil {
@@ -1483,12 +1535,12 @@ func target(ctx context.Context, arg string) (get.Target, error) {
 
 	t, err := get.Resolve(ctx, ".", r.owner, r.repo, r.number)
 	if err == nil {
-		return t, nil
+		return adoptLease(ctx, t), nil
 	}
 
 	if r.here() {
 		if t, look := get.Lookup(r.number); look == nil {
-			return t, nil
+			return adoptLease(ctx, t), nil
 		}
 	}
 

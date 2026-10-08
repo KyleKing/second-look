@@ -67,8 +67,10 @@ func TestReviewWithNoCheckout(t *testing.T) {
 }
 
 // TestReviewScreenWithNoCheckoutRefusesAShell is the other half: the screen
-// opens and reads fine with no working copy, and the two keys that need one say
-// so rather than running against whatever the working directory happens to be.
+// opens and reads fine with no working copy, a shell refuses by name rather
+// than running against whatever the working directory happens to be, and C
+// leaves to claim a clone the laptop does not have, which ends the run with
+// the no-clone error.
 func TestReviewScreenWithNoCheckoutRefusesAShell(t *testing.T) {
 	t.Parallel()
 
@@ -80,18 +82,22 @@ func TestReviewScreenWithNoCheckoutRefusesAShell(t *testing.T) {
 	sc.await("KyleKing/second-look #2")
 
 	sc.press("!")
-	sc.await("would run somewhere else")
+	sc.await("C claims the best clone")
 
 	sc.press("C")
-	sc.await("clone it first")
 
-	sc.press("q")
-	sc.wait()
+	if code := sc.wait(); code == 0 {
+		t.Fatal("C on a review with no clone anywhere exited cleanly")
+	}
+
+	sc.await("nothing to check out")
 }
 
 // awayCassette is what preparing and opening a pull request costs with no
-// checkout: the two reads and the thread query, all named with --repo, twice
-// over because the screen reads the pull request again when it opens.
+// checkout: the two reads and the thread query, all named with --repo, three
+// times over -- the screen reads the pull request again when it opens, and C
+// reads it a third time for the branch a clone pick would rank on. The fleet
+// scan answers no clones, so the checkout it leaves to make cannot be made.
 func awayCassette(t *testing.T) string {
 	t.Helper()
 
@@ -100,11 +106,16 @@ func awayCassette(t *testing.T) string {
 		once = append(once, c.Interactions[:reads]...)
 		once = append(once, threadInteraction(t)...)
 
-		twice := make([]ghcassette.Interaction, 0, 2*len(once))
-		twice = append(twice, once...)
-		twice = append(twice, once...)
+		thrice := make([]ghcassette.Interaction, 0, 3*len(once)+1)
+		thrice = append(thrice, once...)
+		thrice = append(thrice, once...)
+		thrice = append(thrice, once...)
+		thrice = append(thrice, ghcassette.Interaction{
+			Args:   []string{"repo-dashboard", "--cli", "-depth", "2"},
+			Stdout: `{"repos":[]}`,
+		})
 
-		c.Interactions = twice
+		c.Interactions = thrice
 	})
 }
 

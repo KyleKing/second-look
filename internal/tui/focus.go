@@ -28,6 +28,22 @@ func (l *List) WithFocusNote(on func(repo string) tea.Cmd) *List {
 	return l
 }
 
+// WithFocusChange runs when focus leaves a repository, so state claimed for
+// it, like a checkout lease, can be handed back. It returns a command for the
+// same reason the note does: releasing one can mean reading the disk.
+func (l *List) WithFocusChange(on func(from, to string) tea.Cmd) *List {
+	l.onFocusChange = on
+
+	return l
+}
+
+// StatusMsg is a footer line a background command reports, which is how a
+// focus-change hook says what releasing did without blocking the screen.
+type StatusMsg struct {
+	Text   string
+	Failed bool
+}
+
 func (l *List) noteFocus() tea.Cmd {
 	l.focusNote = ""
 
@@ -36,6 +52,16 @@ func (l *List) noteFocus() tea.Cmd {
 	}
 
 	return l.onFocus(l.focused)
+}
+
+// focusChanged fires the hook once focus actually leaves a repository, not on
+// narrowing to the same one again.
+func (l *List) focusChanged(from, to string) tea.Cmd {
+	if l.onFocusChange == nil || from == "" || strings.EqualFold(from, to) {
+		return nil
+	}
+
+	return l.onFocusChange(from, to)
 }
 
 // focus narrows every queue to the cursor row's repository.
@@ -51,21 +77,25 @@ func (l *List) focus() tea.Cmd {
 		return nil
 	}
 
+	from := l.focused
 	l.focused = row.Repo
 	l.status, l.failed = "focused "+row.Repo, false
 	l.rebuild()
 
-	return l.noteFocus()
+	return tea.Batch(l.noteFocus(), l.focusChanged(from, row.Repo))
 }
 
-func (l *List) unfocus() {
+func (l *List) unfocus() tea.Cmd {
 	if l.focused == "" {
-		return
+		return nil
 	}
 
+	from := l.focused
 	l.focused, l.focusNote = "", ""
 	l.status, l.failed = "", false
 	l.rebuild()
+
+	return l.focusChanged(from, "")
 }
 
 func (l *List) focusKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
@@ -73,12 +103,10 @@ func (l *List) focusKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	case key.Matches(msg, l.list.Focus):
 		return l.focus(), true
 	case key.Matches(msg, l.list.Unfocus):
-		l.unfocus()
+		return l.unfocus(), true
 	default:
 		return nil, false
 	}
-
-	return nil, true
 }
 
 // keepFocused drops the rows belonging to another repository. A row naming no

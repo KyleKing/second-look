@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"io"
 
 	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/blob"
+	"github.com/kyleking/second-look/internal/checkouts"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
@@ -95,3 +97,35 @@ func ReviewAfter(rows []prepared.Review, repo string, was int) (string, bool) {
 func CheckerFor(ctx context.Context, root string, d *diff.Diff, reader blob.Reader) tui.Prober {
 	return probeFor(ctx, root, d, reader)
 }
+
+// stubDashboard is the Runner a test hands clonesFor, answering with the
+// JSON the extension would print.
+type stubDashboard []byte
+
+func (s stubDashboard) Run(context.Context, ...string) ([]byte, error) { return s, nil }
+
+// CloneCandidates is the clone list C picks from for repo, so a test can check
+// the merge of the dashboard's answer, this directory, and the lease already
+// held without running gh.
+func CloneCandidates(ctx context.Context, repo, head string, dashboard []byte) ([]checkouts.Checkout, error) {
+	return clonesFor(ctx, stubDashboard(dashboard), repo, head)
+}
+
+// LeasedWork is the target a review gets after the sitting's own lease is
+// adopted into it.
+func LeasedWork(ctx context.Context, t get.Target) get.Target { return adoptLease(ctx, t) }
+
+// ReleaseOn runs the focus-change hook's command for repo and returns what it
+// would tell the footer, reported false where the sitting holds no claim on it.
+func ReleaseOn(repo string) (tui.StatusMsg, bool) {
+	if cmd := releaseClaim(repo); cmd != nil {
+		if msg, ok := cmd().(tui.StatusMsg); ok {
+			return msg, true
+		}
+	}
+
+	return tui.StatusMsg{}, false
+}
+
+// ReleaseOurs drops every claim the process holds, as leaving the queue does.
+func ReleaseOurs(stdout io.Writer) error { return releaseClaims(stdout) }

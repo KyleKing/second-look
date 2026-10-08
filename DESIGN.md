@@ -56,6 +56,7 @@ flowchart TB
 | `prepared` | What is staged under `.second-look/`, in a checkout and in the state directory |
 | `stash` | Park uncommitted work so the checkout can move onto a pull request |
 | `checkouts` | Which local clones hold a repository, asked of gh-repo-dashboard |
+| `lease` | The claim a sitting puts on a checkout, swept when the holding pid is gone |
 | `aragonite/forge` | Fetch a pull request, post a review atomically |
 | `aragonite/vcs` | Diff, branch identity, and working-tree state for git and jj |
 | `aragonite/cache` | Everything network-derived and everything expensive to compute |

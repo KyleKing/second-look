@@ -1704,16 +1704,10 @@ func (m *Model) editNote() tea.Cmd {
 // C leaves the screen so the working copy can be moved onto the pull request,
 // which is the one thing reviewing from the API cannot supply.
 func (m *Model) wantCheckout() tea.Cmd {
-	switch m.tree {
-	case TreeOnHead:
+	if m.tree == TreeOnHead {
 		m.say("the checkout is already on this pull request", false)
 
 		return nil
-	case TreeNone:
-		m.say("no checkout of "+m.review.Owner+"/"+m.review.Repo+" here; clone it first", true)
-
-		return nil
-	case TreeElsewhere:
 	}
 
 	m.checkout = true
@@ -1726,7 +1720,7 @@ func (m *Model) wantCheckout() tea.Cmd {
 func (m *Model) noTree() string {
 	if m.tree == TreeNone {
 		return "no checkout of " + m.review.Owner + "/" + m.review.Repo +
-			" here, so a shell would run somewhere else"
+			" here; C claims the best clone"
 	}
 
 	return "the checkout is on another branch; C moves it onto this pull request"

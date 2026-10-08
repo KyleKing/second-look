@@ -2,22 +2,28 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/forge/github"
+	"github.com/kyleking/aragonite/vcs"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/checkouts"
 	"github.com/kyleking/second-look/internal/cost"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/lease"
 	"github.com/kyleking/second-look/internal/structure"
 	"github.com/kyleking/second-look/internal/tui"
 )
@@ -172,24 +178,192 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer)
 	return write(stdout, err.Error()+"\n")
 }
 
-// checkoutRef moves a working copy onto a pull request from the queue, which is
-// the same verb C runs inside the review screen and asks the same question
-// about uncommitted work.
+// checkoutRef moves a working copy onto a pull request from the queue. The
+// clone is picked from every checkout of the repository rather than assuming
+// this directory is it, and leased for the sitting so a second second-look
+// does not move the same tree.
 func checkoutRef(ctx context.Context, at ref, stdin io.Reader, stdout io.Writer) error {
-	t, err := get.Resolve(ctx, ".", at.owner, at.repo, at.number)
+	repo := at.owner + "/" + at.repo
+	if at.here() {
+		repo = currentRepo(ctx)
+	}
+
+	owner, name, found := strings.Cut(repo, "/")
+	if !found || owner == "" || name == "" {
+		return fmt.Errorf("checking out %s: %w", at, errNoCheckoutHere)
+	}
+
+	head := at.head
+	if head == "" {
+		if pr, err := github.GetPR(ctx, ".", repo, at.number); err == nil {
+			head = pr.HeadRef
+		}
+	}
+
+	cands, err := clonesFor(ctx, checkouts.Dashboard(), repo, head)
 	if err != nil {
 		return fmt.Errorf("checking out %s: %w", at, err)
 	}
+	if len(cands) == 0 {
+		return fmt.Errorf("%s: %w", repo, errNoCheckoutHere)
+	}
 
+	return claimFirst(ctx, repo, cands, at, stdin, stdout)
+}
+
+// claimFirst walks the ranked candidates and prepares the first one the sitting
+// can hold: a clone leased to another live second-look is skipped, one that is
+// not the repository at all is remembered for the error it leaves, and the
+// first claim that takes is where the loop stops.
+func claimFirst(
+	ctx context.Context, repo string, cands []checkouts.Checkout, at ref, stdin io.Reader, stdout io.Writer,
+) error {
+	held := lease.List(get.Host, repo)
+	mine := os.Getpid()
+
+	var lastErr error
+
+	for i := range cands {
+		path := cands[i].Path
+		if rec, ok := held[path]; ok && rec.PID != mine {
+			continue
+		}
+
+		done, err := claimClone(ctx, repo, path, at, stdin, stdout)
+		if err != nil {
+			var taken *lease.TakenError
+			switch {
+			case errors.As(err, &taken):
+				continue
+			case errors.Is(err, errNotTheClone):
+				lastErr = err
+			default:
+				return fmt.Errorf("checking out %s: %w", at, err)
+			}
+
+			continue
+		}
+
+		if done {
+			return nil
+		}
+	}
+
+	if lastErr != nil {
+		return fmt.Errorf("checking out %s: %w", at, lastErr)
+	}
+
+	return fmt.Errorf("%s: %w", repo, errEveryCloneLeased)
+}
+
+// errNotTheClone marks a candidate that resolves to a detached or unresolvable
+// target: the dashboard matched the remote id, but the clone's remotes do not
+// name the repository, or the path is not a repo at all.
+var errNotTheClone = errors.New("the clone does not belong to the repository")
+
+// claimClone leases path for repo and prepares it for at, releasing a newly
+// taken claim when the prepare fails. The boolean is true once the checkout
+// moved, false while candidates remain.
+func claimClone(
+	ctx context.Context, repo, path string, at ref, stdin io.Reader, stdout io.Writer,
+) (bool, error) {
+	owner, name, _ := strings.Cut(repo, "/")
+
+	t, err := get.Resolve(ctx, path, owner, name, at.number)
+	if err != nil {
+		return false, fmt.Errorf("%w: %w", errNotTheClone, err)
+	}
 	if t.Detached() {
-		return fmt.Errorf("%s: %w", at.owner+"/"+at.repo, errNoCheckoutHere)
+		return false, fmt.Errorf("%w: %s", errNotTheClone, path)
+	}
+
+	own := lease.Ours(get.Host, repo)
+
+	h := own
+	if own == nil || own.Record.Path != path {
+		// One claim per repository is what the sitting keeps: taking a
+		// second clone hands the first back rather than holding both.
+		if own != nil {
+			own.Release()
+		}
+
+		var taken *lease.TakenError
+
+		h, err = lease.Acquire(get.Host, repo, path)
+		switch {
+		case errors.As(err, &taken):
+			return false, taken
+		case err != nil:
+			return false, fmt.Errorf("leasing %s: %w", path, err)
+		}
 	}
 
 	if err := get.Prepare(ctx, stdout, t, confirm(stdin, stdout)); err != nil {
-		return fmt.Errorf("checking out %s: %w", at, err)
+		if h != own {
+			h.Release()
+		}
+
+		return false, fmt.Errorf("preparing %s: %w", path, err)
 	}
 
-	return nil
+	if err := write(stdout, "leased "+path+" for "+repo+"\n"); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// clonesFor is every checkout of repo C may move, ranked like the
+// dashboard's but with two more entries where they apply: this directory when
+// it is a clone the scan does not reach, and the sitting's own lease first,
+// since it is already claimed.
+func clonesFor(
+	ctx context.Context, runner checkouts.Runner, repo, head string,
+) ([]checkouts.Checkout, error) {
+	found, findErr := checkouts.Find(ctx, runner, repo, head)
+
+	if c, ok := cwdClone(ctx, repo); ok &&
+		!slices.ContainsFunc(found, func(f checkouts.Checkout) bool { return f.Path == c.Path }) {
+		found = append(found, c)
+		checkouts.Rank(found, head)
+	}
+
+	if ours := lease.Ours(get.Host, repo); ours != nil {
+		path := ours.Record.Path
+		found = slices.DeleteFunc(found, func(f checkouts.Checkout) bool { return f.Path == path })
+		found = append([]checkouts.Checkout{{Path: path}}, found...)
+	}
+
+	if len(found) == 0 && findErr != nil {
+		return nil, fmt.Errorf("finding clones of %s: %w", repo, findErr)
+	}
+
+	return found, nil
+}
+
+// cwdClone is this directory as a checkout candidate when it is a clone of
+// repo, which the dashboard's scan paths may not reach.
+func cwdClone(ctx context.Context, repo string) (checkouts.Checkout, bool) {
+	if !strings.EqualFold(currentRepo(ctx), repo) {
+		return checkouts.Checkout{}, false
+	}
+
+	abs, err := filepath.Abs(".")
+	if err != nil {
+		return checkouts.Checkout{}, false
+	}
+
+	c := checkouts.Checkout{Path: abs}
+	ops := vcs.GetOperations(abs)
+
+	if b, err := ops.GetCurrentBranch(ctx, abs); err == nil {
+		c.Branch = b
+	}
+	if s, err := ops.GetRepoSummary(ctx, abs); err == nil {
+		c.Dirty = s.UncommittedCount() > 0
+	}
+
+	return c, true
 }
 
 // commentOn says something on the pull request itself rather than on a line of

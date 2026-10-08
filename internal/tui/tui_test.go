@@ -144,7 +144,7 @@ func TestTreeDecidesWhatCheckoutAndShellCanDo(t *testing.T) {
 		},
 		{
 			name: "no checkout of it here", tree: tui.TreeNone,
-			says: "clone it first", refusing: "would run somewhere else",
+			wants: true, refusing: "C claims the best clone",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

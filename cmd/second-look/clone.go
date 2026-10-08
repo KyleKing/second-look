@@ -7,7 +7,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/checkouts"
+	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/humanize"
+	"github.com/kyleking/second-look/internal/lease"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -21,16 +23,33 @@ func cloneNote(ctx context.Context, repo string) tea.Cmd {
 }
 
 func cloneWord(ctx context.Context, repo string) string {
+	if ours := lease.Ours(get.Host, repo); ours != nil {
+		return filepath.Base(ours.Record.Path) + " leased"
+	}
+
 	found, err := checkouts.Find(ctx, checkouts.Dashboard(), repo, "")
 	if err != nil {
 		return humanize.FirstLine(err.Error())
 	}
 
-	if len(found) == 0 {
+	held := lease.List(get.Host, repo)
+
+	var free []checkouts.Checkout
+	for i := range found {
+		if _, ok := held[found[i].Path]; !ok {
+			free = append(free, found[i])
+		}
+	}
+
+	if len(free) == 0 {
+		if len(found) > 0 {
+			return "every clone is leased"
+		}
+
 		return "no clone here"
 	}
 
-	best := &found[0]
+	best := &free[0]
 
 	word := filepath.Base(best.Path)
 	if best.Dirty {

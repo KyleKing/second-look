@@ -274,10 +274,10 @@ func TestAStagedRowSaysWhetherThisDirectoryHoldsItsCode(t *testing.T) {
 			want: held, acts: true,
 		},
 		// A row this directory cannot reach says nothing at all: a queue of
-		// several repositories repeating it on every row is noise, and a C
-		// pressed anyway names the refusal in the footer.
-		{name: "another repository", repo: "deanmalmgren/textract", head: "aaaaaaa", want: held},
-		{name: "no checkout at all", want: held},
+		// several repositories repeating it on every row is noise. C still
+		// acts on it, since the clone it moves need not be this directory.
+		{name: "another repository", repo: "deanmalmgren/textract", head: "aaaaaaa", want: held, acts: true},
+		{name: "no checkout at all", want: held, acts: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -292,6 +292,15 @@ func TestAStagedRowSaysWhetherThisDirectoryHoldsItsCode(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("a row naming no repository", func(t *testing.T) {
+		t.Parallel()
+
+		broken := prepared.Review{Number: 140, Broken: "unparsable"}
+		if _, acts := main.StagedRow(broken, "coverbasedev/irm", "60f9fb9"); acts {
+			t.Error("C acting on a row with no repository is true, want false")
+		}
+	})
 }
 
 // The row's last word is what the session recorded on it is doing: a blocked

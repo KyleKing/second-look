@@ -25,6 +25,9 @@ type ref struct {
 	// zero for the top of the diff. Only a caller carrying a conversation has
 	// one; a number typed on the command line opens at the top.
 	land int64
+	// head is the pull request's branch, which a checkout pick can rank a
+	// clone already standing on. Empty where the caller does not know it.
+	head string
 }
 
 // here reports a reference that names no repository, so the checkout's own is

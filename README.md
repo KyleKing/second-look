@@ -61,11 +61,13 @@ only human asked: `gh search prs` does not say. `/` narrows any of the queues to
 author, the title, and the line last said, with the header saying how many are held back.
 `esc` puts them back before it leaves the screen.
 
-`C` in the review screen is what gets a working copy when you want one: it moves the
-checkout onto the pull request, asks before it stashes anything, and draws the screen
-again. Cloning stays manual, so `C` moves a clone that is already on this laptop and says
-so when there is none. `!` refuses in that case too, rather than opening a shell against
-whatever the working directory happens to be.
+`C` in the review screen is what gets a working copy when you want one: it claims the
+best clone of the repository on this laptop, moves it onto the pull request, asks before
+it stashes anything, and draws the screen again. Cloning stays manual, so `C` moves a
+clone that is already here and says so when there is none. The claim is a lease held for
+the sitting, so a second second-look leaves that tree alone, and it goes back when focus
+leaves the repository or the queue closes. `!` refuses in that case too, rather than
+opening a shell against whatever the working directory happens to be.
 
 `second-look skill` prints the instructions an agent needs to drive it, ready to write
 into a skills directory. An installed copy is a snapshot rather than a link, so run it

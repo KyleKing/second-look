@@ -507,8 +507,8 @@ func title(r *prepared.Review) string {
 	return about.Title
 }
 
-// reachable reports a row whose code this directory holds, which is what C acts
-// on and what reading around the change and running it need.
+// reachable reports a row whose code this directory holds, which is what the
+// "here" marker and reading around the change need.
 func (s *reviewsScreen) reachable(r *prepared.Review) bool {
 	return s.here != "" && strings.EqualFold(s.here, r.Repository)
 }
@@ -555,21 +555,21 @@ func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 	return "", false, nil
 }
 
-// checkout leaves the screen to move this directory's working copy onto the
-// row, refusing where the directory is a checkout of something else rather than
-// moving a tree the review has nothing to do with.
+// checkout leaves the screen to move a checkout of the row's repository onto
+// it. Which clone is picked after the screen gives the terminal back, from
+// every clone the laptop holds rather than only this directory.
 func (s *reviewsScreen) checkout(key string) (string, bool, error) {
 	for i := range s.rows {
 		if s.rows[i].Where() != key {
 			continue
 		}
 
-		if !s.reachable(&s.rows[i]) {
-			return "", false, fmt.Errorf("%s: %w", key, errNotACheckoutOfIt)
+		if s.rows[i].Repository == "" {
+			return "", false, fmt.Errorf("%s: %w", key, errNoRepoNamed)
 		}
 
 		owner, name, _ := strings.Cut(s.rows[i].Repository, "/")
-		s.move = &ref{owner: owner, repo: name, number: s.rows[i].Number}
+		s.move = &ref{owner: owner, repo: name, number: s.rows[i].Number, head: s.rows[i].HeadRef}
 
 		return "checking out " + key, true, nil
 	}
@@ -616,8 +616,8 @@ var (
 	errNoPullRequest  = errors.New("this row is a search that failed, not a pull request")
 	errNoCheckoutHere = errors.New("no clone of it is on this laptop, so there is nothing to check out; " +
 		"enter reviews it from the API instead")
-	errNotACheckoutOfIt = errors.New("this directory is a checkout of something else; " +
-		"the rows marked here are the ones C can move")
+	errEveryCloneLeased   = errors.New("every clone of it is leased by another second-look")
+	errNoRepoNamed        = errors.New("names no repository to find a clone of")
 	errNotOnAConversation = errors.New("that key belongs to the inbox, which lists pull requests; " +
 		"r answers this conversation and R marks it dealt with")
 )
