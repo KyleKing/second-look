@@ -1,3 +1,10 @@
+## v0.26.0 (2026-10-08)
+
+### Feat
+
+- **tui**: run ! in the pane and tee its transcript off the pty
+- **tui**: run $EDITOR in a pane beside the diff, and ask gd/gr of the server
+
 ## v0.25.0 (2026-10-08)
 
 ### Feat
