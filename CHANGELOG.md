@@ -1,3 +1,10 @@
+## v0.28.0 (2026-10-08)
+
+### Feat
+
+- **tui**: run an ACP agent in a pane beside the diff
+- **acp**: open an agent session over ACP, transcript and asks in-band
+
 ## v0.27.0 (2026-10-08)
 
 ### Feat
