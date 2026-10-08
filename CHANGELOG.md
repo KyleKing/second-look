@@ -1,3 +1,9 @@
+## v0.26.1 (2026-10-08)
+
+### Fix
+
+- **lsp**: let a line's other names answer past a refused one
+
 ## v0.26.0 (2026-10-08)
 
 ### Feat
