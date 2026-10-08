@@ -77,6 +77,24 @@ func TestPaneSendsKeysToTheChild(t *testing.T) {
 	paneWait(t, p, "x")
 }
 
+// A paste is text, not a burst of keypresses, and it is multi-byte more often
+// than not: the emulator carries it to the child whole rather than dropping
+// everything past the first byte.
+func TestPaneSendsPasteToTheChild(t *testing.T) {
+	t.Parallel()
+
+	p, err := startPane(t.Context(), []string{"cat"}, 60, 10, nil)
+	if err != nil {
+		t.Fatalf("starting the pane: %v", err)
+	}
+
+	defer p.kill()
+
+	p.emu.Paste("héllo → wörld")
+
+	paneWait(t, p, "héllo → wörld")
+}
+
 // A child that exits ends the hand-off, with its exit code where the code was
 // not clean.
 func TestPaneReportsTheExit(t *testing.T) {
