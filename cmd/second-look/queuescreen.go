@@ -82,7 +82,7 @@ func queueOnce(
 		rows:  rows,
 		here:  currentRepo(ctx),
 		head:  currentHead(ctx),
-		probe: cfg.Agents,
+		probe: cfg.ListAgents,
 	}
 
 	list := tui.NewTabs([]tui.Tab{

@@ -252,28 +252,29 @@ recorded `Agent.Session` against it and draw `agent blocked`/`agent done` where 
 names the session, and `second-look status` counts the sessions waiting on an answer. A
 session absent from the listing ended, so nothing says anything stale.
 
-Getting into the chat is the other half and it is a different act from dispatching. `T`
-runs a headless command and reports one line, whereas attaching means a live terminal —
-the pane in item 1, so the agent's interface runs beside the diff rather than taking the
-screen over the way the shell key does. ACP is the structured version of the same pane.
-With second-look as the client, `session/prompt` sends the todo set, `session/load`
-resumes a recorded session in-band (`@zed-industries/claude-agent-acp` supports it now),
-`session/update` streams the transcript into the pane, and `session/request_permission`
-arrives as a question the screen answers rather than a blocked state a poll reports. That
-is the whole gain: the agent becomes a conversation inside the review instead of a
-session rejoined from outside it, and one protocol reaches agents `claude attach` does
-not.
+Getting into the chat is built, over ACP rather than through a reattach. `T`
+opens a session pane under the diff: `internal/acp` speaks the wire protocol
+through `caelis-labs/acp-go-sdk` v1.4.0 over the adapter's stdio, and
+`internal/tui/agent.go` draws the streamed transcript — messages, thoughts,
+tool calls, plans — with `session/request_permission` arriving as a numbered
+question answered in-band. `esc` leaves the pane without ending the session,
+`ctrl+\` ends the adapter outright, `ctrl+u/d` scrolls, and the session id is
+recorded on the review so a reopen asks `session/load` for the same
+conversation where the adapter supports it. The todo set goes over as the
+first prompt rather than only a file to read, and a line typed at the pane's
+`❯` prompt is a `session/prompt` of its own.
 
-The costs are worth recording so the spike does not have to rediscover them. ACP is a
-channel added rather than one removed: the `agents` listing still answers for sessions
-dispatched while second-look was closed, and `dispatch` and `resume` argv still cover
-agents with no adapter and runs launched with no second-look open. A resident adapter
-process plus a transcript in memory is more state, not less — the poll it would partly
-replace was already rare and cheap. So the argument for it is the interaction and nothing
-else, and it comes after the pane exists rather than before. The SDK is decided at spike
-time: `caelis-labs/acp-go-sdk` is the stable wire-v1 surface interop-tested against the
-official TypeScript and Rust SDKs, and `coder/acp-go-sdk` is the older 0.x option with
-worked examples; caelis first unless the spike says otherwise.
+Which agent runs is a `[[agent]]` block in the config — `devin acp` is the
+native one, `npx -y @zed-industries/claude-code-acp` the shim for an agent
+without a server — and `SECOND_LOOK_AGENT` names a non-default one at startup,
+with a misspelled name reported at the hand-off rather than at open. The first
+listed agent is the default. `dispatch`, `resume`, and the `agents` listing
+stay untouched: they still cover tools with no adapter, sessions dispatched
+while second-look was closed, and the visibility half of this item.
+
+What is left is proof against the real adapters rather than the stub: a turn
+with `devin acp` live in the pane, authentication included, and the same for
+the Claude shim. Both wait on a configured laptop rather than on code.
 
 ## Waiting on use rather than on code
 

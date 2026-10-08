@@ -18,6 +18,7 @@ import (
 	"github.com/kyleking/aragonite/cache"
 	"github.com/kyleking/aragonite/vcs"
 
+	"github.com/kyleking/second-look/internal/acp"
 	"github.com/kyleking/second-look/internal/advisory"
 	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/artifact"
@@ -470,6 +471,10 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 
 	if d := dispatcher(t.Dir()); d != nil {
 		opts = append(opts, tui.WithDispatcher(d))
+	}
+
+	if s := agentStarter(t.Dir()); s != nil {
+		opts = append(opts, tui.WithAgent(s))
 	}
 
 	if p := agentProbe(); p != nil {
@@ -1117,17 +1122,50 @@ func dispatcher(work string) tui.Dispatcher {
 	}
 }
 
+// errNoSuchAgent is a SECOND_LOOK_AGENT naming no [[agent]] the config knows.
+var errNoSuchAgent = errors.New("names no configured agent")
+
+// agentStarter is the configured agent as a session opener: SECOND_LOOK_AGENT
+// names which [[agent]] runs, or the first listed. A starter that errors when
+// invoked is how a misspelled name is reported at the hand-off rather than
+// taking the review down at open.
+func agentStarter(dir string) tui.AgentStarter {
+	cfg, err := loadConfig()
+	if err != nil {
+		return nil
+	}
+
+	asked := os.Getenv("SECOND_LOOK_AGENT")
+	a := cfg.Picked(asked)
+
+	if a == nil {
+		if asked == "" {
+			return nil
+		}
+
+		return func(context.Context, string) (*acp.Session, error) {
+			return nil, fmt.Errorf("SECOND_LOOK_AGENT=%q %w", asked, errNoSuchAgent)
+		}
+	}
+
+	argv := slices.Clone(a.Command)
+
+	return func(ctx context.Context, loadID string) (*acp.Session, error) {
+		return acp.Start(ctx, argv, dir, loadID)
+	}
+}
+
 // agentProbe answers what a recorded session is doing by running the
 // configured listing once per ask. It is nil where the config names none, the
 // same default the dispatcher keeps: probing is not something to run because a
 // review happens to record a session.
 func agentProbe() tui.AgentProbe {
 	cfg, err := loadConfig()
-	if err != nil || len(cfg.Agents) == 0 {
+	if err != nil || len(cfg.ListAgents) == 0 {
 		return nil
 	}
 
-	argv := slices.Clone(cfg.Agents)
+	argv := slices.Clone(cfg.ListAgents)
 
 	return func(ctx context.Context, session string) (string, error) {
 		live, err := agents.List(ctx, argv)
@@ -1318,11 +1356,11 @@ func statusCmd(ctx context.Context, args []string, stdout io.Writer) error {
 // is the opt-in a per-prompt call would otherwise pay for blindly.
 func liveAgents(ctx context.Context, rows []prepared.Review) string {
 	cfg, err := loadConfig()
-	if err != nil || len(cfg.Agents) == 0 {
+	if err != nil || len(cfg.ListAgents) == 0 {
 		return ""
 	}
 
-	live, err := agents.List(ctx, cfg.Agents)
+	live, err := agents.List(ctx, cfg.ListAgents)
 	if err != nil {
 		return ""
 	}

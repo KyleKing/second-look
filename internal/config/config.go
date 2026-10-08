@@ -26,6 +26,7 @@ var (
 	ErrNoCommand  = errors.New("a check needs a command")
 	ErrNoFormat   = errors.New("a check needs a format: ast-grep, ruff, or text")
 	ErrNoExts     = errors.New("a server needs the extensions it answers for")
+	ErrNoAgent    = errors.New("an agent needs the command that starts it")
 )
 
 // Section is one query the inbox runs, under the name it is shown by.
@@ -53,6 +54,14 @@ type Check struct {
 	// Bin are directories under a project root holding the project's own copy
 	// of the tool, searched before the PATH.
 	Bin []string `toml:"bin,omitempty"`
+}
+
+// Agent is an agent the review can talk to over ACP. Command is the argv that
+// starts its adapter — `devin acp` for Devin itself, or the shim an agent
+// without a native server speaks through.
+type Agent struct {
+	Name    string   `toml:"name"`
+	Command []string `toml:"command"`
 }
 
 // Server is a language server for extensions the built-in list does not cover,
@@ -110,13 +119,18 @@ type Config struct {
 	// The id is recorded by the agent itself through `second-look session`, so
 	// nothing here has to know how a tool prints one.
 	Resume []string `toml:"resume,omitempty"`
-	// Agents is the command that lists an agent tool's live sessions, in argv.
-	// Its stdout is a JSON array in the shape `claude agents --json` prints:
-	// objects carrying sessionId, which is the id a review records, and state,
-	// which the screen repeats rather than interprets. Unset, nothing probes
-	// and a session's state stays invisible, which is what a tool with no
-	// listing gets.
-	Agents []string `toml:"agents,omitempty"`
+	// Agents are the agent tools the review can hand a session to over ACP, in
+	// the order they are preferred: the first is the default, and
+	// SECOND_LOOK_AGENT names another at startup. Dispatch, Resume, and
+	// ListAgents stay the fallback for a tool with no adapter.
+	Agents []Agent `toml:"agent,omitempty"`
+	// ListAgents is the command that lists an agent tool's live sessions, in
+	// argv. Its stdout is a JSON array in the shape `claude agents --json`
+	// prints: objects carrying sessionId, which is the id a review records,
+	// and state, which the screen repeats rather than interprets. Unset,
+	// nothing probes and a session's state stays invisible, which is what a
+	// tool with no listing gets.
+	ListAgents []string `toml:"agents,omitempty"`
 	// Checks are run over the review's files alongside the language server, and
 	// their findings are listed with its. Unset, the review shows what the
 	// language server says and nothing else: running a command on a keystroke
@@ -199,6 +213,18 @@ func (c *Config) validate() error {
 		}
 	}
 
+	for i := range c.Agents {
+		a := &c.Agents[i]
+
+		if strings.TrimSpace(a.Name) == "" {
+			return fmt.Errorf("agent %d: %w", i+1, ErrNoName)
+		}
+
+		if len(a.Command) == 0 {
+			return fmt.Errorf("agent %q: %w", a.Name, ErrNoAgent)
+		}
+	}
+
 	for i := range c.Servers {
 		if err := c.Servers[i].validate(i); err != nil {
 			return err
@@ -236,6 +262,23 @@ func (s *Server) validate(i int) error {
 
 	if len(s.Extensions) == 0 {
 		return fmt.Errorf("server %q: %w", s.Name, ErrNoExts)
+	}
+
+	return nil
+}
+
+// Picked is the agent name asks for, or the first listed when the ask is
+// empty. A name nothing matches answers nil, which the caller reports rather
+// than silently picking one.
+func (c *Config) Picked(name string) *Agent {
+	if name == "" && len(c.Agents) > 0 {
+		return &c.Agents[0]
+	}
+
+	for i := range c.Agents {
+		if c.Agents[i].Name == name {
+			return &c.Agents[i]
+		}
 	}
 
 	return nil

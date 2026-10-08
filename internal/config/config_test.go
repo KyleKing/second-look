@@ -92,6 +92,16 @@ func TestLoadRefusesWhatCannotBeRun(t *testing.T) {
 			want: config.ErrNoName,
 		},
 		{
+			name: "an agent with no command",
+			body: "[[agent]]\nname = \"devin\"\n",
+			want: config.ErrNoAgent,
+		},
+		{
+			name: "an agent with no name",
+			body: "[[agent]]\ncommand = [\"devin\", \"acp\"]\n",
+			want: config.ErrNoName,
+		},
+		{
 			name: "gh-dash's own keys",
 			body: "prSections = []\n",
 			want: config.ErrUnknownKey,
@@ -177,5 +187,37 @@ diagnosticMode = "workspace"
 
 	if analysis["diagnosticMode"] != "workspace" {
 		t.Errorf("settings came back as %+v", got.Settings)
+	}
+}
+
+// Which agent a run picks is a startup answer: the first listed unless a name
+// is asked for, and an asked-for name nothing knows is no agent rather than a
+// silent swap.
+func TestPickedFollowsTheAsk(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := config.Load(write(t, `
+[[agent]]
+name = "devin"
+command = ["devin", "acp"]
+
+[[agent]]
+name = "claude"
+command = ["npx", "-y", "@zed-industries/claude-code-acp"]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := cfg.Picked(""); got == nil || got.Name != "devin" {
+		t.Errorf("the default picked %+v", got)
+	}
+
+	if got := cfg.Picked("claude"); got == nil || got.Name != "claude" {
+		t.Errorf("the named pick came back %+v", got)
+	}
+
+	if got := cfg.Picked("goose"); got != nil {
+		t.Errorf("a name nothing knows picked %+v", got)
 	}
 }

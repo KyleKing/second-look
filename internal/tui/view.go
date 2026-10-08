@@ -46,6 +46,8 @@ func (m *Model) render() string {
 	out := append([]string{m.title()}, body...)
 	if m.pane != nil {
 		out = append(out, m.paneLines()...)
+	} else if m.agentOpen && m.agent != nil {
+		out = append(out, m.agentLines()...)
 	}
 
 	return strings.Join(append(out, m.footerLines()...), "\n")

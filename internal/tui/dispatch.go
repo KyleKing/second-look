@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,28 +31,20 @@ const (
 // to refuse.
 func (m *Model) dispatch() tea.Cmd {
 	owed := m.review.Todos()
+
+	if m.agentStart != nil {
+		return m.askAgent(owed)
+	}
+
 	if len(owed) == 0 {
 		m.say("nothing is marked todo; m then t hands a comment back", false)
 
 		return nil
 	}
 
-	if m.store == "" {
-		m.say("no store to write the set into", true)
-
-		return nil
-	}
-
-	path := artifact.TodoPath(m.store, m.review.Number)
-
-	if err := os.MkdirAll(filepath.Dir(path), setDirPerm); err != nil {
-		m.say(fmt.Sprintf("writing the todo set: %v", err), true)
-
-		return nil
-	}
-
-	if err := os.WriteFile(path, []byte(brief.Owed(m.review, m.diff, m.threads)), setFilePerm); err != nil {
-		m.say(fmt.Sprintf("writing the todo set: %v", err), true)
+	path, err := m.writeSet()
+	if err != nil {
+		m.say(err.Error(), true)
 
 		return nil
 	}
@@ -72,6 +65,34 @@ func (m *Model) dispatch() tea.Cmd {
 
 		return dispatchedMsg{line: out, err: err}
 	}
+}
+
+// errNoStore is a todo set with nowhere to be written: the review came up
+// without a cache directory.
+var errNoStore = errors.New("no store to write the set into")
+
+// setText is the set as markdown, the artifact's own text.
+func (m *Model) setText() string {
+	return brief.Owed(m.review, m.diff, m.threads)
+}
+
+// writeSet leaves the todo set where a hand-off always records it.
+func (m *Model) writeSet() (string, error) {
+	if m.store == "" {
+		return "", errNoStore
+	}
+
+	path := artifact.TodoPath(m.store, m.review.Number)
+
+	if err := os.MkdirAll(filepath.Dir(path), setDirPerm); err != nil {
+		return "", fmt.Errorf("writing the todo set: %w", err)
+	}
+
+	if err := os.WriteFile(path, []byte(m.setText()), setFilePerm); err != nil {
+		return "", fmt.Errorf("writing the todo set: %w", err)
+	}
+
+	return path, nil
 }
 
 type dispatchedMsg struct {
@@ -115,9 +136,24 @@ type agentStateMsg struct {
 }
 
 // agentWord is the fact the title carries about the session working the
-// review: the tool's own state word, said loudly only when it is waiting on an
-// answer.
+// review. A live one knows more than the listing: an open ask is the agent
+// waiting on a person, a running turn is working.
 func (m *Model) agentWord() string {
+	if m.agent != nil {
+		switch {
+		case m.agentDead != nil:
+			return m.styles.warn.Render("agent ended")
+		case m.agent.Pending() != nil:
+			return m.styles.warn.Render("agent waiting")
+		case m.agent.Busy():
+			return "agent working"
+		case m.agentSaw:
+			return m.styles.ok.Render("agent done")
+		default:
+			return "agent ready"
+		}
+	}
+
 	switch m.agentState {
 	case "":
 		return ""

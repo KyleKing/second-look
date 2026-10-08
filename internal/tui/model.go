@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
 
+	"github.com/kyleking/second-look/internal/acp"
 	"github.com/kyleking/second-look/internal/advisory"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/blame"
@@ -81,6 +83,17 @@ type Model struct {
 	// dispatcher hands the todo set to an agent, and is nil where nothing is
 	// configured to receive it.
 	dispatcher Dispatcher
+	// agentStart opens an agent session over ACP, and agent is the live one.
+	// agentOpen is the pane its transcript draws in, which esc leaves without
+	// ending the session; agentDead is how it ended, agentOff how far back
+	// the transcript is scrolled, and agentSaw whether a turn has answered.
+	agentStart AgentStarter
+	agent      *acp.Session
+	agentOpen  bool
+	agentDead  error
+	agentOff   int
+	agentSaw   bool
+	agentIn    textinput.Model
 	restage    Restager
 	// around is how many lines of the file either side of a hunk the reader
 	// asked for, blobs is the files read to answer that, and blob is what reads
@@ -480,11 +493,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case tea.PasteMsg:
-		if m.pane != nil {
+		var cmd tea.Cmd
+
+		switch {
+		case m.pane != nil:
 			m.pane.emu.Paste(msg.Content)
+		case m.agentOpen && m.agent != nil:
+			m.agentIn, cmd = m.agentIn.Update(msg)
 		}
 
-		return m, nil
+		return m, cmd
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}
@@ -527,6 +545,12 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 		}
 	case paneGoneMsg:
 		return m.paneGone(msg.err)
+	case agentUpMsg:
+		return m.agentUp(msg)
+	case agentWakeMsg:
+		if m.agent != nil && m.agentDead == nil {
+			return watchAgent(m.agent)
+		}
 	}
 
 	m.absorb(msg)
@@ -537,6 +561,10 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 // absorb takes the messages that only add data, which is every answered()
 // case that hands nothing back to run.
 func (m *Model) absorb(msg tea.Msg) {
+	if m.absorbAgent(msg) {
+		return
+	}
+
 	switch msg := msg.(type) {
 	case editedMsg:
 		m.applyEdit(msg)
@@ -558,13 +586,27 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applyAnswer(msg)
 	case headMsg:
 		m.applyHead(msg)
-	case agentStateMsg:
-		m.agentState = msg.state
 	case roundMsg:
 		m.applyRound(msg)
 	case branchDeletedMsg:
 		m.applyBranchDeleted(msg)
 	}
+}
+
+// absorbAgent is absorb's share of a session's own messages.
+func (m *Model) absorbAgent(msg tea.Msg) bool {
+	switch msg := msg.(type) {
+	case agentStateMsg:
+		m.agentState = msg.state
+	case agentGoneMsg:
+		m.agentGone(msg.err)
+	case agentTurnMsg:
+		m.agentTurned(msg)
+	default:
+		return false
+	}
+
+	return true
 }
 
 // motion is a direction and what to stop on, kept so n can repeat it.
@@ -589,9 +631,22 @@ func (m *Model) paneKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// keyOwner is whichever surface holds the keyboard right now, if one does:
+// a running pane or the open agent session, each modal like a confirmation.
+func (m *Model) keyOwner() (func(tea.KeyPressMsg) (tea.Model, tea.Cmd), bool) {
+	switch {
+	case m.pane != nil:
+		return m.paneKey, true
+	case m.agentOpen && m.agent != nil:
+		return m.agentKey, true
+	default:
+		return nil, false
+	}
+}
+
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if m.pane != nil {
-		return m.paneKey(msg)
+	if owner, ok := m.keyOwner(); ok {
+		return owner(msg)
 	}
 
 	// A prompt, a confirmation, and a half-typed motion each own the keyboard
@@ -2751,7 +2806,7 @@ func (m *Model) viewHeight() int {
 	const title = 1
 
 	pane := 0
-	if m.pane != nil {
+	if m.pane != nil || (m.agentOpen && m.agent != nil) {
 		pane = m.paneHeight() + 1
 	}
 
