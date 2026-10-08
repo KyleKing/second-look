@@ -1,3 +1,9 @@
+## v0.23.0 (2026-10-08)
+
+### Feat
+
+- **lockfile**: card each moved version's age and the latest, asked of its own registry
+
 ## v0.22.0 (2026-10-08)
 
 ### Feat
