@@ -89,15 +89,20 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 	m.cosmetic, m.shape = nil, shape{}
 	m.cost, m.size = rate.Score{}, rate.Size{}
 
+	cmds := []tea.Cmd{m.probe(), m.probeAgent()}
+	// The cards already cached still answer, but a restaged lockfile's asking
+	// state is stale, so the new diff's packages get asked again.
+	m.versioned = nil
+	cmds = append(cmds, m.fetchVersions()...)
+
+	if structure.Available() {
+		cmds = append(cmds, readStructure(m.diff, m.made))
+	}
+
 	m.rebuild()
 	m.reveal()
 
 	m.say(restagedWord(was, len(m.review.Comments), msg.fresh.HeadSHA), false)
-
-	cmds := []tea.Cmd{m.probe(), m.probeAgent()}
-	if structure.Available() {
-		cmds = append(cmds, readStructure(m.diff, m.made))
-	}
 
 	return tea.Batch(cmds...)
 }

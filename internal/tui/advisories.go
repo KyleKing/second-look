@@ -16,9 +16,11 @@ import (
 // Advisor is what a lockfile can be asked about: whether anything is known
 // against the versions it moved to.
 //
-// It is a parameter for the reason Prober is, and for one more. This is the
-// only thing the screen reaches for that is not GitHub, so a review given none
-// never asks, and a review given one still asks nobody until a reader says to.
+// It is a parameter for the reason Prober is, and for one more. OSV is a
+// service the lockfile never named, so the names reach it only once a reader
+// confirms what will be sent. The registries a lockfile does name are asked
+// without the asking, because a module's own index is where its name already
+// goes.
 type Advisor interface {
 	Ask(ctx context.Context, pkgs []advisory.Package) (map[advisory.Package][]advisory.Note, error)
 }
@@ -50,9 +52,8 @@ type advisedMsg struct {
 }
 
 // askAdvisoriesNow asks before it asks, because every package name in the
-// lockfile leaves the laptop when it does. Nothing else this screen draws
-// reaches anywhere but GitHub, so the reader confirms and is told what will be
-// sent first.
+// lockfile leaves the laptop when it does, and osv.dev is a service the file
+// never named. The reader confirms and is told what will be sent first.
 func (m *Model) askAdvisoriesNow() {
 	if m.advisor == nil {
 		m.say("asking about advisories is not available here", true)

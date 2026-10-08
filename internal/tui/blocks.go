@@ -11,6 +11,7 @@ import (
 	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/order"
+	"github.com/kyleking/second-look/internal/versions"
 )
 
 // The review's own body and note sit in the comment index space as sentinels.
@@ -113,12 +114,17 @@ type layout struct {
 	trouble diag.Placed
 	// known is what osv.dev said against each version a lockfile moved to, and
 	// answered is how the question went per lockfile. Both are empty until a
-	// reader asks, because nothing here is fetched to open a review.
+	// reader asks, because that question sends names off the laptop.
 	known    map[advisory.Package][]advisory.Note
 	answered map[string]asked
-	width    int
-	hide     hider
-	fold     folded
+	// cards is what each dependency's registry said about the version a
+	// lockfile moved to, and versioned is how the asking went per lockfile.
+	// Both fill in after the first frame, which never waits on them.
+	cards     map[advisory.Package]versions.Card
+	versioned map[string]asked
+	width     int
+	hide      hider
+	fold      folded
 	// split pairs each removal with the addition that replaced it, so the two
 	// sides of an edit share a row. It is the one renderer that changes which
 	// rows exist rather than only how they are drawn.

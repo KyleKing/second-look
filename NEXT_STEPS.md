@@ -87,7 +87,7 @@ the anchor was otherwise whichever of four hundred lines the cursor happened to 
 
 Advisories are built. `L` on a lockfile names what it will send and a second `L` sends it,
 which is the consent this needed: every package name in the file leaves the laptop when it
-does, and nothing else this screen draws reaches anywhere but GitHub.
+does, and osv.dev is a service the file never named.
 [OSV](https://osv.dev) answers a whole lockfile in one POST to `/v1/querybatch` with no
 key and no auth, in about 450ms measured, and that call carries advisory ids alone, so
 each hit is read again from `/v1/vulns/{id}` for the summary, the severity, and the
@@ -102,13 +102,19 @@ package it has never heard of as about one it has and finds clean, so naming whi
 packages could not be resolved is not something this API can answer: the screen says
 "nothing known against it" and means exactly that.
 
-Version age, what the latest is, and the detail block a package new to the file deserves
-are deferred on measurement: the Go module proxy is 194 bytes for a version and a release
-date, PyPI is 193KB for a package, npm is 248KB and the abbreviated form that drops to
-69KB also drops the `time` object, and crates.io is 441KB for `serde`. A hundred-package
-bump would be a hundred requests of that size, which makes the cache by package and
-version mandatory rather than an optimization and leaves the first cold card slow however
-it is written.
+Version age, what the latest is, and the detail a package's registry carries are built.
+`internal/versions` asks each ecosystem's index behind the first frame — the Go proxy's
+`@latest` and `/.info`, PyPI's JSON document, npm's full packument because the
+abbreviated form drops `time`, crates.io's crate record, RubyGems' version and gem
+records — and caches the answers through `aragonite/cache` by ecosystem and package, in
+memory and on disk, so a hundred-package bump pays once. A card asks nothing and needs no
+consent: the registries are the indexes the lockfile already names, which is what keeps
+the `L` gate honest on OSV. The row says `released 6d ago · latest v1.5.0` beside the
+version arrow, a package the registry never heard of says `not in <eco>`, and a
+description and source link draw under the row where the registry carries them. A cold
+cache is still one request per package (npm's packument measured at 248KB, crates.io's at
+441KB), so the first card on a big bump is slow; the disk store is what makes every look
+after that free.
 
 Two questions are still open, and neither blocks the version cards:
 

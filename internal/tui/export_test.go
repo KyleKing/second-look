@@ -218,3 +218,13 @@ func (m *Model) Probed() {
 		m.agentState = msg.state
 	}
 }
+
+// Versioned runs the registry asks Init batches and feeds their answers back
+// the way the program loop would, so a test sees the cards without a network.
+func (m *Model) Versioned() {
+	for _, cmd := range m.fetchVersions() {
+		if cmd != nil {
+			m.Update(cmd())
+		}
+	}
+}

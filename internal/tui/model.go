@@ -24,6 +24,7 @@ import (
 	"github.com/kyleking/second-look/internal/shellrun"
 	"github.com/kyleking/second-look/internal/structure"
 	"github.com/kyleking/second-look/internal/threads"
+	"github.com/kyleking/second-look/internal/versions"
 )
 
 // Minimum usable frame. Below it the screen is a resize message rather than a
@@ -166,6 +167,12 @@ type Model struct {
 	advisor    Advisor
 	advisories map[advisory.Package][]advisory.Note
 	advised    map[string]asked
+	// versions is what each lockfile's registries are asked without asking,
+	// cards is what came back per package, and versioned is how the asking
+	// went per lockfile.
+	versions  Versions
+	cards     map[advisory.Package]versions.Card
+	versioned map[string]asked
 	// showing is the answer K left up, nil when nothing is.
 	showing *hoverMsg
 	// cosmetic is the structural pass over every hunk, nil until it answers,
@@ -296,6 +303,8 @@ func (m *Model) Init() tea.Cmd {
 	m.wrote, _ = stampOf(m.path)
 
 	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe(), m.probeAgent()}
+	cmds = append(cmds, m.fetchVersions()...)
+
 	if structure.Available() {
 		cmds = append(cmds, readStructure(m.diff, m.made))
 	}
@@ -501,6 +510,8 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applyNotes(msg)
 	case advisedMsg:
 		m.applyAdvisories(msg)
+	case versionedMsg:
+		m.applyVersions(msg)
 	case hoverMsg:
 		m.applyHover(msg)
 	case headMsg:
@@ -2358,9 +2369,11 @@ func (m *Model) rebuild() {
 		grown: func(path string, hunk int, span [2]int) ([]row, []row) {
 			return m.surround(path, hunk, span[0], span[1])
 		},
-		progress: m.fileProgress,
-		known:    m.advisories,
-		answered: m.advised,
+		progress:  m.fileProgress,
+		known:     m.advisories,
+		answered:  m.advised,
+		cards:     m.cards,
+		versioned: m.versioned,
 	}
 	if !m.asDiffed {
 		lay.plan = m.shape.plan

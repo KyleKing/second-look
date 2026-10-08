@@ -2,9 +2,11 @@ package tui_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/tui"
+	"github.com/kyleking/second-look/internal/versions"
 )
 
 const goSumPatch = `diff --git a/go.sum b/go.sum
@@ -133,9 +136,10 @@ func lockfileWith(t *testing.T, a tui.Advisor) *tui.Model {
 	return m
 }
 
-// Every package name in the lockfile leaves the laptop when this is asked, and
-// nothing else this screen draws reaches anywhere but GitHub. So the first L
-// says what will be sent and asks, and only the second one sends it.
+// osv.dev is a service the lockfile never named, which is the consent L
+// carries: the first press says what will be sent and only the second sends
+// it. The package's own registry is asked without a key, because its index is
+// where the name already goes.
 func TestAdvisoriesAreNotAskedUntilTheReaderSaysTwice(t *testing.T) {
 	t.Parallel()
 
@@ -208,5 +212,122 @@ func TestAdvisoriesSayWhenTheQuestionWasRefused(t *testing.T) {
 
 	if !strings.Contains(plain(m.Frame()), "osv.dev: "+advisory.ErrRefused.Error()) {
 		t.Errorf("a refused question left the row saying nothing:\n%s", plain(m.Frame()))
+	}
+}
+
+// errRegistryDown is the refusal a broken registry answers with.
+var errRegistryDown = errors.New("proxy.golang.org said 503")
+
+// registries stands in for what a package's own index says, the way advisor
+// stands in for osv.dev. What the endpoints answer is covered against servers
+// in internal/versions; what is worth driving here is that the asking happens
+// without a key and what the rows do with it.
+type registries struct {
+	cards map[advisory.Package]versions.Card
+	err   error
+	asked [][]advisory.Package
+}
+
+func (r *registries) Cards(_ context.Context, pkgs []advisory.Package) (map[advisory.Package]versions.Card, error) {
+	r.asked = append(r.asked, pkgs)
+
+	return r.cards, r.err
+}
+
+func lockfileVersions(t *testing.T, v tui.Versions, opts ...tui.Option) *tui.Model {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(goSumPatch)), path, (&counter{}).post,
+		append([]tui.Option{tui.WithVersions(v)}, opts...)...)
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+
+	pressKey(m, ']')
+	pressKey(m, 'f')
+
+	return m
+}
+
+// A card asks nothing: the registry fetch names only what the lockfile already
+// carries, so it is asked behind the first frame rather than behind a key.
+// When it lands, the row says when the version shipped and where the registry
+// calls current; a package new to the file gets its description and source.
+func TestVersionCardsAskNothingAndAnswerBesideTheVersion(t *testing.T) {
+	t.Parallel()
+
+	moved := advisory.Package{Ecosystem: "Go", Name: "example.com/moved", Version: "v0.13.0"}
+	came := advisory.Package{Ecosystem: "Go", Name: "example.com/came", Version: "v0.16.0"}
+
+	v := &registries{cards: map[advisory.Package]versions.Card{
+		moved: {Latest: "v0.14.0", Released: time.Now().Add(-6 * 24 * time.Hour)},
+		came: {
+			Latest: "v0.16.0", Released: time.Now().Add(-48 * time.Hour),
+			Source: "https://github.com/example/came", Summary: "A dependency that arrived",
+		},
+	}}
+	a := &advisor{notes: map[advisory.Package][]advisory.Note{moved: {{
+		ID: "GO-2023-1737", Summary: "a thing is wrong", Severity: "high", Fixed: "v0.14.0",
+	}}}}
+
+	m := lockfileVersions(t, v, tui.WithAdvisor(a))
+
+	if !strings.Contains(fileRow(t, plain(m.Frame()), "go.sum"), "asking registries…") {
+		t.Errorf("the lockfile row does not say the asking is out:\n%s", plain(m.Frame()))
+	}
+
+	m.Versioned()
+
+	if len(v.asked) != 1 || len(v.asked[0]) != 2 {
+		t.Fatalf("the ask sent %+v, want the two versions it moved to", v.asked)
+	}
+
+	pressKey(m, 'L')
+	pressKey(m, 'L')
+
+	frame := plain(m.Frame())
+
+	for _, want := range []string{
+		"v0.12.0 → v0.13.0 · released 6d ago · latest v0.14.0",
+		"added v0.16.0 · released 2d ago · latest v0.16.0",
+		"A dependency that arrived · https://github.com/example/came",
+		"GO-2023-1737", "fixed in v0.14.0",
+	} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the frame is missing %q:\n%s", want, frame)
+		}
+	}
+
+	if line := fileRow(t, frame, "example.com/left"); !strings.Contains(line, "removed v0.0.20") ||
+		strings.Contains(line, "latest") {
+		t.Errorf("a removed dependency asked about a version it does not install:\n%s", line)
+	}
+}
+
+// A registry that cannot answer is no reason to hide the versions the diff
+// moved between, so the failure lands on the file's own row and the
+// dependencies keep reading.
+func TestVersionCardsSayWhenTheRegistryFailed(t *testing.T) {
+	t.Parallel()
+
+	m := lockfileVersions(t, &registries{err: errRegistryDown})
+	m.Versioned()
+
+	frame := plain(m.Frame())
+
+	if !strings.Contains(fileRow(t, frame, "go.sum"), "proxy.golang.org said 503") {
+		t.Errorf("the lockfile row does not say the ask failed:\n%s", frame)
+	}
+	if !strings.Contains(frame, "v0.12.0 → v0.13.0") {
+		t.Errorf("a failed ask hid the dependency change:\n%s", frame)
 	}
 }

@@ -8,12 +8,14 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/x/term"
+	"github.com/kyleking/aragonite/cache"
 	"github.com/kyleking/aragonite/vcs"
 
 	"github.com/kyleking/second-look/internal/advisory"
@@ -36,6 +38,7 @@ import (
 	"github.com/kyleking/second-look/internal/skill"
 	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
+	"github.com/kyleking/second-look/internal/versions"
 )
 
 var (
@@ -123,7 +126,21 @@ func helpFor(parts ...[][2]string) [][2]string {
 	return out
 }
 
+// installCache puts the version cards' disk store under the user's cache
+// directory, next to whatever else keeps one. A store that cannot be resolved
+// leaves the cards to memory, which is not worth failing a run over.
+func installCache() {
+	base, err := os.UserCacheDir()
+	if err != nil {
+		return
+	}
+
+	cache.SetDiskCache(cache.NewDiskCache(filepath.Join(base, "second-look")))
+}
+
 func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
+	installCache()
+
 	if len(args) == 0 {
 		return reviewCurrent(ctx, stdin, stdout)
 	}
@@ -475,10 +492,12 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 		opts = append(opts, tui.WithProber(p))
 	}
 
-	// A lockfile can be asked what is known against what it moved to. Nothing
-	// leaves the laptop until a reader confirms the question on the file, which
-	// is why it is offered without a checkout and without configuring.
-	opts = append(opts, tui.WithAdvisor(advisory.Client{}))
+	// A lockfile can be asked what is known against what it moved to. OSV is a
+	// service the lockfile never named, so nothing reaches it until a reader
+	// confirms the question — while the registries a lockfile does name are
+	// asked behind the first frame, a module's index being where its name
+	// already goes.
+	opts = append(opts, tui.WithAdvisor(advisory.Client{}), tui.WithVersions(versions.Client{}))
 
 	if land != 0 {
 		opts = append(opts, tui.WithAnchor(land))

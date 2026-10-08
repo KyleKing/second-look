@@ -223,11 +223,11 @@ a real gopls in `cmd/second-look/probe_test.go`, which skips where gopls is not 
 
 ## `internal/advisory`
 
-The one thing this tool fetches from anywhere but GitHub. `L` on a lockfile puts the
-question up and names what it will send, and only a second `L` sends it, because every
-package name in the file leaves the laptop when it does. A review is given a client
-unconditionally and still asks nobody until a reader says so twice, which is why there
-is no config key for it.
+The question this tool sends to a service the lockfile never named. `L` on a lockfile
+puts the question up and names what it will send, and only a second `L` sends it,
+because every package name in the file leaves the laptop when it does. A review is given
+a client unconditionally and still asks nobody until a reader says so twice, which is
+why there is no config key for it.
 
 OSV's batch call carries advisory ids and nothing else, so each hit is read again from
 `/v1/vulns/{id}`. That second read is what carries the summary, the severity word, and
@@ -243,6 +243,28 @@ databases publish one finding under their own ids and name each other as aliases
 Go module otherwise reads twice. And being offline, being rate limited, and a private
 registry all arrive as the same refusal, which the lockfile's own row says rather than a
 footer nobody kept.
+
+## `internal/versions`
+
+What each dependency's own registry says about the version a lockfile moved to: when it
+shipped, what the registry calls current, and where the source lives. Asked behind the
+first frame with no consent gate, because a module's index is where its name already
+goes — the gate `L` carries is for osv.dev alone. Answers are cached through
+`aragonite/cache`, memory first and disk under it (`~/Library/Caches/second-look` or the
+platform's), keyed by ecosystem and package with a day's TTL.
+
+The fetchers read: Go proxy `/@latest` and `/@v/<ver>.info` (uppercase escapes as
+`!lower`, and the proxy dates one version at a time, so a cached package at a new version
+still re-asks); PyPI `/pypi/<name>/json`, whose `releases` carries both a zoned and a
+naive-UTC upload field; npm's full packument, because the abbreviated form drops the
+`time` object the card exists for; crates.io `/api/v1/crates/<name>`; and RubyGems
+`versions/<gem>.json` plus `gems/<gem>.json`, where latest is the newest non-prerelease
+on the ruby platform. A 404 is an answer (`Missing`, drawn as "not in <eco>"), and a
+failed ask is neither an answer nor cached. Requests carry a `second-look` user agent
+because crates.io refuses the HTTP client's own. npm's `repository` field normalizes
+from a string or `{url}`, through git+/ssh/git@ forms, to a browsable link; the Go proxy
+names the repository in its `Origin` field, and where it does not the card links the
+forge the module path spells or its pkg.go.dev page.
 
 ## Driving the review screen
 

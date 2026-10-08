@@ -368,10 +368,13 @@ Files a machine wrote are grouped last, folded, and counted rather than read. Lo
 one is that it moved and by how much, so the group says how many files and hunks it holds
 and `za` opens any of them. A lockfile in a format this reads (`go.sum`, `go.mod`,
 `Cargo.lock`, `uv.lock`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`,
-`Gemfile.lock`) draws what moved rather than a hunk count, and `L` on it asks
-[osv.dev](https://osv.dev) what is known against the versions it moved to. That is the
-only thing here that reaches anywhere but GitHub, so `L` puts the question up and names
-what it will send, and a second `L` sends it. The answer is drawn under the dependency it
+`Gemfile.lock`) draws what moved rather than a hunk count. Each change carries a card
+from the package's own registry — when the version moved to shipped, what the registry
+calls current, and where the source lives — asked behind the first frame and cached on
+disk, because a module's index is where its name already goes. `L` on it asks
+[osv.dev](https://osv.dev) what is known against the versions it moved to. OSV is a
+service the lockfile never named, so `L` puts the question up and names what it will
+send, and a second `L` sends it. The answer is drawn under the dependency it
 is about, leading with the version it was fixed in, and the file's own row says when the
 question was refused: being offline, being rate limited, and a private registry all read
 the same way, and a card that quietly omitted a package would be worse than no card at

@@ -20,6 +20,7 @@ func foldedFile(f *diff.File, head row, c fileCtx) []row {
 		word = plural(hunkCount(f), "hunk") + " folded"
 	} else {
 		word += askedWord(f, c.lay.answered[head.path])
+		word += versionedWord(c.lay.versioned[head.path])
 	}
 
 	head.text = head.path + "  " + word + staged(c.r, head.path) + " · za to open"
@@ -52,10 +53,18 @@ func lockRows(f *diff.File, path string, lay layout) (string, []row) {
 	out := make([]row, 0, len(deps))
 
 	for _, d := range deps {
+		card, has := lay.cards[advisory.Package{Ecosystem: eco, Name: d.Name, Version: d.To}]
 		out = append(out, row{
 			kind: rowHunk, path: path, comment: noComment,
-			text: fmt.Sprintf("%-*s  %s", width, d.Name, versionWord(d)),
+			text: fmt.Sprintf("%-*s  %s", width, d.Name, versionWord(d)+cardWord(card, has, eco)),
 		})
+
+		if detail := cardDetail(card); has && detail != "" {
+			out = append(out, row{
+				kind: rowHunk, path: path, comment: noComment,
+				text: fmt.Sprintf("%-*s  %s", width, "", detail),
+			})
+		}
 
 		for _, n := range lay.known[advisory.Package{Ecosystem: eco, Name: d.Name, Version: d.To}] {
 			out = append(out, row{
