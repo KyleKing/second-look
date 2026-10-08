@@ -1,3 +1,9 @@
+## v0.28.1 (2026-10-08)
+
+### Fix
+
+- **tui**: take a shell transcript from the pane's screen, not its bytes
+
 ## v0.28.0 (2026-10-08)
 
 ### Feat
