@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/kyleking/aragonite/forge"
@@ -29,6 +30,8 @@ var (
 // A review whose base branch was never recorded leaves a head it moved past
 // with nothing to compare against.
 var errNoBase = errors.New("the review names no base to compare the head against")
+
+var errNoMergeBase = errors.New("the pull request names no merge base")
 
 // Review is everything the review screen reads: the prepared review, the diff
 // its comments anchor to, and where the review is written back.
@@ -397,6 +400,29 @@ func RoundPatch(ctx context.Context, t Target, base, sha string) ([]byte, error)
 	}
 
 	return patch, nil
+}
+
+// MergeBase is the commit the pull request's diff was cut against: the merge
+// base as the forge has it, which is the revision the old side of every hunk
+// numbers its lines from and the one blame has to be asked at.
+func MergeBase(ctx context.Context, t Target) (string, error) {
+	//nolint:gosec // the endpoint is built from the review's own owner, repo, and number
+	cmd := exec.CommandContext(ctx, "gh", "api",
+		"repos/"+t.Owner+"/"+t.Repo+"/pulls/"+strconv.Itoa(t.Number),
+		"--jq", ".merge_base_sha")
+	cmd.Dir = t.Dir()
+
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("reading the merge base of #%d: %w", t.Number, ghReason(err))
+	}
+
+	base := strings.TrimSpace(string(out))
+	if base == "" || base == "null" {
+		return "", errNoMergeBase
+	}
+
+	return base, nil
 }
 
 // ghReason puts gh's own stderr in the message, which is where its reason for

@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/blame"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/seen"
@@ -190,4 +191,17 @@ type Blobs func(ctx context.Context, path string) ([]string, error)
 // keys say so rather than appearing to work.
 func WithBlobs(read Blobs) Option {
 	return func(m *Model) { m.blob = read }
+}
+
+// Blamer ages the old side of the diff out of the checkout's own history:
+// which commit wrote each line, asked at the base the diff was cut against.
+// It is a seam like the rest, so the screen asks for the reading and knows
+// nothing about how the repository or the merge base is reached.
+type Blamer func(ctx context.Context) (blame.Map, error)
+
+// WithBlame allows u then b to draw how old each line is. Without one, the
+// toggle says there is no checkout's history to read rather than drawing an
+// empty column.
+func WithBlame(b Blamer) Option {
+	return func(m *Model) { m.blamer = b }
 }

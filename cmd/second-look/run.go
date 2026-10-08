@@ -21,6 +21,7 @@ import (
 	"github.com/kyleking/second-look/internal/advisory"
 	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/blame"
 	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/brief"
 	"github.com/kyleking/second-look/internal/config"
@@ -485,6 +486,13 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 	opts = append(opts,
 		tui.WithBlobs(reader.Read), tui.WithRestage(restager(t)), tui.WithRounds(rounds(t)))
 
+	// Blame is the one reading that comes out of the repository's own history
+	// rather than the forge's, so it needs the checkout a review is read
+	// beside. Where there is none the toggle says so.
+	if opened.Work != "" {
+		opts = append(opts, tui.WithBlame(blamer(t, opened)))
+	}
+
 	// A checker runs in a checkout or not at all: a language server resolves
 	// what a file imports from the tree around it, and a review staged with
 	// none has no tree.
@@ -513,6 +521,27 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 
 	return tui.New(ctx, opened.Review, opened.Diff, opened.Path,
 		submitter(t, opened.Path, log), opts...), nil
+}
+
+// blamer ages every old-side line the diff carries. The revision is the merge
+// base the diff was cut against, asked of the forge since the checkout may
+// stand anywhere; the blame itself is asked of the checkout, which is where
+// the history is.
+func blamer(t get.Target, opened *get.Review) tui.Blamer {
+	return func(ctx context.Context) (blame.Map, error) {
+		base, err := get.MergeBase(ctx, t)
+		if err != nil {
+			//nolint:wrapcheck // MergeBase's own error already names the pull request
+			return nil, err
+		}
+
+		ops := vcs.GetOperations(opened.Work)
+
+		return blame.Read(ctx,
+			func(ctx context.Context, path string, ranges []vcs.LineRange) ([]vcs.BlameLine, error) {
+				return ops.Blame(ctx, opened.Work, base, path, ranges)
+			}, opened.Diff)
+	}
 }
 
 // tree is where the working copy stands, which is what the shell key can use

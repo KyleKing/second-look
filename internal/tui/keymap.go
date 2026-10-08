@@ -167,10 +167,12 @@ func states() [][2]string {
 	return [][2]string{{"r", "ready"}, {"d", "draft"}, {"t", "todo"}, {"x", "skip"}}
 }
 
-// lookObjects are what u accepts: the three questions the renderers answer
+// lookObjects are what u accepts: the questions the renderers answer
 // together and that this toggles one at a time.
 func lookObjects() [][2]string {
-	return [][2]string{{"g", "grammar"}, {"s", "side by side"}, {"p", "what the parser saw"}}
+	return [][2]string{
+		{"g", "grammar"}, {"s", "side by side"}, {"p", "what the parser saw"}, {"b", "blame"},
+	}
 }
 
 func foldObjects() [][2]string {
@@ -229,7 +231,7 @@ func helpGroups() []helpGroup {
 			{"c", "the next view: both, the code as it now reads, the comments alone"},
 			{"t", "the conversations already on this pull request, each under the line it answers"},
 			{"v", "the next renderer: rich, side by side, structural, plain; each has a caveat"},
-			{"u then g/s/p", "toggle the grammar, side by side, or what the parser saw, on its own"},
+			{"u then g/s/p/b", "toggle the grammar, side by side, the parser's read, or blame, on its own"},
 			{"O", "read in the diff's own order instead of gathered by symbol, and back"},
 			{"z then a / i / R / M", "fold what is here, or all of it; invert; open all; fold to the file names"},
 			{"w", "hide hunks that change nothing but whitespace, and show them again"},

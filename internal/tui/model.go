@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/advisory"
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/blame"
 	"github.com/kyleking/second-look/internal/diag"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
@@ -179,6 +181,14 @@ type Model struct {
 	// and shape is what the same pass saw of each hunk's symbols.
 	cosmetic map[hunkAt]bool
 	shape    shape
+	// blamer is what reads the checkout's history for u then b, and nil where
+	// there is no checkout to read. blamed is what it answered, kept for the
+	// session, blaming is a read still out, and blamedAt is when the answer
+	// landed so every cell ages against one moment.
+	blamer   Blamer
+	blamed   blame.Map
+	blaming  bool
+	blamedAt time.Time
 	// cost is what the same pass rates the change, shown in the title once it
 	// has an answer to show.
 	cost    rate.Score
@@ -506,6 +516,8 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.absorbBlob(msg)
 	case structureMsg:
 		m.applyStructure(msg)
+	case blameMsg:
+		m.applyBlame(msg)
 	case notesMsg:
 		m.applyNotes(msg)
 	case advisedMsg:
@@ -804,9 +816,9 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case 'S':
 		return m.submitAs(msg)
 	case 'u':
-		m.toggleLook(msg)
+		cmd := m.toggleLook(msg)
 
-		return m, nil
+		return m, cmd
 	case 'H':
 		cmd := m.sinceRound(msg.String())
 
