@@ -87,6 +87,10 @@ func main() {
 			})
 		case f.Method == "textDocument/hover":
 			send(map[string]any{"id": f.ID, "result": hover(f.Params)})
+		case f.Method == "textDocument/definition":
+			send(map[string]any{"id": f.ID, "result": definition(f.Params)})
+		case f.Method == "textDocument/references":
+			send(map[string]any{"id": f.ID, "result": references(f.Params)})
 		case f.Method == "textDocument/didOpen", f.Method == "textDocument/didChange":
 			uri := uriOf(f.Params)
 
@@ -196,6 +200,62 @@ func hover(params json.RawMessage) any {
 				p.Position.Character),
 		},
 	}
+}
+
+// at is where a request was pointed: the document, the character in it, and
+// whether the question wanted the declaration too. A request that says nothing
+// about declarations is taken to want one, which is the protocol's default.
+func at(params json.RawMessage) (uri string, char int, declared bool) {
+	var p struct {
+		TextDocument struct {
+			URI string `json:"uri"`
+		} `json:"textDocument"`
+		Position struct {
+			Character int `json:"character"`
+		} `json:"position"`
+		Context *struct {
+			IncludeDeclaration *bool `json:"includeDeclaration"`
+		} `json:"context"`
+	}
+
+	if err := json.Unmarshal(params, &p); err != nil {
+		return "", 0, false
+	}
+
+	return p.TextDocument.URI, p.Position.Character,
+		p.Context == nil || p.Context.IncludeDeclaration == nil || *p.Context.IncludeDeclaration
+}
+
+// definition answers one location rather than a list, which is the singular
+// shape the protocol allows it. The line it points at is the character it was
+// asked about, so a client counting columns wrong reads a different line.
+func definition(params json.RawMessage) any {
+	uri, char, _ := at(params)
+	if uri == "" || char > 20 {
+		return nil
+	}
+
+	return map[string]any{"uri": uri, "range": rng(char)}
+}
+
+// references answers a list: one read in the asked file, one in a file beside
+// it so a client spells both shapes of path, and the declaration itself unless
+// the request said not to send it.
+func references(params json.RawMessage) any {
+	uri, char, declared := at(params)
+	if uri == "" || char > 20 {
+		return nil
+	}
+
+	locs := []map[string]any{
+		{"uri": uri, "range": rng(0)},
+		{"uri": "file://" + rooted + "/other.ts", "range": rng(41)},
+	}
+	if declared {
+		locs = append([]map[string]any{{"uri": uri, "range": rng(99)}}, locs...)
+	}
+
+	return locs
 }
 
 func uriOf(params json.RawMessage) string {

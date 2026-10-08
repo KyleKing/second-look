@@ -28,6 +28,8 @@ type Prober interface {
 	Notes(ctx context.Context) ([]diag.Note, error)
 	// Hover is what each name on one line resolves to.
 	Hover(ctx context.Context, path string, line int) ([]diag.Symbol, error)
+	// Jumps is where each name on one line lives or is read.
+	Jumps(ctx context.Context, path string, line int, kind diag.JumpKind) ([]diag.Jump, error)
 	// Close ends whatever is still running.
 	Close()
 }
@@ -45,6 +47,11 @@ func (m *Model) close() {
 	if m.prober != nil {
 		m.prober.Close()
 		m.prober = nil
+	}
+
+	if m.pane != nil {
+		m.pane.kill()
+		m.pane = nil
 	}
 }
 
@@ -135,23 +142,67 @@ func (m *Model) hover() tea.Cmd {
 	return func() tea.Msg {
 		syms, err := ask.Hover(context.Background(), path, line)
 
-		return hoverMsg{path: path, line: line, symbols: syms, err: err}
+		return answerMsg{path: path, line: line, symbols: syms, err: err}
 	}
 }
 
-type hoverMsg struct {
+// lookup answers the g chord: where each name on the line under the cursor is
+// declared, or everywhere it is read.
+//
+// A review screen has no column cursor, so like K the line is asked about at
+// each of its names rather than at a point.
+func (m *Model) lookup(kind diag.JumpKind) tea.Cmd {
+	if m.prober == nil {
+		m.say("no language server is configured for this review", false)
+
+		return nil
+	}
+
+	r := m.screen.rows[m.cursor]
+	if r.kind != rowCode || r.path == "" || r.line.New == 0 {
+		m.say("gd asks about a line of the change", false)
+
+		return nil
+	}
+
+	verb := "defined"
+	if kind == diag.References {
+		verb = "used"
+	}
+
+	m.say("asking where line "+strconv.Itoa(r.line.New)+" is "+verb+"…", false)
+
+	ask, path, line := m.prober, r.path, r.line.New
+
+	return func() tea.Msg {
+		jumps, err := ask.Jumps(context.Background(), path, line, kind)
+
+		return answerMsg{path: path, line: line, verb: verb, jumps: jumps, err: err}
+	}
+}
+
+// answerMsg carries what one line was asked, whichever question asked it:
+// hover's symbols or a jump's places, and verb is empty for a hover and the
+// question's word ("defined", "read") for a jump.
+type answerMsg struct {
 	path    string
 	line    int
+	verb    string
 	symbols []diag.Symbol
+	jumps   []diag.Jump
 	err     error
 }
 
-func (m *Model) applyHover(msg hoverMsg) {
+func (m *Model) applyAnswer(msg answerMsg) {
 	switch {
 	case msg.err != nil:
 		m.say("asking about line "+strconv.Itoa(msg.line)+": "+msg.err.Error(), true)
-	case len(msg.symbols) == 0:
-		m.say("nothing on line "+strconv.Itoa(msg.line)+" has a type to show", false)
+	case len(msg.symbols)+len(msg.jumps) == 0:
+		if msg.verb == "" {
+			m.say("nothing on line "+strconv.Itoa(msg.line)+" has a type to show", false)
+		} else {
+			m.say("nothing on line "+strconv.Itoa(msg.line)+" is "+msg.verb+" anywhere", false)
+		}
 	default:
 		m.showing = &msg
 		m.say("", false)
@@ -401,11 +452,34 @@ func (m *Model) troubleStyle(s diag.Severity) lipgloss.Style {
 // the overlay's own rows have to leave room for.
 const hoverChrome = 6
 
-// hoverLines is the answer K left up: each name on the line and what it is.
-func (m *Model) hoverLines() []string {
-	out := []string{
-		m.styles.head.Render(fmt.Sprintf("%s line %d", m.showing.path, m.showing.line)),
-		"",
+// places is one jump's sites as a line: the file and the line, comma-joined.
+func places(at []diag.Site) string {
+	out := make([]string, 0, len(at))
+
+	for _, s := range at {
+		out = append(out, fmt.Sprintf("%s:%d", s.Path, s.Line))
+	}
+
+	return strings.Join(out, ", ")
+}
+
+// answerLines is what a line question left up: each name on the line and what
+// it is, or where each one is declared or read.
+func (m *Model) answerLines() []string {
+	head := fmt.Sprintf("%s line %d", m.showing.path, m.showing.line)
+	if m.showing.verb != "" {
+		head += " · where each name is " + m.showing.verb
+	}
+
+	out := []string{m.styles.head.Render(head), ""}
+
+	rows := make([]string, 0, len(m.showing.symbols)+len(m.showing.jumps))
+	for _, sym := range m.showing.symbols {
+		rows = append(rows, sym.Text)
+	}
+
+	for _, j := range m.showing.jumps {
+		rows = append(rows, j.Name+" → "+places(j.At))
 	}
 
 	room := max(minTroubleWidth, m.width-indent*2)
@@ -413,10 +487,10 @@ func (m *Model) hoverLines() []string {
 	// drawn: a frame taller than the terminal loses its own footer off the top.
 	fits := m.height - hoverChrome
 
-	for i, sym := range m.showing.symbols {
-		lines := clip(wrap(sym.Text, room), noteLines)
+	for i, text := range rows {
+		lines := clip(wrap(text, room), noteLines)
 		if len(out)+len(lines) > fits {
-			left := plural(len(m.showing.symbols)-i, "more name")
+			left := plural(len(rows)-i, "more name")
 			out = append(out, "", m.styles.footer.Render("  "+left+" not shown"))
 
 			break

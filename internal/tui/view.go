@@ -40,10 +40,29 @@ func (m *Model) render() string {
 	case m.aboutOpen:
 		body = m.aboutLines()
 	case m.showing != nil:
-		body = m.hoverLines()
+		body = m.answerLines()
 	}
 
-	return strings.Join(append(append([]string{m.title()}, body...), m.footerLines()...), "\n")
+	out := append([]string{m.title()}, body...)
+	if m.pane != nil {
+		out = append(out, m.paneLines()...)
+	}
+
+	return strings.Join(append(out, m.footerLines()...), "\n")
+}
+
+// paneLines is the running program's screen under a divider naming it. The
+// rows it returns are fixed-height: the emulator's screen is exactly the pane
+// even where the program has drawn nothing yet.
+func (m *Model) paneLines() []string {
+	head := " " + m.paneTitle + " — the pane has the keyboard; leave the program to come back"
+
+	rest := m.width - textWidth(head) - 1
+	if rest >= ruleFloor {
+		head += " " + strings.Repeat("─", rest)
+	}
+
+	return append([]string{m.styles.hunk.Render(cut(head, m.width))}, m.pane.lines()...)
 }
 
 func (m *Model) title() string {

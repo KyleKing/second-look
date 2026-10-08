@@ -72,6 +72,32 @@ type Symbol struct {
 	Text string
 }
 
+// Jump is where one name on a line leads: the declaration a definition points
+// at, or each place a reference list reads it.
+type Jump struct {
+	Name string
+	At   []Site
+}
+
+// Site is a place a server pointed at: a file and a line in it. Path is
+// spelled the way the diff spells paths where it can be and a full path where
+// it cannot, since a name's home is often outside the change.
+type Site struct {
+	Path string
+	Line int
+}
+
+// JumpKind is which of the two questions a Jumps asks.
+type JumpKind uint8
+
+const (
+	// Definitions asks where each name was declared.
+	Definitions JumpKind = iota
+	// References asks every place each name is read, its own declaration not
+	// being a read.
+	References
+)
+
 // Placed is notes sorted against the diff: the ones on lines this change wrote,
 // and the ones elsewhere in the files it touched.
 //

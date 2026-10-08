@@ -553,7 +553,7 @@ func TestSearchIsAMotionAndCanBeScopedToUnread(t *testing.T) {
 	// Nothing is read, so an unread-scoped search finds the same rows. A screen
 	// with nowhere to record what is read finds none, which is the honest
 	// answer rather than silently searching everything.
-	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	go2(m, 'g', 'g')
 	press(m, tea.KeyPressMsg{Code: '/', Text: "/"})
 	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
 	typeInto(m, "split")
@@ -578,7 +578,7 @@ func TestSearchIsCaseInsensitiveUntilItIsNot(t *testing.T) {
 		t.Errorf("an uppercase pattern matched lowercase text:\n%s", plain(m.Frame()))
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	go2(m, 'g', 'g')
 	typeSearch(m, "SPLIT(")
 
 	if !strings.Contains(plain(m.Frame()), "no match") {
@@ -2165,7 +2165,7 @@ func TestWritingANewCommentOnTheLineUnderTheCursor(t *testing.T) {
 
 	m, path := fixture(t)
 
-	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	go2(m, 'g', 'g')
 	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "not one") {
@@ -2490,7 +2490,7 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 
 	go2(m, 'z', 'R')
 
-	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	go2(m, 'g', 'g')
 	go2(m, ']', 'f')
 	go2(m, 'z', 'a')
 
@@ -2523,7 +2523,7 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 
 	// A fold is a change, so . does it again wherever the cursor now stands.
 	// Folding a run of files costs za once and a dot for each file after it.
-	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	go2(m, 'g', 'g')
 	go2(m, ']', 'f')
 	go2(m, 'z', 'a')
 	go2(m, ']', 'f')
@@ -2572,7 +2572,7 @@ func TestTheCodeViewShowsTheFileThatResults(t *testing.T) {
 
 	// How much came out is enough to keep reading and not enough to review
 	// the change, so the run opens where it stands.
-	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	go2(m, 'g', 'g')
 	typeSearch(m, "1 line removed")
 	go2(m, 'z', 'a')
 
@@ -2763,7 +2763,7 @@ func TestTabAtTheEdgeSaysThereIsNothingFurther(t *testing.T) {
 		comment("c1", parsed, artifact.SideRight, 15, "first"),
 		comment("c2", parsed, artifact.SideRight, 14, "second"))
 
-	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	go2(m, 'g', 'g')
 	press(m, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "no comment or thread before this one") {

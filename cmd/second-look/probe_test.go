@@ -4,11 +4,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	main "github.com/kyleking/second-look/cmd/second-look"
 	"github.com/kyleking/second-look/internal/blob"
+	"github.com/kyleking/second-look/internal/diag"
 	"github.com/kyleking/second-look/internal/diff"
 )
 
@@ -68,16 +71,32 @@ func Archived(r Row) bool {
 		t.Fatalf("checking: %v", err)
 	}
 
-	var said []string
+	said := make([]string, 0, len(notes))
 	for _, n := range notes {
 		said = append(said, n.Path+": "+n.Message)
+	}
 
-		if strings.Contains(n.Message, "IsArchived") {
-			return
+	if !slices.ContainsFunc(said, func(s string) bool { return strings.Contains(s, "IsArchived") }) {
+		t.Fatalf("nothing said the field is not a member; gopls said %v", said)
+	}
+
+	// The same warm session answers where a name lives: r on the return line
+	// was declared as the parameter two lines above it.
+	jumps, err := p.Jumps(t.Context(), "a.go", 6, diag.Definitions)
+	if err != nil {
+		t.Fatalf("asking where the names live: %v", err)
+	}
+
+	var lives []string
+	for _, j := range jumps {
+		for _, s := range j.At {
+			lives = append(lives, j.Name+"→"+s.Path+":"+strconv.Itoa(s.Line))
 		}
 	}
 
-	t.Fatalf("nothing said the field is not a member; gopls said %v", said)
+	if !slices.Contains(lives, "r→a.go:5") {
+		t.Fatalf("r was not traced to its parameter; gopls said %v", lives)
+	}
 }
 
 // commit puts the tree in the object store, since a review reads the commit

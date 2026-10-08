@@ -2,6 +2,7 @@ package lsp_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -177,6 +178,73 @@ func TestHoverRefusesALineOutsideTheFile(t *testing.T) {
 
 	if _, err := s.Hover(t.Context(), lsp.Doc{Path: "a.ts", Text: "one\n"}, 9); err == nil {
 		t.Error("a line past the end of the file was answered")
+	}
+}
+
+// The other half of "what is this name" is where it lives, asked of the same
+// warm server once per name. The stub answers with the character it was asked
+// about as the line, so the names landing right is the proof that UTF-16
+// columns crossed the wire right.
+func TestDefinitionAnswersWithThePlaceEachNameLives(t *testing.T) {
+	t.Parallel()
+
+	s := lsp.New(t.Context(), t.TempDir(), stubServer())
+	defer s.Close()
+
+	// "café" is five bytes and four code units, so beta is asked about at
+	// column 7 on the wire and not 8.
+	got, err := s.Definitions(t.Context(), lsp.Doc{Path: "a.ts", Text: "café = beta\n"}, 1)
+	if err != nil {
+		t.Fatalf("asking where the names live: %v", err)
+	}
+
+	want := []diag.Jump{
+		{Name: "café", At: []diag.Site{{Path: "a.ts", Line: 1}}},
+		{Name: "beta", At: []diag.Site{{Path: "a.ts", Line: 8}}},
+	}
+
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("read %+v, want %+v", got, want)
+	}
+}
+
+// A name used twice on a line points the same way both times, so the second
+// answer collapses the way a repeated hover does. And a site outside the asked
+// file is spelled the way the diff spells paths, not as the URL the server
+// answered with.
+func TestReferencesListsUsesWithoutTheDeclaration(t *testing.T) {
+	t.Parallel()
+
+	s := lsp.New(t.Context(), t.TempDir(), stubServer())
+	defer s.Close()
+
+	got, err := s.References(t.Context(), lsp.Doc{Path: "a.ts", Text: "alpha + alpha\n"}, 1)
+	if err != nil {
+		t.Fatalf("asking where the names are read: %v", err)
+	}
+
+	want := []diag.Jump{
+		{Name: "alpha", At: []diag.Site{{Path: "a.ts", Line: 1}, {Path: "other.ts", Line: 42}}},
+	}
+
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("read %+v, want %+v", got, want)
+	}
+}
+
+func TestPlacesRefusesWhatItCannotAnswer(t *testing.T) {
+	t.Parallel()
+
+	s := lsp.New(t.Context(), t.TempDir(), stubServer())
+	defer s.Close()
+
+	doc := lsp.Doc{Path: "a.ts", Text: "one\n"}
+	if _, err := s.Definitions(t.Context(), doc, 9); err == nil {
+		t.Error("a line past the end of the file was answered")
+	}
+
+	if _, err := s.References(t.Context(), lsp.Doc{Path: "README.md", Text: "one\n"}, 1); err == nil {
+		t.Error("a file nothing claims was answered")
 	}
 }
 

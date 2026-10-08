@@ -93,8 +93,8 @@ func defaultKeyMap() keyMap {
 		PeekUp:       key.NewBinding(key.WithKeys("ctrl+y"), key.WithHelp("ctrl+y/e", "peek")),
 		PeekDown:     key.NewBinding(key.WithKeys("ctrl+e"), key.WithHelp("ctrl+y/e", "peek")),
 		HalfDown:     key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
-		Top:          key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("g/G", "top, bottom")),
-		Bottom:       key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("g/G", "top, bottom")),
+		Top:          key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("gg/G", "top, bottom")),
+		Bottom:       key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("gg/G", "top, bottom")),
 		Forward:      key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "go")),
 		Backward:     key.NewBinding(key.WithKeys("["), key.WithHelp("[", "go back")),
 		Again:        key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "again")),
@@ -175,6 +175,12 @@ func lookObjects() [][2]string {
 	}
 }
 
+// goObjects are what g accepts: gg keeps the top it always was, and d and r
+// ask the language server where each name on the line is declared and read.
+func goObjects() [][2]string {
+	return [][2]string{{"g", "top"}, {"d", "where defined"}, {"r", "where used"}}
+}
+
 func foldObjects() [][2]string {
 	return [][2]string{{"a", "fold this"}, {"i", "invert all"}, {"R", "open all"}, {"M", "fold all"}}
 }
@@ -219,7 +225,7 @@ func helpGroups() []helpGroup {
 			{"j / k", "move a line"},
 			{"ctrl+d / ctrl+u", "move half a page"},
 			{"ctrl+e / ctrl+y", "scroll without moving the cursor; any motion comes back to it"},
-			{"g / G", "top, bottom"},
+			{"gg / G", "top, bottom"},
 			{"z then z / t / b", "put the cursor's line at the middle, top, bottom of the frame"},
 			{"] / [", "next, previous: d directory, f file, h hunk, c comment, t thread, u unread, p problem"},
 			{"n / N", "repeat that motion forward, backward"},
@@ -242,6 +248,7 @@ func helpGroups() []helpGroup {
 		{"what the code says", [][2]string{
 			{"X", "everything a checker found, each note under the line it lands on"},
 			{"K", "what every name on this line is, asked of the language server"},
+			{"g then d / r", "where each name on this line is declared, where it is used"},
 			{"L", "ask osv.dev what is known against the versions this lockfile moved to"},
 		}},
 		{"marking", [][2]string{

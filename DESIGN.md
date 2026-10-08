@@ -380,7 +380,7 @@ line drops the dim ones instead of truncating it.
 | Layer | Keys |
 | --- | --- |
 | Universal | `q` quit, `esc` back, `enter` select, `/` search, `?` help, `:` command |
-| Motion | `j`/`k` line, `n`/`p` hunk, `}`/`{` file, `g`/`G` top and bottom |
+| Motion | `j`/`k` line, `n`/`p` hunk, `}`/`{` file, `gg`/`G` top and bottom |
 | Review | `space` seen, `c` comment, `a` then a severity writes one, `S` then `a`/`r`/`c` submit, `i` what the pull request says, `o` on GitHub, `u` unresolved only |
 | Fold | `z` then `a` here, `i` invert all, `R` open all, `M` to the file names |
 | Queue | `1`/`2`/`3` and `]`/`[` the tab, `tab` the next group, `f`/`F` focus one repository |

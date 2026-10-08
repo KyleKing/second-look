@@ -389,6 +389,8 @@ func handshake(ctx context.Context, c *client, root string) error {
 			documentKey: map[string]any{
 				"publishDiagnostics": map[string]any{},
 				"hover":              map[string]any{"contentFormat": []string{"plaintext", "markdown"}},
+				"definition":         map[string]any{},
+				"references":         map[string]any{},
 			},
 			"workspace": map[string]any{"workspaceFolders": true},
 		},

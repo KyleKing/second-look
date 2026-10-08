@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -175,8 +175,15 @@ type Model struct {
 	versions  Versions
 	cards     map[advisory.Package]versions.Card
 	versioned map[string]asked
-	// showing is the answer K left up, nil when nothing is.
-	showing *hoverMsg
+	// showing is the answer a line question left up, nil when nothing is.
+	showing *answerMsg
+	// pane is a program running on a pty inside the frame — $EDITOR on the
+	// comment's temp file — with paneMsg saying where its buffer lands and
+	// paneFile naming that file. The child owns the keys while it runs.
+	pane      *pane
+	paneFile  string
+	paneMsg   editedMsg
+	paneTitle string
 	// cosmetic is the structural pass over every hunk, nil until it answers,
 	// and shape is what the same pass saw of each hunk's symbols.
 	cosmetic map[hunkAt]bool
@@ -460,7 +467,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+
+		if m.pane != nil {
+			m.pane.resize(m.width, m.paneHeight())
+		}
+
 		m.rebuild()
+
+		return m, nil
+	case tea.PasteMsg:
+		if m.pane != nil {
+			m.pane.emu.Paste(msg.Content)
+		}
 
 		return m, nil
 	case tea.KeyPressMsg:
@@ -497,6 +515,14 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 		// renders as "    ed to …"). Drop the repaint once that is fixed
 		// upstream; until then this is the one line that must be readable.
 		return tea.ClearScreen
+	case paneWakeMsg:
+		// New output on the pane's screen: re-arm the watch that sends the
+		// next one.
+		if m.pane != nil {
+			return m.pane.watch
+		}
+	case paneGoneMsg:
+		return m.paneGone(msg.err)
 	}
 
 	m.absorb(msg)
@@ -524,8 +550,8 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applyAdvisories(msg)
 	case versionedMsg:
 		m.applyVersions(msg)
-	case hoverMsg:
-		m.applyHover(msg)
+	case answerMsg:
+		m.applyAnswer(msg)
 	case headMsg:
 		m.applyHead(msg)
 	case agentStateMsg:
@@ -545,6 +571,15 @@ type motion struct {
 }
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// A pane owns the keyboard outright while it runs: the child is a modal
+	// program of its own, and taking keys back is how a half-forwarded esc
+	// sequence would strand it.
+	if m.pane != nil {
+		m.pane.send(msg)
+
+		return m, nil
+	}
+
 	// A prompt, a confirmation, and a half-typed motion each own the keyboard
 	// until they are finished, so they are answered before anything else.
 	switch {
@@ -744,10 +779,32 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		return true, m, cmd
 	case m.reshapes(msg):
 		return true, m, nil
+	case m.startsChord(msg):
+		return true, m, nil
+	case key.Matches(msg, m.keys.Search):
+		cmd := m.begin()
+
+		return true, m, cmd
+	default:
+		return false, m, nil
+	}
+
+	return true, m, nil
+}
+
+// startsChord opens the pending-key state for every chord the screen has,
+// saying what each accepts while it waits. The g chord lives here rather than
+// in keys.Top because the queue and the help still read a bare g as the top.
+func (m *Model) startsChord(msg tea.KeyPressMsg) bool {
+	switch {
 	case key.Matches(msg, m.keys.Look):
 		m.pending = 'u'
 
 		m.say(m.chord("u", lookObjects()), false)
+	case msg.String() == "g":
+		m.pending = 'g'
+
+		m.say(m.chord("g", goObjects()), false)
 	case key.Matches(msg, m.keys.Zed):
 		m.pending = 'z'
 
@@ -760,10 +817,6 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		m.pending = ','
 
 		m.say(m.chord(",", reactObjects()), false)
-	case key.Matches(msg, m.keys.Search):
-		cmd := m.begin()
-
-		return true, m, cmd
 	case key.Matches(msg, m.keys.Forward), key.Matches(msg, m.keys.Backward):
 		m.pending = ']'
 		if key.Matches(msg, m.keys.Backward) {
@@ -772,10 +825,10 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 
 		m.say(m.chord(string(m.pending), objects()), false)
 	default:
-		return false, m, nil
+		return false
 	}
 
-	return true, m, nil
+	return true
 }
 
 // records marks the unchorded changes the repeat key can replay: the ones that
@@ -819,6 +872,8 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.toggleLook(msg)
 
 		return m, cmd
+	case 'g':
+		return m.gotoKey(msg)
 	case 'H':
 		cmd := m.sinceRound(msg.String())
 
@@ -840,6 +895,29 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	m.object(prefix, msg)
+
+	return m, nil
+}
+
+// gotoKey answers the g chord: gg is the top it always was, and d and r ask
+// the language server where each name on the line is declared and read.
+func (m *Model) gotoKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "g":
+		m.cursor = 0
+		m.say("", false)
+		m.follow()
+	case "d":
+		cmd := m.lookup(diag.Definitions)
+
+		return m, cmd
+	case "r":
+		cmd := m.lookup(diag.References)
+
+		return m, cmd
+	default:
+		m.say("no place for "+msg.String()+"; g top, d defined, r used", false)
+	}
 
 	return m, nil
 }
@@ -1818,8 +1896,9 @@ func appendTranscript(note, transcript string) string {
 	return note + "\n\n" + transcript
 }
 
-// open puts start in a temporary file, hands the terminal to $EDITOR, and
-// returns what came back shaped as msg.
+// open puts start in a temporary file and opens $EDITOR on it in the pane, so
+// the diff stays on screen while the buffer is being written. The child
+// exiting lands what came back shaped as msg.
 func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 	file, err := os.CreateTemp("", "second-look-*.md")
 	if err != nil {
@@ -1841,37 +1920,67 @@ func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 		return nil
 	}
 
-	return tea.ExecProcess(editorCmd(m.ctx, name), func(err error) tea.Msg {
-		//nolint:errcheck // a temp file that outlives the edit is not worth an error path
-		defer os.Remove(name)
+	argv := editorArgv(name)
 
-		if err != nil {
-			msg.err = err
+	p, err := startPane(m.ctx, argv, m.width, m.paneHeight())
+	if err != nil {
+		//nolint:gosec,errcheck // a temp file that outlives the edit is not worth an error path
+		os.Remove(name)
+		m.say(err.Error(), true)
 
-			return msg
-		}
+		return nil
+	}
 
-		body, err := os.ReadFile(name) //nolint:gosec // our own temp file
-		if err != nil {
-			msg.err = err
+	m.pane, m.paneFile, m.paneMsg = p, name, msg
+	m.paneTitle = filepath.Base(argv[0])
 
-			return msg
-		}
+	// A hover answer still in flight would draw over the shrunken body while
+	// the pane holds the keyboard, so it is dismissed rather than left up.
+	m.showing = nil
 
-		msg.body = strings.TrimRight(string(body), "\n")
-
-		return msg
-	})
+	return p.watch
 }
 
-func editorCmd(ctx context.Context, path string) *exec.Cmd {
+// paneGone is the editor exiting: read the buffer back and land it the way
+// the hand-off always did.
+func (m *Model) paneGone(err error) tea.Cmd {
+	p, name, msg := m.pane, m.paneFile, m.paneMsg
+	m.pane, m.paneFile, m.paneTitle = nil, "", ""
+	p.kill()
+
+	//nolint:errcheck // a temp file that outlives the edit is not worth an error path
+	defer os.Remove(name)
+
+	if err != nil {
+		msg.err = err
+	} else if body, err := os.ReadFile(name); err != nil { //nolint:gosec // our own temp file
+		msg.err = err
+	} else {
+		msg.body = strings.TrimRight(string(body), "\n")
+	}
+
+	m.applyEdit(msg)
+
+	return tea.ClearScreen
+}
+
+// paneFloor is the fewest rows the pane's program can run in; below it even a
+// prompt line would not fit.
+const paneFloor = 4
+
+// paneHeight is how many rows the pane's program gets, below its divider.
+// Half the frame leaves the diff readable above it.
+func (m *Model) paneHeight() int {
+	return max(paneFloor, m.height/2-1)
+}
+
+func editorArgv(path string) []string {
 	fields := strings.Fields(os.Getenv("EDITOR"))
 	if len(fields) == 0 {
 		fields = []string{"vi"}
 	}
 
-	//nolint:gosec // the command is the user's own EDITOR and the path is our temp file
-	return exec.CommandContext(ctx, fields[0], append(fields[1:], path)...)
+	return append(fields, path)
 }
 
 func (m *Model) applyEdit(msg editedMsg) {
@@ -2620,11 +2729,17 @@ func (m *Model) blockEnd() int {
 	return end
 }
 
-// viewHeight is the frame minus the title and footer lines.
+// viewHeight is the frame minus the title, the footer lines, and the pane
+// when one is running.
 func (m *Model) viewHeight() int {
 	const title = 1
 
-	return max(1, m.height-title-len(m.footerLines()))
+	pane := 0
+	if m.pane != nil {
+		pane = m.paneHeight() + 1
+	}
+
+	return max(1, m.height-title-pane-len(m.footerLines()))
 }
 
 // maxOffset is how far the frame may scroll. It looks past the last row by

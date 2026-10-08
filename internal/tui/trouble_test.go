@@ -26,6 +26,7 @@ var errNoServer = errors.New("gopls is not installed")
 type prober struct {
 	notes  []diag.Note
 	syms   []diag.Symbol
+	jumps  []diag.Jump
 	err    error
 	closed bool
 }
@@ -34,6 +35,10 @@ func (p *prober) Notes(context.Context) ([]diag.Note, error) { return p.notes, p
 
 func (p *prober) Hover(context.Context, string, int) ([]diag.Symbol, error) {
 	return p.syms, p.err
+}
+
+func (p *prober) Jumps(_ context.Context, _ string, _ int, _ diag.JumpKind) ([]diag.Jump, error) {
+	return p.jumps, p.err
 }
 
 func (p *prober) Close() { p.closed = true }
@@ -201,6 +206,53 @@ func TestHoverShowsWhatTheNamesAre(t *testing.T) {
 
 	if strings.Contains(plain(m.Frame()), "function split(r: io.Reader)") {
 		t.Error("the answer stayed up after a key")
+	}
+}
+
+// gd is the other half of K: where each name on the line lives, drawn as the
+// same overlay. And g alone no longer jumps: it waits for its object and says
+// so, because gr is the other thing it can mean.
+func TestGoShowsWhereTheNamesLive(t *testing.T) {
+	t.Parallel()
+
+	m := checked(t, &prober{jumps: []diag.Jump{
+		{Name: "split", At: []diag.Site{{Path: "io/read.go", Line: 12}}},
+	}})
+
+	go2(m, ']', 'h')
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "[g] top") {
+		t.Fatalf("the chord did not say what it was waiting for:\n%s", frame)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "split → io/read.go:12") {
+		t.Errorf("the definition is not on screen:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "where each name is defined") {
+		t.Errorf("the overlay does not say which question it answered:\n%s", frame)
+	}
+}
+
+// gg keeps the top g used to reach on its own.
+func TestGGIsStillTheTop(t *testing.T) {
+	t.Parallel()
+
+	m := checked(t, found())
+
+	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	bottom := plain(m.Frame())
+
+	go2(m, 'g', 'g')
+
+	m2 := checked(t, found())
+	if top := plain(m.Frame()); top != plain(m2.Frame()) {
+		t.Errorf("gg did not come back to the first frame:\n%s\nbottom was:\n%s", top, bottom)
 	}
 }
 

@@ -26,39 +26,38 @@ open item below.
 
 ### 1. A program should run beside the review rather than replace it
 
-`ctrl+e` hands the whole terminal to `$EDITOR`, so writing a comment in nvim
-means the code it is about disappears until the editor exits. `!` is the same
-hand-off for a shell, and attaching to an agent (item 10) would be a third. All
-three are one primitive: a PTY and a terminal emulator drawn in a pane inside
-the screen, with `creack/pty` already a dependency for the end-to-end tests and
-`charmbracelet/x/vt` the emulator charm ships for it. The pane is also the
-`tui/editor` debt owed to aragonite, recorded there before this screen had
-anywhere to put one.
+The editor half is built. `ctrl+e` opens `$EDITOR` in a PTY pane below the
+diff rather than handing it the whole terminal: `internal/tui/pane.go` runs the
+child on `creack/pty` and draws it through the `charmbracelet/x/vt` emulator,
+which answers the child's terminal queries itself so nvim never waits on a
+reply nothing else would send. The child owns the keyboard while it runs — the
+same hand-off as before, except the frame stays up beside it — and its exit
+lands the buffer the way the hand-off always did. The pane is also the
+`tui/editor` debt owed to aragonite, now with a place to live.
 
-The editor is the first tenant: `$EDITOR` opens on the comment's temp file in a
-pane under the diff, the diff stays visible while it runs, and the child
-exiting lands the buffer the way the hand-off does today. Focus is the open
-shape: while the pane is open the keys belong to the child, since nvim needs
-all of them, and a binding that hands focus back to scroll the review without
-closing the editor is a second cut only if the first turns out to need it. The
-shell and the agent attach are the tenants after that, in that order.
+What is left is the other tenants and one open shape. `!` still takes the whole
+terminal for a shell and is the next tenant, and attaching to an agent (item 10)
+is the third. Focus is undecided: the child owns every key while the pane is
+open because nvim needs all of them, and a binding that hands focus back to
+scroll the review without closing the editor is a second cut only if the first
+turns out to need it.
 
-### 2. Definitions and usages, prototyped before codeintel
+### 2. Definitions and usages, built before codeintel
 
-`+` and `-` grow the file's own lines around a hunk, three at a press, through
-`git show <sha>:<path>` in a checkout and the contents API without one. Where a
-name is defined and where else it is used was waiting on wavez's `codeintel`
-index, but the session `K` opens for hover already answers both questions:
-`textDocument/definition` and `textDocument/references` are two more requests
-to a server the review is already running. The prototype lands here, asked at
-each name on a line the way hover is asked because there is no column cursor,
-and extracts to wavez once the shape is proven rather than before. Its limits
-are the session's own: nothing answers without a checkout, and what a name
-resolves to outside the changed files is whatever the checkout on disk holds.
+`gd` asks `textDocument/definition` and `gr` `textDocument/references` of the
+same warm session `K` hovers with, once per name on the line because there is
+no column cursor. `g` is a chord now: `gg` keeps the top `g` was, and the chord
+says so while it waits. Answers draw in K's overlay as `name → path:line`
+lists, spelled the way the diff spells paths where the place is inside the
+checkout and absolute where it is not. Its limits are the session's own:
+nothing answers without a checkout, and what a name resolves to outside the
+changed files is whatever the checkout on disk holds.
 
-Opening the whole file rather than a window around the hunk still wants living
-with first. Three at a press is enough for the case the expansion was built
-for, and a whole-file view is closer to an editor than to a review.
+What is left is extraction, not more questions here. The shape wants proving in
+real reviews before it moves to wavez's `codeintel` index, which is the same
+judgement the whole-file view waits on: `+` and `-` growing three lines at a
+press is enough for the case the expansion was built for, and a whole-file view
+is closer to an editor than to a review.
 
 ### 3. Four renderers is three too many
 

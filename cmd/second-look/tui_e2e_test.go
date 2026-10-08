@@ -339,7 +339,9 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 	seedThreads(t, dir, sha)
 
 	editor := filepath.Join(t.TempDir(), "editor")
-	script := "#!/bin/sh\nprintf 'Answered from the review screen.\\n' > \"$1\"\n"
+	// The script reads a line before writing, so the reply only lands if the
+	// pane forwards the keystrokes the screen's frame asks it to.
+	script := "#!/bin/sh\nIFS= read -r line\nprintf '%s\\n' \"$line\" > \"$1\"\n"
 
 	if err := os.WriteFile(editor, []byte(script), 0o700); err != nil { //nolint:gosec // it has to run
 		t.Fatalf("writing the editor: %v", err)
@@ -349,12 +351,15 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 	sc.await("testdata/fixture/sample.go")
 
 	// ]t names the thread; e opens the editor in the frame, and ctrl+e hands
-	// what is in it to $EDITOR, which is the path this fixture's script drives.
+	// what is in it to $EDITOR, which runs in the pane under the diff.
 	sc.press("]t")
 	sc.await("open thread")
 	sc.press("e")
 	sc.await("ctrl+s save")
 	sc.press("\x05")
+	sc.await("the pane has the keyboard")
+	sc.press("Answered from the review screen.")
+	sc.press("\r")
 	sc.await("staged, ready to post")
 	sc.press("q")
 
