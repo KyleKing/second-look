@@ -1,3 +1,13 @@
+## v0.24.0 (2026-10-08)
+
+### Feat
+
+- **blame**: gutter each line's age, blamed at the merge base
+
+### Perf
+
+- **structure**: scan every hunk's fragments in one ast-grep invocation
+
 ## v0.23.0 (2026-10-08)
 
 ### Feat
