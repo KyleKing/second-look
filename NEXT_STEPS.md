@@ -24,7 +24,43 @@ open item below.
 
 ## Open, in the order I would take them
 
-### 1. Four renderers is three too many
+### 1. A program should run beside the review rather than replace it
+
+`ctrl+e` hands the whole terminal to `$EDITOR`, so writing a comment in nvim
+means the code it is about disappears until the editor exits. `!` is the same
+hand-off for a shell, and attaching to an agent (item 10) would be a third. All
+three are one primitive: a PTY and a terminal emulator drawn in a pane inside
+the screen, with `creack/pty` already a dependency for the end-to-end tests and
+`charmbracelet/x/vt` the emulator charm ships for it. The pane is also the
+`tui/editor` debt owed to aragonite, recorded there before this screen had
+anywhere to put one.
+
+The editor is the first tenant: `$EDITOR` opens on the comment's temp file in a
+pane under the diff, the diff stays visible while it runs, and the child
+exiting lands the buffer the way the hand-off does today. Focus is the open
+shape: while the pane is open the keys belong to the child, since nvim needs
+all of them, and a binding that hands focus back to scroll the review without
+closing the editor is a second cut only if the first turns out to need it. The
+shell and the agent attach are the tenants after that, in that order.
+
+### 2. Definitions and usages, prototyped before codeintel
+
+`+` and `-` grow the file's own lines around a hunk, three at a press, through
+`git show <sha>:<path>` in a checkout and the contents API without one. Where a
+name is defined and where else it is used was waiting on wavez's `codeintel`
+index, but the session `K` opens for hover already answers both questions:
+`textDocument/definition` and `textDocument/references` are two more requests
+to a server the review is already running. The prototype lands here, asked at
+each name on a line the way hover is asked because there is no column cursor,
+and extracts to wavez once the shape is proven rather than before. Its limits
+are the session's own: nothing answers without a checkout, and what a name
+resolves to outside the changed files is whatever the checkout on disk holds.
+
+Opening the whole file rather than a window around the hunk still wants living
+with first. Three at a press is enough for the case the expansion was built
+for, and a whole-file view is closer to an editor than to a review.
+
+### 3. Four renderers is three too many
 
 The renderers are three independent axes now rather than four modes: `v` walks four named
 presets and `u` toggles the grammar (`ug`), the columns (`us`), and the structural pass
@@ -46,7 +82,7 @@ band should be darker, less saturated, or left alone is a judgment nothing here 
 a folded heading recedes, and dimming every file but one turned out to be a highlight
 wearing a dim's clothing.
 
-### 2. The session shell's five things
+### 4. The session shell's five things
 
 The review screen used to be a separate program the queue handed off to; it is now a view
 inside the same `tui.Shell`, so opening a row switches modes in place and leaving it
@@ -72,7 +108,7 @@ of use rather than on code (see below).
 program the way the old handoff did, since both need the terminal released or a fresh
 target picked; only the read-a-row-and-come-back path moved in-process.
 
-### 3. A lockfile is not a diff worth reading
+### 5. A lockfile is not a diff worth reading
 
 A `uv.lock` or a `package-lock.json` change is hundreds of lines that say almost nothing,
 and the four things worth knowing are not in them: what moved, when the new version
@@ -123,18 +159,7 @@ Two questions are still open, and neither blocks the version cards:
 - What "popular alternatives" means. No definition exists that is not somebody's ranking,
   so it stays out until there is one I would trust in a review
 
-### 4. Definitions and usages, which wait on codeintel
-
-`+` and `-` grow the file's own lines around a hunk, three at a press, through
-`git show <sha>:<path>` in a checkout and the contents API without one. Going from there
-to where a symbol is defined and where else it is used needs an index, which is wavez's
-`codeintel` and its own extraction.
-
-Opening the whole file rather than a window around the hunk wants living with first. Three
-at a press is enough for the case the expansion was built for, and a whole-file view is
-closer to an editor than to a review.
-
-### 5. Writing a comment, the half that is left
+### 6. Writing a comment, the half that is left
 
 `ctrl+n` completes from what the review already holds: the files the diff touches, the
 symbols the structural pass named, and the logins of everyone who has said something.
@@ -152,14 +177,14 @@ Images are answered and the answer is half a yes. gh v2.99.0 carries `--attach` 
 comment. requirements.md carries the whole finding, the undocumented upload endpoint
 included and why building on it would be a dependency that breaks silently.
 
-### 6. The second review target: local changes and `[TODO:` markers
+### 7. The second review target: local changes and `[TODO:` markers
 
 Scope item 2 in requirements.md, and nothing of it is built. Local uncommitted or branch
 changes, with no posting endpoint, where a comment either stays local or lands in the
 source as a `[TODO:` marker. It is a second mode rather than a key, which is why it has
 not leaked into the pull request path.
 
-### 7. Beyond alpha: replace gh-dash
+### 8. Beyond alpha: replace gh-dash
 
 [gh-dash](https://github.com/dlvhdr/gh-dash) is the bar, because it is the tool I would
 otherwise open, and everything second-look does better is wasted if getting to a pull
@@ -186,7 +211,7 @@ own token-splitting and case-fold matching. gh-repo-dashboard is still on its ow
 it onto `aragonite/filter` is deliberately not done, so it stays a decision for whenever
 that repository is next touched rather than a mid-air rewrite here.
 
-### 8. Blame, and a heat map of recency
+### 9. Blame, and a heat map of recency
 
 Who last touched a line and how long ago is the context a diff cannot carry, and
 [research/blame-and-recency-2026-09.md](research/blame-and-recency-2026-09.md) has the
@@ -212,7 +237,7 @@ costs one cell and the context pane that would contend for the width does not ex
 the rule lands with whichever optional column comes second. Move-aware blame (`-M`/`-C`)
 and `.git-blame-ignore-revs` are last and opt-in, because both cost real extra passes.
 
-### 9. An agent session is invisible while it is working
+### 10. An agent session is invisible while it is working
 
 The visibility half is built. `agents` is the third configured command next to `dispatch`
 and `resume`, whose stdout is a JSON array of `sessionId` and `state` (or `status`), in the
@@ -222,19 +247,27 @@ names the session, and `second-look status` counts the sessions waiting on an an
 session absent from the listing ended, so nothing says anything stale.
 
 Getting into the chat is the other half and it is a different act from dispatching. `T`
-runs a headless command and reports one line, whereas attaching means handing the terminal
-over the way the shell key already does. The stronger answer is ACP (the Agent Client
-Protocol, Zed's JSON-RPC-over-stdio analogue of LSP): second-look stays the client, spawns
-the agent's ACP adapter, and gets `session/update` pushes and inbound permission requests
-rather than a state discovered by polling. Claude Code reaches it through
-`@zed-industries/claude-agent-acp`, which now supports `session/load` and
-`session/list`, so resuming a dispatched session in-band is real. ACP also generalizes past
-one tool, where `claude attach <id>` does not. It does not replace the listing probe: a
-session dispatched with `--bg` hours ago, with no second-look running, is only knowable
-through the listing. What is missing is the pane — streaming updates, a prompt box, and
-permission handling inside the review screen — which is a feature of its own rather than a
-keybinding, and an SDK choice (`caelis-labs/acp-go-sdk` and `coder/acp-go-sdk` are the Go
-options) made when it is spiked rather than before.
+runs a headless command and reports one line, whereas attaching means a live terminal —
+the pane in item 1, so the agent's interface runs beside the diff rather than taking the
+screen over the way the shell key does. ACP is the structured version of the same pane.
+With second-look as the client, `session/prompt` sends the todo set, `session/load`
+resumes a recorded session in-band (`@zed-industries/claude-agent-acp` supports it now),
+`session/update` streams the transcript into the pane, and `session/request_permission`
+arrives as a question the screen answers rather than a blocked state a poll reports. That
+is the whole gain: the agent becomes a conversation inside the review instead of a
+session rejoined from outside it, and one protocol reaches agents `claude attach` does
+not.
+
+The costs are worth recording so the spike does not have to rediscover them. ACP is a
+channel added rather than one removed: the `agents` listing still answers for sessions
+dispatched while second-look was closed, and `dispatch` and `resume` argv still cover
+agents with no adapter and runs launched with no second-look open. A resident adapter
+process plus a transcript in memory is more state, not less — the poll it would partly
+replace was already rare and cheap. So the argument for it is the interaction and nothing
+else, and it comes after the pane exists rather than before. The SDK is decided at spike
+time: `caelis-labs/acp-go-sdk` is the stable wire-v1 surface interop-tested against the
+official TypeScript and Rust SDKs, and `coder/acp-go-sdk` is the older 0.x option with
+worked examples; caelis first unless the spike says otherwise.
 
 ## Waiting on use rather than on code
 
