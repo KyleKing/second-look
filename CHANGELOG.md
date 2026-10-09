@@ -1,3 +1,11 @@
+## v0.28.2 (2026-10-09)
+
+### Fix
+
+- **tui**: draw the cursor shape the pane's child asks for
+- **tui**: keep the cursor on its line and tab on comments
+- **diag**: tell pyright the project's own python interpreter
+
 ## v0.28.1 (2026-10-08)
 
 ### Fix
