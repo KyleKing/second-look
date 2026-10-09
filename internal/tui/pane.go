@@ -13,6 +13,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 )
@@ -31,8 +32,9 @@ type pane struct {
 	// because every wake redraws the whole pane anyway.
 	woke chan struct{}
 	// cursor is whether the program wants a cursor drawn, which nvim toggles
-	// as it changes shape.
+	// as it changes shape, and shape is the one it asked for.
 	cursor atomic.Bool
+	shape  atomic.Int64
 }
 
 // errNoProgram is a pane asked to run nothing.
@@ -53,6 +55,7 @@ func startPane(ctx context.Context, argv []string, w, h int) (*pane, error) {
 	}
 	p.emu.SetCallbacks(vt.Callbacks{
 		CursorVisibility: func(v bool) { p.cursor.Store(v) },
+		CursorStyle:      func(s vt.CursorStyle, _ bool) { p.shape.Store(int64(s)) },
 	})
 
 	//nolint:gosec // the command is the user's own EDITOR and the path is our temp file
@@ -206,8 +209,9 @@ func (p *pane) row(y int) uv.Line {
 	return row
 }
 
-// lines is the emulated screen as styled rows, with the program's cursor
-// drawn as a reversed cell where it wants one.
+// lines is the emulated screen as styled rows, with the program's cursor drawn
+// where it wants one, in the shape it asked for: a cell has no cursor overlay,
+// so an underline is the cell's and a bar is a glyph at its left edge.
 func (p *pane) lines() []string {
 	at := p.emu.CursorPosition()
 	out := make([]string, 0, p.emu.Height())
@@ -216,7 +220,16 @@ func (p *pane) lines() []string {
 		row := p.row(y)
 
 		if p.cursor.Load() && at.Y == y && at.X < len(row) {
-			row[at.X].Style.Attrs |= uv.AttrReverse
+			c := &row[at.X]
+
+			switch vt.CursorStyle(p.shape.Load()) {
+			case vt.CursorUnderline:
+				c.Style.Underline = ansi.UnderlineSingle
+			case vt.CursorBar:
+				c.Content, c.Width = "▏", 1
+			default:
+				c.Style.Attrs |= uv.AttrReverse
+			}
 		}
 
 		out = append(out, row.Render())

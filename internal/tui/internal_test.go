@@ -152,6 +152,59 @@ func TestPaneTranscriptKeepsTheSession(t *testing.T) {
 	}
 }
 
+// The cursor is the child's, so it keeps the shape the child asks for: nvim
+// sets a bar in insert mode (DECSCUSR 5), and a pane that only ever draws a
+// block lies about the mode the status line is showing.
+func TestPaneDrawsTheCursorShapeTheChildAsks(t *testing.T) {
+	t.Parallel()
+
+	p, err := startPane(t.Context(),
+		[]string{"sh", "-c", "printf '\\033[?25l\\033[?25h\\033[5 qX'; sleep 2"}, 40, 6)
+	if err != nil {
+		t.Fatalf("starting the pane: %v", err)
+	}
+
+	paneWait(t, p, "X")
+	defer p.kill()
+
+	var bar bool
+	for _, line := range p.lines() {
+		if strings.Contains(line, "▏") {
+			bar = true
+		}
+	}
+
+	if !bar {
+		t.Errorf("a bar-cursor ask drew no bar:\n%s", strings.Join(p.lines(), "\n"))
+	}
+}
+
+// The same ask for an underline (DECSCUSR 4) keeps the cell's text and marks
+// it, so the cursor reads over the character it stands on.
+func TestPaneDrawsAnUnderlineCursor(t *testing.T) {
+	t.Parallel()
+
+	p, err := startPane(t.Context(),
+		[]string{"sh", "-c", "printf '\\033[?25l\\033[?25h\\033[4 qX'; sleep 2"}, 40, 6)
+	if err != nil {
+		t.Fatalf("starting the pane: %v", err)
+	}
+
+	paneWait(t, p, "X")
+	defer p.kill()
+
+	var underlined bool
+	for _, line := range p.lines() {
+		if strings.Contains(line, "\x1b[4m") {
+			underlined = true
+		}
+	}
+
+	if !underlined {
+		t.Errorf("an underline-cursor ask drew no underline:\n%s", strings.Join(p.lines(), "\n"))
+	}
+}
+
 // A resize reaches both sides of the pane: the emulator the screen draws, and
 // the winsize the child would ask about.
 func TestPaneResize(t *testing.T) {
