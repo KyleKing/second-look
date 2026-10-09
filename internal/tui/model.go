@@ -1636,11 +1636,7 @@ func isKind(k rowKind) func(row) bool {
 // still wanting a decision. A resolved thread is neither, so it is skipped the
 // same way isThread skips it on its own.
 func isHead(r row) bool {
-	if !r.head {
-		return false
-	}
-
-	return r.kind != rowThread || isThread(r)
+	return isComment(r) || isThread(r)
 }
 
 func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -2546,6 +2542,8 @@ func (m *Model) rebuild() {
 	// mean something else.
 	m.selected = nil
 
+	was := m.here()
+
 	if m.notes == nil {
 		m.notes = noted(m.threads)
 	}
@@ -2586,6 +2584,8 @@ func (m *Model) rebuild() {
 	}
 
 	m.done = m.readHunks()
+
+	m.stay(was)
 	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()
 

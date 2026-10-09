@@ -68,14 +68,25 @@ func found() *prober {
 
 // checked is the review with a pass already answered, which is the state the
 // screen is in a second or two after it opens.
-func checked(t *testing.T, p tui.Prober) *tui.Model {
+func checked(t *testing.T, p tui.Prober, cs ...artifact.Comment) *tui.Model {
+	t.Helper()
+
+	m := checkable(t, p, cs...)
+	m.Checked()
+
+	return m
+}
+
+// checkable is the review with a checker attached but not yet answered, which
+// is what the screen is for the seconds a real pass takes.
+func checkable(t *testing.T, p tui.Prober, cs ...artifact.Comment) *tui.Model {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "pr-42.toml")
 
 	r := &artifact.Review{
 		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
-		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment, Comments: cs,
 	}
 	if err := artifact.Save(path, r); err != nil {
 		t.Fatal(err)
@@ -85,7 +96,6 @@ func checked(t *testing.T, p tui.Prober) *tui.Model {
 		tui.WithProber(p))
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	m.Checked()
 
 	return m
 }
@@ -327,6 +337,43 @@ func TestHoverFitsTheFrame(t *testing.T) {
 
 	if !strings.Contains(frame, "not shown") {
 		t.Errorf("the names left out are not counted:\n%s", frame)
+	}
+}
+
+// tab walks what wants a decision, and a note wants none: it is read where it
+// lies or in the list, never stopped on.
+func TestTabWalksPastANote(t *testing.T) {
+	t.Parallel()
+
+	m := checked(t, found(), comment("c1", parsed, artifact.SideRight, 16, "the finding"))
+
+	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+
+	if got := m.CommentUnderCursor(); got != 0 {
+		t.Errorf("tab landed on %q, want the comment", m.CursorText())
+	}
+}
+
+// The pass answers seconds after the screen has a reader, and the rows it
+// inserts shift every row number after them; the cursor must not slide with it.
+func TestLateNotesKeepTheLineUnderTheCursor(t *testing.T) {
+	t.Parallel()
+
+	m := checkable(t, found())
+
+	go2(m, ']', 'h')
+	go2(m, ']', 'h')
+
+	row, want := m.CursorRow(), m.CursorText()
+
+	m.Checked()
+
+	if m.CursorRow() == row {
+		t.Fatal("the pass inserted no rows, which is not the case being pinned")
+	}
+
+	if got := m.CursorText(); got != want {
+		t.Errorf("the cursor moved from %q to %q", want, got)
 	}
 }
 

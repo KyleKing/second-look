@@ -74,7 +74,6 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 	m.fold = foldNone
 	m.folded = newFolded()
 	m.notes = nil
-	m.cursor = 0
 	m.around = map[hunkAt]int{}
 	m.blobs = map[string][]string{}
 	if msg.fresh.Blobs != nil {
@@ -100,6 +99,7 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 	}
 
 	m.rebuild()
+	m.cursor = 0
 	m.reveal()
 
 	m.say(restagedWord(was, len(m.review.Comments), msg.fresh.HeadSHA), false)

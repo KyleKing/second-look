@@ -220,28 +220,51 @@ func (m *Model) orderWord() string {
 	return ""
 }
 
-// where names what the cursor is standing on in terms that survive a re-layout:
-// a comment by its index into the review, anything else by the hunk it is in
-// and the line it draws.
+// where names what the cursor is standing on in terms that survive a re-layout,
+// with nth counting which occurrence of it, since two rows can read alike.
 type where struct {
 	comment int
 	at      hunkAt
+	kind    rowKind
 	line    diff.Line
+	thread  int
+	note    int
+	block   int
+	text    string
+	nth     int
 }
 
 func (m *Model) here() where {
 	if m.cursor >= len(m.screen.rows) {
-		return where{comment: noComment}
+		return where{comment: noComment, nth: -1}
 	}
 
 	r := m.screen.rows[m.cursor]
+	w := where{
+		comment: r.comment, at: hunkAt{r.path, r.hunk}, kind: r.kind,
+		line: r.line, thread: r.thread, note: r.note, block: r.block, text: r.text,
+	}
 
-	return where{comment: r.comment, at: hunkAt{r.path, r.hunk}, line: r.line}
+	for i := range m.cursor {
+		if same(m.screen.rows[i], w) {
+			w.nth++
+		}
+	}
+
+	return w
 }
 
-// goTo puts the cursor back on what it was standing on, and on the nearest
-// thing to it where that row is gone: the hunk it was in, then the top.
-func (m *Model) goTo(was where) {
+// same is whether a row is the row the cursor was on, read by what it is about
+// rather than the marks a pass or a fold can set on it since.
+func same(r row, w where) bool {
+	return r.kind == w.kind && r.path == w.at.path && r.hunk == w.at.hunk &&
+		r.line == w.line && r.comment == w.comment && r.thread == w.thread &&
+		r.note == w.note && r.block == w.block && r.text == w.text
+}
+
+// find is where what the cursor was standing on went, answered as an index into
+// the screen's rows: the row itself, else the first row of its hunk, else -1.
+func (m *Model) find(was where) int {
 	best := -1
 
 	for i := range m.screen.rows {
@@ -249,20 +272,45 @@ func (m *Model) goTo(was where) {
 
 		switch {
 		case was.comment >= 0 && r.comment == was.comment:
-			m.cursor = i
-			m.reveal()
-
-			return
-		case r.path == was.at.path && r.hunk == was.at.hunk && r.line == was.line:
-			m.cursor = i
-			m.reveal()
-
-			return
+			return i
+		case same(r, was):
+			return i
 		case best < 0 && r.path == was.at.path && r.hunk == was.at.hunk:
 			best = i
 		}
 	}
 
-	m.cursor = max(0, best)
+	return best
+}
+
+// goTo puts the cursor back on what it was standing on, and on the nearest
+// thing to it where that row is gone: the hunk it was in, then the top.
+func (m *Model) goTo(was where) {
+	m.cursor = max(0, m.find(was))
 	m.reveal()
+}
+
+// stay puts the cursor back on the row it was on across a re-layout, keeping
+// its place on the frame; a row that is gone leaves the index as laid out.
+func (m *Model) stay(was where) {
+	if was.nth < 0 {
+		return
+	}
+
+	n := 0
+
+	for i := range m.screen.rows {
+		if !same(m.screen.rows[i], was) {
+			continue
+		}
+
+		if n == was.nth {
+			m.offset += i - m.cursor
+			m.cursor = i
+
+			return
+		}
+
+		n++
+	}
 }
