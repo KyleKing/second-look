@@ -355,10 +355,15 @@ func (s *Session) serverFor(ctx context.Context, srv Server, root string) (*clie
 		}
 	}
 
+	settings := srv.Settings
+	if srv.SettingsFor != nil {
+		settings = mergeSettings(srv.SettingsFor(s.root, root), settings)
+	}
+
 	// The process outlives the call that started it, so it is bounded by the
 	// session rather than by one pass's deadline.
 	//nolint:contextcheck // the server is the session's, not this call's
-	c, err := dial(s.base, root, srv.Argv, srv.Settings)
+	c, err := dial(s.base, root, srv.Argv, settings)
 	if err != nil {
 		return nil, err
 	}

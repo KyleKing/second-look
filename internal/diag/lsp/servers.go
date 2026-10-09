@@ -12,6 +12,7 @@ import (
 // protocol spells and a server matches on.
 const (
 	langJS = "javascript"
+	langPy = "python"
 	langTS = "typescript"
 )
 
@@ -42,6 +43,9 @@ type Server struct {
 	// documents. A server reads it by being told once and by asking for a
 	// section of it whenever it wants one, and both are answered from here.
 	Settings map[string]any
+	// SettingsFor is settings that depend on the root the server is started in,
+	// merged under Settings where the two name the same key.
+	SettingsFor func(checkout, root string) map[string]any
 }
 
 // builtin are the servers second-look starts without being configured to.
@@ -71,11 +75,12 @@ var builtin = []Server{
 		Roots:    [][]string{{"go.work"}, {"go.mod"}},
 	},
 	{
-		Name:     "pyright",
-		Argv:     []string{"pyright-langserver", "--stdio"},
-		Exts:     []string{".py", ".pyi"},
-		Language: map[string]string{".py": "python", ".pyi": "python"},
-		Roots:    [][]string{{"pyrightconfig.json"}, {"pyproject.toml", "setup.py", "setup.cfg"}},
+		Name:        "pyright",
+		Argv:        []string{"pyright-langserver", "--stdio"},
+		Exts:        []string{".py", ".pyi"},
+		Language:    map[string]string{".py": langPy, ".pyi": langPy},
+		Roots:       [][]string{{"pyrightconfig.json"}, {"pyproject.toml", "setup.py", "setup.cfg"}},
+		SettingsFor: pythonEnv,
 	},
 }
 
@@ -136,4 +141,44 @@ func Answers(servers []Server, paths []string) bool {
 	}
 
 	return false
+}
+
+// pythonEnv is the interpreter a project keeps beside itself, which a pyright
+// told nothing answers for with whatever Python is on the PATH.
+func pythonEnv(checkout, root string) map[string]any {
+	bins := []string{filepath.Join(".venv", "bin"), filepath.Join("venv", "bin")}
+
+	if at := project.Tool(checkout, root, langPy, bins); at != langPy {
+		return map[string]any{langPy: map[string]any{"pythonPath": at}}
+	}
+
+	return nil
+}
+
+// mergeSettings answers one settings map: the per-root values as the floor
+// and the configured ones over them, so a key somebody set beats a detected one.
+func mergeSettings(base, over map[string]any) map[string]any {
+	if len(over) == 0 {
+		return base
+	}
+
+	out := make(map[string]any, len(base)+len(over))
+
+	for k, v := range base {
+		out[k] = v
+	}
+
+	for k, v := range over {
+		if b, isMap := out[k].(map[string]any); isMap {
+			if o, ok := v.(map[string]any); ok {
+				out[k] = mergeSettings(b, o)
+
+				continue
+			}
+		}
+
+		out[k] = v
+	}
+
+	return out
 }

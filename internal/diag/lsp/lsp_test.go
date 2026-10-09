@@ -475,3 +475,125 @@ func TestNotesAnswersAServerAskingForItsSettings(t *testing.T) {
 		t.Errorf("the server was told %q, want the settings it asked for", got[0].Message)
 	}
 }
+
+// Settings that depend on the project are computed for the root the server is
+// started in, which is how one server over a monorepo hands each package its
+// own answers.
+func TestNotesGivesAServerTheRootsOwnSettings(t *testing.T) {
+	t.Parallel()
+
+	checkout := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(checkout, "pkg"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(checkout, "pkg", "tsconfig.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	servers := stubServer()
+	servers[0].Roots = [][]string{{"tsconfig.json"}}
+	servers[0].SettingsFor = func(_, root string) map[string]any {
+		return map[string]any{"stub": map[string]any{"mode": root}}
+	}
+
+	s := lsp.New(t.Context(), checkout, servers)
+	defer s.Close()
+
+	got, err := s.Notes(t.Context(), []lsp.Doc{
+		{Path: filepath.Join("pkg", "settings.ts"), Text: "one\n"},
+	})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("read %+v, %v", got, err)
+	}
+
+	if want := filepath.Join(checkout, "pkg"); got[0].Message != want {
+		t.Errorf("the server was told %q, want its own root %q", got[0].Message, want)
+	}
+}
+
+// pyright resolves imports against the interpreter it is told about, and a
+// monorepo keeps one per package; the nearer .venv wins and none means none.
+func TestPyrightIsToldTheProjectsInterpreter(t *testing.T) {
+	t.Parallel()
+
+	var pyright lsp.Server
+
+	for _, s := range lsp.Builtin() {
+		if s.Name == "pyright" {
+			pyright = s
+		}
+	}
+
+	checkout := t.TempDir()
+	root := filepath.Join(checkout, "pkg")
+
+	for _, at := range []string{
+		filepath.Join(root, ".venv", "bin", "python"),
+		filepath.Join(checkout, ".venv", "bin", "python"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(at), 0o750); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.WriteFile(at, []byte("#!"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	interpreter := func(root string) any {
+		python, ok := pyright.SettingsFor(checkout, root)["python"].(map[string]any)
+		if !ok {
+			return nil
+		}
+
+		return python["pythonPath"]
+	}
+
+	want := filepath.Join(root, ".venv", "bin", "python")
+	if got := interpreter(root); got != want {
+		t.Errorf("the package's own interpreter is %v, want %s", got, want)
+	}
+
+	// A package without one shares the environment the checkout installed.
+	if err := os.RemoveAll(filepath.Join(root, ".venv")); err != nil {
+		t.Fatal(err)
+	}
+
+	want = filepath.Join(checkout, ".venv", "bin", "python")
+	if got := interpreter(root); got != want {
+		t.Errorf("the workspace's interpreter is %v, want %s", got, want)
+	}
+
+	if err := os.RemoveAll(filepath.Join(checkout, ".venv")); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := pyright.SettingsFor(checkout, root); got != nil {
+		t.Errorf("a project with no environment is told %v, want nothing", got)
+	}
+}
+
+// What a config names beats what is detected, so setting a key is how a wrong
+// detection is overridden rather than a second source the reader cannot see.
+func TestConfiguredSettingsBeatTheDetectedOnes(t *testing.T) {
+	t.Parallel()
+
+	servers := stubServer()
+	servers[0].Settings = map[string]any{"stub": map[string]any{"mode": "configured"}}
+	servers[0].SettingsFor = func(_, _ string) map[string]any {
+		return map[string]any{"stub": map[string]any{"mode": "found"}}
+	}
+
+	s := lsp.New(t.Context(), t.TempDir(), servers)
+	defer s.Close()
+
+	got, err := s.Notes(t.Context(), []lsp.Doc{{Path: "settings.ts", Text: "one\n"}})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("read %+v, %v", got, err)
+	}
+
+	if got[0].Message != "configured" {
+		t.Errorf("the server was told %q, want the configured value", got[0].Message)
+	}
+}
