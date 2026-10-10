@@ -1,24 +1,24 @@
 kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skipped
-                                        moving                                 ┃
-                                 j / k  move a line                            ┃
-                       ctrl+d / ctrl+u  move half a page                       ┃
-                       ctrl+e / ctrl+y  scroll without moving the cursor; any… ┃
-                                gg / G  top, bottom                            ┃
-                      z then z / t / b  put the cursor's line at the middle, … ┃
-                                 ] / [  next, previous: d directory, f file, … ┃
-                                 n / N  repeat that motion forward, backward   │
-                                     /  search; tab in the prompt restricts i… │
-                       tab / shift+tab  next, previous thing wanting a decisi… │
-                                     .  repeat the last change: space, m r/d/… │
-                                                                               │
-                                        what is shown                          │
-                                     c  the next view: both, the code as it n… │
-                                     t  the conversations already on this pul… │
-                                     v  the next renderer: rich, side by side… │
-                        u then g/s/p/b  toggle the grammar, side by side, the… │
-                                     O  read in the diff's own order instead … │
-                  z then a / i / R / M  fold what is here, or all of it; inve… │
-                                     w  hide hunks that change nothing but wh… │
-                                     W  hide hunks that change no code at all… │
-                                     U  hide every hunk already marked read, … │
+         moving  [j/k] a line  [ctrl+d/u] half a page  [ctrl+e/y] peek
+                 [gg/G] the ends  []] go to…  [[] go back…
+                 [n/N] the same, or back  [.] the last change
+                 [tab/shift+tab] what wants a decision  [/] search
+                 tab in the prompt narrows a search to hunks not yet read
+  what is shown  [c] the next view  [t]hreads  [v] the next renderer
+                 [u] one of them…  [z] folds, the frame…
+                 the diff's [O]wn order  [w]hitespace  [W] no code changed
+                 [U] only what is new  [H] since a round
+       the code  [X] trouble  [K] what is this  [g]o…  the [L]ockfile
+        marking  [space] mark read  [m] a state…
+        writing  [a] a comment…  [s] a suggestion  [V] a range  [+/-] context
+                 [e] edit, reply, write  [E] editing a note  [!] a shell
+                 [T]odos to an agent
+                 while writing: ctrl+t swaps in what an agent wrote, ctrl+n
+                 completes a word
+  conversations  [,] a reaction…
+                 the same key takes a reaction back; z then a folds a thread
+    the request  [ctrl+r] restage  [C]heck out  [P]ost one  [S]ubmit…
+                 what [i]t says about itself  [o]n GitHub  [M]erge
+                 [D]elete the branch
+        leaving  [?/esc] this, or back  [ctrl+\] end a pane  [q]uit
  [j/k] line  []] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit

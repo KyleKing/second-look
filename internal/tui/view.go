@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/keyhint"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -462,32 +464,16 @@ func (m *Model) canWrite() bool {
 	return m.currentThread() >= 0 || m.current() != noComment
 }
 
-// legend is every key the screen offers, with the ones that do nothing where
-// the cursor is marked so they can be drawn dim rather than dropped.
-//
-// The rules are the footer's, so the two cannot disagree. They are matched
-// against the legend's own key text: a row renamed loses its dimming rather
-// than dimming the wrong row.
-func (m *Model) legend() []hint {
-	rows := helpLines()
-	out := make([]hint, 0, len(rows))
-
-	for _, r := range rows {
-		out = append(out, hint{key: r[0], what: r[1], off: m.inert(r[0])})
-	}
-
-	return out
-}
-
 // inert reports a key with nothing to act on under the cursor. The strings are
-// the legend's own.
-func (m *Model) inert(key string) bool {
-	switch {
-	case strings.HasPrefix(key, "a then"), key == "s", key == "V":
+// the legend's own, matched against the same rules the footer dims by so the
+// two cannot disagree.
+func (m *Model) inert(k string) bool {
+	switch k {
+	case "a", "s", "V":
 		return !m.onCode()
-	case strings.HasPrefix(key, "m then"), key == "E":
+	case "m", "E":
 		return m.current() < 0
-	case key == "e":
+	case "e":
 		return !m.canWrite()
 	}
 
@@ -500,15 +486,62 @@ func (m *Model) onCode() bool {
 	return m.cursor >= 0 && m.cursor < len(m.screen.rows) && m.screen.rows[m.cursor].kind == rowCode
 }
 
+// helpTree is the legend with the H chord's page filled in from the rounds
+// this review was read at, which is the one page a static tree cannot write.
+func (m *Model) helpTree() []keyhint.Hint {
+	return helpTree(roundHints(m.earlier(), time.Now()))
+}
+
+// helpPage is the page the path into the legend reaches, falling back to the
+// root when a key on it no longer opens one.
+func (m *Model) helpPage() []keyhint.Hint {
+	page, ok := keyhint.At(m.helpTree(), m.helpPath)
+	if !ok {
+		page, m.helpPath = m.helpTree(), nil
+	}
+
+	marked := make([]keyhint.Hint, len(page))
+	for i, h := range page {
+		// inert answers for the root's keys only: a key on a page under a
+		// chord is that chord's object, and the chord's own row carries the
+		// dimming for it.
+		h.Off = len(m.helpPath) == 0 && m.inert(h.Key)
+		marked[i] = h
+	}
+
+	return marked
+}
+
+// helpLines is the legend's current page, scrolled like the diff where a short
+// frame cannot hold it.
 func (m *Model) helpLines() []string {
 	h := m.viewHeight()
-	rows := m.legend()
-	bar := scrollbar(h, len(rows), m.helpAt)
 
-	out := dimBlock(m.styles, rows, bodyWidth(m.width, bar))
-	if m.helpAt < len(out) {
-		out = out[m.helpAt:]
+	head := make([]string, 0, 1)
+	if len(m.helpPath) > 0 {
+		head = append(head, keyhint.Indent+
+			m.styles.head.Render(strings.Join(m.helpPath, " then ")+" then"))
 	}
+
+	faces := legendStyles(m.styles)
+	marked := m.helpPage()
+
+	lines := keyhint.Page(faces, marked, m.width-1)
+	total := len(head) + len(lines)
+
+	bar := scrollbar(h, total, m.helpAt)
+	if bar != nil {
+		// A scrollable page is rendered a column narrower, the track spending
+		// the space it is about to take.
+		lines = keyhint.Page(faces, marked, m.width-1-trackWidth)
+		total = len(head) + len(lines)
+		bar = scrollbar(h, total, m.helpAt)
+	}
+
+	// helpAt is normalized here rather than where it is moved, because the
+	// rendered length is the only place the page's length is known.
+	m.helpAt = clamp(m.helpAt, max(0, total-h))
+	out := append(head, lines...)[m.helpAt:]
 
 	for len(out) < h {
 		out = append(out, "")

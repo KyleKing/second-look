@@ -6,46 +6,21 @@ import (
 	"github.com/kyleking/aragonite/tui/keyhint"
 )
 
-// helpBlock draws the full legend, keys right-aligned in one column.
-func helpBlock(s styles, hints [][2]string, width int) []string {
-	return keyhint.Help(
-		keyhint.Styles{Key: s.key, Text: s.footer, Head: s.head}, asHints(hints), width,
-	)
+// legendStyles is the faces a legend page is drawn in, the same set every
+// screen shares so a key reads the same wherever it appears.
+func legendStyles(s styles) keyhint.Styles {
+	return keyhint.Styles{Key: s.key, Text: s.footer, Head: s.head, Off: s.behind}
 }
 
-// dimBlock draws the legend with the keys that do nothing where the cursor is
-// drawn dim. Both passes lay out the same rows at the same width, so a row is
-// swapped whole rather than styled in place.
-func dimBlock(s styles, rows []hint, width int) []string {
-	pairs := make([][2]string, 0, len(rows))
-	for _, r := range rows {
-		pairs = append(pairs, [2]string{r.key, r.what})
-	}
-
-	on := helpBlock(s, pairs, width)
-	off := keyhint.Help(
-		keyhint.Styles{Key: s.behind, Text: s.behind, Head: s.head}, asHints(pairs), width,
-	)
-
-	if len(off) != len(on) {
-		return on
-	}
-
-	for i, r := range rows {
-		if r.off && i < len(on) {
-			on[i] = off[i]
-		}
-	}
-
-	return on
+// helpBlock draws one page of a legend: the group names in a margin with the
+// keys wrapped beside them.
+func helpBlock(s styles, hints [][2]string, width int) []string {
+	return keyhint.Page(legendStyles(s), asHints(hints), width)
 }
 
 // headMark is the key a heading row carries. Every other key is a keystroke, so
 // nothing a screen offers can collide with it.
 const headMark = "\x00"
-
-// headRow is a legend row naming the group of keys under it.
-func headRow(name string) [2]string { return [2]string{headMark, name} }
 
 // asHints is the screens' own key/description pairs as keyhint takes them. A
 // pair with no key is a line of prose, which is how a legend carries what the

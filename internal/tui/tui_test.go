@@ -2625,14 +2625,14 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 14})
 	press(m, tea.KeyPressMsg{Code: '?', Text: "?"})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "move a line") {
+	if got := plain(m.Frame()); !strings.Contains(got, "a line") {
 		t.Fatalf("the legend does not start at the top:\n%s", got)
 	}
 
 	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
 	got := plain(m.Frame())
-	if !strings.Contains(got, "quit") {
+	if !strings.Contains(got, "end a pane") {
 		t.Errorf("the last line of the legend cannot be reached:\n%s", got)
 	}
 
@@ -2640,8 +2640,32 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 	// is drawn over.
 	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
 
-	if got := plain(m.Frame()); strings.Contains(got, "move a line") {
+	if got := plain(m.Frame()); strings.Contains(got, "a line") {
 		t.Errorf("escape did not close the legend:\n%s", got)
+	}
+}
+
+// A key that waits on a second press opens its page of the legend the way the
+// chord itself walks, and esc comes back the way it went in.
+func TestTheHelpOpensAChordPage(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	press(m, tea.KeyPressMsg{Code: '?', Text: "?"})
+	press(m, tea.KeyPressMsg{Code: 'z', Text: "z"})
+
+	got := plain(m.Frame())
+	if !strings.Contains(got, "the middle") || !strings.Contains(got, "fold this") {
+		t.Fatalf("z did not open its page:\n%s", got)
+	}
+	if !strings.Contains(got, "z then") {
+		t.Errorf("the page does not say how it was reached:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	if got := plain(m.Frame()); !strings.Contains(got, "a line") {
+		t.Errorf("escape did not come back to the root page:\n%s", got)
 	}
 }
 
@@ -3057,7 +3081,7 @@ func TestTheFooterDimsTheKeysThatDoNothingHere(t *testing.T) {
 	}
 
 	// The legend dims by the same rule, so the two cannot disagree.
-	if m.KeyIsInert("m then r / d / t / x") != slices.Contains(m.DimKeys(), "m") {
+	if m.KeyIsInert("m") != slices.Contains(m.DimKeys(), "m") {
 		t.Error("the legend and the footer disagree about m")
 	}
 

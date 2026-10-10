@@ -230,6 +230,9 @@ type Model struct {
 	// helpAt is how far the legend is scrolled, which a short frame needs
 	// because the keys that leave it are at the bottom of it.
 	helpAt int
+	// helpPath is which page of the legend is open: the keys taken to reach
+	// it, empty at the root.
+	helpPath []string
 	// about is what the pull request says about itself, aboutOpen is whether
 	// the overlay holding it has the frame, and aboutAt is how far that is
 	// scrolled.
@@ -736,14 +739,28 @@ func (m *Model) redo(c change) (tea.Model, tea.Cmd) {
 	return m.complete(c.key)
 }
 
-// readHelp scrolls the legend and closes it, and swallows everything else, so a
-// key pressed while reading it does not act on the review behind it.
+// readHelp walks the legend's pages and closes it, and swallows everything
+// else, so a key pressed while reading it does not act on the review behind
+// it. A key that opens a page walks into it the way the chord itself would,
+// which is the point of the legend: pressing z to see what z does.
 func (m *Model) readHelp(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	const halfPage = 2
 
+	if _, ok := keyhint.At(m.helpTree(), append(m.helpPath, msg.String())); ok {
+		m.helpPath = append(m.helpPath, msg.String())
+		m.helpAt = 0
+
+		return m, nil
+	}
+
+	page, _ := keyhint.At(m.helpTree(), m.helpPath)
+
 	switch {
+	case key.Matches(msg, m.keys.Back) && len(m.helpPath) > 0:
+		m.helpPath = m.helpPath[:len(m.helpPath)-1]
+		m.helpAt = 0
 	case key.Matches(msg, m.keys.Quit), key.Matches(msg, m.keys.Help):
-		m.help, m.helpAt = false, 0
+		m.help, m.helpAt, m.helpPath = false, 0, nil
 	case key.Matches(msg, m.keys.Down):
 		m.helpAt++
 	case key.Matches(msg, m.keys.Up):
@@ -755,10 +772,10 @@ func (m *Model) readHelp(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Top):
 		m.helpAt = 0
 	case key.Matches(msg, m.keys.Bottom):
-		m.helpAt = len(helpLines())
+		m.helpAt = len(page)
 	}
 
-	m.helpAt = clamp(m.helpAt, max(0, len(helpLines())-m.viewHeight()))
+	m.helpAt = max(0, m.helpAt)
 
 	return m, nil
 }
@@ -810,7 +827,7 @@ func (m *Model) leaves(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Quit):
 		if m.help {
-			m.help = false
+			m.help, m.helpAt, m.helpPath = false, 0, nil
 
 			return nil, true
 		}
