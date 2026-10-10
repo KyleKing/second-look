@@ -1,3 +1,14 @@
+## v0.29.0 (2026-10-10)
+
+### Feat
+
+- **tui**: draw help and a waiting chord as a floating box
+- **tui**: page the key legend through its chords
+
+### Fix
+
+- **e2e**: keep the agent config under the child's own XDG root
+
 ## v0.28.2 (2026-10-09)
 
 ### Fix
