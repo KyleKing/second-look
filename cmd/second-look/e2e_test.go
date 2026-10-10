@@ -293,7 +293,15 @@ command = ["second-look-no-such-language-server"]
 extensions = [".go", ".ts", ".py"]
 `
 
-	write(t, filepath.Join(home, ".config", "second-look", "config.toml"), []byte(quiet))
+	// A config a test already wrote stands; settle only supplies the quiet
+	// default. childEnv re-runs testHome on the way to the screen, so one
+	// written between staging and openReview would otherwise be overwritten.
+	path := filepath.Join(home, ".config", "second-look", "config.toml")
+	if _, err := os.Stat(path); err == nil {
+		return
+	}
+
+	write(t, path, []byte(quiet))
 }
 
 // quietHome is a home with the prefetch off, which is what every screen test

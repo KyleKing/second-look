@@ -38,10 +38,9 @@ func TestReviewScreenDispatchesToAnAgentPane(t *testing.T) {
 	s := ghcassette.Replay(t, openCassette(t, sha))
 	seedReview(t, dir, sha)
 
-	// The config the child reads is this XDG root's, which shadows the quiet
-	// one childEnv writes — the same quiet block, plus the agent.
-	confHome := t.TempDir()
-	write(t, filepath.Join(confHome, "second-look", "config.toml"), []byte(fmt.Sprintf(`prefetch = 0
+	// The config joins childEnv's own XDG root: a separate root moves the
+	// artifact store too on Linux, and the staged review would vanish.
+	write(t, filepath.Join(testHome(t, dir), ".config", "second-look", "config.toml"), []byte(fmt.Sprintf(`prefetch = 0
 
 [[server]]
 name = "none"
@@ -53,7 +52,7 @@ name = "stub"
 command = [%q]
 `, agentStub(t))))
 
-	sc := openReview(t, s, dir, "XDG_CONFIG_HOME="+confHome, "2")
+	sc := openReview(t, s, dir, "2")
 	sc.await("testdata/fixture/sample.go")
 
 	sc.press("]c")
