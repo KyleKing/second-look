@@ -250,6 +250,7 @@ type List struct {
 	status  string
 	failed  bool
 	help    bool
+	helpAt  int
 	chosen  string
 	failure error
 }
@@ -391,6 +392,10 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		l.rebuild()
 
 		return l, nil
+	case tea.MouseWheelMsg:
+		l.wheel(msg)
+
+		return l, nil
 	case tea.KeyPressMsg:
 		return l.handleKey(msg)
 	case restMsg:
@@ -446,9 +451,49 @@ func (l *List) loaders() []Loader {
 	return out
 }
 
+// wheel scrolls the legend while it is up. A wheel tick is not a key, so the
+// legend's any-key-closes does not answer it.
+func (l *List) wheel(msg tea.MouseWheelMsg) {
+	if !l.help {
+		return
+	}
+
+	switch msg.Button {
+	case tea.MouseWheelUp:
+		l.helpAt = max(0, l.helpAt-wheelStep)
+	case tea.MouseWheelDown:
+		l.helpAt += wheelStep
+	}
+}
+
+// readHelp answers a key while the legend is up: the scroll keys move inside
+// its box, and anything else puts the legend away.
+func (l *List) readHelp(msg tea.KeyPressMsg) {
+	const halfPage = 2
+
+	switch msg.String() {
+	case "up":
+		l.helpAt--
+	case "down":
+		l.helpAt++
+	case "pgup":
+		l.helpAt -= l.height / halfPage
+	case "pgdown":
+		l.helpAt += l.height / halfPage
+	case "home":
+		l.helpAt = 0
+	case "end":
+		l.helpAt = pastEnd
+	default:
+		l.help, l.helpAt = false, 0
+	}
+
+	l.helpAt = max(0, l.helpAt)
+}
+
 func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if l.help {
-		l.help = false
+		l.readHelp(msg)
 
 		return l, nil
 	}

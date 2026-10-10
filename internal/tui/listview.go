@@ -6,6 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/overlay"
 )
 
 // View draws the list. It is the same three bands as the review screen -- a
@@ -14,6 +16,9 @@ import (
 func (l *List) View() tea.View {
 	v := tea.NewView(l.render())
 	v.AltScreen = true
+	if l.help {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
 
 	return v
 }
@@ -22,10 +27,6 @@ func (l *List) render() string {
 	if l.width < minWidth || l.height < minHeight {
 		return "the terminal is too small: " +
 			strconv.Itoa(minWidth) + "x" + strconv.Itoa(minHeight) + " is the minimum"
-	}
-
-	if l.help {
-		return l.helpView()
 	}
 
 	var b strings.Builder
@@ -42,7 +43,12 @@ func (l *List) render() string {
 	b.WriteByte('\n')
 	b.WriteString(l.footer())
 
-	return b.String()
+	frame := b.String()
+	if l.help {
+		frame = l.helpOver(frame)
+	}
+
+	return frame
 }
 
 func (l *List) header() string {
@@ -285,18 +291,30 @@ func (l *List) footer() string {
 	return cut(" "+hintLine(l.styles, hints), l.width)
 }
 
-// helpView is the legend, drawn the same way the review screen's is: the keys
-// right-aligned in one column, so a reader scans one edge rather than two.
-func (l *List) helpView() string {
+// helpOver floats the legend over the list's bottom corner, the same window
+// the review screen's legend and a waiting chord draw. A key anywhere closes
+// it, so it borrows the screen rather than replacing it.
+func (l *List) helpOver(frame string) string {
 	hints := l.helpLines
 	if hints == nil {
 		hints = defaultListHelp()
 	}
 
-	return strings.Join(append(
-		[]string{l.styles.title.Render(" " + l.title), ""},
-		helpBlock(l.styles, hints, l.width)...,
-	), "\n")
+	const listBoxW = 60
+
+	rows := keyhint.Column(legendStyles(l.styles), asHints(hints), min(listBoxW, l.width-boxMargin))
+	inner := min(len(rows), l.height-boxBorder-1)
+	l.helpAt = min(l.helpAt, max(0, len(rows)-inner))
+	box := overlay.Box(boxStyles(l.styles), "keys", rows, inner, l.helpAt)
+
+	lines := strings.Split(frame, "\n")
+	for len(lines) < l.height {
+		lines = append(lines, "")
+	}
+
+	y := max(0, l.height-len(box)-1)
+
+	return strings.Join(overlay.Blit(lines[:l.height], box, l.width-textWidth(box[0])-1, y), "\n")
 }
 
 func defaultListHelp() [][2]string {

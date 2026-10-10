@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/overlay"
 )
 
 // legendStyles is the faces a legend page is drawn in, the same set every
@@ -12,11 +13,24 @@ func legendStyles(s styles) keyhint.Styles {
 	return keyhint.Styles{Key: s.key, Text: s.footer, Head: s.head, Off: s.behind}
 }
 
-// helpBlock draws one page of a legend: the group names in a margin with the
-// keys wrapped beside them.
-func helpBlock(s styles, hints [][2]string, width int) []string {
-	return keyhint.Page(legendStyles(s), asHints(hints), width)
+// boxStyles is the chrome a floating box borrows from the screen: the quiet
+// faces, since the border is the least important thing it draws.
+func boxStyles(s styles) overlay.Styles {
+	return overlay.Styles{Frame: s.subtitle, Elision: s.note}
 }
+
+// boxBorder is the rows a floating box spends on its top and bottom frame.
+const boxBorder = 2
+
+// boxMargin is the space a box leaves against the screen's right edge.
+const boxMargin = 8
+
+// pastEnd is a scroll offset the render clamp pins to a page's last row.
+const pastEnd = 1 << 30
+
+// wheelStep is the lines one notch of the wheel moves inside a scrolling
+// overlay.
+const wheelStep = 3
 
 // headMark is the key a heading row carries. Every other key is a keystroke, so
 // nothing a screen offers can collide with it.

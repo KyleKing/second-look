@@ -2629,7 +2629,29 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 		t.Fatalf("the legend does not start at the top:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	// The wheel is a scroll key while the box is up, so the mouse is captured
+	// only while an overlay can use it.
+	if mode := m.View().MouseMode; mode != tea.MouseModeCellMotion {
+		t.Fatalf("the legend did not capture the mouse: %v", mode)
+	}
+
+	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+
+	if got := plain(m.Frame()); strings.Contains(got, "a line") {
+		t.Errorf("the wheel did not move the legend:\n%s", got)
+	}
+
+	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "a line") {
+		t.Errorf("the wheel did not move the legend back:\n%s", got)
+	}
+
+	// G means the gg/G row inside the legend rather than a scroll key; the end
+	// key is what reaches the bottom.
+	press(m, tea.KeyPressMsg{Code: tea.KeyEnd})
 
 	got := plain(m.Frame())
 	if !strings.Contains(got, "end a pane") {
@@ -2642,6 +2664,62 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 
 	if got := plain(m.Frame()); strings.Contains(got, "a line") {
 		t.Errorf("escape did not close the legend:\n%s", got)
+	}
+
+	if mode := m.View().MouseMode; mode != tea.MouseModeNone {
+		t.Errorf("the closed legend still captures the mouse: %v", mode)
+	}
+}
+
+// A chord left waiting draws its page over the bottom of the frame once the
+// pause says the second key is wanted rather than known.
+func TestAChordLeftWaitingDrawsItsPage(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+
+	// The chord answers instantly: the wait is for the page, not the keys.
+	press(m, tea.KeyPressMsg{Code: 'z', Text: "z"})
+	if got := plain(m.Frame()); strings.Contains(got, "the middle") {
+		t.Fatalf("the page drew before the wait ran:\n%s", got)
+	}
+
+	m.ChordWaited()
+
+	got := plain(m.Frame())
+	if !strings.Contains(got, "z then") || !strings.Contains(got, "fold this") {
+		t.Fatalf("the wait did not draw the page:\n%s", got)
+	}
+
+	// The second key lands the chord and the page with it. The crumb is what
+	// only the strip draws, since the footer's caption names the same keys.
+	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+	if got := plain(m.Frame()); strings.Contains(got, "z then") {
+		t.Errorf("the page stayed after the chord landed:\n%s", got)
+	}
+}
+
+// A bare key inside the legend is answered, not run: e writes nothing while
+// the legend is open, it earns the note its row abbreviates.
+func TestTheHelpAnswersABareKey(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	press(m, tea.KeyPressMsg{Code: '?', Text: "?"})
+	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+
+	got := plain(m.Frame())
+	if !strings.Contains(got, "writing ·") || !strings.Contains(got, "ctrl+t swaps") {
+		t.Fatalf("the key earned no note:\n%s", got)
+	}
+
+	// The note is what that group carries: j under it is moving's, not a
+	// second way to scroll.
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	if got := plain(m.Frame()); !strings.Contains(got, "moving ·") {
+		t.Errorf("j earned no note of its own:\n%s", got)
 	}
 }
 

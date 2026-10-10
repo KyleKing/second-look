@@ -1,24 +1,24 @@
 kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skipped
-         moving  [j/k] a line  [ctrl+d/u] half a page  [ctrl+e/y] peek
-                 [gg/G] the ends  []] go to…  [[] go back…
-                 [n/N] the same, or back  [.] the last change
-                 [tab/shift+tab] what wants a decision  [/] search
-                 tab in the prompt narrows a search to hunks not yet read
-  what is shown  [c] the next view  [t]hreads  [v] the next renderer
-                 [u] one of them…  [z] folds, the frame…
-                 the diff's [O]wn order  [w]hitespace  [W] no code changed
-                 [U] only what is new  [H] since a round
-       the code  [X] trouble  [K] what is this  [g]o…  the [L]ockfile
-        marking  [space] mark read  [m] a state…
-        writing  [a] a comment…  [s] a suggestion  [V] a range  [+/-] context
-                 [e] edit, reply, write  [E] editing a note  [!] a shell
-                 [T]odos to an agent
-                 while writing: ctrl+t swaps in what an agent wrote, ctrl+n
-                 completes a word
-  conversations  [,] a reaction…
-                 the same key takes a reaction back; z then a folds a thread
-    the request  [ctrl+r] restage  [C]heck out  [P]ost one  [S]ubmit…
-                 what [i]t says about itself  [o]n GitHub  [M]erge
-                 [D]elete the branch
-        leaving  [?/esc] this, or back  [ctrl+\] end a pane  [q]uit
+▌                              ╭─ keys ───────────────────────────────────────╮┃
+     internal/vcs/diff.go  +2 -│ moving                                       │┃
+       func Parse(r io.Reader) │           j/k  a line                        │┃
+  14  14 │      first := 1     │      ctrl+d/u  half a page                   │┃
+                               │      ctrl+e/y  peek                          │┃
+      ┃ ◐ QUESTION  draft      │          gg/G  the ends                      │┃
+      ┃ Is first still 1 after │             ]  go to…                        │┃
+      ┃ NOTE  Unverified: I hav│             [  go back…                      │┃
+  15     │-     lines := split(│           n/N  the same, or back             │┃
+      15 │+     lines, err := s│             .  the last change               │┃
+                               │ tab/shift+tab  what wants a decision         │┃
+      ┃ ● MAJOR  ready         │             /  search                        │┃
+      ┃ split can fail now, so │ tab in the prompt narrows a search to hunks  │┃
+      16 │+     if err != nil {│ not yet read                                 │┃
+  16  17 │      last := 4      │ what is shown                                │┃
+     internal/vcs/git.go ──────│             c  the next view                 │┃
+       func Head() string {    │             t  threads                       │┃
+ 200 201 │      return head    │             v  the next renderer             │┃
+                               │             u  one of them…                  │┃
+      ┃ ○ NIT  skip  Out of sco│             z  folds, the frame…             │┃
+      ┃ Rename this to headSHA.│             O  the diff's own order          ││
+                               ╰ · · ·────────────────────────────────────────╯│
  [j/k] line  []] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit

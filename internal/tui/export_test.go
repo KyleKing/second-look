@@ -179,6 +179,10 @@ func (m *Model) DimKeys() []string {
 // Inert reports a legend key with nothing to act on under the cursor.
 func (m *Model) KeyIsInert(key string) bool { return m.inert(key) }
 
+// ChordWaited fires the wait a chord armed when it opened, so a test sees the
+// page it draws without sleeping for it.
+func (m *Model) ChordWaited() { m.Update(chordWaitMsg{seq: m.chordSeq}) }
+
 // Relayout lays out rows for the current view from the whole diff, which is
 // what a fold, toggle, or order change runs again rather than only for the
 // visible window.

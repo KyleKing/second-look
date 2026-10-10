@@ -86,6 +86,39 @@ func TestListFrames(t *testing.T) {
 	}
 }
 
+// The legend answers the wheel the way the review's does: it scrolls rather
+// than closing, since a wheel tick is not a key, and it gives the mouse back
+// when the box closes.
+func TestListHelpScrollsOnTheWheel(t *testing.T) {
+	t.Parallel()
+
+	l := list(t, nil)
+	l.Update(tea.WindowSizeMsg{Width: 120, Height: 12})
+	l.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
+
+	if mode := l.View().MouseMode; mode != tea.MouseModeCellMotion {
+		t.Fatalf("the legend did not capture the mouse: %v", mode)
+	}
+
+	if got := plain(l.ListFrame()); strings.Contains(got, "leave") {
+		t.Fatalf("the legend's tail was already visible:\n%s", got)
+	}
+
+	for range 10 {
+		l.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+	}
+
+	if got := plain(l.ListFrame()); !strings.Contains(got, "leave") {
+		t.Errorf("the wheel did not reach the legend's tail:\n%s", got)
+	}
+
+	l.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+
+	if mode := l.View().MouseMode; mode != tea.MouseModeNone {
+		t.Errorf("the closed legend still captures the mouse: %v", mode)
+	}
+}
+
 // The cursor moves a row at a time, skipping headings, the quoted line under a
 // row, and the lines an expanded row adds. Otherwise one press would sometimes
 // move one row and sometimes half of one.

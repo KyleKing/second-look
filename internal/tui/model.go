@@ -147,6 +147,11 @@ type Model struct {
 
 	// pending is the ] or [ waiting for the object that completes it.
 	pending rune
+	// chordSeq numbers each chord as it opens so a wait fired under one does
+	// not answer for the next, and waiting is whether the chord's page is
+	// drawn over the bottom of the frame.
+	chordSeq int
+	waiting  bool
 	// last is the motion n repeats and N reverses, and change is what . replays.
 	// Only a change that needs no further input is recorded, since replaying an
 	// editor blind is not a repeat of anything.
@@ -233,6 +238,9 @@ type Model struct {
 	// helpPath is which page of the legend is open: the keys taken to reach
 	// it, empty at the root.
 	helpPath []string
+	// helpNote is what a bare keypress inside the legend earned: the row the
+	// key names said at full length, kept until the page changes or closes.
+	helpNote *helpNote
 	// about is what the pull request says about itself, aboutOpen is whether
 	// the overlay holding it has the frame, and aboutAt is how far that is
 	// scrolled.
@@ -507,8 +515,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, cmd
+	case tea.MouseWheelMsg:
+		m.wheel(msg)
+
+		return m, nil
 	case tea.KeyPressMsg:
-		return m.handleKey(msg)
+		was := m.pending
+		mod, cmd := m.handleKey(msg)
+
+		// A chord that just opened arms the wait that draws its page, the way
+		// which-key surfaces once a prefix sits a moment.
+		if m.pending != 0 && m.pending != was {
+			m.chordSeq++
+			m.waiting = false
+
+			seq := m.chordSeq
+			cmd = tea.Batch(cmd, tea.Tick(chordWait, func(time.Time) tea.Msg {
+				return chordWaitMsg{seq}
+			}))
+		}
+
+		return mod, cmd
 	}
 
 	cmd := m.answered(msg)
@@ -516,10 +543,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// chordWait is the pause before a waiting chord draws its page: long enough
+// that a chord typed through never shows one.
+const chordWait = 500 * time.Millisecond
+
+// chordWaitMsg is the wait a chord armed when it opened, answered only while
+// the same chord is still open.
+type chordWaitMsg struct{ seq int }
+
 // answered takes what a command landed with. Every case is a redraw unless it
 // says otherwise, and a message nothing here knows changes nothing.
 func (m *Model) answered(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
+	case chordWaitMsg:
+		m.waiting = m.pending != 0 && msg.seq == m.chordSeq
+
+		return nil
 	case sentMsg:
 		m.applySent(msg)
 
@@ -739,45 +778,126 @@ func (m *Model) redo(c change) (tea.Model, tea.Cmd) {
 	return m.complete(c.key)
 }
 
+// wheel moves whichever overlay is up, since the mouse is only captured while
+// one is.
+func (m *Model) wheel(msg tea.MouseWheelMsg) {
+	step := wheelStep
+
+	switch msg.Button {
+	case tea.MouseWheelUp:
+		step = -step
+	case tea.MouseWheelDown:
+	default:
+		return
+	}
+
+	switch {
+	case m.help:
+		m.helpAt = max(0, m.helpAt+step)
+	case m.aboutOpen:
+		m.aboutAt = clamp(m.aboutAt+step, len(m.aboutText(m.width))-m.viewHeight())
+	}
+}
+
 // readHelp walks the legend's pages and closes it, and swallows everything
 // else, so a key pressed while reading it does not act on the review behind
 // it. A key that opens a page walks into it the way the chord itself would,
-// which is the point of the legend: pressing z to see what z does.
+// and a key that opens nothing is answered rather than run: its note is what
+// the key does, said at the length the row abbreviates. The scroll keys are
+// the arrows, the page keys, and the wheel, because j and k are answers of
+// their own inside the legend.
 func (m *Model) readHelp(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	const halfPage = 2
 
 	if _, ok := keyhint.At(m.helpTree(), append(m.helpPath, msg.String())); ok {
 		m.helpPath = append(m.helpPath, msg.String())
-		m.helpAt = 0
+		m.helpAt, m.helpNote = 0, nil
 
 		return m, nil
 	}
 
-	page, _ := keyhint.At(m.helpTree(), m.helpPath)
-
-	switch {
-	case key.Matches(msg, m.keys.Back) && len(m.helpPath) > 0:
-		m.helpPath = m.helpPath[:len(m.helpPath)-1]
-		m.helpAt = 0
-	case key.Matches(msg, m.keys.Quit), key.Matches(msg, m.keys.Help):
-		m.help, m.helpAt, m.helpPath = false, 0, nil
-	case key.Matches(msg, m.keys.Down):
-		m.helpAt++
-	case key.Matches(msg, m.keys.Up):
+	switch msg.String() {
+	case "esc":
+		if len(m.helpPath) > 0 {
+			m.helpPath = m.helpPath[:len(m.helpPath)-1]
+		} else {
+			m.help = false
+		}
+		m.helpAt, m.helpNote = 0, nil
+	case "?", "ctrl+c":
+		m.help, m.helpAt, m.helpPath, m.helpNote = false, 0, nil, nil
+	case "up":
 		m.helpAt--
-	case key.Matches(msg, m.keys.HalfDown):
-		m.helpAt += m.viewHeight() / halfPage
-	case key.Matches(msg, m.keys.HalfUp):
+	case "down":
+		m.helpAt++
+	case "pgup":
 		m.helpAt -= m.viewHeight() / halfPage
-	case key.Matches(msg, m.keys.Top):
+	case "pgdown":
+		m.helpAt += m.viewHeight() / halfPage
+	case "home":
 		m.helpAt = 0
-	case key.Matches(msg, m.keys.Bottom):
-		m.helpAt = len(page)
+	case "end":
+		m.helpAt = pastEnd
+	default:
+		m.helpNote = m.helpNoteFor(msg.String())
 	}
 
 	m.helpAt = max(0, m.helpAt)
 
 	return m, nil
+}
+
+// helpNote is the legend's answer for one key: its group, its row, and the
+// prose the group carries under it.
+type helpNote struct {
+	group string
+	key   string
+	what  string
+	prose []string
+}
+
+// helpNoteFor answers the key's note on the open page, or nil where the key
+// names no leaf. A compound row like j/k answers for either half of it, and
+// the space bar answers for "space".
+func (m *Model) helpNoteFor(k string) *helpNote {
+	page, _ := keyhint.At(m.helpTree(), m.helpPath)
+
+	for i, h := range page {
+		if h.Head || h.Key == "" || len(h.Kids) > 0 || !keySays(h.Key, k) {
+			continue
+		}
+
+		note := &helpNote{key: h.Key, what: h.What}
+		lo := 0
+		for j := i - 1; j >= 0; j-- {
+			if page[j].Head {
+				note.group, lo = page[j].What, j
+
+				break
+			}
+		}
+		for j := lo; j < len(page) && (j <= i || !page[j].Head); j++ {
+			if p := page[j]; p.Key == "" && !p.Head {
+				note.prose = append(note.prose, p.What)
+			}
+		}
+
+		return note
+	}
+
+	return nil
+}
+
+// keySays reports whether the key k is inside the row's label, so j answers
+// for j/k, ctrl+d for ctrl+d/u, and the space bar for "space".
+func keySays(label, k string) bool {
+	for _, part := range strings.Split(label, "/") {
+		if part == k {
+			return true
+		}
+	}
+
+	return label == spaceKey && (k == " " || k == spaceKey)
 }
 
 // asks handles the keys that act on the row under the cursor: the ones that go
@@ -810,6 +930,7 @@ func (m *Model) overlayKey(msg tea.KeyPressMsg) bool {
 	switch {
 	case key.Matches(msg, m.keys.Help):
 		m.help = !m.help
+		m.helpAt, m.helpPath, m.helpNote = 0, nil, nil
 	case key.Matches(msg, m.keys.About):
 		m.aboutOpen, m.aboutAt = true, 0
 	default:
@@ -827,7 +948,7 @@ func (m *Model) leaves(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Quit):
 		if m.help {
-			m.help, m.helpAt, m.helpPath = false, 0, nil
+			m.help, m.helpAt, m.helpPath, m.helpNote = false, 0, nil, nil
 
 			return nil, true
 		}
@@ -930,7 +1051,7 @@ func (m *Model) records(msg tea.KeyPressMsg) bool {
 // worse than one that says it did not land.
 func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	prefix := m.pending
-	m.pending = 0
+	m.pending, m.waiting = 0, false
 
 	if key.Matches(msg, m.keys.Quit) {
 		m.say("", false)

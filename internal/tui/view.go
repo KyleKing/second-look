@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/overlay"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -26,6 +27,12 @@ func (m *Model) View() tea.View {
 	v := tea.NewView(m.render())
 	v.AltScreen = true
 
+	// The mouse is captured only while an overlay can scroll, so drag-select
+	// keeps working the rest of the time.
+	if m.help || m.aboutOpen {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
+
 	return v
 }
 
@@ -35,10 +42,13 @@ func (m *Model) render() string {
 	}
 
 	body := m.rowLines()
+	if m.waiting {
+		body = m.waitLines(body)
+	}
 
 	switch {
 	case m.help:
-		body = m.helpLines()
+		body = m.helpBox(body)
 	case m.aboutOpen:
 		body = m.aboutLines()
 	case m.showing != nil:
@@ -378,6 +388,10 @@ func (m *Model) footerLines() []string {
 		return []string{m.prompt()}
 	}
 
+	if m.helpNote != nil {
+		return m.helpNoteLines()
+	}
+
 	if m.status == "" {
 		return []string{cut(" "+dimLine(m.styles, m.hints(), m.width), m.width)}
 	}
@@ -394,6 +408,31 @@ func (m *Model) footerLines() []string {
 	out := make([]string, 0, len(lines))
 	for _, l := range lines {
 		out = append(out, m.styles.fail.Render(cut(l, m.width)))
+	}
+
+	return out
+}
+
+// helpNoteLines is the legend's answer for a bare keypress, standing where a
+// message would: the path and group first so a leaf never reads as a root
+// key, then the row at full length and the prose its group carries.
+func (m *Model) helpNoteLines() []string {
+	n := m.helpNote
+
+	head := n.group
+	if len(m.helpPath) > 0 {
+		head = strings.Join(m.helpPath, " then ") + " then " + head
+	}
+
+	line := keyhint.One(legendStyles(m.styles), keyhint.Hint{Key: n.key, What: n.what})
+	if head != "" {
+		line = m.styles.head.Render(head+" · ") + line
+	}
+
+	out := make([]string, 0, 1+len(n.prose))
+	out = append(out, " "+line)
+	for _, p := range n.prose {
+		out = append(out, m.styles.note.Render(cut("   "+p, m.width)))
 	}
 
 	return out
@@ -512,42 +551,52 @@ func (m *Model) helpPage() []keyhint.Hint {
 	return marked
 }
 
-// helpLines is the legend's current page, scrolled like the diff where a short
-// frame cannot hold it.
-func (m *Model) helpLines() []string {
+// helpWidth is the inner width of the legend's box: narrow enough that the
+// diff stays a frame around it, which is what makes it a window rather than
+// the screen.
+func (m *Model) helpWidth() int {
+	const boxW = 44
+
+	return min(boxW, m.width-boxMargin)
+}
+
+// helpBox floats the legend's open page over the diff's bottom corner, the
+// same window a waiting chord draws so a key means one thing in both places.
+// The page is one column inside, since a narrow box has no room to spread,
+// and it scrolls because the root is longer than any frame.
+func (m *Model) helpBox(body []string) []string {
+	rows := keyhint.Column(legendStyles(m.styles), m.helpPage(), m.helpWidth())
+
 	h := m.viewHeight()
-
-	head := make([]string, 0, 1)
-	if len(m.helpPath) > 0 {
-		head = append(head, keyhint.Indent+
-			m.styles.head.Render(strings.Join(m.helpPath, " then ")+" then"))
-	}
-
-	faces := legendStyles(m.styles)
-	marked := m.helpPage()
-
-	lines := keyhint.Page(faces, marked, m.width-1)
-	total := len(head) + len(lines)
-
-	bar := scrollbar(h, total, m.helpAt)
-	if bar != nil {
-		// A scrollable page is rendered a column narrower, the track spending
-		// the space it is about to take.
-		lines = keyhint.Page(faces, marked, m.width-1-trackWidth)
-		total = len(head) + len(lines)
-		bar = scrollbar(h, total, m.helpAt)
-	}
+	inner := max(1, min(len(rows), h-boxBorder))
 
 	// helpAt is normalized here rather than where it is moved, because the
 	// rendered length is the only place the page's length is known.
-	m.helpAt = clamp(m.helpAt, max(0, total-h))
-	out := append(head, lines...)[m.helpAt:]
+	m.helpAt = clamp(m.helpAt, len(rows)-inner)
 
-	for len(out) < h {
-		out = append(out, "")
+	title := "keys"
+	if len(m.helpPath) > 0 {
+		title = strings.Join(m.helpPath, " then ") + " then"
+	}
+	box := overlay.Box(boxStyles(m.styles), title, rows, inner, m.helpAt)
+
+	return overlay.Blit(body, box, m.width-textWidth(box[0])-1, h-len(box))
+}
+
+// waitLines lays the page a waiting chord accepts over the diff's bottom
+// corner, under a title naming the prefix. The page is the same one the
+// legend shows for the key, so the two never disagree about what a chord is
+// waiting on.
+func (m *Model) waitLines(body []string) []string {
+	page, ok := keyhint.At(m.helpTree(), []string{string(m.pending)})
+	if !ok {
+		return body
 	}
 
-	return alongside(out[:h], bar, m.styles, m.width)
+	rows := keyhint.Column(legendStyles(m.styles), page, m.helpWidth())
+	box := overlay.Box(boxStyles(m.styles), string(m.pending)+" then", rows, len(rows), 0)
+
+	return overlay.Blit(body, box, m.width-textWidth(box[0])-1, len(body)-len(box))
 }
 
 // rowLines is the frame's body, with the editor standing in for the comment it

@@ -1,12 +1,19 @@
- second-look conversations
-
-  [j/k, ctrl+u/d, g/G] move, half page, top and bottom
-  [ctrl+e/ctrl+y] scroll without moving the cursor
-  [1/2/3, ] / [] the queue to read  [tab] the next group
-  [/] narrow to the rows carrying a word; esc puts them back
-  [enter] read the whole conversation, and mark it read
-  [space] mark read without opening it  [r]eply, staged into the prepared review
-  [R]esolve the thread, or thumbs-up what cannot be resolved
-  [o]pen it on GitHub  [ctrl+r] read the queue again  [q, esc] leave
-
-  ● marks a conversation that moved since you last read it.
+ second-look co╭─ keys ───────────────────────────────────────────────────────╮ 
+  new since you│ j/k, ctrl+u/d, g/G  move, half page, top and bottom          │
+▌ ● kyleking/tl│      ctrl+e/ctrl+y  scroll without moving the cursor         │…
+       good cat│       1/2/3, ] / [  the queue to read                        │
+  ● …g/a-much-l│                tab  the next group                           │…
+       two ques│                  /  narrow to the rows carrying a word; esc  │
+  waiting on yo│                     puts them back                           │
+  awaiting othe│              enter  read the whole conversation, and mark it │
+    kyleking/wa│                     read                                     │…
+       no, that│              space  mark read without opening it             │
+               │                  r  reply, staged into the prepared review   │
+               │                  R  resolve the thread, or thumbs-up what    │
+               │                     cannot be resolved                       │
+               │                  o  open it on GitHub                        │
+               │             ctrl+r  read the queue again                     │
+               │             q, esc  leave                                    │
+               │                                                              │
+               │ ● marks a conversation that moved since you last read it.    │
+ [enter] read  ╰──────────────────────────────────────────────────────────────╯…
