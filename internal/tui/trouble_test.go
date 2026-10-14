@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/golden"
@@ -248,6 +249,100 @@ func TestGoShowsWhereTheNamesLive(t *testing.T) {
 		t.Errorf("the overlay does not say which question it answered:\n%s", frame)
 	}
 }
+
+// gd names the place, and the peek draws what the place says: the lines
+// around the definition under the name's own, so the question is answered
+// without leaving the diff for an editor.
+func TestPeekDrawsTheDefinitionItself(t *testing.T) {
+	t.Parallel()
+
+	m := peekable(t, &prober{jumps: []diag.Jump{
+		{Name: "split", At: []diag.Site{{Path: "io/read.go", Line: 4}}},
+	}})
+
+	go2(m, ']', 'h')
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	drive(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+
+	frame := plain(m.Frame())
+	for _, want := range []string{"split → io/read.go:4", "› 4", "func split(r io.Reader)"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the peek does not draw %q:\n%s", want, frame)
+		}
+	}
+}
+
+// peekable is the review with a checker and a way to read the files a jump
+// points into, which is what an excerpt is drawn from.
+func peekable(t *testing.T, p tui.Prober) *tui.Model {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, (&counter{}).post,
+		tui.WithProber(p),
+		tui.WithBlobs(func(_ context.Context, _ string) ([]string, error) {
+			return []string{
+				"package io", "", "// split reads r into fields.",
+				"func split(r io.Reader) ([]string, error) {",
+				"\treturn fields(string(readAll(r))), nil", "}", "",
+			}, nil
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	return m
+}
+
+// drive presses a key and feeds what it set in motion back until nothing is
+// left, which press() does not reach: a batch's children each answer with a
+// message of their own.
+func drive(m *tui.Model, k tea.KeyPressMsg) {
+	const patience = 100 * time.Millisecond
+
+	queue := []tea.Cmd{func() tea.Msg { _, cmd := m.Update(k); return ranMsg{cmd} }}
+	for len(queue) > 0 {
+		cmd := queue[0]
+		queue = queue[1:]
+
+		if cmd == nil {
+			continue
+		}
+
+		done := make(chan tea.Msg, 1)
+		go func() { done <- cmd() }()
+
+		var msg tea.Msg
+
+		select {
+		case msg = <-done:
+		case <-time.After(patience):
+			continue
+		}
+
+		switch msg := msg.(type) {
+		case ranMsg:
+			queue = append(queue, msg.cmd)
+		case tea.BatchMsg:
+			queue = append(queue, msg...)
+		default:
+			_, next := m.Update(msg)
+			queue = append(queue, next)
+		}
+	}
+}
+
+// ranMsg carries the command an Update returned so the loop above can run it.
+type ranMsg struct{ cmd tea.Cmd }
 
 // gg keeps the top g used to reach on its own.
 func TestGGIsStillTheTop(t *testing.T) {

@@ -587,25 +587,44 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 		// renders as "    ed to …"). Drop the repaint once that is fixed
 		// upstream; until then this is the one line that must be readable.
 		return tea.ClearScreen
-	case paneWakeMsg:
-		// New output on the pane's screen: re-arm the watch that sends the
-		// next one.
-		if m.pane != nil {
-			return m.pane.watch
-		}
-	case paneGoneMsg:
-		return m.paneGone(msg.err)
-	case agentUpMsg:
-		return m.agentUp(msg)
-	case agentWakeMsg:
-		if m.agent != nil && m.agentDead == nil {
-			return watchAgent(m.agent)
-		}
+	case answerMsg:
+		return m.applyAnswer(msg)
+	}
+
+	if cmd, mine := m.childAnswered(msg); mine {
+		return cmd
 	}
 
 	m.absorb(msg)
 
 	return nil
+}
+
+// childAnswered is the share of answered a tenant inside the frame owns: the
+// pane's output and exit, and the agent session's lifecycle. It is its own
+// switch because a case per message here and one per kind of data in absorb
+// is already two switches' worth.
+func (m *Model) childAnswered(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case paneWakeMsg:
+		// New output on the pane's screen: re-arm the watch that sends the
+		// next one.
+		if m.pane != nil {
+			return m.pane.watch, true
+		}
+	case paneGoneMsg:
+		return m.paneGone(msg.err), true
+	case agentUpMsg:
+		return m.agentUp(msg), true
+	case agentWakeMsg:
+		if m.agent != nil && m.agentDead == nil {
+			return watchAgent(m.agent), true
+		}
+	default:
+		return nil, false
+	}
+
+	return nil, true
 }
 
 // absorb takes the messages that only add data, which is every answered()
@@ -632,8 +651,6 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applyAdvisories(msg)
 	case versionedMsg:
 		m.applyVersions(msg)
-	case answerMsg:
-		m.applyAnswer(msg)
 	case headMsg:
 		m.applyHead(msg)
 	case roundMsg:

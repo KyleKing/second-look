@@ -56,7 +56,10 @@ same warm session `K` hovers with, once per name on the line because there is
 no column cursor. `g` is a chord now: `gg` keeps the top `g` was, and the chord
 says so while it waits. Answers draw in K's overlay as `name → path:line`
 lists, spelled the way the diff spells paths where the place is inside the
-checkout and absolute where it is not. Its limits are the session's own:
+checkout and absolute where it is not — and under each name's first site, the
+peek: a few lines of the file itself around the target line, read the way a
+hunk's grown context is, so the question is answered by the code rather than
+its address. Its limits are the session's own:
 nothing answers without a checkout, and what a name resolves to outside the
 changed files is whatever the checkout on disk holds.
 

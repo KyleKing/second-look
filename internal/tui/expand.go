@@ -12,10 +12,13 @@ import (
 // signature and a brace, which is usually the thing a hunk cut off.
 const step = 3
 
-// blobMsg is a file as it reads after the change.
+// blobMsg is a file as it reads after the change. Peek marks a read the
+// answer overlay asked for: the lines feed its excerpts rather than growing
+// the hunk under the cursor.
 type blobMsg struct {
 	path  string
 	lines []string
+	peek  bool
 	err   error
 }
 
@@ -73,8 +76,21 @@ func (m *Model) readBlob(path string) tea.Cmd {
 	}
 }
 
+// peekBlob is readBlob for the answer overlay, whose excerpts want the file
+// kept rather than a hunk grown.
+func (m *Model) peekBlob(path string) tea.Cmd {
+	ctx, read := m.ctx, m.blob
+
+	return func() tea.Msg {
+		lines, err := read(ctx, path)
+
+		return blobMsg{path: path, lines: lines, peek: true, err: err}
+	}
+}
+
 // absorbBlob keeps the file and grows the hunk the reader asked about, since the
-// press that started the read is the press that wanted the lines.
+// press that started the read is the press that wanted the lines. A peek's read
+// ends at the keep: the overlay re-reads the cache on the next frame.
 func (m *Model) absorbBlob(msg blobMsg) {
 	if msg.err != nil {
 		m.say("reading "+msg.path+": "+msg.err.Error(), true)
@@ -83,6 +99,11 @@ func (m *Model) absorbBlob(msg blobMsg) {
 	}
 
 	m.blobs[msg.path] = msg.lines
+
+	if msg.peek {
+		return
+	}
+
 	m.grow(step)
 }
 

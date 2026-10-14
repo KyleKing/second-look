@@ -193,7 +193,7 @@ type answerMsg struct {
 	err     error
 }
 
-func (m *Model) applyAnswer(msg answerMsg) {
+func (m *Model) applyAnswer(msg answerMsg) tea.Cmd {
 	switch {
 	case msg.err != nil:
 		m.say("asking about line "+strconv.Itoa(msg.line)+": "+msg.err.Error(), true)
@@ -206,7 +206,82 @@ func (m *Model) applyAnswer(msg answerMsg) {
 	default:
 		m.showing = &msg
 		m.say("", false)
+
+		return m.peekReads(msg)
 	}
+
+	return nil
+}
+
+// peekReads asks for the files the jumps' first sites live in, where no
+// hunk's growth already did. Where a name lives answers less than what it
+// says, so the overlay draws the site's own lines once it has them — and
+// first sites only, since that is the excerpt each name gets.
+func (m *Model) peekReads(msg answerMsg) tea.Cmd {
+	if m.blob == nil || len(msg.jumps) == 0 {
+		return nil
+	}
+
+	var cmds []tea.Cmd
+
+	// A references answer can name a dozen files; the overlay draws at most a
+	// few excerpts before the frame runs out, so the reads stop there too.
+	read := map[string]bool{}
+	for _, j := range msg.jumps {
+		if len(cmds) >= peekReadsMax {
+			break
+		}
+
+		if len(j.At) == 0 {
+			continue
+		}
+
+		path := j.At[0].Path
+		if _, held := m.blobs[path]; held || read[path] {
+			continue
+		}
+
+		read[path] = true
+
+		cmds = append(cmds, m.peekBlob(path))
+	}
+
+	return tea.Batch(cmds...)
+}
+
+// peekReadsMax is how many files one answer's excerpts may read.
+const peekReadsMax = 8
+
+// peekExcerpt is the lines around a jump's first site, drawn under its name:
+// a peek that showed only the address would be a list wearing a nicer title.
+func (m *Model) peekExcerpt(j diag.Jump, room int) []string {
+	if len(j.At) == 0 {
+		return nil
+	}
+
+	site := j.At[0]
+
+	lines, ok := m.blobs[site.Path]
+	if !ok || site.Line < 1 || site.Line > len(lines) {
+		return nil
+	}
+
+	const pad = 3
+	lo, hi := max(1, site.Line-pad), min(len(lines), site.Line+pad)
+	num := len(strconv.Itoa(hi))
+
+	var out []string
+	for at := lo; at <= hi; at++ {
+		mark, face := "  ", m.styles.note
+		if at == site.Line {
+			mark, face = "› ", m.styles.body
+		}
+
+		out = append(out, face.Render(fmt.Sprintf("    %s%*d  %s",
+			mark, num, at, cut(lines[at-1], room))))
+	}
+
+	return out
 }
 
 // troubleRows is what is said about one line, drawn under it.
@@ -473,37 +548,48 @@ func (m *Model) answerLines() []string {
 
 	out := []string{m.styles.head.Render(head), ""}
 
-	rows := make([]string, 0, len(m.showing.symbols)+len(m.showing.jumps))
-	for _, sym := range m.showing.symbols {
-		rows = append(rows, sym.Text)
-	}
-
-	for _, j := range m.showing.jumps {
-		rows = append(rows, j.Name+" → "+places(j.At))
-	}
-
 	room := max(minTroubleWidth, m.width-indent*2)
 	// The overlay does not scroll, so what does not fit is counted rather than
 	// drawn: a frame taller than the terminal loses its own footer off the top.
 	fits := m.height - hoverChrome
 
-	for i, text := range rows {
-		lines := clip(wrap(text, room), noteLines)
-		if len(out)+len(lines) > fits {
+	// An answerBlock is one name's lines; styled is where the peek excerpt
+	// starts, since those lines arrive already drawn.
+	type answerBlock struct {
+		lines  []string
+		styled int
+	}
+
+	rows := make([]answerBlock, 0, len(m.showing.symbols)+len(m.showing.jumps))
+	for _, sym := range m.showing.symbols {
+		rows = append(rows, answerBlock{lines: clip(wrap(sym.Text, room), noteLines)})
+	}
+
+	for _, j := range m.showing.jumps {
+		name := clip(wrap(j.Name+" → "+places(j.At), room), noteLines)
+		excerpt := m.peekExcerpt(j, room-indent*2)
+		block := answerBlock{lines: append(name, excerpt...), styled: len(name)}
+
+		rows = append(rows, block)
+	}
+
+	for i, block := range rows {
+		if len(out)+len(block.lines) > fits {
 			left := plural(len(rows)-i, "more name")
 			out = append(out, "", m.styles.footer.Render("  "+left+" not shown"))
 
 			break
 		}
 
-		for j, line := range lines {
-			if j == 0 {
+		for j, line := range block.lines {
+			switch {
+			case j >= block.styled:
+				out = append(out, line)
+			case j == 0:
 				out = append(out, m.styles.body.Render("  "+line))
-
-				continue
+			default:
+				out = append(out, m.styles.note.Render("    "+line))
 			}
-
-			out = append(out, m.styles.note.Render("    "+line))
 		}
 	}
 
