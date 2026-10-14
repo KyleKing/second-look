@@ -402,6 +402,11 @@ Enough to answer "is that in there already", newest first. The reasoning behind 
 is in [requirements.md](requirements.md) if it still constrains something, and in the
 commit if it does not.
 
+- The notification stream folded into the conversations tab: `internal/notice` reads
+  `gh api notifications?participating=true` alongside the queue fetch, draws each thread
+  as a row under a `notifications` section, and space marks it done, `R` unsubscribes
+  and dismisses it, and enter/`o` opens the subject on GitHub. Needs a stretch of real
+  triage to say whether the participating filter is the right cut
 - The usage journal: `internal/journal` appends one JSON line per command key and per
   event (`open`, `head`, `leave`, `pane`, `agent`, `post`, `merge`) to `journal.jsonl`
   under the state home, and never what a text field was typing

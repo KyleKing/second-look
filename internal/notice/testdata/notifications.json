@@ -1,0 +1,41 @@
+[
+  {
+    "id": "1001",
+    "unread": true,
+    "reason": "review_requested",
+    "updated_at": "2025-06-01T12:00:00Z",
+    "subject": {
+      "title": "shave the yak",
+      "url": "https://api.github.com/repos/acme/widgets/pulls/42",
+      "type": "PullRequest",
+      "latest_comment_url": "https://api.github.com/repos/acme/widgets/pulls/comments/555"
+    },
+    "repository": { "full_name": "acme/widgets" }
+  },
+  {
+    "id": "1002",
+    "unread": true,
+    "reason": "mention",
+    "updated_at": "2025-06-01T11:00:00Z",
+    "subject": {
+      "title": "add a frob to the gears",
+      "url": "https://api.github.com/repos/acme/gears/issues/7",
+      "type": "Issue",
+      "latest_comment_url": "https://api.github.com/repos/acme/gears/issues/comments/777"
+    },
+    "repository": { "full_name": "acme/gears" }
+  },
+  {
+    "id": "1003",
+    "unread": true,
+    "reason": "ci_activity",
+    "updated_at": "2025-06-01T10:00:00Z",
+    "subject": {
+      "title": "build broken on main",
+      "url": "https://api.github.com/repos/acme/gears/check-suites/99",
+      "type": "CheckSuite",
+      "latest_comment_url": null
+    },
+    "repository": { "full_name": "acme/gears" }
+  }
+]

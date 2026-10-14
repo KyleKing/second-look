@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/notice"
 	"github.com/kyleking/second-look/internal/resolve"
 	"github.com/kyleking/second-look/internal/tui"
 )
@@ -39,6 +41,15 @@ type threadsScreen struct {
 	// reading as a queue with nothing in it.
 	waiting bool
 	failed  error
+	// notices is the notification stream folded into this tab: everything
+	// addressed to you that is not a conversation — mentions, review requests,
+	// your own pull requests moving — with noteFailed holding a refused fetch
+	// so it reads as refused rather than as empty.
+	notices    []notice.Thread
+	noteFailed error
+	// gh runs the mutations marking a notification done or unsubscribing it,
+	// held so a test can stand in for it.
+	gh ghrun.Runner
 	// local is what this laptop already holds for each pull request, read off
 	// disk when the queue opens. A thread on a pull request with a review
 	// staged here is work already started, which is what the inbox says too.
@@ -61,7 +72,7 @@ func newThreadsScreen(ctx context.Context) (*threadsScreen, error) {
 
 	return &threadsScreen{
 		ctx: ctx, queue: &conversations.Queue{}, looked: looked,
-		path: path, repo: currentRepo(ctx),
+		path: path, repo: currentRepo(ctx), gh: ghrun.GH(),
 	}, nil
 }
 
@@ -71,39 +82,58 @@ type queueMsg struct {
 	err   error
 }
 
+// noticeMsg is the notification stream, answered or refused.
+type noticeMsg struct {
+	threads []notice.Thread
+	err     error
+}
+
 // Start fetches the queue. It is one request rather than the inbox's several,
 // so there is nothing to draw progressively; what it buys is a screen that
-// opens now and a tab nobody switches to that costs nothing.
+// opens now and a tab nobody switches to that costs nothing. The notification
+// stream rides alongside it, since a tab that knows half of what is owed to
+// you still sends you to the browser for the rest.
 func (s *threadsScreen) Start() tea.Cmd {
 	s.waiting = true
 	s.local = localKnowledge()
 
-	return func() tea.Msg {
-		queue, err := conversations.Fetch(s.ctx, ".", conversations.DefaultLimit)
+	return tea.Batch(
+		func() tea.Msg {
+			queue, err := conversations.Fetch(s.ctx, ".", conversations.DefaultLimit)
 
-		return queueMsg{queue: queue, err: err}
-	}
+			return queueMsg{queue: queue, err: err}
+		},
+		func() tea.Msg {
+			threads, err := notice.Fetch(s.ctx, ".")
+
+			return noticeMsg{threads: threads, err: err}
+		},
+	)
 }
 
 func (s *threadsScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
-	answered, ok := msg.(queueMsg)
-	if !ok {
-		return nil, false
-	}
+	switch answered := msg.(type) {
+	case noticeMsg:
+		s.notices, s.noteFailed = answered.threads, answered.err
 
-	s.waiting = false
+		return nil, true
+	case queueMsg:
+		s.waiting = false
 
-	if answered.err != nil {
-		s.failed = answered.err
+		if answered.err != nil {
+			s.failed = answered.err
+
+			return nil, true
+		}
+
+		s.failed = nil
+		s.queue = answered.queue
+		s.buckets = conversations.Buckets(answered.queue, s.looked)
 
 		return nil, true
 	}
 
-	s.failed = nil
-	s.queue = answered.queue
-	s.buckets = conversations.Buckets(answered.queue, s.looked)
-
-	return nil, true
+	return nil, false
 }
 
 // save writes the read marks back and the counts the prompt reads. It runs on
@@ -135,7 +165,7 @@ func (s *threadsScreen) save() error {
 // threadsHints is the footer, which advertises only the keys this screen offers.
 var threadsHints = [][2]string{
 	{enterKey, "read"},
-	{"space", "mark read"},
+	{"space", "done"},
 	{"r", "reply"},
 	{"R", "resolve"},
 	{"o", "GitHub"},
@@ -144,10 +174,10 @@ var threadsHints = [][2]string{
 }
 
 var threadsHelp = helpFor(helpMove(), helpGroup(), [][2]string{
-	{enterKey, "read the whole conversation, and mark it read"},
-	{"space", "mark read without opening it"},
+	{enterKey, "read the whole conversation, and mark it read; on a notification, open it"},
+	{"space", "mark read without opening; on a notification, mark it done"},
 	{"r", "leave and open the review screen to stage a reply"},
-	{"R", "thumbs-up it, and resolve the thread when there is one"},
+	{"R", "thumbs-up a conversation; on a notification, unsubscribe and dismiss it"},
 	{"o", "open it on GitHub"},
 	{refreshKey, "read the queue again"},
 }, helpLeave(), prose(
@@ -157,6 +187,10 @@ var threadsHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	"so r leaves the queue and opens the review screen for it. Any repository will",
 	"do, cloned here or not: gh-repo-dashboard says which clones are on this laptop,",
 	"and a repository with none is reviewed from the API.",
+	"",
+	"The notifications section is what GitHub's stream sends you — mentions, review",
+	"requests, your own pull requests moving — so the browser stops being where you",
+	"find out. Done marks the thread read there; unsubscribe never hears from it again.",
 ))
 
 // counts is the header's right-hand corner: how much is in the queue, and how
@@ -171,14 +205,19 @@ func (s *threadsScreen) counts() string {
 		return "searching…"
 	}
 
-	return fmt.Sprintf("%d conversations · %d unread", len(s.queue.Conversations), s.unread())
+	counts := fmt.Sprintf("%d conversations · %d unread", len(s.queue.Conversations), s.unread())
+	if len(s.notices) > 0 {
+		return fmt.Sprintf("%d notifications · %s", len(s.notices), counts)
+	}
+
+	return counts
 }
 
 // unread is how many conversations have moved since they were last read, which
 // is the number the tab strip carries so a queue says what it holds without
 // being switched to.
 func (s *threadsScreen) unread() int {
-	n := 0
+	n := len(s.notices)
 
 	for i := range s.queue.Conversations {
 		if !s.looked.Since(&s.queue.Conversations[i]) {
@@ -212,7 +251,18 @@ func (s *threadsScreen) sections() []tui.Section {
 
 	now := time.Now()
 
-	out := make([]tui.Section, 0, len(s.buckets))
+	out := make([]tui.Section, 0, len(s.buckets)+1)
+
+	switch {
+	case len(s.notices) > 0:
+		rows := make([]tui.Row, 0, len(s.notices))
+		for i := range s.notices {
+			rows = append(rows, noticeRow(&s.notices[i], now))
+		}
+		out = append(out, tui.Section{Name: "notifications", Rows: rows})
+	case s.noteFailed != nil:
+		out = append(out, tui.Section{Name: "notifications", Note: s.noteFailed.Error()})
+	}
 
 	for i := range s.buckets {
 		b := &s.buckets[i]
@@ -238,6 +288,60 @@ func (s *threadsScreen) sections() []tui.Section {
 	}
 
 	return out
+}
+
+// noticeRow draws a notification like the queue's own rows: why it came in
+// the middle, where and what it is at the edges, and the unread mark it earns
+// by arriving through a fetch that only asks for unread.
+func noticeRow(n *notice.Thread, now time.Time) tui.Row {
+	return tui.Row{
+		Key: n.Key(), Repo: n.Repo, Left: n.Where(),
+		Kind: noticeKind(n.Kind), Mid: noticeReason(n.Reason),
+		Age: humanize.Ago(n.Updated, now), Tail: n.Title, Unread: true,
+	}
+}
+
+// noticeKind is the subject type in the words the kind: filter says.
+func noticeKind(kind string) string {
+	if kind == "PullRequest" {
+		return "pr"
+	}
+
+	return strings.ToLower(kind)
+}
+
+// noticeReason is why the notification arrived, in the words a row has room for.
+func noticeReason(reason string) string {
+	switch reason {
+	case "review_requested":
+		return "review asked"
+	case "state_change":
+		return "state changed"
+	case "ci_activity":
+		return "ci"
+	case "author":
+		return "your pr"
+	case "team_mention":
+		return "team mention"
+	default:
+		return reason
+	}
+}
+
+// errNotANotification is what r and the other conversation gestures answer on
+// a notification, which carries no thread to answer and no pull request here
+// to act on.
+var errNotANotification = errors.New("a notification is only opened, done, or unsubscribed")
+
+// notice finds the notification a row stands for, or nil where the key is not one.
+func (s *threadsScreen) notice(key string) *notice.Thread {
+	for i := range s.notices {
+		if s.notices[i].Key() == key {
+			return &s.notices[i]
+		}
+	}
+
+	return nil
 }
 
 // tail is whose turn it is and what the pull request is called. The author of
@@ -294,6 +398,10 @@ func (s *threadsScreen) find(key string) *conversations.Conversation {
 }
 
 func (s *threadsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
+	if n := s.notice(row.Key); n != nil {
+		return s.actNotice(a, n)
+	}
+
 	c := s.find(row.Key)
 	if c == nil {
 		return "", false, fmt.Errorf("%w: %s", errUnknownRow, row.Key)
@@ -324,17 +432,67 @@ func (s *threadsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 }
 
 func (s *threadsScreen) browse(c *conversations.Conversation) (string, bool, error) {
-	if err := ghrun.GH().Run(s.ctx, ".", "browse", "--repo", c.Repository, strconv.Itoa(c.Number)); err != nil {
+	if err := s.gh.Run(s.ctx, ".", "browse", "--repo", c.Repository, strconv.Itoa(c.Number)); err != nil {
 		return "", false, fmt.Errorf("opening %s: %w", c.Where(), err)
 	}
 
 	return "opened " + c.Where(), false, nil
 }
 
+// actNotice runs the gestures a notification has: enter or o opens the subject
+// on GitHub, space marks the thread done, R unsubscribes it. Opening leaves the
+// row standing — reading it is not the same as being done with it.
+func (s *threadsScreen) actNotice(a tui.Action, n *notice.Thread) (string, bool, error) {
+	switch a {
+	case tui.ActChoose, tui.ActBrowse:
+		args := []string{"browse", "--repo", n.Repo}
+		if n.Number > 0 {
+			args = append(args, strconv.Itoa(n.Number))
+		}
+
+		if err := s.gh.Run(s.ctx, ".", args...); err != nil {
+			return "", false, fmt.Errorf("opening %s: %w", n.Where(), err)
+		}
+
+		return "opened " + n.Where(), false, nil
+	case tui.ActMark:
+		if err := notice.Done(s.ctx, s.gh, *n); err != nil {
+			return "", false, fmt.Errorf("marking %s done: %w", n.Where(), err)
+		}
+
+		s.dropNotice(n.Key())
+
+		return "done " + n.Where(), false, nil
+	case tui.ActResolve:
+		if err := notice.Ignore(s.ctx, s.gh, *n); err != nil {
+			return "", false, fmt.Errorf("unsubscribing %s: %w", n.Where(), err)
+		}
+
+		s.dropNotice(n.Key())
+
+		return "unsubscribed " + n.Where(), false, nil
+	default:
+		return "", false, errNotANotification
+	}
+}
+
+// dropNotice takes a notification out of the list once it is done.
+func (s *threadsScreen) dropNotice(key string) {
+	kept := make([]notice.Thread, 0, len(s.notices))
+
+	for i := range s.notices {
+		if s.notices[i].Key() != key {
+			kept = append(kept, s.notices[i])
+		}
+	}
+
+	s.notices = kept
+}
+
 // resolve marks the conversation dealt with on GitHub and drops it from the
 // queue, since the queue is what is still open and this no longer is.
 func (s *threadsScreen) resolve(c *conversations.Conversation) (string, bool, error) {
-	status, err := resolve.Run(s.ctx, ghrun.GH(), ".", c)
+	status, err := resolve.Run(s.ctx, s.gh, ".", c)
 	if err != nil {
 		return "", false, fmt.Errorf("marking %s dealt with: %w", c.Where(), err)
 	}

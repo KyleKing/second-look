@@ -12,6 +12,7 @@ import (
 	"github.com/kyleking/aragonite/ghcassette"
 
 	"github.com/kyleking/second-look/internal/conversations"
+	"github.com/kyleking/second-look/internal/notice"
 )
 
 // The conversation queue is one GraphQL call and nothing local, so these run
@@ -226,3 +227,52 @@ func TestThreadsScreen(t *testing.T) {
 // readLine is what the footer says after a conversation is read: the pull
 // request and the anchor, which is what the mark on disk has to name.
 var readLine = regexp.MustCompile(`read (\S+#\d+ \S+)`)
+
+// The notification stream rides in the same tab as the conversations: the
+// fixture's invented repositories stand in for a real stream, which would
+// carry private names into a public repository. Space on the first
+// notification marks it done, which is the stream's dismissal rather than a
+// read mark — nothing is written for it locally.
+func TestThreadsScreenNotifications(t *testing.T) {
+	t.Parallel()
+
+	body, err := os.ReadFile(filepath.Join("..", "..", "internal", "notice", "testdata", "notifications.json"))
+	if err != nil {
+		t.Fatalf("reading the notifications fixture: %v", err)
+	}
+
+	queue, err := os.ReadFile(filepath.Join("..", "..", "internal", "conversations", "testdata", "queue.json"))
+	if err != nil {
+		t.Fatalf("reading the queue fixture: %v", err)
+	}
+
+	c := &ghcassette.Cassette{Interactions: []ghcassette.Interaction{
+		{Args: conversations.Args(conversations.DefaultLimit), Stdout: string(queue)},
+		{Args: notice.Args(), Stdout: string(body)},
+		{Args: []string{"api", "-X", "DELETE", "/notifications/threads/1001"}},
+	}}
+
+	cassette := filepath.Join(t.TempDir(), "threads.golden")
+	if err := ghcassette.Save(cassette, c); err != nil {
+		t.Fatalf("writing the cassette: %v", err)
+	}
+
+	s := ghcassette.Replay(t, cassette)
+	home := quietHome(t)
+
+	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "threads")
+	sc.await("notifications")
+	sc.await("acme/widgets#42")
+	sc.await("shave the yak")
+
+	sc.press(" ")
+	sc.await("done acme/widgets#42")
+
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("the queue exited %d:\n%s", code, sc.text())
+	}
+
+	s.RequireAllPlayed(t)
+}
