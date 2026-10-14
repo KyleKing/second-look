@@ -131,8 +131,9 @@ func movable(src, dst string) ([]string, []string, error) {
 		}
 
 		// The ignore file and the pointer are second-look's own furniture: the
-		// store writes its own and neither carries staged work.
-		if rel == ".gitignore" || rel == Pointer {
+		// store writes its own and neither carries staged work. A local review
+		// is the checkout's own, so it stays where it was written.
+		if rel == ".gitignore" || rel == Pointer || e.Name() == LocalFile {
 			return nil
 		}
 

@@ -34,6 +34,7 @@ import (
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/journal"
 	"github.com/kyleking/second-look/internal/lease"
+	"github.com/kyleking/second-look/internal/local"
 	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/prepared"
 	"github.com/kyleking/second-look/internal/prstate"
@@ -63,6 +64,7 @@ var (
 	errUsageTodo      = errors.New("usage: second-look todo <pr>")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--diff|--payload|--threads]")
 	errUsageSkill     = errors.New("usage: second-look skill")
+	errUsageLocal     = errors.New("usage: second-look local [--branch] [--base <ref>]")
 	errUsageGC        = errors.New("usage: second-look gc [--dry-run] [--stale]")
 	errUsageStatus    = errors.New("usage: second-look status")
 	errCheckoutMoved  = errors.New("the checkout has moved past the reviewed head")
@@ -150,6 +152,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 
 	commands := map[string]func() error{
 		"get":     func() error { return getCmd(ctx, args[1:], stdin, stdout) },
+		"local":   func() error { return localCmd(ctx, args[1:], stdout) },
 		"comment": func() error { return commentCmd(ctx, args[1:], stdin, stdout) },
 		"show":    func() error { return showCmd(ctx, args[1:], stdout) },
 		"context": func() error { return contextCmd(ctx, args[1:], stdout) },
@@ -598,6 +601,156 @@ func sender(t get.Target, path string, log io.Writer) tui.Sender {
 		return "posted " + id + "; it is off the review now", nil
 	}
 }
+
+// localCmd reviews the checkout's own change rather than a pull request's:
+// the working copy's uncommitted work, or with --branch every commit since it
+// left the base --base names. Nothing it stages reaches GitHub; the comments
+// are notes kept in .second-look/local.toml.
+func localCmd(ctx context.Context, args []string, stdout io.Writer) error {
+	mode, base, err := parseLocalFlags(args)
+	if err != nil {
+		return err
+	}
+
+	// Without a screen the answer is the diff itself, which is the same thing
+	// a pipe wants whether a person or an agent is reading it.
+	if !onATerminal() {
+		patch, err := local.Patch(ctx, ".", mode, base)
+		if err != nil {
+			return fmt.Errorf("reading the local diff: %w", err)
+		}
+
+		return write(stdout, string(patch))
+	}
+
+	m, err := localScreen(ctx, ".", mode, base)
+	if err != nil {
+		return err
+	}
+
+	if _, err := tui.RunShell(tui.NewReviewShell(ctx, m).WithJournal(journal.Open())); err != nil {
+		return fmt.Errorf("reviewing the local change: %w", err)
+	}
+
+	return nil
+}
+
+// --base names the other side of a branch review and so implies --branch: the
+// working copy's diff has no base to name.
+func parseLocalFlags(args []string) (local.Mode, string, error) {
+	mode, base := local.Worktree, ""
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--branch":
+			mode = local.Branch
+		case "--base":
+			i++
+			if i >= len(args) || args[i] == "" {
+				return 0, "", errUsageLocal
+			}
+
+			base, mode = args[i], local.Branch
+		default:
+			return 0, "", errUsageLocal
+		}
+	}
+
+	return mode, base, nil
+}
+
+// localScreen builds the review screen over the checkout's own diff. The
+// forge seams — post, merge, browse, the threads a pull request carries — are
+// simply not wired, and the keys that would use them say so.
+func localScreen(ctx context.Context, root string, mode local.Mode, base string) (*tui.Model, error) {
+	opened, err := local.Open(ctx, root, mode, base)
+	if err != nil {
+		return nil, fmt.Errorf("opening the local review: %w", err)
+	}
+
+	jj := vcs.DetectVCSType(opened.Work) == vcs.TypeJJ
+	reader := local.Reader(opened.Work, mode, opened.HeadSHA, jj)
+
+	opts := []tui.Option{
+		tui.WithSeen(opened.Read, opened.SeenPath),
+		tui.WithTree(tui.TreeOnHead), tui.WithStore(opened.Work),
+		tui.WithBlobs(reader.Read), tui.WithRestage(localRestager(root, mode, base)),
+		tui.WithGenerated(generatedPatterns()),
+		tui.WithBlame(localBlamer(opened.Work, mode, base, opened.Diff)),
+		tui.WithAdvisor(advisory.Client{}), tui.WithVersions(versions.Client{}),
+	}
+
+	if d := dispatcher(opened.Work); d != nil {
+		opts = append(opts, tui.WithDispatcher(d))
+	}
+
+	if s := agentStarter(opened.Work); s != nil {
+		opts = append(opts, tui.WithAgent(s))
+	}
+
+	if p := agentProbe(); p != nil {
+		opts = append(opts, tui.WithAgentProbe(p))
+	}
+
+	if p := probeFor(ctx, opened.Work, opened.Diff, reader); p != nil {
+		opts = append(opts, tui.WithProber(p))
+	}
+
+	return tui.New(ctx, opened.Review, opened.Diff, opened.Path, localSubmitter(), opts...), nil
+}
+
+// localRestager re-reads the checkout's diff: a working copy is edited under
+// an open review the way a pull request's head is pushed under one.
+func localRestager(root string, mode local.Mode, base string) tui.Restager {
+	return func(ctx context.Context) (*tui.Restaged, error) {
+		opened, err := local.Open(ctx, root, mode, base)
+		if err != nil {
+			return nil, fmt.Errorf("re-reading the local diff: %w", err)
+		}
+
+		jj := vcs.DetectVCSType(opened.Work) == vcs.TypeJJ
+		reader := local.Reader(opened.Work, mode, opened.HeadSHA, jj)
+
+		return &tui.Restaged{
+			Review: opened.Review, Diff: opened.Diff, Read: opened.Read,
+			HeadSHA: opened.HeadSHA,
+			Blobs:   reader.Read, Prober: probeFor(ctx, opened.Work, opened.Diff, reader),
+		}, nil
+	}
+}
+
+// localBlamer ages the diff's old side at the commit it was cut against: the
+// head for the working copy's diff, the fork point for the branch's.
+func localBlamer(root string, mode local.Mode, base string, d *diff.Diff) tui.Blamer {
+	return func(ctx context.Context) (blame.Map, error) {
+		at, err := local.Base(ctx, root, mode, base)
+		if err != nil {
+			//nolint:wrapcheck // Base's own error already names what failed
+			return nil, err
+		}
+
+		ops := vcs.GetOperations(root)
+
+		query := blame.Cached(root,
+			func(ctx context.Context, path string, ranges []vcs.LineRange) ([]vcs.BlameLine, error) {
+				return ops.Blame(ctx, root, at, path, ranges)
+			}, d)
+
+		return blame.Read(ctx, query, d)
+	}
+}
+
+// localSubmitter is S on a local review. There is nowhere to post: the
+// comments are notes on the work, kept in the artifact.
+func localSubmitter() tui.Submitter {
+	return func(context.Context, *artifact.Review) (string, error) {
+		return "", errLocalPost
+	}
+}
+
+var errLocalPost = errors.New(
+	"a local review's comments are notes in .second-look/local.toml; there is nothing to post to",
+)
 
 // merger squash-merges from inside the review screen, which is the one place
 // the decision has the diff behind it: the key is only reachable after the

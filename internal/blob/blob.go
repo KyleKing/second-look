@@ -11,7 +11,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -35,8 +38,14 @@ type Reader struct {
 // Read is the file's lines, in order, with no trailing blank from the final
 // newline. The checkout is asked first: it is free, it works offline, and `git
 // show` reads the commit rather than the working tree, so a tree left on
-// another branch answers correctly anyway.
+// another branch answers correctly anyway. A Work with no SHA reads the file
+// off disk instead, which is the post-image a review of the checkout's own
+// change is drawn from.
 func (r Reader) Read(ctx context.Context, path string) ([]string, error) {
+	if r.Work != "" && r.SHA == "" {
+		return readDisk(r.Work, path)
+	}
+
 	if r.SHA == "" {
 		return nil, fmt.Errorf("%s: %w", path, ErrNoSource)
 	}
@@ -56,6 +65,21 @@ func (r Reader) Read(ctx context.Context, path string) ([]string, error) {
 		"-H", "Accept: application/vnd.github.raw")
 	if err != nil {
 		return nil, fmt.Errorf("reading %s at %s: %w", path, r.SHA[:min(shortSHA, len(r.SHA))], err)
+	}
+
+	return lines(out), nil
+}
+
+// readDisk is the file as the working copy holds it, which is what a review of
+// the checkout's own change draws its context from.
+func readDisk(root, path string) ([]string, error) {
+	if !fs.ValidPath(path) {
+		return nil, fmt.Errorf("%s: %w", path, ErrNoSource)
+	}
+
+	out, err := os.ReadFile(filepath.Join(root, path)) //nolint:gosec // a path out of the diff, validated above
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 
 	return lines(out), nil

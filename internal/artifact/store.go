@@ -67,6 +67,17 @@ func Path(root string, number int) string {
 	return filepath.Join(root, Dir, fmt.Sprintf("pr-%d.toml", number))
 }
 
+// LocalFile names the review of the checkout's own change. Unlike a pull
+// request's artifact it is never adopted into the store, because the notes in
+// it belong to the working copy they describe.
+const LocalFile = "local.toml"
+
+// LocalPath is where a local review is kept: beside the working copy it is
+// about, rather than in the store the pull request artifacts move to.
+func LocalPath(root string) string {
+	return filepath.Join(root, Dir, LocalFile)
+}
+
 // TodoPath is where the set of comments waiting on an agent is written, so the
 // agent reads a file rather than being handed a screenful through a pipe.
 func TodoPath(root string, number int) string {

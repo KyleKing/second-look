@@ -10,6 +10,7 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/local"
 	"github.com/kyleking/second-look/internal/prepared"
 	"github.com/kyleking/second-look/internal/prstate"
 	"github.com/kyleking/second-look/internal/tui"
@@ -129,3 +130,13 @@ func ReleaseOn(repo string) (tui.StatusMsg, bool) {
 
 // ReleaseOurs drops every claim the process holds, as leaving the queue does.
 func ReleaseOurs(stdout io.Writer) error { return releaseClaims(stdout) }
+
+// LocalFlags is the `second-look local` argument parse, exposed so a test can
+// pin the flag grammar without a screen.
+func LocalFlags(args []string) (local.Mode, string, error) { return parseLocalFlags(args) }
+
+// LocalPipe runs `second-look local` where there is no terminal, which is the
+// pipe path: the patch on stdout and nothing staged.
+func LocalPipe(ctx context.Context, args []string, stdout io.Writer) error {
+	return localCmd(ctx, args, stdout)
+}

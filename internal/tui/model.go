@@ -2132,7 +2132,12 @@ func (m *Model) editNote() tea.Cmd {
 // which is the one thing reviewing from the API cannot supply.
 func (m *Model) wantCheckout() tea.Cmd {
 	if m.tree == TreeOnHead {
-		m.say("the checkout is already on this pull request", false)
+		where := "the checkout is already on this pull request"
+		if m.review.Local {
+			where = "the checkout is the change under review"
+		}
+
+		m.say(where, false)
 
 		return nil
 	}
@@ -2540,6 +2545,12 @@ func (m *Model) askSubmit() {
 
 	if m.posted {
 		m.say("already posted", false)
+
+		return
+	}
+
+	if m.review.Local {
+		m.say("a local review's comments are notes; there is nothing to post to", true)
 
 		return
 	}

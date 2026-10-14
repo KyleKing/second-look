@@ -15,6 +15,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look post <pr>            post the review
   second-look post <pr> --dry-run  print the request without sending it
   second-look post <pr> --only <id>  post one comment on its own, now
+  second-look local [--branch|--base <ref>]  review this checkout's own diff
   second-look inbox                the review queue, in your own sections
   second-look threads              conversations that moved since you looked
   second-look reviews              what is staged locally, in the store
@@ -159,6 +160,22 @@ NAMING A PULL REQUEST
       behind it, and a directory that is no checkout at all, name nothing, so
       the queue opens on what is already staged instead. A pipe gets the error,
       since there is no screen to send it to.
+
+  second-look local [--branch] [--base <ref>]
+      The same screen over the checkout's own change rather than a pull
+      request's. Bare, it reviews the working copy against HEAD -- on jj that
+      is the working-copy change itself, so a file @ adds is in the diff
+      without being staged. --branch reviews the branch against where it left
+      its base, origin/HEAD in git and trunk() in jj, and --base names that
+      base instead. A pipe gets the patch and writes nothing.
+
+      Comments written here are notes in .second-look/local.toml and go
+      nowhere else: there is nothing to post to, so S says so rather than
+      asking, and M, P, o, and C are the pull request's own keys with nothing
+      to act on. Everything that reads the tree -- read marks, blame, the
+      language server, generated-file grouping, T -- works, because the
+      checkout is already the thing under review. Restaging re-reads it, so
+      the review follows the working copy as it is edited.
 
   second-look get <pr>
       Read the pull request, write the prepared review, and cache the diff under

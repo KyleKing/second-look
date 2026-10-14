@@ -80,7 +80,7 @@ func (m *Model) paneLines() []string {
 }
 
 func (m *Model) title() string {
-	left := fmt.Sprintf("%s/%s #%d", m.review.Owner, m.review.Repo, m.review.Number)
+	left := m.name()
 	right := cut(m.facts(), m.width)
 
 	if word := m.view.String(); word != "" {
@@ -117,6 +117,27 @@ func (m *Model) title() string {
 
 	return m.styles.title.Render(left) +
 		strings.Repeat(" ", gap) + m.styles.subtitle.Render(right)
+}
+
+// name is what the title calls the review: the pull request by its number,
+// and a local review by what it is diffing.
+func (m *Model) name() string {
+	if !m.review.Local {
+		return fmt.Sprintf("%s/%s #%d", m.review.Owner, m.review.Repo, m.review.Number)
+	}
+
+	name := m.review.Repo
+	if m.review.Owner != "" {
+		name = m.review.Owner + "/" + name
+	}
+	if m.review.HeadRef != "" {
+		name += " · " + m.review.HeadRef
+	}
+	if m.review.BaseRef != "" {
+		name += " vs " + m.review.BaseRef
+	}
+
+	return name
 }
 
 // fitPath keeps the part of a path that says which file it is. Cutting a path

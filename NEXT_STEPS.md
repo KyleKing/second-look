@@ -190,10 +190,20 @@ included and why building on it would be a dependency that breaks silently.
 
 ### 7. The second review target: local changes and `[TODO:` markers
 
-Scope item 2 in requirements.md, and nothing of it is built. Local uncommitted or branch
-changes, with no posting endpoint, where a comment either stays local or lands in the
-source as a `[TODO:` marker. It is a second mode rather than a key, which is why it has
-not leaked into the pull request path.
+Scope item 2 in requirements.md, and the first half is built: `second-look local`
+reviews the working copy against `HEAD` (`jj diff` under jj, so a file the change
+adds is in it), `second-look local --branch` reviews the branch against its fork
+point (`origin/HEAD` for git, `trunk()` for jj), and `--base <ref>` names that base.
+It is the same review screen with the forge seams left unwired: `S`, `M`, `P`, `o`,
+and `C` all say there is nothing to act on, and comments land in
+`.second-look/local.toml` as notes. Read marks, blame, the language server,
+generated-file grouping, and the agent keys all work, and restaging re-reads the
+tree so the review follows the working copy as it is edited. A pipe gets the patch.
+
+What is not built is the `[TODO:` half — a comment that lands in the source as a
+marker rather than only in local.toml — and the open question it raises: whether a
+marker is a comment kind on the same artifact or a sync pass that writes them out
+and reads them back.
 
 ### 8. Beyond alpha: replace gh-dash
 

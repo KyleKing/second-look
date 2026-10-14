@@ -28,6 +28,11 @@ type Review struct {
 	Repo    string `json:"repo"    toml:"repo"`
 	Number  int    `json:"number"  toml:"number"`
 
+	// Local marks a review of the checkout's own change rather than a pull
+	// request's: there is no number to post under and nowhere for its comments
+	// to go, so they are notes that never leave .second-look.
+	Local bool `json:"local,omitempty" toml:"local,omitempty"`
+
 	// HeadSHA is the commit the comments were written against. Posting against a
 	// different head is refused, because an anchor that moved is an anchor that lies.
 	HeadSHA string `json:"head_sha" post:"commit_id" toml:"head_sha"`
@@ -193,7 +198,12 @@ func (r *Review) validateHeader() []error {
 	if r.Version != SchemaVersion {
 		errs = append(errs, fmt.Errorf("%w: got %d, want %d", ErrVersion, r.Version, SchemaVersion))
 	}
-	if r.Owner == "" || r.Repo == "" || r.Number == 0 {
+	// A local review has no pull request to be numbered by, so its identity is
+	// the repository alone — and its owner only when the remote names one.
+	switch {
+	case r.Local && r.Repo == "":
+		errs = append(errs, ErrIdentity)
+	case !r.Local && (r.Owner == "" || r.Repo == "" || r.Number == 0):
 		errs = append(errs, ErrIdentity)
 	}
 	if r.Event != "" && !validEvent[r.Event] {

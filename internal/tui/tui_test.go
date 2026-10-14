@@ -1952,6 +1952,56 @@ func TestSubmitAsksFirst(t *testing.T) {
 	}
 }
 
+// A review of the checkout's own change has no pull request to be named by or
+// posted to: the title says what is diffed rather than a number nobody
+// assigned, and S says the comments are notes rather than asking what kind of
+// review to send.
+func TestALocalReviewNamesItsDiffAndPostsNothing(t *testing.T) {
+	t.Parallel()
+
+	sub := &counter{}
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Local: true,
+		Owner: "kyleking", Repo: "second-look", HeadRef: "feat/x", BaseRef: "origin/HEAD",
+		HeadSHA: "a1b2c3d",
+		Comments: []artifact.Comment{
+			comment("c1", parsed, artifact.SideRight, 15, "a word"),
+		},
+	}
+
+	path := filepath.Join(t.TempDir(), "local.toml")
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, sub.post, tui.WithTree(tui.TreeOnHead))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	title := strings.SplitN(plain(m.Frame()), "\n", 2)[0]
+	if !strings.Contains(title, "feat/x vs origin/HEAD") || strings.Contains(title, "#") {
+		t.Errorf("a local review is titled %q rather than what it diffs", title)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+	if got := plain(m.Frame()); !strings.Contains(got, "notes") {
+		t.Errorf("S never said there is nothing to post to:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+	if sub.n != 0 {
+		t.Error("a local review posted")
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'C', Text: "C"})
+	if got := plain(m.Frame()); !strings.Contains(got, "the change under review") {
+		t.Errorf("C never said the checkout is the change:\n%s", got)
+	}
+	if m.WantsCheckout() {
+		t.Error("a local review asked for a checkout it is already standing in")
+	}
+}
+
 // A draft blocks the post, so the refusal moves the cursor onto the comment
 // that has to be decided rather than only counting it.
 func TestADraftStopsTheSubmitAndIsShown(t *testing.T) {

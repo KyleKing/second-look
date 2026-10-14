@@ -43,6 +43,13 @@ func Path(root string, number int) string {
 	return filepath.Join(root, ".second-look", "seen", fmt.Sprintf("pr-%d.toml", number))
 }
 
+// LocalPath is where a local review's read hunks are kept. One file serves
+// both diff sources: hunk ids key on content, so a hunk already read in the
+// other mode is already read here.
+func LocalPath(root string) string {
+	return filepath.Join(root, ".second-look", "seen", "local.toml")
+}
+
 // Load reads the set. A missing file is an empty set, not an error: a review
 // nobody has read yet is the normal first case.
 func Load(path string) (*Set, error) {
