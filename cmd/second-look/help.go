@@ -149,6 +149,14 @@ NAMING A PULL REQUEST
       Conversations already open on the pull request are shown where they
       anchor, and e on one writes the answer in $EDITOR, staged as a reply.
 
+      A asks the configured agent three questions about the diff that is
+      already on screen: p orders the files into a reading path, c writes a
+      decision card for the hunk under the cursor -- what it changes, what to
+      verify, the one question to answer -- and d checks whether the diff does
+      what its description claims. The answers draw where a line question's
+      answer already goes and post nothing. It runs the dispatch command with
+      the question as its argument, so a review with none configured says so.
+
       It creates the prepared review and caches the diff if they are missing,
       and moves the working copy only when C asks. A review staged against an
       older head is refused rather than shown beside a diff it was not written
@@ -172,7 +180,7 @@ NAMING A PULL REQUEST
       Comments written here are notes in .second-look/local.toml and go
       nowhere else: there is nothing to post to, so S says so rather than
       asking, and M, P, o, and C are the pull request's own keys with nothing
-      to act on. Everything that reads the tree -- read marks, blame, the
+      to act on. Everything that reads the tree -- read marks, the
       language server, generated-file grouping, T -- works, because the
       checkout is already the thing under review. Restaging re-reads it, so
       the review follows the working copy as it is edited.

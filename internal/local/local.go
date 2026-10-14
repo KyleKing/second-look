@@ -20,6 +20,7 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/seen"
+	"github.com/kyleking/second-look/internal/threads"
 )
 
 // Mode is which of a checkout's own diffs is under review.
@@ -81,10 +82,55 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 
 	return &get.Review{
 		Review: review, Diff: d,
+		About: threads.About{
+			Title: review.HeadRef,
+			Body:  claimText(ctx, abs, jj, mode, base),
+		},
 		Read: read, SeenPath: seenPath,
 		Path: path, HeadSHA: tip,
 		Work: abs, OnHead: true,
 	}, nil
+}
+
+// claimText is what the change says it is for: the working-copy change's
+// description under jj, and the branch's own commit subjects under either
+// backend. A git working copy carries no description of its own, which the
+// question it feeds answers as "nothing claims anything" rather than
+// borrowing HEAD's message, which is the base's intent, not the change's.
+func claimText(ctx context.Context, root string, jj bool, mode Mode, base string) string {
+	if mode == Branch && base == "" {
+		base = gitBase
+		if jj {
+			base = jjBase
+		}
+	}
+
+	var (
+		out string
+		err error
+	)
+
+	switch {
+	case jj && mode == Worktree:
+		out, err = run(ctx, root, "jj", "log", "--no-graph", "--no-pager", "-r", "@", "-T", "description")
+	case jj:
+		out, err = run(ctx, root, "jj", "log", "--no-graph", "--no-pager", "-r", base+"..@", "-T", "description")
+	case mode == Worktree:
+		return ""
+	default:
+		fork, ferr := mergeBase(ctx, root, jj, base)
+		if ferr != nil {
+			return ""
+		}
+
+		out, err = run(ctx, root, "git", "log", "--format=%B", fork+"..HEAD")
+	}
+
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(out)
 }
 
 // Patch is the diff alone, for a caller with no screen to draw it in.
@@ -97,27 +143,6 @@ func Patch(ctx context.Context, root string, mode Mode, base string) ([]byte, er
 	patch, _, err := diffFor(ctx, abs, vcs.GetOperations(abs).VCSType() == vcs.TypeJJ, mode, base)
 
 	return patch, err
-}
-
-// Base is the commit the diff's old side numbers its lines from, which is the
-// revision blame is asked at. It is computed rather than remembered because a
-// blame pass runs after the screen is already up.
-func Base(ctx context.Context, root string, mode Mode, base string) (string, error) {
-	abs, err := prepare(root)
-	if err != nil {
-		return "", err
-	}
-
-	jj := vcs.GetOperations(abs).VCSType() == vcs.TypeJJ
-	if mode == Branch {
-		return mergeBase(ctx, abs, jj, base)
-	}
-
-	if jj {
-		return revision(ctx, abs, jj, "@-")
-	}
-
-	return revision(ctx, abs, jj, headRev)
 }
 
 // Reader reads a file as the reviewed side of the diff has it. Where the

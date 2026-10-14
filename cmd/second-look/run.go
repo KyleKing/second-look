@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -22,7 +23,6 @@ import (
 	"github.com/kyleking/second-look/internal/advisory"
 	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/blame"
 	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/brief"
 	"github.com/kyleking/second-look/internal/config"
@@ -477,6 +477,10 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 		opts = append(opts, tui.WithDispatcher(d))
 	}
 
+	if a := asker(t.Dir()); a != nil {
+		opts = append(opts, tui.WithAsker(a))
+	}
+
 	if s := agentStarter(t.Dir()); s != nil {
 		opts = append(opts, tui.WithAgent(s))
 	}
@@ -494,13 +498,6 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 	reader := blob.Reader{Work: opened.Work, Repo: t.RepoID(), SHA: opened.Review.HeadSHA}
 	opts = append(opts,
 		tui.WithBlobs(reader.Read), tui.WithRestage(restager(t)), tui.WithRounds(rounds(t)))
-
-	// Blame is the one reading that comes out of the repository's own history
-	// rather than the forge's, so it needs the checkout a review is read
-	// beside. Where there is none the toggle says so.
-	if opened.Work != "" {
-		opts = append(opts, tui.WithBlame(blamer(t, opened)))
-	}
 
 	// A checker runs in a checkout or not at all: a language server resolves
 	// what a file imports from the tree around it, and a review staged with
@@ -530,29 +527,6 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 
 	return tui.New(ctx, opened.Review, opened.Diff, opened.Path,
 		submitter(t, opened.Path, log), opts...), nil
-}
-
-// blamer ages every old-side line the diff carries. The revision is the merge
-// base the diff was cut against, asked of the forge since the checkout may
-// stand anywhere; the blame itself is asked of the checkout, which is where
-// the history is.
-func blamer(t get.Target, opened *get.Review) tui.Blamer {
-	return func(ctx context.Context) (blame.Map, error) {
-		base, err := get.MergeBase(ctx, t)
-		if err != nil {
-			//nolint:wrapcheck // MergeBase's own error already names the pull request
-			return nil, err
-		}
-
-		ops := vcs.GetOperations(opened.Work)
-
-		query := blame.Cached(t.Store,
-			func(ctx context.Context, path string, ranges []vcs.LineRange) ([]vcs.BlameLine, error) {
-				return ops.Blame(ctx, opened.Work, base, path, ranges)
-			}, opened.Diff)
-
-		return blame.Read(ctx, query, opened.Diff)
-	}
 }
 
 // tree is where the working copy stands, which is what the shell key can use
@@ -672,16 +646,19 @@ func localScreen(ctx context.Context, root string, mode local.Mode, base string)
 	reader := local.Reader(opened.Work, mode, opened.HeadSHA, jj)
 
 	opts := []tui.Option{
-		tui.WithSeen(opened.Read, opened.SeenPath),
+		tui.WithSeen(opened.Read, opened.SeenPath), tui.WithAbout(opened.About),
 		tui.WithTree(tui.TreeOnHead), tui.WithStore(opened.Work),
 		tui.WithBlobs(reader.Read), tui.WithRestage(localRestager(root, mode, base)),
 		tui.WithGenerated(generatedPatterns()),
-		tui.WithBlame(localBlamer(opened.Work, mode, base, opened.Diff)),
 		tui.WithAdvisor(advisory.Client{}), tui.WithVersions(versions.Client{}),
 	}
 
 	if d := dispatcher(opened.Work); d != nil {
 		opts = append(opts, tui.WithDispatcher(d))
+	}
+
+	if a := asker(opened.Work); a != nil {
+		opts = append(opts, tui.WithAsker(a))
 	}
 
 	if s := agentStarter(opened.Work); s != nil {
@@ -716,27 +693,6 @@ func localRestager(root string, mode local.Mode, base string) tui.Restager {
 			HeadSHA: opened.HeadSHA,
 			Blobs:   reader.Read, Prober: probeFor(ctx, opened.Work, opened.Diff, reader),
 		}, nil
-	}
-}
-
-// localBlamer ages the diff's old side at the commit it was cut against: the
-// head for the working copy's diff, the fork point for the branch's.
-func localBlamer(root string, mode local.Mode, base string, d *diff.Diff) tui.Blamer {
-	return func(ctx context.Context) (blame.Map, error) {
-		at, err := local.Base(ctx, root, mode, base)
-		if err != nil {
-			//nolint:wrapcheck // Base's own error already names what failed
-			return nil, err
-		}
-
-		ops := vcs.GetOperations(root)
-
-		query := blame.Cached(root,
-			func(ctx context.Context, path string, ranges []vcs.LineRange) ([]vcs.BlameLine, error) {
-				return ops.Blame(ctx, root, at, path, ranges)
-			}, d)
-
-		return blame.Read(ctx, query, d)
 	}
 }
 
@@ -1273,6 +1229,34 @@ func dispatcher(work string) tui.Dispatcher {
 		}
 
 		return fmt.Sprintf("%s is reading %s; its output goes to %s", argv[0], path, log), nil
+	}
+}
+
+// asker is the dispatch configuration's other shape: the same argv, but the
+// question is the last argument rather than a set file, and the answer comes
+// back on stdout rather than to a log. It runs in the checkout so the agent
+// can read around the diff the question is about.
+func asker(work string) tui.Asker {
+	cfg, err := loadConfig()
+	if err != nil || len(cfg.Dispatch) == 0 {
+		return nil
+	}
+
+	argv := slices.Clone(cfg.Dispatch)
+
+	return func(ctx context.Context, prompt string) (string, error) {
+		cmd := exec.CommandContext(ctx, argv[0], append(argv[1:], prompt)...) // #nosec G204 -- the caller's own config
+		cmd.Dir = work
+
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+
+		out, err := cmd.Output()
+		if err != nil {
+			return "", fmt.Errorf("%s: %w: %s", argv[0], err, strings.TrimSpace(stderr.String()))
+		}
+
+		return string(out), nil
 	}
 }
 

@@ -156,7 +156,7 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 		return foldedFile(f, rows[0], c)
 	}
 
-	rows = append(rows, fileNotes(f, p, c)...)
+	rows = append(rows, fileNotes(f, p)...)
 
 	hunk, folded := 0, 0
 	lines := &pairer{
@@ -242,16 +242,12 @@ type fileCtx struct {
 }
 
 // fileNotes is what a file says about itself before its first hunk: why it
-// carries no lines, and what the parser saw of it.
-func fileNotes(f *diff.File, p string, c fileCtx) []row {
+// carries no lines.
+func fileNotes(f *diff.File, p string) []row {
 	var out []row
 
 	if f.Note != "" {
 		out = append(out, row{kind: rowHunk, text: f.Note, path: p, comment: noComment})
-	}
-
-	if word := c.lay.fileWord(p); word != "" {
-		out = append(out, row{kind: rowHunk, text: word, path: p, comment: noComment})
 	}
 
 	return out
@@ -331,7 +327,7 @@ func hunkRow(d *diff.Diff, lay layout, at hunkAt, span [2]int) (*row, bool) {
 	// carries the read mark.
 	return &row{
 		kind: rowHunk, comment: noComment, path: at.path, hunk: at.hunk,
-		text: strings.TrimPrefix(hunkContext(hunkHeader(d, at.hunk))+lay.hunkWord(at), "  "),
+		text: strings.TrimPrefix(hunkContext(hunkHeader(d, at.hunk)), "  "),
 	}, false
 }
 

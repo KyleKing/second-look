@@ -1,7 +1,6 @@
 package local_test
 
 import (
-	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -231,20 +230,5 @@ func TestPatch(t *testing.T) {
 
 	if _, err := os.Stat(artifact.LocalPath(dir)); err == nil {
 		t.Error("a patch read wrote a review; a pipe should touch nothing")
-	}
-}
-
-func TestBase(t *testing.T) {
-	t.Parallel()
-
-	dir := repo(t)
-	head := git(t, dir, "rev-parse", "HEAD")
-
-	base, err := local.Base(context.Background(), dir, local.Worktree, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if base != head {
-		t.Errorf("the working copy's old side is HEAD (%s), got %s", head, base)
 	}
 }

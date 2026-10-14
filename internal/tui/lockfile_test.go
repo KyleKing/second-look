@@ -187,6 +187,49 @@ func TestAdvisoriesAreNotAskedUntilTheReaderSaysTwice(t *testing.T) {
 	}
 }
 
+// The legend's L dims where pressing it would have nothing to ask: standing on
+// code rather than the lockfile, or with no advisor to send the question to.
+func TestTheLockfileKeyDimsWhereThereIsNothingToAsk(t *testing.T) {
+	t.Parallel()
+
+	onLock := lockfileWith(t, &advisor{})
+	if onLock.KeyIsInert("L") {
+		t.Error("L is dim standing on the lockfile it asks about")
+	}
+
+	onCode := lockfileLike(t, patch, &advisor{})
+	if !onCode.KeyIsInert("L") {
+		t.Error("L is live where the diff holds no lockfile")
+	}
+
+	noAdvisor := lockfileWith(t, nil)
+	if !noAdvisor.KeyIsInert("L") {
+		t.Error("L is live with no advisor to ask with")
+	}
+}
+
+// lockfileLike is lockfileWith for a patch that is not a lockfile's.
+func lockfileLike(t *testing.T, p string, a tui.Advisor) *tui.Model {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(p)), path, (&counter{}).post,
+		tui.WithAdvisor(a))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+
+	return m
+}
+
 func fileRow(t *testing.T, frame, name string) string {
 	t.Helper()
 

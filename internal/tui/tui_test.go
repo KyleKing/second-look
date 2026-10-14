@@ -1145,132 +1145,6 @@ func TestSideBySideFallsBackWhenNarrow(t *testing.T) {
 	}
 }
 
-// The structural renderer says what the parser saw: which symbols each hunk
-// touched, a summary of the same per file, and a symbol that left one hunk and
-// arrived in another drawn as a move rather than as a delete beside an
-// unrelated insert.
-func TestStructuralNamesWhatEachHunkTouched(t *testing.T) {
-	t.Parallel()
-
-	if !structure.Available() {
-		t.Skip("ast-grep is not installed")
-	}
-
-	patch := `diff --git a/x.go b/x.go
---- a/x.go
-+++ b/x.go
-@@ -1,3 +1,3 @@
--func Read(path string) error {
-+func Read(path string, strict bool) error {
- 	return nil
- }
-@@ -20,8 +20,4 @@
--func split(s string) []string {
--	return nil
--}
--
- func Widen(n int) int {
- 	return n * 2
- }
-@@ -40,3 +36,7 @@
- func Narrow(n int) int {
- 	return n / 2
- }
-+
-+func split(s string) []string {
-+	return nil
-+}
-`
-
-	m, _, _ := fixtureWith(t, patch)
-	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
-
-	// The pass shells out to ast-grep, which is more than the shared helper's
-	// patience, so the command is waited on here.
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 'W', Text: "W"})
-	if cmd == nil {
-		t.Fatal("W started no structural pass")
-	}
-
-	m.Update(cmd())
-	pressKey(m, 'W')
-
-	for range 2 {
-		pressKey(m, 'v')
-	}
-
-	frame := plain(m.Frame())
-
-	for _, want := range []string{
-		"func Read signature",
-		"func split moved out",
-		"func split moved in",
-		"func split moved",
-	} {
-		if !strings.Contains(frame, want) {
-			t.Errorf("nothing says %q:\n%s", want, frame)
-		}
-	}
-
-	// The delete and the insert are one move, so neither half is announced as
-	// a symbol arriving or leaving on its own.
-	for _, wrong := range []string{"func split new", "func split deleted"} {
-		if strings.Contains(frame, wrong) {
-			t.Errorf("a move was drawn as %q:\n%s", wrong, frame)
-		}
-	}
-}
-
-// A symbol whose declaration was rewritten on the way is not the same code
-// arriving somewhere else, so it stays a delete and an insert.
-func TestStructuralDoesNotCallARewriteAMove(t *testing.T) {
-	t.Parallel()
-
-	if !structure.Available() {
-		t.Skip("ast-grep is not installed")
-	}
-
-	patch := `diff --git a/x.go b/x.go
---- a/x.go
-+++ b/x.go
-@@ -20,8 +20,4 @@
--func split(s string) []string {
--	return nil
--}
--
- func Widen(n int) int {
- 	return n * 2
- }
-@@ -40,3 +36,7 @@
- func Narrow(n int) int {
- 	return n / 2
- }
-+
-+func split(s string, sep rune) []string {
-+	return nil
-+}
-`
-
-	m, _, _ := fixtureWith(t, patch)
-	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
-
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 'W', Text: "W"})
-	if cmd == nil {
-		t.Fatal("W started no structural pass")
-	}
-
-	m.Update(cmd())
-	pressKey(m, 'W')
-
-	for range 3 {
-		pressKey(m, 'v')
-	}
-
-	if frame := plain(m.Frame()); strings.Contains(frame, "moved") {
-		t.Errorf("a rewritten declaration was called a move:\n%s", frame)
-	}
-}
-
 // What a machine wrote is grouped last, folded, and counted rather than read: a
 // lockfile in reading order is four hundred lines between two files that are
 // actually being reviewed, and what matters about it is that it moved.
@@ -1999,6 +1873,87 @@ func TestALocalReviewNamesItsDiffAndPostsNothing(t *testing.T) {
 	}
 	if m.WantsCheckout() {
 		t.Error("a local review asked for a checkout it is already standing in")
+	}
+}
+
+// The A chord puts three questions to the configured agent and draws the
+// answer where a line question's answer already goes. Each prompt is the
+// diff's own shape — the path question carries the files, the card the hunk
+// under the cursor, and drift the claim the pull request makes for itself.
+func TestAskChordQuestionsTheDiff(t *testing.T) {
+	t.Parallel()
+
+	var asked []string
+	sub := &counter{}
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+		Comments: []artifact.Comment{comment("c1", parsed, artifact.SideRight, 15, "a word")},
+	}
+
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithAsker(func(_ context.Context, prompt string) (string, error) {
+			asked = append(asked, prompt)
+
+			return "diff.go — the parser's signature is what every caller keys on", nil
+		}),
+		tui.WithAbout(threads.About{Title: "carry the split's error"}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	// The chord says what it takes while it waits.
+	press(m, tea.KeyPressMsg{Code: 'A', Text: "A"})
+	if got := plain(m.Frame()); !strings.Contains(got, "ath through") {
+		t.Fatalf("A never said what it asks:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'p', Text: "p"})
+
+	if len(asked) != 1 || !strings.Contains(asked[0], "internal/vcs/diff.go") {
+		t.Fatalf("the path question did not carry the diff: %v", asked)
+	}
+	if got := plain(m.Frame()); !strings.Contains(got, "the parser's signature") {
+		t.Fatalf("the answer never drew:\n%s", got)
+	}
+
+	// Any key leaves the overlay, and the drift question carries the claim.
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(m, tea.KeyPressMsg{Code: 'A', Text: "A"})
+	press(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+
+	if len(asked) != 2 || !strings.Contains(asked[1], "carry the split's error") {
+		t.Fatalf("the drift question never named the claim: %v", asked)
+	}
+
+	// The card asks about the hunk the cursor is in — standing on its header
+	// is standing in it.
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+	press(m, tea.KeyPressMsg{Code: 'A', Text: "A"})
+	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+
+	if len(asked) != 3 || !strings.Contains(asked[2], "lines, err := split") {
+		t.Fatalf("the card question never carried the hunk: %v", asked)
+	}
+}
+
+// A review with no agent configured still has the chord: it says what would
+// configure one rather than pretending the question went out.
+func TestAskChordWithoutAnAgent(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 15, "a word"))
+
+	press(m, tea.KeyPressMsg{Code: 'A', Text: "A"})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "no agent is configured") {
+		t.Errorf("A never said what it needs:\n%s", got)
 	}
 }
 
@@ -2989,6 +2944,26 @@ func TestTheFrameCanBePlacedAroundTheCursor(t *testing.T) {
 	body := strings.Split(strings.TrimRight(plain(m.Frame()), "\n"), "\n")
 	if last := strings.Trim(body[len(body)-2], " │┃"); last != "" {
 		t.Errorf("the frame would not scroll past the last row; its last line is %q", last)
+	}
+}
+
+// shift+down scrolls a line the way ctrl+e does, for terminals where a shell
+// or multiplexer owns the ctrl pair.
+func TestScrollALine_ShiftArrow(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := fixtureWith(t, tallPatch(60))
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+
+	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+	for range 10 {
+		press(m, tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModShift})
+	}
+
+	body := strings.Split(strings.TrimRight(plain(m.Frame()), "\n"), "\n")
+	if last := strings.Trim(body[len(body)-2], " │┃"); last != "" {
+		t.Errorf("shift+down would not scroll past the last row; its last line is %q", last)
 	}
 }
 

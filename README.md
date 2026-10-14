@@ -448,9 +448,7 @@ a review staged with none has no tree.
 lines are drawn. `rich` is what a review opens on: it colors the code by its grammar,
 says which side a line is on with a band behind it, marks the runs that actually differ
 from the line the change paired it with, and carries both line numbers in the gutter, so
-a one-word edit reads as one word. `plain` is a whole-line color per side and one number
-per line, which is what a terminal diff has always looked like, and is where `v` lands
-last.
+a one-word edit reads as one word. `v` walks between it and `rich + split`.
 
 Four things carry a change in `rich`, because no one of them survives every terminal. The
 `+` or `-` sits against the code on a cell of full accent, which is the loudest thing on
@@ -469,25 +467,15 @@ added or removed. Below 120 columns it draws unified instead of wrapping two col
 code into illegibility. It applies to the diff and not to the code or comment views, which
 are flattenings of their own.
 
-`structural` is the rich faces with what the parser saw written onto every heading: which
-symbols a hunk touched and how, the same summarized under each file name, and a symbol
-that left one hunk and arrived in another drawn as a move rather than as a delete beside
-an unrelated insert, whether or not the two hunks are in the same file. It reuses the pass
-the review-cost rating already runs, so it costs no extra work. A symbol whose declaration
-was rewritten on the way is not a move, because it is not the same code arriving somewhere
-else.
+The grammar and the columns are two independent questions, and `v` walks the two
+combinations worth naming. `u` toggles one on its own: `ug` the grammar, `us` side by
+side. So a wide diff can be read in two columns with the grammar off, which no step of
+the cycle offers. A look reached that way belongs to no step, so the next `v` starts the
+walk again from the top.
 
-The grammar, the columns, and what the parser saw are three independent questions, and `v`
-only walks the four combinations worth naming. `u` toggles one on its own: `ug` the
-grammar, `us` side by side, `up` what the parser saw. So a wide diff can be read in two
-columns with the grammar off, which no step of the cycle offers. A look reached that way
-belongs to no step, so the next `v` starts the walk again from the top.
-
-All three are spikes and ship with their caveats named in the footer when you switch to
-them: a
-hunk is a fragment of a file, so a grammar's state above the hunk is lost, a hunk opening
-inside a block comment is colored as code, and the symbol a body edit sits inside is not
-knowable at all. Highlighting is
+Both ship with their caveats named in the footer when you switch to them: a
+hunk is a fragment of a file, so a grammar's state above the hunk is lost and a hunk
+opening inside a block comment is colored as code. Highlighting is
 [chroma](https://github.com/alecthomas/chroma), which is pure Go and keeps the release
 matrix building with `CGO_ENABLED=0`, unlike every tree-sitter binding. The bands are
 drawn deeper on a terminal that cannot mix its own colors, because the 256-color cube

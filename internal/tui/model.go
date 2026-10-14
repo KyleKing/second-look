@@ -17,7 +17,6 @@ import (
 	"github.com/kyleking/second-look/internal/acp"
 	"github.com/kyleking/second-look/internal/advisory"
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/blame"
 	"github.com/kyleking/second-look/internal/diag"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
@@ -84,6 +83,9 @@ type Model struct {
 	// dispatcher hands the todo set to an agent, and is nil where nothing is
 	// configured to receive it.
 	dispatcher Dispatcher
+	// asker puts a one-shot question to the configured agent and takes its
+	// answer as text, which is the dispatch argv's other shape.
+	asker Asker
 	// agentStart opens an agent session over ACP, and agent is the live one.
 	// agentOpen is the pane its transcript draws in, which esc leaves without
 	// ending the session; agentDead is how it ended, agentOff how far back
@@ -208,14 +210,6 @@ type Model struct {
 	// and shape is what the same pass saw of each hunk's symbols.
 	cosmetic map[hunkAt]bool
 	shape    shape
-	// blamer is what reads the checkout's history for u then b, and nil where
-	// there is no checkout to read. blamed is what it answered, kept for the
-	// session, blaming is a read still out, and blamedAt is when the answer
-	// landed so every cell ages against one moment.
-	blamer   Blamer
-	blamed   blame.Map
-	blaming  bool
-	blamedAt time.Time
 	// cost is what the same pass rates the change, shown in the title once it
 	// has an answer to show.
 	cost    rate.Score
@@ -413,9 +407,9 @@ func (m *Model) applyStructure(msg structureMsg) {
 		return
 	}
 
-	// The structural renderer draws what this pass found, and the pass lands
-	// behind the first frame, so the headings gain their symbols the moment it
-	// answers rather than on the next keystroke.
+	// The pass lands behind the first frame, so the rating, the folds, and the
+	// reading order take their answers from it the moment it lands rather than
+	// on the next keystroke.
 	m.rebuild()
 }
 
@@ -648,12 +642,12 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.absorbBlob(msg)
 	case structureMsg:
 		m.applyStructure(msg)
-	case blameMsg:
-		m.applyBlame(msg)
 	case notesMsg:
 		m.applyNotes(msg)
 	case advisedMsg:
 		m.applyAdvisories(msg)
+	case askedMsg:
+		m.applyAsked(msg)
 	case versionedMsg:
 		m.applyVersions(msg)
 	case headMsg:
@@ -1062,6 +1056,13 @@ func (m *Model) startsChord(msg tea.KeyPressMsg) bool {
 		m.pending = ','
 
 		m.say(m.chord(",", reactObjects()), false)
+	case key.Matches(msg, m.keys.Ask):
+		if m.asker == nil {
+			m.say("no agent is configured; dispatch = [...] in the config is what A runs", false)
+		} else {
+			m.pending = 'A'
+			m.say(m.chord("A", askObjects()), false)
+		}
 	case key.Matches(msg, m.keys.Forward), key.Matches(msg, m.keys.Backward):
 		m.pending = ']'
 		if key.Matches(msg, m.keys.Backward) {
@@ -1114,15 +1115,17 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case 'S':
 		return m.submitAs(msg)
 	case 'u':
-		cmd := m.toggleLook(msg)
+		m.toggleLook(msg)
 
-		return m, cmd
+		return m, nil
 	case 'g':
 		return m.gotoKey(msg)
 	case 'H':
 		cmd := m.sinceRound(msg.String())
 
 		return m, cmd
+	case 'A':
+		return m.adviseKey(msg)
 	case ',':
 		m.reactTo(msg)
 
@@ -2862,9 +2865,6 @@ func (m *Model) rebuild() {
 	}
 	if !m.asDiffed {
 		lay.plan = m.shape.plan
-	}
-	if m.drawn.structural {
-		lay.parsed = &m.shape
 	}
 
 	lay.trouble = m.trouble

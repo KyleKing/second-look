@@ -141,7 +141,7 @@ func (l *List) line(i int, cols columns, width int) string {
 	case line.detail != "":
 		return " " + l.styles.body.Render(cut("        "+line.detail, width))
 	case line.under:
-		return " " + l.styles.note.Render(cut("      "+line.Under(), width))
+		return " " + l.styles.body.Render(cut("      "+line.Under(), width))
 	}
 
 	text := cut(l.row(line.row, cols), width)
@@ -281,7 +281,7 @@ func (l *List) footer() string {
 			{"r", "reply"},
 			{"R", "resolve"},
 			{"o", "GitHub"},
-			{"tab", "group"},
+			{tabKey, "group"},
 			{"/", "filter"},
 			{"?", "help"},
 			{"q", quitWord},
@@ -322,7 +322,7 @@ func defaultListHelp() [][2]string {
 		{"j/k, ctrl+u/d, g/G", "move, half page, top and bottom"},
 		{"ctrl+e/ctrl+y", "scroll without moving the cursor"},
 		{"1/2/3, ] / [", "the queue to read"},
-		{"tab", "the next group"},
+		{tabKey, "the next group"},
 		{"/", "narrow to the rows carrying a word; esc puts them back"},
 		{"enter", "read the whole conversation, and mark it read"},
 		{spaceKey, "mark read without opening it"},

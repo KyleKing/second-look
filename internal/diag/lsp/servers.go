@@ -1,6 +1,8 @@
 package lsp
 
 import (
+	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -46,6 +48,11 @@ type Server struct {
 	// SettingsFor is settings that depend on the root the server is started in,
 	// merged under Settings where the two name the same key.
 	SettingsFor func(checkout, root string) map[string]any
+	// Ready is the preflight a server answers for the root it would start in,
+	// nil where it has none to fail: tsserver execs a file the workspace's own
+	// typescript has to ship, and finding out from the process is an error
+	// nobody can read.
+	Ready func(root string) error
 }
 
 // builtin are the servers second-look starts without being configured to.
@@ -66,6 +73,7 @@ var builtin = []Server{
 		},
 		Roots: [][]string{{"tsconfig.json", "jsconfig.json"}, {"package.json"}},
 		Needs: []string{filepath.Join("node_modules", "typescript")},
+		Ready: tsReady,
 	},
 	{
 		Name:     "gopls",
@@ -141,6 +149,28 @@ func Answers(servers []Server, paths []string) bool {
 	}
 
 	return false
+}
+
+// errNoTSServer is what a TypeScript 6 workspace answers with: it ships no
+// lib/tsserver.js for typescript-language-server to exec, its language server
+// being tsgo instead.
+var errNoTSServer = errors.New("the workspace's typescript has no lib/tsserver.js: " +
+	"TypeScript 6 removed it, and its language server is tsgo")
+
+// tsReady refuses a root whose own typescript cannot serve, so starting
+// typescript-language-server there only dies after the handshake. A root with
+// no typescript at all passes, since the server then falls back to its own.
+func tsReady(root string) error {
+	ts := filepath.Join(root, "node_modules", "typescript")
+	if _, err := os.Stat(ts); os.IsNotExist(err) {
+		return nil
+	}
+
+	if _, err := os.Stat(filepath.Join(ts, "lib", "tsserver.js")); err != nil {
+		return errNoTSServer
+	}
+
+	return nil
 }
 
 // pythonEnv is the interpreter a project keeps beside itself, which a pyright

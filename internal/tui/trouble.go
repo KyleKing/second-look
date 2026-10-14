@@ -183,13 +183,16 @@ func (m *Model) lookup(kind diag.JumpKind) tea.Cmd {
 
 // answerMsg carries what one line was asked, whichever question asked it:
 // hover's symbols or a jump's places, and verb is empty for a hover and the
-// question's word ("defined", "read") for a jump.
+// question's word ("defined", "read") for a jump. An asker's answer arrives
+// the same way, as said under title rather than as sites of a line.
 type answerMsg struct {
 	path    string
 	line    int
 	verb    string
 	symbols []diag.Symbol
 	jumps   []diag.Jump
+	title   string
+	said    string
 	err     error
 }
 
@@ -539,8 +542,13 @@ func places(at []diag.Site) string {
 }
 
 // answerLines is what a line question left up: each name on the line and what
-// it is, or where each one is declared or read.
+// it is, or where each one is declared or read. An asker's answer is the same
+// surface with prose in place of sites.
 func (m *Model) answerLines() []string {
+	if m.showing.said != "" {
+		return m.saidLines()
+	}
+
 	head := fmt.Sprintf("%s line %d", m.showing.path, m.showing.line)
 	if m.showing.verb != "" {
 		head += " · where each name is " + m.showing.verb

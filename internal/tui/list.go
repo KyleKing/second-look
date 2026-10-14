@@ -158,7 +158,7 @@ func defaultListKeys() listKeys {
 		Reply:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reply")),
 		Resolve: key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "resolve")),
 		Refresh: key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "refresh")),
-		Section: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next group")),
+		Section: key.NewBinding(key.WithKeys(tabKey), key.WithHelp(tabKey, "next group")),
 		// C matches the review screen's own checkout key, and m and A are the
 		// first letter of the verb rather than gh-dash's, since c is taken.
 		Checkout: key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),

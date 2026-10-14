@@ -535,6 +535,15 @@ func (m *Model) inert(k string) bool {
 		return m.current() < 0
 	case "e":
 		return !m.canWrite()
+	case "L":
+		file, _ := m.lockedAt()
+		return m.advisor == nil || file == ""
+	case "A":
+		return m.asker == nil
+	case "T":
+		return m.dispatcher == nil
+	case "X", "K":
+		return m.prober == nil
 	}
 
 	return false
@@ -851,15 +860,15 @@ func (m *Model) readMark(r row) string {
 }
 
 // threadRow renders a conversation already on GitHub. It shares the comment
-// rail so it sits under its line the same way, and it is dimmer than a prepared
-// comment, because nothing about it will change when this review posts.
+// rail so it sits under its line the same way, and its prose reads at body
+// contrast: a comment muted to a footnote's face is one nobody can read.
 func (m *Model) threadRow(r row) (string, lipgloss.Style) {
 	text := m.threadLead() + r.text
 	if r.head {
 		return text, m.styles.rail
 	}
 
-	return text, m.styles.note
+	return text, m.styles.body
 }
 
 func (m *Model) codeRow(r row) (string, lipgloss.Style) {

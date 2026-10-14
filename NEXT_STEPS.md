@@ -71,18 +71,21 @@ blob reader `+` uses, so it works with no checkout. Whether that beats `+`/`-`
 growing context is what a stretch of reviews answers, and the journal now
 records which one gets reached for.
 
-### 3. Four renderers is three too many
+### 3. Two renderers, decided
 
-The renderers are three independent axes now rather than four modes: `v` walks four named
-presets and `u` toggles the grammar (`ug`), the columns (`us`), and the structural pass
-(`up`) one at a time, which reaches combinations the cycle cannot. Rich is the default.
+The walkthrough this step was waiting on happened on preference rather than on journal
+data, and the cut landed: the structural look (`up`) and the blame column (`ub`) are
+deleted, the plain preset is out of the cycle, and `v` walks rich ↔ rich+split. `u`
+still toggles the grammar (`ug`) and the columns (`us`) one at a time. The structural
+pass itself stays: it still feeds the cost rating, the cosmetic folds, the reading
+order, and `ctrl+n` completion — what went is the view, which only ever wrote a word
+onto a heading and was easy to miss even when it worked. Peek (`gd`/`gr`) and `A c`
+answer its question better: real source and a semantic judgment rather than a symbol
+name guessed from a fragment.
 
-The deletion this step was written for has not happened, and splitting the cycle into axes
-made it easier to defer rather than easier to decide. It still needs a stretch of real
-reviews rather than a decision made here, and the questions are the same: which one I
-actually reach for, whether the split view earns being the only one that changes which
-rows exist rather than only how they are drawn, and whether the structural pass says
-enough to be a view rather than a heading on the other three.
+The blame deletion took `internal/blame` and the gutter column with it; `vcs.Blame`
+stays in aragonite unused for now, and section 9 keeps what a recency signal would want
+if it ever earns a place back.
 
 One open question needs eyes on a truecolor terminal rather than a decision here. The rich
 renderer bands a changed line at a 0.12 lightness lift and 0.60 saturation, with deeper
@@ -196,7 +199,7 @@ adds is in it), `second-look local --branch` reviews the branch against its fork
 point (`origin/HEAD` for git, `trunk()` for jj), and `--base <ref>` names that base.
 It is the same review screen with the forge seams left unwired: `S`, `M`, `P`, `o`,
 and `C` all say there is nothing to act on, and comments land in
-`.second-look/local.toml` as notes. Read marks, blame, the language server,
+`.second-look/local.toml` as notes. Read marks, the language server,
 generated-file grouping, and the agent keys all work, and restaging re-reads the
 tree so the review follows the working copy as it is edited. A pipe gets the patch.
 
@@ -241,22 +244,14 @@ change plus how many distinct authors a hunk carries. Churn is the better-suppor
 predictor in the literature and it is file-level evidence, so it stays out of a per-line
 column until something argues for it.
 
-The primitive is built: `vcs.Operations.Blame` takes a revision (v0.16.0), git over
-`git blame --porcelain` with one `-L` per hunk range so the cost is proportional to the
-review rather than to the file, jj over `jj file annotate`. The rollup is built too:
-`internal/blame` batches each file's old-side ranges into one call, the merge base comes
-from `gh api .../pulls/<n>`'s `merge_base_sha`, and the answer is cached under
-`.second-look/blame/` keyed by the old side's blob and ranges rather than by head, because
-blame of an unchanged blob does not change when a push lands elsewhere. `u` then `b`
-draws the one-column age ramp in the gutter, with a glyph per bucket so it survives
-`NO_COLOR`.
-
-What is left is the hunk header summary ("N authors, oldest Xd ago" in the header's right
-margin), which is additive to the same data and wants a stretch of the per-line column
-first. The narrow-frame drop the research called for has no squeeze case yet: the column
-costs one cell and the context pane that would contend for the width does not exist, so
-the rule lands with whichever optional column comes second. Move-aware blame (`-M`/`-C`)
-and `.git-blame-ignore-revs` are last and opt-in, because both cost real extra passes.
+The primitive is built in aragonite: `vcs.Operations.Blame` takes a revision (v0.16.0),
+git over `git blame --porcelain` with one `-L` per hunk range so the cost is proportional
+to the review rather than to the file, jj over `jj file annotate`. The per-line gutter
+column that drew it did not earn its keystroke and was deleted with `internal/blame` —
+one glyph of age per line turned out to answer a question a review rarely asks. What a
+recency signal would need to earn a place back is a denser reading: the hunk header
+summary ("N authors, oldest Xd ago" in the header's right margin) carries the same data
+without spending a column on it.
 
 ### 10. An agent session is invisible while it is working
 
@@ -316,6 +311,15 @@ real parallelism with a working tree is two rather than six.
 comments reads the same whether it was read carefully or never opened, which is `skip`
 semantics one level up. The guidance asks for a run log in the review's note instead, and
 whether that is enough is worth finding out before adding a fifth status.
+
+**The `A` chord's three questions.** `A` asks the configured agent about the diff on
+screen: `p` orders the files into a reading path, `c` writes a decision card for the hunk
+under the cursor, `d` checks the diff against what the change claims to be (the pull
+request's own title and body, or the local change's descriptions). They are prototypes on
+one chord and one overlay deliberately — the question each answers is whether the answer
+changes what the reviewer's next keystroke is. A path that never steers the cursor, a card
+that never shortens a hunk's reading, and a drift that only ever agrees are all delete
+candidates; whichever earns its key stays and the rest go.
 
 **The five session features.** The cutoff line that defines a session, reordering rows by
 hand and holding them out of the sort with a count on the tab, a notification at a
@@ -461,7 +465,7 @@ commit if it does not.
   the conversation queue's four admission rules
 - Reading with no checkout, one store per repository, and `C` moving a clone that is
   already here
-- The diff: four renderers on `v`, hunks gathered by symbol across the whole diff, files
+- The diff: rich and rich+split on `v`, hunks gathered by symbol across the whole diff, files
   grouped by directory, generated files collected and folded, whitespace and
   syntax-cosmetic filters on `w` and `W`, seen-state on `space` with `U` hiding what is
   read, `H` comparing against an earlier round, and `+`/`-` expanding context

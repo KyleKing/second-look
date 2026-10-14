@@ -23,6 +23,7 @@ const (
 	commentWord = "comment"
 	refreshKey  = "ctrl+r"
 	spaceKey    = "space"
+	tabKey      = "tab"
 )
 
 type keyMap struct {
@@ -73,6 +74,7 @@ type keyMap struct {
 	More         key.Binding
 	Less         key.Binding
 	Accept       key.Binding
+	Ask          key.Binding
 	Send         key.Binding
 	Submit       key.Binding
 	Open         key.Binding
@@ -97,8 +99,8 @@ func defaultKeyMap() keyMap {
 		Up:           key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("j/k", "line")),
 		Down:         key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "line")),
 		HalfUp:       key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
-		PeekUp:       key.NewBinding(key.WithKeys("ctrl+y"), key.WithHelp("ctrl+y/e", "peek")),
-		PeekDown:     key.NewBinding(key.WithKeys("ctrl+e"), key.WithHelp("ctrl+y/e", "peek")),
+		PeekUp:       key.NewBinding(key.WithKeys("ctrl+y", "shift+up"), key.WithHelp("ctrl+y/e", "scroll a line")),
+		PeekDown:     key.NewBinding(key.WithKeys("ctrl+e", "shift+down"), key.WithHelp("ctrl+y/e", "scroll a line")),
 		HalfDown:     key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
 		Top:          key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("gg/G", "top, bottom")),
 		Bottom:       key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("gg/G", "top, bottom")),
@@ -107,7 +109,7 @@ func defaultKeyMap() keyMap {
 		Again:        key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "again")),
 		Reverse:      key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "back")),
 		Repeat:       key.NewBinding(key.WithKeys("."), key.WithHelp(".", "repeat")),
-		NextNote:     key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next")),
+		NextNote:     key.NewBinding(key.WithKeys(tabKey), key.WithHelp(tabKey, "next")),
 		PrevNote:     key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous")),
 		Edit:         key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
 		Write:        key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
@@ -141,6 +143,7 @@ func defaultKeyMap() keyMap {
 		More:         key.NewBinding(key.WithKeys("+"), key.WithHelp("+", "more context")),
 		Less:         key.NewBinding(key.WithKeys("-"), key.WithHelp("-", "less context")),
 		Accept:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
+		Ask:          key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "ask the agent")),
 		Send:         key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
 		Submit:       key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
 		Open:         key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "on GitHub")),
@@ -178,9 +181,7 @@ func states() [][2]string {
 // lookObjects are what u accepts: the questions the renderers answer
 // together and that this toggles one at a time.
 func lookObjects() [][2]string {
-	return [][2]string{
-		{"g", "grammar"}, {"s", "side by side"}, {"p", "what the parser saw"}, {"b", "blame"},
-	}
+	return [][2]string{{"g", "grammar"}, {"s", "side by side"}}
 }
 
 // goObjects are what g accepts: gg keeps the top it always was, d and r ask
@@ -220,13 +221,15 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{What: "moving", Head: true},
 		{Key: "j/k", What: "a line"},
 		{Key: "ctrl+d/u", What: "half a page"},
-		{Key: "ctrl+e/y", What: "peek"},
+		{Key: "ctrl+e/y", What: "scroll a line"},
+		{What: "shift+up/down do the same"},
 		{Key: "gg/G", What: "the ends"},
 		{Key: "]", What: "go to", Kids: asHints(objects())},
 		{Key: "[", What: "go back", Kids: asHints(objects())},
 		{Key: "n/N", What: "the same, or back"},
 		{Key: ".", What: "the last change"},
-		{Key: "tab/shift+tab", What: "what wants a decision"},
+		{Key: tabKey, What: "what wants a decision"},
+		{Key: "shift+tab", What: "and back"},
 		{Key: "/", What: "search"},
 		{What: "tab in the prompt narrows a search to hunks not yet read"},
 		{What: "what is shown", Head: true},
@@ -245,6 +248,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "K", What: "what is this"},
 		{Key: "g", What: "go", Kids: asHints(goObjects())},
 		{Key: "L", What: "the lockfile"},
+		{Key: "A", What: "ask the agent", Kids: asHints(askObjects())},
 		{What: "marking", Head: true},
 		{Key: spaceKey, What: "mark read"},
 		{Key: "m", What: "a state", Kids: asHints(states())},

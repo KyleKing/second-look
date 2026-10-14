@@ -360,6 +360,12 @@ func (s *Session) serverFor(ctx context.Context, srv Server, root string) (*clie
 		settings = mergeSettings(srv.SettingsFor(s.root, root), settings)
 	}
 
+	if srv.Ready != nil {
+		if err := srv.Ready(root); err != nil {
+			return nil, fmt.Errorf("%s: %w", srv.Name, err)
+		}
+	}
+
 	// The process outlives the call that started it, so it is bounded by the
 	// session rather than by one pass's deadline.
 	//nolint:contextcheck // the server is the session's, not this call's

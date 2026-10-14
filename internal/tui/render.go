@@ -17,15 +17,9 @@ import (
 	"github.com/kyleking/second-look/internal/highlight"
 )
 
-// look is how a line of the diff is drawn. Side by side, the grammar, what the
-// parser saw, and the lines' ages are independent questions, so each is a
-// toggle of its own: `u` turns one on or off and `v` walks the combinations
-// worth having.
-//
-// They are experiments and they are meant to be: each ships with its caveat in
-// the help and the README, all of them get lived with on real reviews, and the
-// ones that turn out not to earn a keystroke are deleted rather than kept for
-// symmetry.
+// look is how a line of the diff is drawn. Side by side and the grammar are
+// independent questions, so each is a toggle of its own: `u` turns one on or
+// off and `v` walks the combinations worth having.
 type look struct {
 	// rich is the grammar in color under a band saying which side a line is on,
 	// the runs that actually changed marked inside it, and both line numbers in
@@ -36,13 +30,6 @@ type look struct {
 	// one toggle that changes which rows exist rather than only how they are
 	// drawn.
 	split bool
-	// structural writes what the parser saw onto every heading: which symbols a
-	// hunk touched and how, a per-file summary of the same, and a symbol that
-	// left one hunk and arrived in another drawn as a move.
-	structural bool
-	// blame draws one glyph of each line's age at the gutter's right edge, on
-	// a ramp from touched today to untouched in years.
-	blame bool
 }
 
 // opening is what a review opens on, which is the one look the title does not
@@ -56,8 +43,6 @@ func presets() []look {
 	return []look{
 		{rich: true},
 		{rich: true, split: true},
-		{rich: true, structural: true},
-		{},
 	}
 }
 
@@ -65,19 +50,14 @@ func (l look) next() look {
 	all := presets()
 
 	next := all[0]
-	base := look{rich: l.rich, split: l.split, structural: l.structural}
 
 	for i, p := range all {
-		if p == base {
+		if p == l {
 			next = all[(i+1)%len(all)]
 
 			break
 		}
 	}
-
-	// The cycle walks the three layout questions; blame is an overlay the
-	// cycle leaves alone.
-	next.blame = l.blame
 
 	return next
 }
@@ -93,14 +73,6 @@ func (l look) String() string {
 		on = append(on, "split")
 	}
 
-	if l.structural {
-		on = append(on, "structural")
-	}
-
-	if l.blame {
-		on = append(on, "blame")
-	}
-
 	if len(on) == 0 {
 		return "rich"
 	}
@@ -112,12 +84,8 @@ func (l look) String() string {
 // whose limits are only in the commit message is one nobody can judge.
 func (l look) caveat() string {
 	switch {
-	case l.blame:
-		return "aged at the merge base, following no moves"
 	case l.split:
 		return "narrower than " + strconv.Itoa(splitWidth) + " columns it draws unified"
-	case l.structural:
-		return "a hunk is a fragment, so the symbol a body edit sits in is not knowable"
 	case l.rich:
 		return "a diff is a fragment, so a grammar's state above the file's first hunk is lost"
 	}
@@ -208,9 +176,6 @@ type richStyles struct {
 	// than inverted.
 	side   map[byte]lipgloss.Style
 	gutter lipgloss.Style
-	// age colors the blame column's glyph ramp, from warm for touched this
-	// week to the gutter's own grey for years ago.
-	age []lipgloss.Style
 }
 
 func newRichStyles(s styles) richStyles {
@@ -243,13 +208,6 @@ func newRichStyles(s styles) richStyles {
 			diff.KindRemove: blend(p.Base, p.Red, markMix),
 		},
 		gutter: base.Foreground(p.Overlay0),
-		age: []lipgloss.Style{
-			base.Foreground(p.Peach),
-			base.Foreground(p.Yellow),
-			base.Foreground(p.Mauve),
-			base.Foreground(p.Blue),
-			base.Foreground(p.Overlay1),
-		},
 	}
 }
 
@@ -276,19 +234,13 @@ const rule = "\u2502"
 
 // gutterWidth is what both numbers and the sign take, which every rich row
 // spends whether or not it carries either number: the two numbers, a space
-// between them, then the sign, the rule, and one space before the code. The
-// blame column adds its single glyph when it is drawn.
+// between them, then the sign, the rule, and one space before the code.
 func (m *Model) gutterWidth() int {
 	const signRuleAndSpaces = 5
 
 	const numberColumns = 2
 
-	width := m.screen.numWidth*numberColumns + signRuleAndSpaces
-	if m.drawn.blame {
-		width++
-	}
-
-	return width
+	return m.screen.numWidth*numberColumns + signRuleAndSpaces
 }
 
 // richGutter is the old and the new number, the rule, and then the sign, which
@@ -309,9 +261,6 @@ func (m *Model) richGutter(r row) string {
 	}
 
 	gutter := oldNum + " " + newNum + " " + m.rich.gutter.Render(rule) + m.signCell(l.Kind)
-	if m.drawn.blame {
-		gutter += m.blameCell(r.path, l)
-	}
 
 	return gutter + " "
 }
@@ -606,30 +555,22 @@ func (m *Model) cycleRenderer() {
 }
 
 // toggleLook flips one of the questions on its own, which is what the cycle
-// cannot do: reading a wide diff side by side without the grammar, or keeping
-// what the parser saw while turning the columns off. Blame is the one that
-// may have to go fetch before it can draw.
-func (m *Model) toggleLook(msg tea.KeyPressMsg) tea.Cmd {
+// cannot do: reading a wide diff side by side without the grammar.
+func (m *Model) toggleLook(msg tea.KeyPressMsg) {
 	switch msg.String() {
 	case "g":
 		m.drawn.rich = !m.drawn.rich
 	case "s":
 		m.drawn.split = !m.drawn.split
-	case "p":
-		m.drawn.structural = !m.drawn.structural
-	case "b":
-		return m.toggleBlame()
 	default:
 		m.say("nothing to draw for "+msg.String()+
-			"; g grammar, s side by side, p parser, b blame", false)
+			"; g grammar, s side by side", false)
 
-		return nil
+		return
 	}
 
 	m.rebuild()
 	m.sayLook()
-
-	return nil
 }
 
 func (m *Model) sayLook() {
@@ -672,9 +613,6 @@ func (m *Model) halfCode(r row, l diff.Line, at, width int) string {
 	const signAndSpaces = 3
 
 	gutter := m.screen.numWidth + signAndSpaces
-	if m.drawn.blame {
-		gutter++
-	}
 
 	if l.Kind == 0 {
 		return strings.Repeat(" ", width)
@@ -688,9 +626,6 @@ func (m *Model) halfCode(r row, l diff.Line, at, width int) string {
 	}
 
 	sign := m.signCell(l.Kind)
-	if m.drawn.blame {
-		sign += m.blameCell(r.path, l)
-	}
 
 	return m.rich.gutter.Render(number(at, m.screen.numWidth)+rule) + sign +
 		" " + cut(body, room)
