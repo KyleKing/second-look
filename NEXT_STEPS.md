@@ -338,10 +338,6 @@ it and leave it here otherwise.
 Each of these has been named and none has been argued through far enough to sit in the
 ordered list above.
 
-**A gh extension.** Installing with `gh extension install` needs the repository renamed to
-`gh-second-look`, which is the only shape gh recognizes, and the rename takes the binary
-name, the brew tap, and every link with it. Deferred deliberately rather than rejected.
-
 **GitLab, and jj.** The forge interface exists and has been exercised once. jj already
 works through aragonite's `vcs`, with one hole: `checkout` shells out to `gh pr checkout`,
 which is git-only.
