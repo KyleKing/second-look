@@ -64,10 +64,12 @@ nothing answers without a checkout, and what a name resolves to outside the
 changed files is whatever the checkout on disk holds.
 
 What is left is extraction, not more questions here. The shape wants proving in
-real reviews before it moves to wavez's `codeintel` index, which is the same
-judgement the whole-file view waits on: `+` and `-` growing three lines at a
-press is enough for the case the expansion was built for, and a whole-file view
-is closer to an editor than to a review.
+real reviews before it moves to wavez's `codeintel` index. The whole-file view
+is now a probe rather than a decision: `gf` opens the file under the cursor in
+`$EDITOR` at the line it carries, drawing the commit's copy through the same
+blob reader `+` uses, so it works with no checkout. Whether that beats `+`/`-`
+growing context is what a stretch of reviews answers, and the journal now
+records which one gets reached for.
 
 ### 3. Four renderers is three too many
 
@@ -402,6 +404,9 @@ Enough to answer "is that in there already", newest first. The reasoning behind 
 is in [requirements.md](requirements.md) if it still constrains something, and in the
 commit if it does not.
 
+- `gf` opens the file under the cursor in `$EDITOR` at the line the row
+  carries — the commit's copy written to a temp file named for the real one, so
+  filetype detection still works and the pane needs no checkout
 - The notification stream folded into the conversations tab: `internal/notice` reads
   `gh api notifications?participating=true` alongside the queue fetch, draws each thread
   as a row under a `notifications` section, and space marks it done, `R` unsubscribes

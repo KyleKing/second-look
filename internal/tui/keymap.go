@@ -183,10 +183,11 @@ func lookObjects() [][2]string {
 	}
 }
 
-// goObjects are what g accepts: gg keeps the top it always was, and d and r
-// ask the language server where each name on the line is declared and read.
+// goObjects are what g accepts: gg keeps the top it always was, d and r ask
+// the language server where each name on the line is declared and read, and f
+// opens the file itself in $EDITOR at the line the cursor is on.
 func goObjects() [][2]string {
-	return [][2]string{{"g", "top"}, {"d", "where defined"}, {"r", "where used"}}
+	return [][2]string{{"g", "top"}, {"d", "where defined"}, {"r", "where used"}, {"f", "the file"}}
 }
 
 func foldObjects() [][2]string {

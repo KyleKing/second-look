@@ -472,6 +472,9 @@ type editedMsg struct {
 	// than what it was asked to edit, so the text is cleaned and appended
 	// instead of replacing the body.
 	transcript bool
+	// viewing marks a pane that was only showing a file: exiting reads
+	// nothing back and edits nothing.
+	viewing bool
 }
 
 type sentMsg struct {
@@ -589,6 +592,8 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 		return tea.ClearScreen
 	case answerMsg:
 		return m.applyAnswer(msg)
+	case fileMsg:
+		return m.openWhole(msg)
 	}
 
 	if cmd, mine := m.childAnswered(msg); mine {
@@ -1155,11 +1160,100 @@ func (m *Model) gotoKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.lookup(diag.References)
 
 		return m, cmd
+	case "f":
+		cmd := m.wholeFile()
+
+		return m, cmd
 	default:
-		m.say("no place for "+msg.String()+"; g top, d defined, r used", false)
+		m.say("no place for "+msg.String()+"; g top, d defined, r used, f file", false)
 	}
 
 	return m, nil
+}
+
+// fileMsg is the whole file read for the pane, or the reason it could not be.
+type fileMsg struct {
+	path  string
+	at    int
+	lines []string
+	err   error
+}
+
+// wholeFile answers gf: the file the cursor is standing on, all of it, opened
+// in $EDITOR at the line the row carries. The file is the blob the review
+// reads — the commit's copy rather than the working tree's — so the pane can
+// open on a review with no checkout at all.
+func (m *Model) wholeFile() tea.Cmd {
+	r := m.screen.rows[m.cursor]
+	if r.path == "" {
+		m.say("no file under the cursor", false)
+
+		return nil
+	}
+
+	if m.blob == nil {
+		m.say("no way to read "+r.path+" from here", false)
+
+		return nil
+	}
+
+	m.say("reading "+r.path+"…", false)
+
+	path, at := r.path, r.line.New
+
+	return func() tea.Msg {
+		lines, err := m.blob(m.ctx, path)
+
+		return fileMsg{path: path, at: at, lines: lines, err: err}
+	}
+}
+
+// openWhole lands the file's lines as a temp file the editor opens. The temp
+// name keeps the real file's name, since that is what filetype detection
+// reads; what the pane holds is a viewing session, so exiting reads nothing
+// back.
+func (m *Model) openWhole(msg fileMsg) tea.Cmd {
+	if msg.err != nil {
+		m.say(msg.err.Error(), true)
+
+		return nil
+	}
+
+	file, err := os.CreateTemp("", "*-"+filepath.Base(msg.path))
+	if err != nil {
+		m.say(err.Error(), true)
+
+		return nil
+	}
+
+	name := file.Name()
+
+	if _, err := file.WriteString(strings.Join(msg.lines, "\n") + "\n"); err != nil {
+		m.say(err.Error(), true)
+		//nolint:gosec,errcheck // a temp file that outlives the failure is not worth an error path
+		os.Remove(name)
+
+		return nil
+	}
+
+	if err := file.Close(); err != nil {
+		m.say(err.Error(), true)
+		//nolint:gosec,errcheck // a temp file that outlives the failure is not worth an error path
+		os.Remove(name)
+
+		return nil
+	}
+
+	p, err := startPane(m.ctx, editorLineArgv(name, msg.at), m.width, m.paneHeight())
+	if err != nil {
+		//nolint:gosec,errcheck // a temp file that outlives the pane is not worth an error path
+		os.Remove(name)
+		m.say(err.Error(), true)
+
+		return nil
+	}
+
+	return m.seat(p, name, editedMsg{viewing: true}, filepath.Base(msg.path))
 }
 
 // write answers the three keys that put prose into the review: the comment's
@@ -2166,6 +2260,16 @@ func (m *Model) paneGone(err error) tea.Cmd {
 	m.pane, m.paneFile, m.paneTitle = nil, "", ""
 	p.kill()
 
+	if msg.viewing {
+		if err != nil {
+			m.say(err.Error(), true)
+		}
+		//nolint:gosec,errcheck // a temp file that outlives the pane is not worth an error path
+		os.Remove(name)
+
+		return tea.ClearScreen
+	}
+
 	if msg.transcript {
 		// A shell that exits non-zero still ran, and what the pane drew is
 		// still the evidence it existed to keep.
@@ -2209,9 +2313,20 @@ func (m *Model) paneHeight() int {
 }
 
 func editorArgv(path string) []string {
+	return editorLineArgv(path, 0)
+}
+
+// editorLineArgv adds the +N vi and its descendants read as "open on line N",
+// which is what puts a whole file at the hunk's line rather than its top. A
+// zero asks for the top, which is what a file row carries.
+func editorLineArgv(path string, at int) []string {
 	fields := strings.Fields(os.Getenv("EDITOR"))
 	if len(fields) == 0 {
 		fields = []string{"vi"}
+	}
+
+	if at > 0 {
+		fields = append(fields, "+"+strconv.Itoa(at))
 	}
 
 	return append(fields, path)

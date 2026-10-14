@@ -183,6 +183,10 @@ func (m *Model) KeyIsInert(key string) bool { return m.inert(key) }
 // page it draws without sleeping for it.
 func (m *Model) ChordWaited() { m.Update(chordWaitMsg{seq: m.chordSeq}) }
 
+// PaneClosed delivers the pane's exit the way the program loop would, so a
+// test reaches the teardown path without racing the child's exit.
+func (m *Model) PaneClosed(err error) { m.paneGone(err) }
+
 // Relayout lays out rows for the current view from the whole diff, which is
 // what a fold, toggle, or order change runs again rather than only for the
 // visible window.
