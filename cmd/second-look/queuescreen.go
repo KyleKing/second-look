@@ -13,6 +13,7 @@ import (
 	"github.com/kyleking/second-look/internal/config"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/journal"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -133,7 +134,7 @@ func queueOnce(
 
 			return reviewScreen(ctx, opened, &log, 0)
 		}
-	}))
+	}).WithJournal(journal.Open()))
 
 	// The marks are worth keeping even when an action failed: what was read was
 	// still read.

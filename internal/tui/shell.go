@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/kyleking/second-look/internal/journal"
 )
 
 // Reviewer opens the review the queue was left on. It runs as a command
@@ -48,6 +50,8 @@ type Shell struct {
 	// failure is what a screen the shell has already left could not finish,
 	// which a footer the alternate screen took with it is not.
 	failure error
+	// j is the usage journal, nil-safe everywhere it is read.
+	j *journal.J
 }
 
 // NewShell composes the queue and the review screen, so opening a row keeps
@@ -61,6 +65,17 @@ func NewShell(ctx context.Context, l *List, open Handoff) *Shell {
 // the program, there being nothing behind it.
 func NewReviewShell(ctx context.Context, m *Model) *Shell {
 	return &Shell{ctx: ctx, review: m, at: modeReview, width: minWidth, height: startHeight}
+}
+
+// WithJournal gives the shell's events somewhere to land. A review opened
+// later gets the same journal the queue had, since a sitting is one story.
+func (s *Shell) WithJournal(j *journal.J) *Shell {
+	s.j = j
+	if s.review != nil {
+		s.review.j = j
+	}
+
+	return s
 }
 
 // chosenMsg is a list action that asked to leave the screen, which the shell
@@ -140,10 +155,18 @@ func (s *Shell) key(msg tea.KeyPressMsg) tea.Cmd {
 	case modeOpening:
 		return nil
 	case modeReview:
+		if !s.review.writing() {
+			s.j.Key("review", msg.String())
+		}
+
 		_, cmd := s.review.Update(msg)
 
 		return cmd
 	case modeList:
+		if !s.list.filter.typing {
+			s.j.Key("queue", msg.String())
+		}
+
 		_, cmd := s.list.Update(msg)
 
 		return cmd
@@ -185,6 +208,8 @@ func (s *Shell) opened(msg openedMsg) tea.Cmd {
 	}
 
 	s.review, s.at = msg.review, modeReview
+	s.review.j = s.j
+	s.j.Event("shell", "open")
 	// The screen is built at the assumed size, and no resize follows an open
 	// that nothing outside the program made.
 	s.review.Update(tea.WindowSizeMsg{Width: s.width, Height: s.height})
@@ -201,6 +226,8 @@ func (s *Shell) back() tea.Cmd {
 	if failed != nil {
 		s.failure = failed
 	}
+
+	s.j.Since("shell", "leave", s.review.built)
 
 	if s.list == nil {
 		return tea.Quit

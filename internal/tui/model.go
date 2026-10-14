@@ -23,6 +23,7 @@ import (
 	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/highlight"
+	"github.com/kyleking/second-look/internal/journal"
 	"github.com/kyleking/second-look/internal/rate"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/shellrun"
@@ -270,6 +271,10 @@ type Model struct {
 	// The screen leaves through it, so a run that failed to post says so on
 	// stdout and in the exit code rather than only in a footer nobody kept.
 	failure error
+	// j is the usage journal and built is when the screen was made, which is
+	// the start a "how long did the open take" measures from.
+	j     *journal.J
+	built time.Time
 }
 
 // Option configures the review screen.
@@ -323,6 +328,7 @@ func New(
 		refined: d.Refine(), lexed: map[string]map[diff.LineRef][]highlight.Span{},
 		lit:    map[string][][]highlight.Span{},
 		drawn:  opening,
+		built:  time.Now(),
 		made:   generated.New(nil),
 		around: map[hunkAt]int{}, blobs: map[string][]string{},
 	}
@@ -425,6 +431,7 @@ type headMsg struct {
 // problem, and the diff on screen is as good as it was before the question.
 func (m *Model) applyHead(msg headMsg) {
 	m.verifying = false
+	m.j.Since("review", "head", m.built)
 
 	switch {
 	case msg.err != nil:
@@ -685,6 +692,14 @@ func (m *Model) keyOwner() (func(tea.KeyPressMsg) (tea.Model, tea.Cmd), bool) {
 	default:
 		return nil, false
 	}
+}
+
+// writing reports whether the keyboard belongs to text rather than to
+// commands — the in-place editor, the search, or a child's own program — which
+// is what the journal must never record.
+func (m *Model) writing() bool {
+	return m.editing != nil || m.searching || m.pane != nil ||
+		(m.agentOpen && m.agent != nil)
 }
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -2118,6 +2133,7 @@ func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 func (m *Model) seat(p *pane, name string, msg editedMsg, title string) tea.Cmd {
 	m.pane, m.paneFile, m.paneMsg = p, name, msg
 	m.paneTitle = title
+	m.j.Event("review", "pane "+title)
 
 	// A hover answer still in flight would draw over the shrunken body while
 	// the pane holds the keyboard, so it is dismissed rather than left up.
@@ -2637,6 +2653,7 @@ func (m *Model) applySubmit(msg submittedMsg) {
 	}
 
 	m.posted = true
+	m.j.Event("review", "post")
 
 	hint := msg.summary + "; enter reviews the next one staged, o opens it on GitHub, "
 	if m.cleanup != nil && !m.branchDeleted {
@@ -2658,6 +2675,7 @@ func (m *Model) applyMerge(msg mergedMsg) {
 	}
 
 	m.merged = true
+	m.j.Event("review", "merge")
 	m.say(msg.summary+", press q to leave", false)
 }
 

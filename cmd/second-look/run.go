@@ -32,6 +32,7 @@ import (
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/journal"
 	"github.com/kyleking/second-look/internal/lease"
 	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/prepared"
@@ -433,7 +434,7 @@ func review(ctx context.Context, t get.Target, stdout io.Writer, land int64) (tu
 		return tui.Outcome{}, err
 	}
 
-	out, runErr := tui.RunShell(tui.NewReviewShell(ctx, m))
+	out, runErr := tui.RunShell(tui.NewReviewShell(ctx, m).WithJournal(journal.Open()))
 
 	// The log is written either way: a post that failed partway through still
 	// names the endpoints it reached, which is what says whether anything
