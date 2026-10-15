@@ -155,8 +155,10 @@ NAMING A PULL REQUEST
       decision card for the hunk under the cursor -- what it changes, what to
       verify, the one question to answer -- and d checks whether the diff does
       what its description claims. The answers draw where a line question's
-      answer already goes and post nothing. It runs the dispatch command with
-      the question as its argument, so a review with none configured says so.
+      answer already goes and post nothing. A path answer is also the last
+      motion, so n and N walk the files in the agent's order rather than the
+      diff's. It runs the dispatch command with the question as its argument,
+      so a review with none configured says so.
 
       It creates the prepared review and caches the diff if they are missing,
       and moves the working copy only when C asks. A review staged against an

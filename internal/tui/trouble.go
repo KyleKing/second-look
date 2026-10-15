@@ -193,7 +193,10 @@ type answerMsg struct {
 	jumps   []diag.Jump
 	title   string
 	said    string
-	err     error
+	// walk marks a path answer that registered itself as a motion, so the
+	// overlay's footer can say n walks it rather than only that a key leaves.
+	walk bool
+	err  error
 }
 
 func (m *Model) applyAnswer(msg answerMsg) tea.Cmd {

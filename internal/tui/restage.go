@@ -87,6 +87,12 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 
 	m.cosmetic, m.shape = nil, shape{}
 	m.cost, m.size = rate.Score{}, rate.Size{}
+	// A path the agent read out of the old diff no longer orders this one;
+	// the steered motion pointing at it is dropped with it.
+	m.route = nil
+	if m.last != nil && m.last.steer != nil {
+		m.last = nil
+	}
 
 	cmds := []tea.Cmd{m.probe(), m.probeAgent()}
 	// The cards already cached still answer, but a restaged lockfile's asking

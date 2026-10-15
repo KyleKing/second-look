@@ -317,9 +317,11 @@ screen: `p` orders the files into a reading path, `c` writes a decision card for
 under the cursor, `d` checks the diff against what the change claims to be (the pull
 request's own title and body, or the local change's descriptions). They are prototypes on
 one chord and one overlay deliberately — the question each answers is whether the answer
-changes what the reviewer's next keystroke is. A path that never steers the cursor, a card
-that never shortens a hunk's reading, and a drift that only ever agrees are all delete
-candidates; whichever earns its key stays and the rest go.
+changes what the reviewer's next keystroke is. `A p` now puts its money down: the answer
+registers as the last motion, so `n` and `N` walk the files in the agent's order rather
+than the diff's, and the journal's "after A" line says whether the walk or the prose is
+what gets used. A card that never shortens a hunk's reading and a drift that only ever
+agrees are still the delete candidates; whichever earns its key stays and the rest go.
 
 **The five session features.** The cutoff line that defines a session, reordering rows by
 hand and holding them out of the sort with a count on the tab, a notification at a

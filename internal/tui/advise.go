@@ -33,10 +33,14 @@ func askObjects() [][2]string {
 	}
 }
 
-// askedMsg carries an asker's answer, titled by what was asked.
+// askedMsg carries an asker's answer, titled by what was asked. Path marks
+// the one answer that is also a motion: a reading path registers itself so n
+// walks it, which is the difference between an answer read once and one that
+// steers the review.
 type askedMsg struct {
 	title string
 	text  string
+	path  bool
 	err   error
 }
 
@@ -60,7 +64,12 @@ func (m *Model) saidLines() []string {
 		out = append(out, m.styles.body.Render("  "+line))
 	}
 
-	return append(out, "", m.styles.footer.Render("  any key to go back"))
+	foot := "  any key to go back"
+	if m.showing.walk {
+		foot = "  n walks the path · any key to go back"
+	}
+
+	return append(out, "", m.styles.footer.Render(foot))
 }
 
 // adviseKey answers the second key of the A chord.
@@ -69,7 +78,7 @@ func (m *Model) adviseKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.String() {
 	case "p":
-		cmd = m.advise("a path through "+m.name(), m.pathPrompt())
+		cmd = m.advise("a path through "+m.name(), m.pathPrompt(), true)
 	case "c":
 		title, prompt, ok := m.cardPrompt()
 		if !ok {
@@ -78,7 +87,7 @@ func (m *Model) adviseKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		cmd = m.advise(title, prompt)
+		cmd = m.advise(title, prompt, false)
 	case "d":
 		claim := m.claim()
 		if claim == "" {
@@ -87,7 +96,7 @@ func (m *Model) adviseKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		cmd = m.advise("does "+m.name()+" do what it claims", m.driftPrompt(claim))
+		cmd = m.advise("does "+m.name()+" do what it claims", m.driftPrompt(claim), false)
 	default:
 		m.say("nothing to ask for "+msg.String()+"; "+hintLine(styles{}, askObjects()), false)
 	}
@@ -97,7 +106,7 @@ func (m *Model) adviseKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // advise asks the question behind the first frame like every other slow read:
 // an agent answers in seconds, and a screen that held them would look dead.
-func (m *Model) advise(title, prompt string) tea.Cmd {
+func (m *Model) advise(title, prompt string, path bool) tea.Cmd {
 	m.say("asking…", false)
 
 	ask, ctx := m.asker, m.ctx
@@ -105,12 +114,14 @@ func (m *Model) advise(title, prompt string) tea.Cmd {
 	return func() tea.Msg {
 		text, err := ask(ctx, prompt)
 
-		return askedMsg{title: title, text: text, err: err}
+		return askedMsg{title: title, text: text, path: path, err: err}
 	}
 }
 
 // applyAsked puts the answer in the same overlay a line question leaves up:
-// it is read, not acted on, so any key leaves it.
+// it is read, not acted on, so any key leaves it. A path answer is the one
+// that is also a motion — its order registers as the last motion, so n and N
+// walk the files in the order the agent read them rather than the diff's own.
 func (m *Model) applyAsked(msg askedMsg) {
 	switch {
 	case msg.err != nil:
@@ -118,9 +129,118 @@ func (m *Model) applyAsked(msg askedMsg) {
 	case strings.TrimSpace(msg.text) == "":
 		m.say("the agent said nothing", false)
 	default:
-		m.showing = &answerMsg{title: msg.title, said: msg.text}
+		m.showing = &answerMsg{title: msg.title, said: msg.text, walk: msg.path && m.walkPath(msg.text)}
 		m.say("", false)
 	}
+}
+
+// walkPath parses the path answer into the files it names and registers the
+// walk, answering whether the answer had a path in it at all. Lines a reader
+// cannot place in this diff — a file invented, prose mistaken for a step —
+// are dropped rather than walked to.
+func (m *Model) walkPath(answer string) bool {
+	m.route = pathOrder(answer, m.diff)
+	if len(m.route) == 0 {
+		return false
+	}
+
+	m.last = &motion{step: 1, what: "path file", steer: m.toPath}
+
+	return true
+}
+
+// toPath drives the path motion: the heading of the file the path names
+// next, wherever in the diff it sits. Off the path the motion starts at its
+// own end — forward the first file, backward the last — and running off the
+// end says so the way a spent scan does.
+func (m *Model) toPath(direction int) {
+	next := m.pathIndex() + direction
+	if m.pathIndex() < 0 {
+		if direction > 0 {
+			next = 0
+		} else {
+			next = len(m.route) - 1
+		}
+	}
+
+	if next >= 0 && next < len(m.route) {
+		for i := range m.screen.rows {
+			if r := &m.screen.rows[i]; r.kind == rowFile && r.path == m.route[next] {
+				m.cursor = i
+				m.say("", false)
+				m.reveal()
+
+				return
+			}
+		}
+	}
+
+	where := "after"
+	if direction < 0 {
+		where = "before"
+	}
+
+	m.say(fmt.Sprintf("no path file %s this one", where), false)
+}
+
+// pathIndex is where on the asked-for path the cursor's file sits, or -1
+// when it sits somewhere the agent sent nobody.
+func (m *Model) pathIndex() int {
+	here := m.screen.rows[m.cursor].path
+	for i, p := range m.route {
+		if p == here {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// pathOrder reads the answer's "<path> — <why>" lines into the order they
+// give, keeping only paths this diff actually holds. An agent that numbers
+// or bullets its lines is still read, which is the point of parsing rather
+// than trusting the prompt's shape.
+func pathOrder(answer string, d *diff.Diff) []string {
+	have := map[string]bool{}
+	for _, f := range d.Files {
+		have[f.NewPath] = true
+		have[f.OldPath] = true
+	}
+
+	seen := map[string]bool{}
+
+	var out []string
+
+	for line := range strings.Lines(answer) {
+		line = strings.TrimSpace(strings.TrimLeft(line, "-*•"))
+
+		if i := strings.Index(line, ". "); i > 0 && i < 4 && digits(line[:i]) {
+			line = line[i+2:]
+		}
+
+		path, _, _ := strings.Cut(line, " — ")
+		if path == line {
+			path, _, _ = strings.Cut(line, " - ")
+		}
+
+		path = strings.TrimSpace(path)
+		if path != "" && have[path] && !seen[path] {
+			out = append(out, path)
+			seen[path] = true
+		}
+	}
+
+	return out
+}
+
+func digits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+
+	return s != ""
 }
 
 // claim is what the change says it is for: the pull request's own title and

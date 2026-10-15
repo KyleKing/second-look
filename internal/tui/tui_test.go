@@ -1943,6 +1943,64 @@ func TestAskChordQuestionsTheDiff(t *testing.T) {
 	}
 }
 
+// The path answer is a motion, not only prose: it registers as the last
+// motion so n walks the files in the agent's order rather than the diff's —
+// here the agent reads git.go first, which the row order puts second, so
+// only a steer and not a scan can walk it.
+func TestAskedPathIsWalkedByN(t *testing.T) {
+	t.Parallel()
+
+	sub := &counter{}
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+
+	path := filepath.Join(t.TempDir(), "pr-42.toml")
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithAsker(func(_ context.Context, _ string) (string, error) {
+			return "internal/vcs/git.go — the store every call goes through\n" +
+				"internal/vcs/diff.go — the type it builds", nil
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	press(m, tea.KeyPressMsg{Code: 'A', Text: "A"})
+	press(m, tea.KeyPressMsg{Code: 'p', Text: "p"})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "n walks the path") {
+		t.Fatalf("the path answer did not offer the walk:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'q', Text: "q"}) // leave the overlay
+
+	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	if got := m.CursorText(); !strings.Contains(got, "internal/vcs/git.go") {
+		t.Fatalf("n did not land on the path's first file: %q", got)
+	}
+
+	// The second path file sits earlier in the diff, where no forward scan
+	// reaches; the walk goes to it anyway.
+	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	if got := m.CursorText(); !strings.Contains(got, "internal/vcs/diff.go") {
+		t.Fatalf("the second n did not follow the path's own order: %q", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	if got := plain(m.Frame()); !strings.Contains(got, "no path file after this one") {
+		t.Fatalf("the path's end did not say so:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'N', Text: "N"})
+	if got := m.CursorText(); !strings.Contains(got, "internal/vcs/git.go") {
+		t.Fatalf("N did not walk the path back: %q", got)
+	}
+}
+
 // A review with no agent configured still has the chord: it says what would
 // configure one rather than pretending the question went out.
 func TestAskChordWithoutAnAgent(t *testing.T) {

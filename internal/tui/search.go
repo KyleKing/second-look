@@ -77,7 +77,7 @@ func (m *Model) commit(pattern string) {
 	}
 
 	m.search.pattern = pattern
-	m.repeatable(motion{1, m.searchWhat(), m.matcher(pattern, m.search.unread)})
+	m.repeatable(motion{step: 1, what: m.searchWhat(), want: m.matcher(pattern, m.search.unread)})
 }
 
 func (m *Model) searchWhat() string {

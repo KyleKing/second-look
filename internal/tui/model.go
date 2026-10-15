@@ -160,6 +160,9 @@ type Model struct {
 	// editor blind is not a repeat of anything.
 	last   *motion
 	change *change
+	// route is the file order an A p answer gave, walked by the path motion
+	// it registers as last.
+	route []string
 
 	status        string
 	failed        bool
@@ -675,11 +678,14 @@ func (m *Model) absorbAgent(msg tea.Msg) bool {
 	return true
 }
 
-// motion is a direction and what to stop on, kept so n can repeat it.
+// motion is a direction and what to stop on, kept so n can repeat it. A
+// motion with a steer does not scan: it goes where the steer says, which is
+// how a path order that owes the row order nothing is still walked.
 type motion struct {
-	step int
-	what string
-	want func(row) bool
+	step  int
+	what  string
+	want  func(row) bool
+	steer func(direction int)
 }
 
 // paneKey is the keyboard while a pane runs. The child is a modal program of
@@ -1497,19 +1503,19 @@ func (m *Model) object(prefix rune, msg tea.KeyPressMsg) {
 
 	switch msg.String() {
 	case "h":
-		m.repeatable(motion{step, "hunk", isHunk})
+		m.repeatable(motion{step: step, what: "hunk", want: isHunk})
 	case "f":
-		m.repeatable(motion{step, "file", isKind(rowFile)})
+		m.repeatable(motion{step: step, what: "file", want: isKind(rowFile)})
 	case "d":
-		m.repeatable(motion{step, "directory", isKind(rowGroup)})
+		m.repeatable(motion{step: step, what: "directory", want: isKind(rowGroup)})
 	case "c":
-		m.repeatable(motion{step, commentWord, isComment})
+		m.repeatable(motion{step: step, what: commentWord, want: isComment})
 	case "t":
-		m.repeatable(motion{step, "thread", isThread})
+		m.repeatable(motion{step: step, what: "thread", want: isThread})
 	case "u":
-		m.repeatable(motion{step, "unread hunk", m.isUnread})
+		m.repeatable(motion{step: step, what: "unread hunk", want: m.isUnread})
 	case "p":
-		m.repeatable(motion{step, "problem", isTrouble})
+		m.repeatable(motion{step: step, what: "problem", want: isTrouble})
 	default:
 		m.say("no motion for "+msg.String(), false)
 	}
@@ -1518,13 +1524,25 @@ func (m *Model) object(prefix rune, msg tea.KeyPressMsg) {
 // repeatable runs a motion and remembers it, so n walks the same object.
 func (m *Model) repeatable(mo motion) {
 	m.last = &mo
-	m.jump(mo.step, mo.what, mo.want)
+	m.runMotion(mo, 1)
+}
+
+// runMotion applies a remembered motion in a direction: a steered motion is
+// driven rather than scanned for.
+func (m *Model) runMotion(mo motion, direction int) {
+	if mo.steer != nil {
+		mo.steer(direction * mo.step)
+
+		return
+	}
+
+	m.jump(mo.step*direction, mo.what, mo.want)
 }
 
 // toNote walks to the next or previous thing wanting a decision. It reports its
 // own outcome, so it must return before the clear at the end of moved.
 func (m *Model) toNote(step int) bool {
-	m.repeatable(motion{step, "comment or thread", isHead})
+	m.repeatable(motion{step: step, what: "comment or thread", want: isHead})
 
 	return true
 }
@@ -1692,7 +1710,7 @@ func (m *Model) again(direction int) bool {
 		return true
 	}
 
-	m.jump(m.last.step*direction, m.last.what, m.last.want)
+	m.runMotion(*m.last, direction)
 
 	return true
 }
