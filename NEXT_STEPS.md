@@ -27,13 +27,12 @@ open item below.
 ### 1. A program should run beside the review rather than replace it
 
 The editor half is built. `ctrl+e` opens `$EDITOR` in a PTY pane below the
-diff rather than handing it the whole terminal: `internal/tui/pane.go` runs the
+diff rather than handing it the whole terminal: `aragonite/tui/pane` runs the
 child on `creack/pty` and draws it through the `charmbracelet/x/vt` emulator,
 which answers the child's terminal queries itself so nvim never waits on a
 reply nothing else would send. The child owns the keyboard while it runs — the
 same hand-off as before, except the frame stays up beside it — and its exit
-lands the buffer the way the hand-off always did. The pane is also the
-`tui/editor` debt owed to aragonite, now with a place to live.
+lands the buffer the way the hand-off always did.
 
 `!` is the second tenant now: the shell runs in the pane and the transcript
 is the pane itself — scrollback plus the screen's last frame, so a redraw the
@@ -180,10 +179,12 @@ symbols the structural pass named, and the logins of everyone who has said somet
 Completing every symbol in the repository rather than the ones in the diff needs the same
 index step 4 does, and link completion needs somewhere for candidates to come from.
 
-Extracting the inline editor to aragonite as `tui/editor` is a cross-repository change
-rather than a feature: the editor here works, and moving it means its own check ladder, a
-release, and a version bump on this side. It wants doing when a second tool needs it,
-which is what would prove the shape.
+The inline editor's home is settled: it moved to aragonite as `tui/pane` in v0.19.0 —
+`Pane.New` runs the argv, `Watch` re-arms the redraw signal, `Send`/`Paste` forward
+the keyboard, `Lines` draws it, `Transcript` keeps the session as rendered, and the
+child's cursor keeps the shape it asked for. The debt is paid ahead of the second
+consumer rather than for one, since what it proves is only that the shape holds
+where it was built — which was the cheaper half of the question anyway.
 
 Images are answered and the answer is half a yes. gh v2.99.0 carries `--attach` on
 `pr comment` and `issue comment` and nowhere else, and a review goes through
@@ -229,10 +230,11 @@ predicate and scoped-query package, redesigned against second-look's own free-te
 filter rather than lifted from gh-repo-dashboard's enum-mode filters as-is, since the two
 were different enough shapes that extracting one unchanged would have meant redoing the
 work later. second-look's `internal/tui/filter.go` now composes it instead of carrying its
-own token-splitting and case-fold matching. gh-repo-dashboard is still on its own
-`internal/filters` and on aragonite v0.10.0, four minors behind: bumping it and migrating
-it onto `aragonite/filter` is deliberately not done, so it stays a decision for whenever
-that repository is next touched rather than a mid-air rewrite here.
+own token-splitting and case-fold matching. gh-repo-dashboard is on aragonite v0.19.0
+now, and its `internal/filters` shares the generic half — `Predicate` is an alias to
+`filter.Predicate`, the parser composes `All`/`Any`/`Not`, and the collect loops are
+`Keep` — while the parts that are its own domain stay: `GlobMatch`'s anchor syntax,
+the scope prefixes, the recency queries, and the predicate-atom language.
 
 ### 9. Blame, and a heat map of recency
 
@@ -391,10 +393,9 @@ repository owns and the private `change-review` skill carries the voice rules, w
 the right split. Working a queue is now described in both, so a change to the order or the
 fields wants making twice. One of them should point at the other.
 
-**To [aragonite](https://github.com/KyleKing/aragonite):** `tui/editor`, recorded in its
-README and not written. Modal editing over a text box, or a pane handing the buffer to the
-user's own nvim, shared by every tool here that writes prose in a terminal. Everything
-else it was owed shipped in v0.9.0.
+**To [aragonite](https://github.com/KyleKing/aragonite):** `tui/pane` shipped in
+v0.19.0 and second-look runs on it now — the pty child, its emulator, its transcript.
+What the README's `tui/editor` line wanted is the same thing by the name it took.
 
 **To [gh-sweep](https://github.com/KyleKing/gh-sweep):** nothing yet, but its `comments`
 view reads unresolved review threads across a repo list through GraphQL, which second-look
