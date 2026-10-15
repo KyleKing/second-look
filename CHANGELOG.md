@@ -1,3 +1,9 @@
+## v0.32.1 (2026-10-15)
+
+### Fix
+
+- **tui**: the tab strip is a row of filled segments, not bracketed text
+
 ## v0.32.0 (2026-10-15)
 
 ### Feat
