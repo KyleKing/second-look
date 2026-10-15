@@ -1,3 +1,10 @@
+## v0.31.1 (2026-10-15)
+
+### Fix
+
+- **tui**: y and Y scroll a line, and an unmoved frame says so
+- **tui**: a queue row's title is its own line
+
 ## v0.31.0 (2026-10-15)
 
 ### Feat
