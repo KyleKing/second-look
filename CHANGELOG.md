@@ -1,3 +1,9 @@
+## v0.32.0 (2026-10-15)
+
+### Feat
+
+- **tui**: f narrows the diff by file, and uw folds a long line
+
 ## v0.31.1 (2026-10-15)
 
 ### Fix
