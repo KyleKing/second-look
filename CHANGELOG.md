@@ -1,3 +1,14 @@
+## v0.30.0 (2026-10-15)
+
+### Feat
+
+- **tui**: the looks are rich and split, and A asks the agent
+- second-look local reviews the checkout's own diff
+- **tui**: gf opens the whole file in $EDITOR at the line it carries
+- fold the notification stream into the conversations tab
+- **tui**: draw a jump's source under its name, not only its address
+- journal the keys and waits a sitting makes
+
 ## v0.29.0 (2026-10-10)
 
 ### Feat
