@@ -293,8 +293,8 @@ client. What is left is using them in real reviews rather than proving them.
 Each of these is a decision I would rather make after a week of the queue than now, and
 building any of them early encodes a guess. The usage journal now records what a sitting
 actually did — one JSON line per command key or event in `journal.jsonl` under the state
-home — so the questions below about which key, which renderer, and how long a wait felt
-are read back from it rather than remembered.
+home, read back with `second-look journal` — so the questions below about which key,
+which renderer, and how long a wait felt are answered from it rather than remembered.
 
 **Rating a queue from the CLI.** The cost only exists where something rated that head, and
 the burst needs twenty rows, so a queue of eighteen answers `rated: false` on every row and
@@ -427,7 +427,9 @@ commit if it does not.
   triage to say whether the participating filter is the right cut
 - The usage journal: `internal/journal` appends one JSON line per command key and per
   event (`open`, `head`, `leave`, `pane`, `agent`, `post`, `merge`) to `journal.jsonl`
-  under the state home, and never what a text field was typing
+  under the state home, and never what a text field was typing. `second-look journal`
+  reads it back — sittings split on a half hour's quiet, keys ranked per screen,
+  what each chord leader was followed by, and the median and worst of each wait
 - The structural pass stages every fragment that needs a grammar as a file and scans
   them in one `ast-grep scan` rather than a subprocess per hunk side — the per-hunk
   floor was the process, so the batch pays it once (~127ms → ~88ms at 100 hunks, and

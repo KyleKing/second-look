@@ -21,6 +21,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look reviews              what is staged locally, in the store
   second-look gc                   drop reviews for merged or closed PRs, sweep caches
   second-look status               one line of what the queue holds, for a prompt
+  second-look journal              read the usage journal back: keys, waits, sittings
   second-look session <pr> <id>    record the agent session working this review
   second-look skill                print the agent instructions this binary carries
 
@@ -383,6 +384,14 @@ NAMING A PULL REQUEST
       what the conversations tab wrote the last time it was open -- so it is
       cheap enough for a shell prompt or a new tab to run. A queue that has
       never been read says so rather than reporting an old count as live.
+
+  second-look journal
+      Read the usage journal back: the sittings it spans and how long they
+      ran, every key counted per screen, what each chord leader was followed
+      by, and the waits -- how long the head check held a frame and how long
+      a review held the screen. Typed text is never in it, so the counts are
+      about reaching, not writing. It is the evidence the parked decisions in
+      NEXT_STEPS.md are waiting on.
 
   second-look session <pr> [<session-id> [tool]]
       Record the agent session this review is being worked in, or print the one

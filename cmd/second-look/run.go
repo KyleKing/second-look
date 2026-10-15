@@ -67,6 +67,7 @@ var (
 	errUsageLocal     = errors.New("usage: second-look local [--branch] [--base <ref>]")
 	errUsageGC        = errors.New("usage: second-look gc [--dry-run] [--stale]")
 	errUsageStatus    = errors.New("usage: second-look status")
+	errUsageJournal   = errors.New("usage: second-look journal")
 	errCheckoutMoved  = errors.New("the checkout has moved past the reviewed head")
 )
 
@@ -163,6 +164,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		"reviews": func() error { return reviewsCmd(ctx, args[1:], stdin, stdout) },
 		"session": func() error { return sessionCmd(ctx, args[1:], stdout) },
 		"status":  func() error { return statusCmd(ctx, args[1:], stdout) },
+		"journal": func() error { return journalCmd(args[1:], stdout) },
 		"gc":      func() error { return gcCmd(ctx, args[1:], stdout) },
 		"skill":   func() error { return skillCmd(args[1:], stdout) },
 	}
@@ -1485,6 +1487,37 @@ func statusCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	return write(stdout, strings.Join(parts, " · ")+"\n")
+}
+
+// journalCmd reads the usage journal back: how many sittings it covers, which
+// keys and waits it holds, and what each chord leader was followed by. It is
+// the answer the parked renderer and keymap decisions are waiting on.
+func journalCmd(args []string, stdout io.Writer) error {
+	if len(args) != 0 {
+		return errUsageJournal
+	}
+
+	path, err := journal.Path()
+	if err != nil {
+		return fmt.Errorf("finding the journal: %w", err)
+	}
+
+	f, err := os.Open(path) //nolint:gosec // the state home plus a constant name
+	if errors.Is(err, os.ErrNotExist) {
+		return write(stdout, "no journal yet\n")
+	}
+
+	if err != nil {
+		return fmt.Errorf("opening the journal: %w", err)
+	}
+
+	defer f.Close() //nolint:errcheck // a read
+
+	if err := journal.Summarize(f).Write(stdout); err != nil {
+		return fmt.Errorf("reading the journal back: %w", err)
+	}
+
+	return nil
 }
 
 // liveAgents is what the configured listing says of the sessions recorded on
