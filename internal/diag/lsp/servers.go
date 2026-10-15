@@ -152,10 +152,9 @@ func Answers(servers []Server, paths []string) bool {
 }
 
 // errNoTSServer is what a TypeScript 6 workspace answers with: it ships no
-// lib/tsserver.js for typescript-language-server to exec, its language server
-// being tsgo instead.
+// lib/tsserver.js for typescript-language-server to exec.
 var errNoTSServer = errors.New("the workspace's typescript has no lib/tsserver.js: " +
-	"TypeScript 6 removed it, and its language server is tsgo")
+	"TypeScript 6 removed it")
 
 // tsReady refuses a root whose own typescript cannot serve, so starting
 // typescript-language-server there only dies after the handshake. A root with

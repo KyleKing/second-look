@@ -385,11 +385,6 @@ the default viewer are separate and unblocked.
 
 ## Owed in both directions
 
-**The merge has never reached GitHub.** `M` in the review screen is covered by a fake and
-by nothing else, because recording it would merge a pull request and
-[#2](https://github.com/KyleKing/second-look/pull/2) exists precisely because it never
-merges. Proving it needs a throwaway pull request opened for the purpose.
-
 **The queue guidance has two homes.** `second-look skill` ships the contract this
 repository owns and the private `change-review` skill carries the voice rules, which is
 the right split. Working a queue is now described in both, so a change to the order or the
@@ -418,6 +413,10 @@ Enough to answer "is that in there already", newest first. The reasoning behind 
 is in [requirements.md](requirements.md) if it still constrains something, and in the
 commit if it does not.
 
+- `M` merges for real: proven end to end on a throwaway pull request — the two-press
+  confirm, the squash and branch deletion, and the staged artifact discarded once
+  GitHub had it. The fake still covers the unit path; the proof was manual because
+  recording one would merge a pull request
 - `gf` opens the file under the cursor in `$EDITOR` at the line the row
   carries — the commit's copy written to a temp file named for the real one, so
   filetype detection still works and the pane needs no checkout
