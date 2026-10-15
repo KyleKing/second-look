@@ -166,9 +166,10 @@ func (l *List) tabKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	return nil, false
 }
 
-// tabStrip is the row of names across the top. The key is bracketed inside the
-// word the way every other hint in these tools is, and the tab being read is
-// the one drawn in the title's own face.
+// tabStrip is the row of names across the top, drawn as filled segments the
+// way the sibling tools draw theirs: the key bracketed inside the segment the
+// way every other hint in these tools is, and the tab being read filled in the
+// accent so it is the one thing the eye lands on first.
 func (l *List) tabStrip() string {
 	if len(l.tabs) < several {
 		return ""
@@ -185,13 +186,13 @@ func (l *List) tabStrip() string {
 			}
 		}
 
-		style := l.styles.subtitle
+		style := l.styles.tab
 		if i == l.at {
-			style = l.styles.title
+			style = l.styles.tabOn
 		}
 
 		parts = append(parts, style.Render(label))
 	}
 
-	return strings.Join(parts, "  ")
+	return strings.Join(parts, " ")
 }

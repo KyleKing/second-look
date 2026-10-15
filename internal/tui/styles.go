@@ -27,6 +27,8 @@ type styles struct {
 	palette  theme.Palette
 	title    lipgloss.Style
 	subtitle lipgloss.Style
+	tab      lipgloss.Style
+	tabOn    lipgloss.Style
 	file     lipgloss.Style
 	hunk     lipgloss.Style
 	add      lipgloss.Style
@@ -66,6 +68,8 @@ func newStyles() styles {
 		palette:  p,
 		title:    sk.Title,
 		subtitle: sk.Subtitle,
+		tab:      sk.Tab,
+		tabOn:    sk.TabActive,
 		file:     sk.Heading,
 		hunk:     sk.Muted,
 		// The three diff faces are this screen's own: nothing else here draws a
