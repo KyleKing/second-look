@@ -1,3 +1,15 @@
+## v0.31.0 (2026-10-15)
+
+### Feat
+
+- **local**: F writes a [TODO: marker into the source it guards
+- **tui**: an asked-for path is a motion n walks
+- second-look journal reads the sitting back
+
+### Refactor
+
+- **tui**: the pty pane lives in aragonite now
+
 ## v0.30.0 (2026-10-15)
 
 ### Feat
