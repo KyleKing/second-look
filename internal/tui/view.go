@@ -76,7 +76,7 @@ func (m *Model) paneLines() []string {
 		head += " " + strings.Repeat("─", rest)
 	}
 
-	return append([]string{m.styles.hunk.Render(cut(head, m.width))}, m.pane.lines()...)
+	return append([]string{m.styles.hunk.Render(cut(head, m.width))}, m.pane.Lines()...)
 }
 
 func (m *Model) title() string {

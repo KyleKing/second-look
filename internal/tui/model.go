@@ -13,6 +13,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/pane"
 
 	"github.com/kyleking/second-look/internal/acp"
 	"github.com/kyleking/second-look/internal/advisory"
@@ -209,7 +210,7 @@ type Model struct {
 	// comment's temp file — with paneMsg saying where its buffer lands and
 	// paneFile naming that file, empty where the pane's own screen is the
 	// result. The child owns the keys while it runs.
-	pane      *pane
+	pane      *pane.Pane
 	paneFile  string
 	paneMsg   editedMsg
 	paneTitle string
@@ -516,7 +517,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 
 		if m.pane != nil {
-			m.pane.resize(m.width, m.paneHeight())
+			m.pane.Resize(m.width, m.paneHeight())
 		}
 
 		m.rebuild()
@@ -527,7 +528,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch {
 		case m.pane != nil:
-			m.pane.emu.Paste(msg.Content)
+			m.pane.Paste(msg.Content)
 		case m.agentOpen && m.agent != nil:
 			m.agentIn, cmd = m.agentIn.Update(msg)
 		}
@@ -619,14 +620,14 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 // is already two switches' worth.
 func (m *Model) childAnswered(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
-	case paneWakeMsg:
+	case pane.WakeMsg:
 		// New output on the pane's screen: re-arm the watch that sends the
 		// next one.
 		if m.pane != nil {
-			return m.pane.watch, true
+			return m.pane.Watch, true
 		}
-	case paneGoneMsg:
-		return m.paneGone(msg.err), true
+	case pane.GoneMsg:
+		return m.paneGone(msg.Err), true
 	case agentUpMsg:
 		return m.agentUp(msg), true
 	case agentWakeMsg:
@@ -704,12 +705,12 @@ type motion struct {
 // piecemeal is how a half-forwarded esc sequence would strand it.
 func (m *Model) paneKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if key.Matches(msg, m.keys.EndPane) {
-		m.pane.stop()
+		m.pane.Stop()
 
 		return m, nil
 	}
 
-	m.pane.send(msg)
+	m.pane.Send(msg)
 
 	return m, nil
 }
@@ -1264,7 +1265,7 @@ func (m *Model) openWhole(msg fileMsg) tea.Cmd {
 		return nil
 	}
 
-	p, err := startPane(m.ctx, editorLineArgv(name, msg.at), m.width, m.paneHeight())
+	p, err := pane.New(m.ctx, editorLineArgv(name, msg.at), m.width, m.paneHeight())
 	if err != nil {
 		//nolint:gosec,errcheck // a temp file that outlives the pane is not worth an error path
 		os.Remove(name)
@@ -2214,7 +2215,7 @@ func (m *Model) shell() tea.Cmd {
 
 	shell := shellrun.Shell()
 
-	p, err := startPane(m.ctx, shellrun.Argv(), m.width, m.paneHeight())
+	p, err := pane.New(m.ctx, shellrun.Argv(), m.width, m.paneHeight())
 	if err != nil {
 		m.say(err.Error(), true)
 
@@ -2266,7 +2267,7 @@ func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 
 	argv := editorArgv(name)
 
-	p, err := startPane(m.ctx, argv, m.width, m.paneHeight())
+	p, err := pane.New(m.ctx, argv, m.width, m.paneHeight())
 	if err != nil {
 		//nolint:gosec,errcheck // a temp file that outlives the edit is not worth an error path
 		os.Remove(name)
@@ -2282,7 +2283,7 @@ func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 // file its exit leaves worth reading — empty for a shell, whose transcript is
 // the screen itself — paneMsg the shape that read takes, and title what the
 // divider names it.
-func (m *Model) seat(p *pane, name string, msg editedMsg, title string) tea.Cmd {
+func (m *Model) seat(p *pane.Pane, name string, msg editedMsg, title string) tea.Cmd {
 	m.pane, m.paneFile, m.paneMsg = p, name, msg
 	m.paneTitle = title
 	m.j.Event("review", "pane "+title)
@@ -2291,7 +2292,7 @@ func (m *Model) seat(p *pane, name string, msg editedMsg, title string) tea.Cmd 
 	// the pane holds the keyboard, so it is dismissed rather than left up.
 	m.showing = nil
 
-	return p.watch
+	return p.Watch
 }
 
 // paneGone is the child exiting: the buffer an editor wrote replaces the
@@ -2299,7 +2300,7 @@ func (m *Model) seat(p *pane, name string, msg editedMsg, title string) tea.Cmd 
 func (m *Model) paneGone(err error) tea.Cmd {
 	p, name, msg := m.pane, m.paneFile, m.paneMsg
 	m.pane, m.paneFile, m.paneTitle = nil, "", ""
-	p.kill()
+	p.Kill()
 
 	if msg.viewing {
 		if err != nil {
@@ -2314,7 +2315,7 @@ func (m *Model) paneGone(err error) tea.Cmd {
 	if msg.transcript {
 		// A shell that exits non-zero still ran, and what the pane drew is
 		// still the evidence it existed to keep.
-		text := p.transcript()
+		text := p.Transcript()
 		if err == nil || text != "" {
 			msg.body = appendTranscript(m.review.Comments[msg.index].Note, text)
 		} else {
@@ -3127,12 +3128,12 @@ func (m *Model) blockEnd() int {
 func (m *Model) viewHeight() int {
 	const title = 1
 
-	pane := 0
+	child := 0
 	if m.pane != nil || (m.agentOpen && m.agent != nil) {
-		pane = m.paneHeight() + 1
+		child = m.paneHeight() + 1
 	}
 
-	return max(1, m.height-title-pane-len(m.footerLines()))
+	return max(1, m.height-title-child-len(m.footerLines()))
 }
 
 // maxOffset is how far the frame may scroll. It looks past the last row by

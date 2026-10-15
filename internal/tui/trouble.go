@@ -50,7 +50,7 @@ func (m *Model) close() {
 	}
 
 	if m.pane != nil {
-		m.pane.kill()
+		m.pane.Kill()
 		m.pane = nil
 	}
 }
