@@ -1,13 +1,13 @@
  second-look co╭─ keys ───────────────────────────────────────────────────────╮ 
   new since you│ j/k, ctrl+u/d, g/G  move, half page, top and bottom          │
-▌ ● kyleking/tl│      ctrl+e/ctrl+y  scroll without moving the cursor         │…
-       good cat│       1/2/3, ] / [  the queue to read                        │
-  ● …g/a-much-l│                tab  the next group                           │…
-       two ques│                  /  narrow to the rows carrying a word; esc  │
+▌good catch, pu│      ctrl+e/ctrl+y  scroll without moving the cursor         │
+        ● kylek│       1/2/3, ] / [  the queue to read                        │…
+ two questions │                tab  the next group                           │
+        ● …g/a-│                  /  narrow to the rows carrying a word; esc  │…
   waiting on yo│                     puts them back                           │
   awaiting othe│              enter  read the whole conversation, and mark it │
-    kyleking/wa│                     read                                     │…
-       no, that│              space  mark read without opening it             │
+ no, that one i│                     read                                     │
+          kylek│              space  mark read without opening it             │…
                │                  r  reply, staged into the prepared review   │
                │                  R  resolve the thread, or thumbs-up what    │
                │                     cannot be resolved                       │
@@ -15,5 +15,5 @@
                │             ctrl+r  read the queue again                     │
                │             q, esc  leave                                    │
                │                                                              │
-               │ ● marks a conversation that moved since you last read it.    │
- [enter] read  ╰──────────────────────────────────────────────────────────────╯…
+               │                     ● marks a conversation that moved since  │
+ [enter] read  ╰ · · ·────────────────────────────────────────────────────────╯…

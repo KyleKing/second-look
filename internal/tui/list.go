@@ -35,7 +35,10 @@ type Row struct {
 	Added   string
 	Removed string
 	Tail    string
-	Under   string
+	// Under is the row's title: the line a queue is scanned by, drawn first
+	// and left-aligned, with the columns indented below it. A row carrying
+	// none draws its columns as its own line instead.
+	Under string
 
 	// Tone is the face the state word and the unread mark are drawn in. Zero
 	// leaves them plain, which is what most of a queue is.
@@ -751,9 +754,15 @@ func (l *List) scroll() {
 
 // peek scrolls the frame and leaves the cursor, so a glance further down the
 // queue costs nothing to come back from: the next motion pulls the frame to the
-// cursor, the way it does in the review screen.
+// cursor, the way it does in the review screen. A frame that cannot move says
+// so, since the same key on a list that fits reads as dead.
 func (l *List) peek(step int) {
-	l.offset = clamp(l.offset+step, max(0, len(l.lines)-l.visible()))
+	at := l.offset
+	l.offset = clamp(at+step, max(0, len(l.lines)-l.visible()))
+
+	if l.offset == at {
+		l.say("nothing further that way", false)
+	}
 }
 
 // half is a half-page, which is what ctrl+u and ctrl+d move.

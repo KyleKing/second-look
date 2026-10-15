@@ -592,6 +592,7 @@ func TestAnUnratedListSpendsNoWidthOnTheColumn(t *testing.T) {
 	t.Parallel()
 
 	l := list(t, nil)
+	l.Update(tea.WindowSizeMsg{Width: 140, Height: 20})
 
 	bare := startsOf(plain(l.ListFrame()), "add TTL to the pool")
 	if len(bare) != 1 {
@@ -604,7 +605,7 @@ func TestAnUnratedListSpendsNoWidthOnTheColumn(t *testing.T) {
 
 		return rows
 	}, nil)
-	withCost.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+	withCost.Update(tea.WindowSizeMsg{Width: 140, Height: 20})
 
 	got := startsOf(plain(withCost.ListFrame()), "add TTL to the pool")
 	if len(got) != 1 || got[0] != bare[0]+len("  9") {

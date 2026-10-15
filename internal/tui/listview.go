@@ -141,10 +141,20 @@ func (l *List) line(i int, cols columns, width int) string {
 	case line.detail != "":
 		return " " + l.styles.body.Render(cut("        "+line.detail, width))
 	case line.under:
-		return " " + l.styles.body.Render(cut("      "+line.Under(), width))
+		// The columns ride under the title as the row's meta line, indented to
+		// one depth so it always starts in the same column: the title is what
+		// a row is for, and the numbers are read after it or not at all.
+		return " " + l.styles.subtitle.Render(cut("      "+l.row(line.row, cols), width))
 	}
 
-	text := cut(l.row(line.row, cols), width)
+	// A row whose Under carries a title reads title-first: the one line a
+	// queue is scanned by, cut at a fixed cap so the scan holds at any width.
+	var text string
+	if line.row.Under != "" {
+		text = cut(line.row.Under, min(titleCap, width-markRoom))
+	} else {
+		text = cut(l.row(line.row, cols), width)
+	}
 
 	if i == l.cursor {
 		return l.styles.cursor.Render(cursorBar) + text
@@ -153,19 +163,17 @@ func (l *List) line(i int, cols columns, width int) string {
 	return " " + text
 }
 
-// Under is the quoted line under a row, kept as a method so the renderer reads
-// the same way for every kind of line.
-func (l listLine) Under() string {
-	if l.row == nil {
-		return ""
-	}
+// titleCap is how far right a row's title may run before it is cut: one line,
+// a fixed end to scan down, and the rest of it a keystroke away. MarkRoom is
+// the cell the cursor bar (or its absence) spends ahead of it.
+const (
+	titleCap = 80
+	markRoom = 2
+)
 
-	return l.row.Under
-}
-
-// row lays out one row: the mark, where it is, what it anchors to, how stale,
-// then whose turn and the title. The mark comes first because unread is the one
-// thing scanned for, and a glyph carries it so it survives NO_COLOR.
+// row lays out one row's meta: the mark, where it is, what it anchors to, how
+// stale, then whose turn. The mark comes first because unread is the one thing
+// scanned for, and a glyph carries it so it survives NO_COLOR.
 func (l *List) row(r *Row, cols columns) string {
 	var b strings.Builder
 

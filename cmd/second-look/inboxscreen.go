@@ -878,6 +878,7 @@ func (s *inboxScreen) sections() []tui.Section {
 				Added:   added(s.local[key]),
 				Removed: removed(s.local[key]),
 				Tail:    holding(s.local[key]) + waiting(p),
+				Under:   p.Title,
 			})
 		}
 
@@ -954,8 +955,8 @@ func holding(k inbox.Known) string {
 	return "● " + strings.Join(parts, " ") + "  "
 }
 
-// waiting is what the row says past the columns: whether it is a draft, its
-// labels, and the title.
+// waiting is what the row says past the columns: whether it is a draft and
+// its labels. The title is the row's own line instead.
 func waiting(p *inbox.PullRequest) string {
 	var b strings.Builder
 
@@ -967,9 +968,7 @@ func waiting(p *inbox.PullRequest) string {
 		b.WriteString("[" + strings.Join(p.Labels, " ") + "]  ")
 	}
 
-	b.WriteString(p.Title)
-
-	return b.String()
+	return strings.TrimRight(b.String(), " ")
 }
 
 func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
