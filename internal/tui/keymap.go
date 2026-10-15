@@ -97,11 +97,15 @@ type keyMap struct {
 
 func defaultKeyMap() keyMap {
 	return keyMap{
-		Up:           key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("j/k", "line")),
-		Down:         key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "line")),
-		HalfUp:       key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
-		PeekUp:       key.NewBinding(key.WithKeys("ctrl+y", "shift+up"), key.WithHelp("ctrl+y/e", "scroll a line")),
-		PeekDown:     key.NewBinding(key.WithKeys("ctrl+e", "shift+down"), key.WithHelp("ctrl+y/e", "scroll a line")),
+		Up:     key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("j/k", "line")),
+		Down:   key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "line")),
+		HalfUp: key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
+		PeekUp: key.NewBinding(
+			key.WithKeys("ctrl+y", "shift+up", "y"), key.WithHelp("ctrl+y/e", "scroll a line"),
+		),
+		PeekDown: key.NewBinding(
+			key.WithKeys("ctrl+e", "shift+down", "Y"), key.WithHelp("ctrl+y/e", "scroll a line"),
+		),
 		HalfDown:     key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
 		Top:          key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("gg/G", "top, bottom")),
 		Bottom:       key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("gg/G", "top, bottom")),
@@ -224,7 +228,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "j/k", What: "a line"},
 		{Key: "ctrl+d/u", What: "half a page"},
 		{Key: "ctrl+e/y", What: "scroll a line"},
-		{What: "shift+up/down do the same"},
+		{What: "y/Y and shift+up/down do the same"},
 		{Key: "gg/G", What: "the ends"},
 		{Key: "]", What: "go to", Kids: asHints(objects())},
 		{Key: "[", What: "go back", Kids: asHints(objects())},

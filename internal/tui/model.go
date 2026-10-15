@@ -1638,9 +1638,19 @@ func (m *Model) frameAt(msg tea.KeyPressMsg) bool {
 	return true
 }
 
-// peek scrolls the frame by a line without moving the cursor.
+// peek scrolls the frame by a line without moving the cursor. A frame that
+// cannot move says so rather than doing nothing, since the same key in a
+// diff that already fits looks dead.
 func (m *Model) peek(step int) bool {
-	m.offset = clamp(m.offset+step, m.maxOffset())
+	at := m.offset
+	m.offset = clamp(at+step, m.maxOffset())
+
+	if m.offset == at {
+		m.say("nothing further that way", false)
+
+		return true
+	}
+
 	m.say("", false)
 
 	return true
