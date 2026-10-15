@@ -75,6 +75,10 @@ type Model struct {
 	// store is the directory this review's caches live in, which is where the
 	// rating is left for the queue to read.
 	store string
+	// workRoot is the working copy the review was taken in, set only where
+	// writing into it is the review's business — a local review's own tree —
+	// and empty otherwise, which is what F checks.
+	workRoot string
 	// agentProbe asks what the review's recorded session is doing, and
 	// agentState is its last answer. A session the listing does not name is an
 	// ended run, so the title says nothing rather than a stale word.
@@ -281,6 +285,13 @@ type Option func(*Model)
 // works out is left where the queue can read it.
 func WithStore(root string) Option {
 	return func(m *Model) { m.store = root }
+}
+
+// WithWorkRoot names the working copy the review was taken in, which is what
+// F writes a [TODO: marker into. Only a local review names one: a pull
+// request's checkout is borrowed, not the review's to write in.
+func WithWorkRoot(root string) Option {
+	return func(m *Model) { m.workRoot = root }
 }
 
 // WithSeen carries which hunks have already been read, and where to write that
@@ -1963,6 +1974,10 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.wantCheckout()
 
 		return m, cmd
+	case key.Matches(msg, m.keys.Marker):
+		cmd := m.markTodo()
+
+		return m, cmd
 	case key.Matches(msg, m.keys.Note), key.Matches(msg, m.keys.Edit),
 		key.Matches(msg, m.keys.Write):
 		cmd := m.write(msg)
@@ -2378,13 +2393,7 @@ func (m *Model) applyEdit(msg editedMsg) {
 	}
 
 	if msg.fresh != nil {
-		if msg.suggests {
-			m.stageSuggestion(msg)
-
-			return
-		}
-
-		m.stageNew(msg)
+		m.stageFresh(msg)
 
 		return
 	}

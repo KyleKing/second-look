@@ -193,20 +193,19 @@ included and why building on it would be a dependency that breaks silently.
 
 ### 7. The second review target: local changes and `[TODO:` markers
 
-Scope item 2 in requirements.md, and the first half is built: `second-look local`
-reviews the working copy against `HEAD` (`jj diff` under jj, so a file the change
-adds is in it), `second-look local --branch` reviews the branch against its fork
-point (`origin/HEAD` for git, `trunk()` for jj), and `--base <ref>` names that base.
-It is the same review screen with the forge seams left unwired: `S`, `M`, `P`, `o`,
-and `C` all say there is nothing to act on, and comments land in
-`.second-look/local.toml` as notes. Read marks, the language server,
+Both halves are built. `second-look local` reviews the working copy against `HEAD`
+(`jj diff` under jj, so a file the change adds is in it), `second-look local --branch`
+reviews the branch against its fork point (`origin/HEAD` for git, `trunk()` for jj),
+and `--base <ref>` names that base. It is the same review screen with the forge seams
+left unwired: `S`, `M`, `P`, `o`, and `C` all say there is nothing to act on, and
+comments land in `.second-look/local.toml` as notes. Read marks, the language server,
 generated-file grouping, and the agent keys all work, and restaging re-reads the
 tree so the review follows the working copy as it is edited. A pipe gets the patch.
 
-What is not built is the `[TODO:` half — a comment that lands in the source as a
-marker rather than only in local.toml — and the open question it raises: whether a
-marker is a comment kind on the same artifact or a sync pass that writes them out
-and reads them back.
+The `[TODO:` half answered its own question: `F` writes the marker into the source
+itself, indented like the line it guards, in the syntax the file's language uses —
+no comment kind on the artifact, no sync pass, because the working copy's next diff
+is the read side and restaging shows the marker where it went.
 
 ### 8. Beyond alpha: replace gh-dash
 

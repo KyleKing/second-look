@@ -44,6 +44,7 @@ type keyMap struct {
 	PrevNote     key.Binding
 	Edit         key.Binding
 	Write        key.Binding
+	Marker       key.Binding
 	Note         key.Binding
 	Shell        key.Binding
 	Checkout     key.Binding
@@ -113,6 +114,7 @@ func defaultKeyMap() keyMap {
 		PrevNote:     key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous")),
 		Edit:         key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
 		Write:        key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
+		Marker:       key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "fixme into the source")),
 		Note:         key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "note")),
 		Shell:        key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
 		Checkout:     key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
@@ -256,6 +258,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "a", What: "a comment", Kids: asHints(severities())},
 		{Key: "s", What: "a suggestion"},
 		{Key: "V", What: "a range"},
+		{Key: "F", What: "fixme into the source"},
 		{Key: "+/-", What: "context"},
 		{Key: "e", What: "edit, reply, write"},
 		{Key: "E", What: "editing a note"},

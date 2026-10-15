@@ -169,8 +169,12 @@ func (m *Model) swapTheirs() {
 }
 
 // reopens names the key that offers a kept buffer back, since a comment that
-// does not exist yet is reached by a rather than by e.
+// does not exist yet is reached by a rather than by e, and a marker by F.
 func reopens(msg editedMsg) string {
+	if msg.fresh != nil && msg.fresh.marker {
+		return "F"
+	}
+
 	if msg.fresh != nil {
 		return "a"
 	}

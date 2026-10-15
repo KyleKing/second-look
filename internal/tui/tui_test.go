@@ -2001,6 +2001,94 @@ func TestAskedPathIsWalkedByN(t *testing.T) {
 	}
 }
 
+// F writes the note into the source as a [TODO: line rather than into the
+// review, because a marker's reader is whoever opens the file next. The
+// restage it asks for is named, not run.
+func TestMarkerWritesATODOIntoTheSource(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+
+	// The file the diff names, with an anchor-shaped line 15 to land above.
+	dir := filepath.Join(root, "internal", "vcs")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := make([]string, 30)
+	for i := range lines {
+		lines[i] = "// filler"
+	}
+
+	lines[14] = "\tlines := split(r)"
+
+	if err := os.WriteFile(filepath.Join(dir, "diff.go"), []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// A pull request's review has no working copy to mark, so F stays inert
+	// on it; only the review of the checkout's own diff names a root.
+	m, _, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 15, "a word"))
+	if !m.KeyIsInert("F") {
+		t.Fatal("F is live on a review with no working copy")
+	}
+
+	sub := &counter{}
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment, Local: true,
+		Comments: []artifact.Comment{comment("c1", parsed, artifact.SideRight, 15, "a word")},
+	}
+
+	path := filepath.Join(t.TempDir(), "local.toml")
+	if err := artifact.Save(path, r); err != nil {
+		t.Fatal(err)
+	}
+
+	m = tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithWorkRoot(root))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	// Land on the added line, which is the one a marker can guard: the row
+	// before it exists only in the old file.
+	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+
+	if m.KeyIsInert("F") {
+		t.Fatal("F stayed inert with a work root and code under the cursor")
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'F', Text: "F"})
+
+	for _, c := range "check the nil case" {
+		press(m, tea.KeyPressMsg{Code: c, Text: string(c)})
+	}
+
+	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+
+	body, err := os.ReadFile(filepath.Join(dir, "diff.go")) //nolint:gosec // the file this test wrote
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := strings.Split(string(body), "\n")
+	found := false
+
+	for i, l := range got {
+		if l == "\t// [TODO: check the nil case]" && got[i+1] == "\tlines := split(r)" {
+			found = true
+		}
+	}
+
+	if !found {
+		t.Fatalf("the marker never landed above its anchor:\n%s", body)
+	}
+}
+
 // A review with no agent configured still has the chord: it says what would
 // configure one rather than pretending the question went out.
 func TestAskChordWithoutAnAgent(t *testing.T) {

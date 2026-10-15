@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/local"
 )
 
 // severities are what the second key of the a chord can say a new comment is.
@@ -39,6 +40,9 @@ type staging struct {
 	severity string
 	line     int
 	start    int
+	// marker sends the buffer into the source as a [TODO: line rather than
+	// into the review as a comment — a note the code itself carries.
+	marker bool
 }
 
 // mine is the id a comment written on this screen carries, so what a person
@@ -85,6 +89,47 @@ func (m *Model) writeAs(msg tea.KeyPressMsg) tea.Cmd {
 	return m.beginEdit(title, "", editedMsg{index: noComment, replyTo: -1, fresh: fresh})
 }
 
+// markTodo opens the editor for a [TODO: marker: a note written into the
+// file itself rather than into the review, since the one reader a marker
+// exists for is whoever opens the source next. Only a working copy can be
+// written to, which is what workRoot being set means.
+func (m *Model) markTodo() tea.Cmd {
+	r := m.screen.rows[m.cursor]
+
+	switch {
+	case m.workRoot == "":
+		m.say("F writes [TODO: into the source, and this review has no working copy to write to", false)
+	case r.kind != rowCode || r.path == "" || r.line.New == 0:
+		m.say("a marker anchors to a line of the file, and this row is not one", false)
+	default:
+		// The side comes through takeRange with the line so the box draws
+		// under the row the marker anchors to the same way a comment's does.
+		start, line, side := m.takeRange(r.line, r.path)
+		f := &staging{path: r.path, side: side, line: line, start: start, marker: true}
+		title := fmt.Sprintf("a [TODO: on %s line %d", r.path, line)
+
+		return m.beginEdit(title, "", editedMsg{index: noComment, replyTo: -1, fresh: f})
+	}
+
+	return nil
+}
+
+// stageMarker lands the buffer as a [TODO: line in the working copy. The
+// restage is named rather than run: a screen rebuilt under the typist says
+// where it went more honestly than one that quietly redrew.
+func (m *Model) stageMarker(msg editedMsg) {
+	f := msg.fresh
+
+	if err := local.WriteTODO(m.workRoot, f.path, f.line, msg.body); err != nil {
+		m.say("the marker did not land: "+err.Error(), true)
+
+		return
+	}
+
+	m.say("[TODO: written above "+f.path+" line "+strconv.Itoa(f.line)+
+		"; "+refreshKey+" restages it", false)
+}
+
 // startSide is the side a range opens on, which GitHub wants alongside
 // start_line and nowhere else.
 func startSide(f *staging) string {
@@ -122,6 +167,19 @@ func (m *Model) draftKey(msg editedMsg) string {
 	}
 
 	return "body-" + m.review.Comments[msg.index].ID
+}
+
+// stageFresh lands what was written from nothing: a marker into the source,
+// a suggestion over a line, or a comment into the review.
+func (m *Model) stageFresh(msg editedMsg) {
+	switch {
+	case msg.fresh.marker:
+		m.stageMarker(msg)
+	case msg.suggests:
+		m.stageSuggestion(msg)
+	default:
+		m.stageNew(msg)
+	}
 }
 
 // stageNew puts a comment written here into the prepared review, quoting the

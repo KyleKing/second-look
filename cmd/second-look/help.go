@@ -183,10 +183,12 @@ NAMING A PULL REQUEST
       Comments written here are notes in .second-look/local.toml and go
       nowhere else: there is nothing to post to, so S says so rather than
       asking, and M, P, o, and C are the pull request's own keys with nothing
-      to act on. Everything that reads the tree -- read marks, the
+      to act on. F writes a different kind of note -- a [TODO: line into the
+      source itself, indented like the line it guards, which is the one reader
+      a marker exists for. Everything that reads the tree -- read marks, the
       language server, generated-file grouping, T -- works, because the
       checkout is already the thing under review. Restaging re-reads it, so
-      the review follows the working copy as it is edited.
+      the review follows the working copy as it is edited, markers included.
 
   second-look get <pr>
       Read the pull request, write the prepared review, and cache the diff under

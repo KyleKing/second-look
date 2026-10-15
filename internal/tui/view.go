@@ -535,6 +535,8 @@ func (m *Model) inert(k string) bool {
 		return m.current() < 0
 	case "e":
 		return !m.canWrite()
+	case "F":
+		return m.workRoot == "" || !m.onCode()
 	case "L":
 		file, _ := m.lockedAt()
 		return m.advisor == nil || file == ""

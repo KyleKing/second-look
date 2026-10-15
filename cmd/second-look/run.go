@@ -650,6 +650,7 @@ func localScreen(ctx context.Context, root string, mode local.Mode, base string)
 	opts := []tui.Option{
 		tui.WithSeen(opened.Read, opened.SeenPath), tui.WithAbout(opened.About),
 		tui.WithTree(tui.TreeOnHead), tui.WithStore(opened.Work),
+		tui.WithWorkRoot(opened.Work),
 		tui.WithBlobs(reader.Read), tui.WithRestage(localRestager(root, mode, base)),
 		tui.WithGenerated(generatedPatterns()),
 		tui.WithAdvisor(advisory.Client{}), tui.WithVersions(versions.Client{}),
