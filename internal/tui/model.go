@@ -145,6 +145,7 @@ type Model struct {
 	styles styles
 	rich   richStyles
 	search search
+	files  files
 
 	// drawn is which renderer v is on, and refined and lexed are what the rich
 	// one reads: the runs of each changed line its partner does not carry, and
@@ -333,6 +334,7 @@ func New(
 	m := &Model{
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
+		files: newFiles(),
 		width: minWidth, height: startHeight, folded: newFolded(),
 		refined: d.Refine(), lexed: map[string]map[diff.LineRef][]highlight.Span{},
 		lit:    map[string][][]highlight.Span{},
@@ -732,8 +734,37 @@ func (m *Model) keyOwner() (func(tea.KeyPressMsg) (tea.Model, tea.Cmd), bool) {
 // commands — the in-place editor, the search, or a child's own program — which
 // is what the journal must never record.
 func (m *Model) writing() bool {
-	return m.editing != nil || m.searching || m.pane != nil ||
+	return m.editing != nil || m.searching || m.files.typing || m.pane != nil ||
 		(m.agentOpen && m.agent != nil)
+}
+
+// promptKey routes a key while something owns the keyboard, reporting whether
+// one did.
+func (m *Model) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
+	switch {
+	case m.editing != nil:
+		mod, cmd := m.typeBody(msg)
+
+		return mod, cmd, true
+	case m.asking != askNothing:
+		mod, cmd := m.answer(msg)
+
+		return mod, cmd, true
+	case m.searching:
+		mod, cmd := m.typing(msg)
+
+		return mod, cmd, true
+	case m.files.typing:
+		mod, cmd := m.typeFiles(msg)
+
+		return mod, cmd, true
+	case m.pending != 0:
+		mod, cmd := m.complete(msg)
+
+		return mod, cmd, true
+	}
+
+	return nil, nil, false
 }
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -743,15 +774,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	// A prompt, a confirmation, and a half-typed motion each own the keyboard
 	// until they are finished, so they are answered before anything else.
-	switch {
-	case m.editing != nil:
-		return m.typeBody(msg)
-	case m.asking != askNothing:
-		return m.answer(msg)
-	case m.searching:
-		return m.typing(msg)
-	case m.pending != 0:
-		return m.complete(msg)
+	if mod, cmd, ok := m.promptKey(msg); ok {
+		return mod, cmd
 	}
 
 	// The legend runs longer than a short frame, and the keys that leave it are
@@ -1040,6 +1064,10 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		return true, m, nil
 	case key.Matches(msg, m.keys.Search):
 		cmd := m.begin()
+
+		return true, m, cmd
+	case key.Matches(msg, m.keys.Files):
+		cmd := m.beginFiles()
 
 		return true, m, cmd
 	default:
@@ -1633,9 +1661,38 @@ func (m *Model) frameAt(msg tea.KeyPressMsg) bool {
 	}
 
 	m.offset = clamp(m.offset, m.maxOffset())
+	m.fitCursor()
 	m.say("", false)
 
 	return true
+}
+
+// fitCursor walks the offset forward while the cursor's row is out of the
+// frame, which wrap makes possible: the bounds the callers set are counted in
+// rows, and a wrapped row is several lines tall.
+func (m *Model) fitCursor() {
+	if !m.drawn.wrap {
+		return
+	}
+
+	h := m.viewHeight()
+	width := bodyWidth(m.width, scrollbar(h, len(m.screen.rows), m.offset))
+
+	for m.offset < m.cursor {
+		tall := 0
+
+		for i := m.offset; i <= m.cursor; i++ {
+			if tall += len(m.rowBodies(m.screen.rows[i], width)); tall > h {
+				break
+			}
+		}
+
+		if tall <= h {
+			return
+		}
+
+		m.offset++
+	}
 }
 
 // peek scrolls the frame by a line without moving the cursor. A frame that
@@ -3110,6 +3167,7 @@ func (m *Model) follow() {
 	m.offset = min(m.offset, m.cursor-pad)
 	m.offset = max(m.offset, min(m.blockEnd()+pad, m.cursor+h-1)-h+1)
 	m.offset = clamp(m.offset, m.maxOffset())
+	m.fitCursor()
 }
 
 // blockEnd is the last row of the comment or thread the cursor is in, or the

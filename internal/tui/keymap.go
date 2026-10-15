@@ -61,6 +61,7 @@ type keyMap struct {
 	Restage      key.Binding
 	Seen         key.Binding
 	Search       key.Binding
+	Files        key.Binding
 	List         key.Binding
 	Renderer     key.Binding
 	Look         key.Binding
@@ -130,6 +131,7 @@ func defaultKeyMap() keyMap {
 		Dispatch:     key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "dispatch todo")),
 		Seen:         key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
 		Search:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
+		Files:        key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "files")),
 		List:         key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
 		Renderer:     key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "renderer")),
 		Look:         key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "toggle one of them")),
@@ -187,7 +189,7 @@ func states() [][2]string {
 // lookObjects are what u accepts: the questions the renderers answer
 // together and that this toggles one at a time.
 func lookObjects() [][2]string {
-	return [][2]string{{"g", "grammar"}, {"s", "side by side"}}
+	return [][2]string{{"g", "grammar"}, {"s", "side by side"}, {"w", "wrap"}}
 }
 
 // goObjects are what g accepts: gg keeps the top it always was, d and r ask
@@ -244,6 +246,8 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "v", What: "the next renderer"},
 		{Key: "u", What: "one of them", Kids: asHints(lookObjects())},
 		{Key: "z", What: "folds, the frame", Kids: zPage()},
+		{Key: "f", What: "files matching a pattern"},
+		{What: "! drops its matches instead: *.go !*_test.go keeps the go that is not tests"},
 		{Key: "O", What: "the diff's own order"},
 		{Key: "w", What: "whitespace"},
 		{Key: "W", What: "no code changed"},

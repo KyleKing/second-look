@@ -22,6 +22,10 @@ import (
 // tabs reach the terminal, which advances the cursor without writing cells.
 const tabStop = 4
 
+// signRoom is what a code line's prefix spends after its number: the space,
+// the sign, and the space before the text.
+const signRoom = 3
+
 // View renders one frame into the alternate screen.
 func (m *Model) View() tea.View {
 	v := tea.NewView(m.render())
@@ -92,6 +96,10 @@ func (m *Model) title() string {
 	}
 
 	left += m.orderWord()
+
+	if word := m.fileWord(); word != "" {
+		left += "  " + word
+	}
 
 	// A head that moved outlives the footer message that announced it, because
 	// every row under this line belongs to the diff it moved away from.
@@ -409,6 +417,10 @@ func (m *Model) footerLines() []string {
 		return []string{m.prompt()}
 	}
 
+	if m.files.typing {
+		return []string{m.filesPrompt()}
+	}
+
 	if m.helpNote != nil {
 		return m.helpNoteLines()
 	}
@@ -659,7 +671,7 @@ func (m *Model) rowLines() []string {
 			continue
 		}
 
-		out = append(out, m.renderRow(i, width))
+		out = append(out, m.renderRow(i, width)...)
 
 		if m.editingUnder(i) {
 			out = append(out, m.editorLines()...)
@@ -683,30 +695,40 @@ const cursorBar = "▌"
 // colors into one and leave the range invisible.
 const rangeBar = "▏"
 
-func (m *Model) renderRow(i, width int) string {
-	body := m.rowBody(m.screen.rows[i], width)
+func (m *Model) renderRow(i, width int) []string {
+	bodies := m.rowBodies(m.screen.rows[i], width)
+	out := make([]string, len(bodies))
 
-	if i == m.cursor {
-		return m.styles.cursor.Render(cursorBar) + body
+	for j, body := range bodies {
+		switch {
+		case j > 0:
+			out[j] = " " + body
+		case i == m.cursor:
+			out[j] = m.styles.cursor.Render(cursorBar) + body
+		case m.inRange(i):
+			out[j] = m.styles.selected.Render(rangeBar) + body
+		default:
+			out[j] = " " + body
+		}
 	}
 
-	if m.inRange(i) {
-		return m.styles.selected.Render(rangeBar) + body
-	}
-
-	return " " + body
+	return out
 }
 
-// rowBody is the row without the column that says where the cursor is. The
-// rich renderer colors a line in pieces, so it hands back text already carrying
-// its faces rather than one face for the whole row.
-func (m *Model) rowBody(r row, width int) string {
+// rowBodies is the row without the column that says where the cursor is, one
+// answer per frame line it draws: every kind is one line except a code row
+// under wrap, which is as many as its text takes. The rich renderer colors a
+// line in pieces, so it hands back text already carrying its faces rather
+// than one face for the whole row.
+func (m *Model) rowBodies(r row, width int) []string {
 	if r.kind == rowCode {
 		switch {
 		case m.sideBySide():
 			return m.splitCode(r, width)
 		case m.drawn.rich:
 			return m.richCode(r, width)
+		case m.drawn.wrap:
+			return m.plainWrapped(r, width)
 		}
 	}
 
@@ -718,14 +740,47 @@ func (m *Model) rowBody(r row, width int) string {
 	// A hunk with nothing named on it is still a boundary and still carries the
 	// read mark, so it draws as a rule rather than as a blank row.
 	if r.kind == rowFile || (r.kind == rowHunk && r.hunk > 0 && r.text == "") {
-		return m.ruledFile(text, width, style)
+		return []string{m.ruledFile(text, width, style)}
 	}
 
 	if r.lit != nil {
-		return cut(m.styles.note.Render(m.threadLead())+m.pastedCode(r), width)
+		return []string{cut(m.styles.note.Render(m.threadLead())+m.pastedCode(r), width)}
 	}
 
-	return style.Render(cut(text, width))
+	return []string{style.Render(cut(text, width))}
+}
+
+// plainWrapped is a code row under the plain renderer with wrap on: the
+// number and sign on the first line, and the continuation lines in the code
+// column under them so the fold reads as one line.
+func (m *Model) plainWrapped(r row, width int) []string {
+	text, style := m.codeRow(r)
+	if m.behind(r) {
+		style = m.styles.behind
+	}
+
+	// The continuation's lead is the number, the sign, and the spaces between
+	// them, so the fold lands in the code column rather than under the gutter.
+	lead := strings.Repeat(" ", m.screen.numWidth+signRoom)
+
+	var out []string
+
+	for i, rest := 0, text; rest != ""; i++ {
+		room := width
+		if i > 0 {
+			room -= textWidth(lead)
+		}
+
+		part, tail := takeCells(rest, max(1, room))
+		if i > 0 {
+			part = lead + part
+		}
+
+		out = append(out, style.Render(cut(part, width)))
+		rest = tail
+	}
+
+	return out
 }
 
 // threadLead is the rail a conversation hangs off, which every row of one

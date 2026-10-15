@@ -54,7 +54,7 @@ type hider struct {
 // is nil. Both levels ask the text test, because a reordering of whole lines is
 // something it catches and comparing the two sides byte by byte does not.
 func (m *Model) skipper() hider {
-	return m.narrowed(m.level())
+	return m.narrowed(m.fileScoped(m.level()))
 }
 
 func (m *Model) level() hider {

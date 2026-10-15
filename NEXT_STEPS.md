@@ -468,10 +468,11 @@ commit if it does not.
   the conversation queue's four admission rules
 - Reading with no checkout, one store per repository, and `C` moving a clone that is
   already here
-- The diff: rich and rich+split on `v`, hunks gathered by symbol across the whole diff, files
-  grouped by directory, generated files collected and folded, whitespace and
-  syntax-cosmetic filters on `w` and `W`, seen-state on `space` with `U` hiding what is
-  read, `H` comparing against an earlier round, and `+`/`-` expanding context
+- The diff: rich and rich+split on `v`, `uw` folding a long line onto continuations, hunks
+  gathered by symbol across the whole diff, files grouped by directory, generated files
+  collected and folded, whitespace and syntax-cosmetic filters on `w` and `W`, the `f`
+  file-pattern filter, seen-state on `space` with `U` hiding what is read, `H` comparing
+  against an earlier round, and `+`/`-` expanding context
 - Writing: `a` with a severity, `s` for a suggestion, `V` for a range, `E` for the note,
   `!` appending a shell transcript, `ctrl+n` completion, drafts kept through an escape, and
   editing in the frame

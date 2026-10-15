@@ -118,6 +118,13 @@ is hidden, and the marks are keyed by what a hunk says rather than by the commit
 on, so a hunk that survived a force-push unchanged stays hidden and one that was touched
 comes back. It composes with `w` and `W` rather than replacing them.
 
+`f` narrows it to the files a pattern names, typed live so the count under the prompt
+says what the pattern keeps before it is committed. `*.go` is the go files, `!*.go`
+everything but them, and `*.go !*_test.go` is go files minus their tests; a token with
+no star is a plain substring, so `internal` and `.go` say what they mean. A file it
+hides keeps its heading and says why, the same way a folded hunk does, and an empty
+prompt puts the whole diff back.
+
 The head is asked about again while the screen is open, not only when it opens, so a push
 that lands mid-review says so rather than being found out at submit time.
 
@@ -469,9 +476,12 @@ are flattenings of their own.
 
 The grammar and the columns are two independent questions, and `v` walks the two
 combinations worth naming. `u` toggles one on its own: `ug` the grammar, `us` side by
-side. So a wide diff can be read in two columns with the grammar off, which no step of
-the cycle offers. A look reached that way belongs to no step, so the next `v` starts the
-walk again from the top.
+side, `uw` folds a line longer than the frame onto continuations rather than cutting
+it. So a wide diff can be read in two columns with the grammar off, and a diff whose
+long lines are the point can be read whole, which no step of the cycle offers. A look
+reached that way belongs to no step, so the next `v` starts the walk again from the
+top — except the wrap, which is a question of its own and stays however the look is
+reached.
 
 Both ship with their caveats named in the footer when you switch to them: a
 hunk is a fragment of a file, so a grammar's state above the hunk is lost and a hunk

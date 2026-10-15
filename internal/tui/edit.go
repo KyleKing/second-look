@@ -346,7 +346,7 @@ func (m *Model) answeredLines(from, room, width int) []string {
 
 	out := make([]string, 0, room)
 	for i := from; i <= end; i++ {
-		out = append(out, m.renderRow(i, width))
+		out = append(out, m.renderRow(i, width)...)
 	}
 
 	return append(out, box...)

@@ -30,6 +30,11 @@ type look struct {
 	// one toggle that changes which rows exist rather than only how they are
 	// drawn.
 	split bool
+	// wrap folds a line longer than the frame onto continuation lines rather
+	// than cutting it with an ellipsis, for the diff whose long lines are the
+	// point. The row still counts as one, so no motion changes and the cursor
+	// bar sits on the line's first drawn line.
+	wrap bool
 }
 
 // opening is what a review opens on, which is the one look the title does not
@@ -52,14 +57,26 @@ func (l look) next() look {
 	next := all[0]
 
 	for i, p := range all {
-		if p == l {
+		if p == l.withoutWrap() {
 			next = all[(i+1)%len(all)]
 
 			break
 		}
 	}
 
+	// Wrap is a question of its own rather than one of the presets the cycle
+	// walks, so it rides along on whichever look the cycle lands on.
+	next.wrap = l.wrap
+
 	return next
+}
+
+// withoutWrap is the look the presets are compared against, since none of
+// them names wrap.
+func (l look) withoutWrap() look {
+	l.wrap = false
+
+	return l
 }
 
 func (l look) String() string {
@@ -71,6 +88,10 @@ func (l look) String() string {
 
 	if l.split {
 		on = append(on, "split")
+	}
+
+	if l.wrap {
+		on = append(on, "wrap")
 	}
 
 	if len(on) == 0 {
@@ -211,22 +232,34 @@ func newRichStyles(s styles) richStyles {
 	}
 }
 
-// richCode draws one line of the diff at exactly width cells: both line
-// numbers, the sign, and the text colored by grammar under the band for its
-// side, with the runs that differ from the line it is paired with marked.
+// richCode draws one line of the diff: both line numbers, the sign, and the
+// text colored by grammar under the band for its side, with the runs that
+// differ from the line it is paired with marked. One answer is one frame
+// line; a wrapped line is as many as its text takes, and the continuation
+// lines keep the band so they read as the same line rather than as new rows.
 //
 // The band runs to the frame's edge rather than stopping at the text, because
 // a band that ended where a line ended would draw the length of every line as
 // if it meant something.
-func (m *Model) richCode(r row, width int) string {
+func (m *Model) richCode(r row, width int) []string {
 	room := max(0, width-m.gutterWidth())
-	body, cells := m.richText(r, r.line, room)
+	segs := m.richSegments(r, r.line, room)
 
-	if over := room - cells; over > 0 {
-		body += m.padTo(r.line.Kind, over)
+	out := make([]string, len(segs))
+	for i, seg := range segs {
+		if over := room - textWidth(seg); over > 0 {
+			seg += m.padTo(r.line.Kind, over)
+		}
+
+		gutter := m.padTo(r.line.Kind, m.gutterWidth())
+		if i == 0 {
+			gutter = m.richGutter(r)
+		}
+
+		out[i] = gutter + cut(seg, room)
 	}
 
-	return m.richGutter(r) + cut(body, room)
+	return out
 }
 
 // rule closes the gutter, so the code has a left edge to run down.
@@ -298,24 +331,26 @@ func (m *Model) padTo(kind byte, cells int) string {
 	return lipgloss.NewStyle().Background(bg).Render(spaces)
 }
 
-// richText is the line's text, cut into runs by grammar and by what changed,
-// each drawn with the color of its class over the background of its depth. It
-// answers the cells it spent as well, since the band has to reach the frame's
-// edge and the escapes make the string's own length useless for saying where
-// that is.
+// richSegments is the line's text as styled segments no wider than width
+// cells, cut into runs by grammar and by what changed, each run drawn with
+// the color of its class over the background of its depth. One segment is the
+// whole answer where wrap is off or the line fits; where wrap is on a longer
+// line is as many segments as it takes, and a segment never straddles an
+// escape because each piece is rendered on the line it lands on.
 //
 // The runs index the line as the patch spells it, so tabs are expanded run by
 // run against a running column rather than up front: expanding first would
 // move every byte offset the grammar and the pairing answered in.
-func (m *Model) richText(r row, l diff.Line, width int) (string, int) {
+func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 	band, ok := m.rich.band[l.Kind]
 	mark := m.rich.mark[l.Kind]
 	marked := m.refined[refOf(r.path, l)]
 
-	var (
-		b    strings.Builder
-		cols int
-	)
+	var segs []string
+
+	var b strings.Builder
+
+	cols := 0
 
 	// A hunk already read keeps its band and loses its grammar: what the code
 	// says has been read, and what is left to read is the question.
@@ -336,15 +371,56 @@ func (m *Model) richText(r row, l diff.Line, width int) (string, int) {
 		}
 
 		text, spent := expandFrom(l.Text[piece.from:piece.to], cols)
-		b.WriteString(style.Render(text))
 
-		cols = spent
-		if cols >= width {
-			break
+		// With wrap off the whole run goes in and the caller's cut marks where
+		// it ran out, so the check comes after the write.
+		if !m.drawn.wrap {
+			b.WriteString(style.Render(text))
+
+			if cols = spent; cols >= width {
+				break
+			}
+
+			continue
+		}
+
+		for text != "" {
+			room := width - cols
+			if room < 1 {
+				segs = append(segs, b.String())
+				b.Reset()
+				cols, room = 0, width
+			}
+
+			part, rest := takeCells(text, room)
+			b.WriteString(style.Render(part))
+			cols += textWidth(part)
+			text = rest
 		}
 	}
 
-	return b.String(), cols
+	return append(segs, b.String())
+}
+
+// takeCells is the first room cells of s and what is left, with at least one
+// glyph taken however narrow room is, so a caller wrapping text cannot spin
+// on a glyph wider than the line it is being wrapped to.
+func takeCells(s string, room int) (string, string) {
+	cols := 0
+
+	for i, r := range s {
+		w := textWidth(string(r))
+		if cols > 0 && cols+w > room {
+			return s[:i], s[i:]
+		}
+
+		cols += w
+		if cols >= room {
+			return s[:i+len(string(r))], s[i+len(string(r)):]
+		}
+	}
+
+	return s, ""
 }
 
 // expandFrom replaces the tabs of one run, given the cells already spent on the
@@ -562,9 +638,11 @@ func (m *Model) toggleLook(msg tea.KeyPressMsg) {
 		m.drawn.rich = !m.drawn.rich
 	case "s":
 		m.drawn.split = !m.drawn.split
+	case "w":
+		m.drawn.wrap = !m.drawn.wrap
 	default:
 		m.say("nothing to draw for "+msg.String()+
-			"; g grammar, s side by side", false)
+			"; g grammar, s side by side, w wrap", false)
 
 		return
 	}
@@ -589,7 +667,7 @@ func (m *Model) sayLook() {
 // The divider is a column of its own so the two halves never touch, and a half
 // with no line is drawn as its own empty band rather than as blank frame, since
 // "nothing was here" and "the row ended" are different things.
-func (m *Model) splitCode(r row, width int) string {
+func (m *Model) splitCode(r row, width int) []string {
 	const divider = " │ "
 
 	left, right := sidesOf(r)
@@ -598,35 +676,60 @@ func (m *Model) splitCode(r row, width int) string {
 	// Each half numbers the file it is showing, so a context line carries its
 	// pre-image number on the left and its post-image number on the right: the
 	// two diverge the moment anything above them was added or removed.
-	return m.halfCode(r, left, left.Old, half) +
-		m.rich.gutter.Render(divider) +
-		m.halfCode(r, right, right.New, width-half-textWidth(divider))
+	ls := m.halfCode(r, left, left.Old, half)
+	rs := m.halfCode(r, right, right.New, width-half-textWidth(divider))
+
+	out := make([]string, 0, max(len(ls), len(rs)))
+	for i := range max(len(ls), len(rs)) {
+		l, rt := strings.Repeat(" ", half), ""
+		if i < len(ls) {
+			l = ls[i]
+		}
+		if i < len(rs) {
+			rt = rs[i]
+		}
+
+		out = append(out, l+m.rich.gutter.Render(divider)+rt)
+	}
+
+	return out
 }
 
 // sides is the two halves a split row is cut into.
 const sides = 2
 
-// halfCode is one column: the line's own number, then its text under its band.
-// An absent line keeps the width and draws nothing, so the divider stays
-// straight down the frame.
-func (m *Model) halfCode(r row, l diff.Line, at, width int) string {
+// halfCode is one column: the line's own number, then its text under its
+// band. An absent line keeps the width and draws nothing, so the divider
+// stays straight down the frame. Wrap takes a half to as many drawn lines as
+// its text needs, and the halves are zipped by the caller.
+func (m *Model) halfCode(r row, l diff.Line, at, width int) []string {
 	const signAndSpaces = 3
 
 	gutter := m.screen.numWidth + signAndSpaces
 
 	if l.Kind == 0 {
-		return strings.Repeat(" ", width)
+		return []string{strings.Repeat(" ", width)}
 	}
 
 	room := max(0, width-gutter)
-	body, cells := m.richText(r, l, room)
+	head := m.rich.gutter.Render(number(at, m.screen.numWidth)+rule) +
+		m.signCell(l.Kind) + " "
 
-	if over := room - cells; over > 0 {
-		body += m.padTo(l.Kind, over)
+	segs := m.richSegments(r, l, room)
+	out := make([]string, len(segs))
+
+	for i, seg := range segs {
+		if over := room - textWidth(seg); over > 0 {
+			seg += m.padTo(l.Kind, over)
+		}
+
+		lead := head
+		if i > 0 {
+			lead = strings.Repeat(" ", gutter)
+		}
+
+		out[i] = lead + cut(seg, room)
 	}
 
-	sign := m.signCell(l.Kind)
-
-	return m.rich.gutter.Render(number(at, m.screen.numWidth)+rule) + sign +
-		" " + cut(body, room)
+	return out
 }
