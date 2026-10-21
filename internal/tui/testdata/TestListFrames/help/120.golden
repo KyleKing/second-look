@@ -1,7 +1,7 @@
  second-look conversations                             ╭─ keys ───────────────────────────────────────────────────────╮ 
   new since you looked (2)                             │ j/k, ctrl+u/d, g/G  move, half page, top and bottom          │
 ▌good catch, pushed a defer                            │      ctrl+e/ctrl+y  scroll without moving the cursor         │
-        ● kyleking/tlr#118                          int│       1/2/3, ] / [  the queue to read                        │…
+        ● kyleking/tlr#118                          int│       1/2/3, ] / [  the queue to read                        │
  two questions inline                                  │                tab  the next group                           │
         ● kyleking/a-much-longer-repository-name#7  rev│                  /  narrow to the rows carrying a word; esc  │
   waiting on you (0)                                   │                     puts them back                           │

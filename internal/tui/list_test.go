@@ -586,6 +586,51 @@ func TestARatingIsAColumnRatherThanTitleText(t *testing.T) {
 	}
 }
 
+// The forge's word and the agent's are columns of their own: a row that does
+// not carry one leaves it blank rather than sliding the words after it left,
+// and a frame with no room hides the longest column behind a count rather
+// than cutting a word in half.
+func TestTrailingWordsKeepTheirColumns(t *testing.T) {
+	t.Parallel()
+
+	rows := func() []tui.Section {
+		return []tui.Section{{Name: "staged", Rows: []tui.Row{
+			{
+				Key: "a", Left: "kyleking/really-quite-long-repo-name#1", Mid: "blocked",
+				Age: "7d", Tail: "2 drafts", Remote: "merged", Agent: "agent blocked",
+			},
+			{
+				Key: "b", Left: "kyleking/really-quite-long-repo-name#2", Mid: "empty",
+				Age: "29d", Tail: "no comments", Remote: "merged",
+			},
+		}}}
+	}
+
+	l := tui.NewList("staged", rows, nil)
+	l.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+
+	frame := plain(l.ListFrame())
+
+	if at := startsOf(frame, "merged"); len(at) != 2 || at[0] != at[1] {
+		t.Errorf("the forge's word lands at columns %v, want one column for both rows:\n%s", at, frame)
+	}
+
+	// Narrowing hides the tail first and says so; the words still moving keep
+	// their columns.
+	l.Update(tea.WindowSizeMsg{Width: 90, Height: 20})
+	frame = plain(l.ListFrame())
+
+	for _, want := range []string{"…+1", "merged", "agent blocked"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the narrow frame is missing %q:\n%s", want, frame)
+		}
+	}
+
+	if strings.Contains(frame, "drafts") || strings.Contains(frame, "comments") {
+		t.Errorf("the hidden column's words still draw:\n%s", frame)
+	}
+}
+
 // A list nothing rates spends no width on the column, the way the scrollbar is
 // only drawn where the content overflows.
 func TestAnUnratedListSpendsNoWidthOnTheColumn(t *testing.T) {

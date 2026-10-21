@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
+	"github.com/kyleking/aragonite/tui/table"
 )
 
 // View draws the list. It is the same three bands as the review screen -- a
@@ -115,14 +116,14 @@ func (l *List) bodyView() string {
 		return l.styles.subtitle.Render("  nothing here")
 	}
 
-	cols := l.widest()
 	bar := scrollbar(rows, len(l.lines), l.offset)
 	width := bodyWidth(l.width, bar)
+	lay := metaLayout(l.natural(), width)
 
 	out := make([]string, 0, rows)
 
 	for i := l.offset; i < len(l.lines) && len(out) < rows; i++ {
-		out = append(out, l.line(i, cols, width))
+		out = append(out, l.line(i, lay, width))
 	}
 
 	for len(out) < rows {
@@ -132,7 +133,7 @@ func (l *List) bodyView() string {
 	return strings.Join(alongside(out, bar, l.styles, l.width), "\n")
 }
 
-func (l *List) line(i int, cols columns, width int) string {
+func (l *List) line(i int, lay table.Layout, width int) string {
 	line := l.lines[i]
 
 	switch {
@@ -144,7 +145,7 @@ func (l *List) line(i int, cols columns, width int) string {
 		// The columns ride under the title as the row's meta line, indented to
 		// one depth so it always starts in the same column: the title is what
 		// a row is for, and the numbers are read after it or not at all.
-		return " " + l.styles.subtitle.Render(cut("      "+l.row(line.row, cols), width))
+		return " " + l.styles.subtitle.Render(cut("      "+l.row(line.row, lay), width))
 	}
 
 	// A row whose Under carries a title reads title-first: the one line a
@@ -153,7 +154,7 @@ func (l *List) line(i int, cols columns, width int) string {
 	if line.row.Under != "" {
 		text = cut(line.row.Under, min(titleCap, width-markRoom))
 	} else {
-		text = cut(l.row(line.row, cols), width)
+		text = cut(l.row(line.row, lay), width)
 	}
 
 	if i == l.cursor {
@@ -171,10 +172,11 @@ const (
 	markRoom = 2
 )
 
-// row lays out one row's meta: the mark, where it is, what it anchors to, how
-// stale, then whose turn. The mark comes first because unread is the one thing
-// scanned for, and a glyph carries it so it survives NO_COLOR.
-func (l *List) row(r *Row, cols columns) string {
+// row lays out one row's meta: the mark, then the columns the layout resolved.
+// The mark comes first because unread is the one thing scanned for, and a glyph
+// carries it so it survives NO_COLOR. Every field is its own cell, so a word a
+// row does not carry leaves a blank rather than shifting the words after it.
+func (l *List) row(r *Row, lay table.Layout) string {
 	var b strings.Builder
 
 	b.WriteString(" ")
@@ -185,56 +187,50 @@ func (l *List) row(r *Row, cols columns) string {
 		b.WriteString(" ")
 	}
 
-	b.WriteString(" " + pad(cutTail(r.Left, cols.left), cols.left))
+	b.WriteString(" ")
 
-	mid := pad(cut(r.Mid, cols.mid), cols.mid)
-	if r.Tone != ToneOrdinary {
-		mid = l.toneFace(r.Tone).Render(mid)
-	}
+	cells := make([]string, 0, len(lay.Columns)+1)
 
-	b.WriteString("  " + mid)
-	// The age column is fixed rather than measured: "13h" and "4d" are the whole
-	// range, and letting it vary would move the columns beside it between lists.
-	const ageWidth = 5
+	for _, c := range lay.Columns {
+		w := lay.Width(c.Key)
 
-	b.WriteString("  " + pad(r.Age, ageWidth))
+		switch c.Key {
+		case colLeft:
+			cells = append(cells, pad(cutTail(r.Left, w), w))
+		case colMid:
+			mid := pad(cut(r.Mid, w), w)
+			if r.Tone != ToneOrdinary {
+				mid = l.toneFace(r.Tone).Render(mid)
+			}
 
-	// The rating is right-aligned so the digits line up, and it keeps its width
-	// on a row that has none: a queue re-sorting as ratings land would otherwise
-	// slide every title sideways on each answer.
-	if cols.cost > 0 {
-		b.WriteString("  " + lpad(r.Cost, cols.cost))
-	}
-
-	if cols.added > 0 || cols.removed > 0 {
-		b.WriteString("  " + signed(r.Added, "+", cols.added) + " " + signed(r.Removed, "-", cols.removed))
-	}
-
-	if r.Tail != "" {
-		b.WriteString("  " + r.Tail)
-	}
-
-	if r.Remote != "" {
-		if r.Tail != "" {
-			b.WriteString(" · ")
-		} else {
-			b.WriteString("  ")
+			cells = append(cells, mid)
+		case colAge:
+			cells = append(cells, pad(r.Age, w))
+		case colCost:
+			// The rating is right-aligned so the digits line up, and it keeps
+			// its width on a row that has none: a queue re-sorting as ratings
+			// land would otherwise slide every title sideways on each answer.
+			cells = append(cells, lpad(r.Cost, w))
+		case colAdd:
+			cells = append(cells, signed(r.Added, "+", w-1))
+		case colDel:
+			cells = append(cells, signed(r.Removed, "-", w-1))
+		case colTail:
+			cells = append(cells, pad(cut(r.Tail, w), w))
+		case colRemote:
+			cells = append(cells, pad(l.toneFace(r.RemoteTone).Render(cut(r.Remote, w)), w))
+		case colAgent:
+			cells = append(cells, pad(l.toneFace(r.AgentTone).Render(cut(r.Agent, w)), w))
 		}
-
-		b.WriteString(l.toneFace(r.RemoteTone).Render(r.Remote))
 	}
 
-	if r.Agent != "" {
-		if r.Tail != "" || r.Remote != "" {
-			b.WriteString(" · ")
-		} else {
-			b.WriteString("  ")
-		}
-
-		b.WriteString(l.toneFace(r.AgentTone).Render(r.Agent))
+	if marker := lay.Marker(); marker != "" {
+		cells = append(cells, marker)
 	}
 
-	return b.String()
+	b.WriteString(table.Join(cells))
+
+	return strings.TrimRight(b.String(), " ")
 }
 
 // toneFace is the face a word is drawn at, with the ordinary tone taking the

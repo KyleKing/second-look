@@ -6,6 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/table"
 )
 
 // Row is one line of a list screen. The columns are laid out by the screen
@@ -793,80 +794,118 @@ func abs(n int) int {
 	return n
 }
 
-// columns is how wide each measured column is drawn. A zero means the column is
-// not drawn at all, which is what a list nothing rates does with the rating.
-type columns struct {
+// natural is how wide each column's content wants to be. A zero means no row
+// carries it, which is what a list nothing rates does with the rating.
+type natural struct {
 	left    int
 	mid     int
 	cost    int
 	added   int
 	removed int
+	tail    int
+	remote  int
+	agent   int
 }
 
-// The narrow widths for the two columns that truncate, and the room the tail is
-// never squeezed below. They are where a frame with no space to spare lands
-// rather than a ceiling: a wider one spends its slack on them.
+// The narrow widths for the two columns that grow towards their contents, the
+// tail's floor, and the age column's fixed width. A wider frame spends its
+// slack on the left column first, because the repository and number are what
+// identify a row; a narrower one cuts words that would otherwise run the row
+// over.
 const (
 	leftNarrow = 34
 	midNarrow  = 48
-	tailRoom   = 24
+	tailFloor  = 10
+	ageWidth   = 5
 )
 
-// widest measures the columns that vary, so rows line up with each other.
-//
-// A long repository name or anchor used to truncate at a fixed width however
-// much terminal there was. So the narrow widths are the floor, and whatever the
-// frame has past them and the tail's own room is spent growing the two back
-// towards what their contents need, the left column first because the
-// repository and number are what identify a row.
-func (l *List) widest() columns {
-	var out, natural columns
+// natural measures the columns that vary, so rows line up with each other.
+func (l *List) natural() natural {
+	var out natural
 
 	for i := range l.shown {
 		for j := range l.shown[i].Rows {
 			r := &l.shown[i].Rows[j]
-			natural.left = max(natural.left, textWidth(r.Left))
-			natural.mid = max(natural.mid, textWidth(r.Mid))
+			out.left = max(out.left, textWidth(r.Left))
+			out.mid = max(out.mid, textWidth(r.Mid))
 			out.cost = max(out.cost, textWidth(r.Cost))
 			out.added = max(out.added, textWidth(r.Added))
 			out.removed = max(out.removed, textWidth(r.Removed))
+			out.tail = max(out.tail, textWidth(r.Tail))
+			out.remote = max(out.remote, textWidth(r.Remote))
+			out.agent = max(out.agent, textWidth(r.Agent))
 		}
 	}
-
-	out.left = min(natural.left, leftNarrow)
-	out.mid = min(natural.mid, midNarrow)
-
-	out.left += grow(natural.left-out.left, l.width-out.fixed()-tailRoom)
-	out.mid += grow(natural.mid-out.mid, l.width-out.fixed()-tailRoom)
 
 	return out
 }
 
-// grow is how much of a column's shortfall a frame can pay for.
-func grow(want, slack int) int { return max(0, min(want, slack)) }
+// metaChrome is what an under-line spends left of the first column: the frame's
+// own space, the indent under the title, and the mark cell.
+const metaChrome = 10
 
-// fixed is what a row spends on everything but the tail: the mark, the measured
-// columns, the gaps between them, and the age.
-func (c columns) fixed() int {
-	const (
-		chrome    = 3
-		gap       = 2
-		ageWidth  = 5
-		tailGap   = 2
-		signWidth = 1
-	)
+// The meta line's column keys, and the collapse order of the three trailing
+// words: the tail goes first because it is the longest and the most derivable,
+// the forge's word next, and the agent's last because a session wanting an
+// answer is the one thing still moving.
+const (
+	colLeft   = "left"
+	colMid    = "mid"
+	colAge    = "age"
+	colCost   = "cost"
+	colAdd    = "add"
+	colDel    = "del"
+	colTail   = "tail"
+	colRemote = "remote"
+	colAgent  = "agent"
 
-	out := chrome + c.left + gap + c.mid + gap + ageWidth + tailGap
+	tailPriority   = 1
+	remotePriority = 2
+	agentPriority  = 3
 
-	if c.cost > 0 {
-		out += gap + c.cost
+	// LeftGrow is the left column's share of a frame's slack over the mid
+	// column's: the repository and number are what identify a row.
+	leftGrow = 2
+)
+
+// metaLayout resolves the meta line's columns for one frame. The trailing words
+// each keep a column of their own — a row without one pads the cell rather
+// than sliding the words after it left — and a frame with no room to spare
+// hides the least valuable of them behind a count rather than cutting one
+// mid-word.
+func metaLayout(nat natural, width int) table.Layout {
+	cols := []table.Column{
+		{Key: colLeft, Min: min(nat.left, leftNarrow), Max: nat.left, Weight: leftGrow, Trim: table.TrimLeft},
+		{Key: colMid, Min: min(nat.mid, midNarrow), Max: nat.mid, Weight: 1},
+		{Key: colAge, Min: ageWidth},
 	}
 
-	if c.added > 0 || c.removed > 0 {
-		out += gap + c.added + signWidth + 1 + c.removed + signWidth
+	if nat.cost > 0 {
+		cols = append(cols, table.Column{Key: colCost, Min: nat.cost, Align: table.AlignRight})
 	}
 
-	return out
+	if nat.added > 0 || nat.removed > 0 {
+		cols = append(cols,
+			table.Column{Key: colAdd, Min: nat.added + 1},
+			table.Column{Key: colDel, Min: nat.removed + 1})
+	}
+
+	if nat.tail > 0 {
+		cols = append(cols, table.Column{
+			Key: colTail, Priority: tailPriority, Weight: 1,
+			Min: min(nat.tail, tailFloor), Max: nat.tail,
+		})
+	}
+
+	if nat.remote > 0 {
+		cols = append(cols, table.Column{Key: colRemote, Min: nat.remote, Priority: remotePriority})
+	}
+
+	if nat.agent > 0 {
+		cols = append(cols, table.Column{Key: colAgent, Min: nat.agent, Priority: agentPriority})
+	}
+
+	return table.Fit(cols, width-metaChrome)
 }
 
 // rebuild lays the sections out as lines. It runs whenever anything that
