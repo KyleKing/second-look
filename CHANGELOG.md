@@ -1,3 +1,9 @@
+## v0.32.3 (2026-10-21)
+
+### Refactor
+
+- **tui**: the queue's meta line is a declared table
+
 ## v0.32.2 (2026-10-21)
 
 ### Fix
