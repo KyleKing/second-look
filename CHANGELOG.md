@@ -1,3 +1,10 @@
+## v0.32.2 (2026-10-21)
+
+### Fix
+
+- **tui**: ctrl+d and ctrl+u scroll the legend half a page
+- **tui**: a peek outside the checkout reads the file the server resolved
+
 ## v0.32.1 (2026-10-15)
 
 ### Fix
