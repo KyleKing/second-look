@@ -289,3 +289,15 @@ Two things the harness has to get right, each of which cost a session:
   reopens: the same text is written twice and the wait answers from the first draw, so the
   next keystroke goes into a program that has not started. Take a `mark()` and use
   `awaitFrom` across any handoff that comes back to a screen
+- `await` on text a column truncation can eat. Queue rows tail-cut their `Left` cell, so
+  `kyleking/aragonite#100` can render as `aragonite#100` in a narrower frame and the full
+  string never exists in the buffer to be found. Await on the substring that survives the
+  narrowest frame the test drives, not on the widest spelling
+
+## jj in this repository
+
+`jj split` opens the configured diff editor (nvim) even when filesets are given, so it has
+no headless path in this setup. The non-interactive route is `jj new` for an empty change
+on top, then `jj squash --from @- --into @ <files>` to move specific files' diffs into it.
+And `jj new <rev>` on an ancestor does not reset the working tree — the new change forks
+whatever the tree already holds, which silently duplicates a change if edits are present.
