@@ -3,6 +3,7 @@ package tui_test
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,6 +21,10 @@ import (
 // errNoServer is a pass that could not run at all, which is a laptop missing
 // the server the review needs.
 var errNoServer = errors.New("gopls is not installed")
+
+// errRefused is a reader that cannot answer, which is the commit's reader
+// asked about a path that is not the commit's.
+var errRefused = errors.New("the commit cannot read an absolute path")
 
 // prober stands in for a language server and the configured checks. The
 // protocol itself is covered against a real server in internal/diag/lsp; what
@@ -273,9 +278,91 @@ func TestPeekDrawsTheDefinitionItself(t *testing.T) {
 	}
 }
 
+// A definition outside the checkout is spelled absolute, and the commit has no
+// answer for it: the excerpt reads the copy the server resolved, which is the
+// one on disk. Where most names live is other files, so this is the common
+// jump rather than the edge.
+func TestPeekReadsASiteOutsideTheCheckout(t *testing.T) {
+	t.Parallel()
+
+	site := filepath.Join(t.TempDir(), "dep.go")
+	if err := os.WriteFile(site, []byte("package dep\n\n// Thing is shared.\nfunc Thing() {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	m := peekableWith(t, &prober{jumps: []diag.Jump{
+		{Name: "Thing", At: []diag.Site{{Path: site, Line: 4}}},
+	}}, func(context.Context, string) ([]string, error) { return nil, errRefused })
+
+	go2(m, ']', 'h')
+	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	drive(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+
+	frame := plain(m.Frame())
+	for _, want := range []string{"Thing →", "dep.go:4", "› 4", "func Thing() {}"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the peek does not draw %q:\n%s", want, frame)
+		}
+	}
+}
+
+// K and the g chord refuse the same way when nothing can answer, and the
+// refusal names which thing is missing: a checkout C could claim, or a server
+// for the files under review.
+func TestNoProberSaysTheCause(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		tree tui.Tree
+		want string
+	}{
+		{"no checkout", tui.TreeNone, "a language server runs in a checkout"},
+		{"a checkout", tui.TreeOnHead, "no language server is configured for these files"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := filepath.Join(t.TempDir(), "pr-42.toml")
+
+			r := &artifact.Review{
+				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+				HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+			}
+			if err := artifact.Save(path, r); err != nil {
+				t.Fatal(err)
+			}
+
+			m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, (&counter{}).post,
+				tui.WithTree(tt.tree))
+			m.Init()
+			m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+			press(m, tea.KeyPressMsg{Code: 'K', Text: "K"})
+
+			if frame := plain(m.Frame()); !strings.Contains(frame, tt.want) {
+				t.Errorf("K with nothing to ask said:\n%s", frame)
+			}
+		})
+	}
+}
+
 // peekable is the review with a checker and a way to read the files a jump
 // points into, which is what an excerpt is drawn from.
 func peekable(t *testing.T, p tui.Prober) *tui.Model {
+	t.Helper()
+
+	return peekableWith(t, p, func(_ context.Context, _ string) ([]string, error) {
+		return []string{
+			"package io", "", "// split reads r into fields.",
+			"func split(r io.Reader) ([]string, error) {",
+			"\treturn fields(string(readAll(r))), nil", "}", "",
+		}, nil
+	})
+}
+
+func peekableWith(t *testing.T, p tui.Prober, read tui.Blobs) *tui.Model {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "pr-42.toml")
@@ -289,14 +376,7 @@ func peekable(t *testing.T, p tui.Prober) *tui.Model {
 	}
 
 	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, (&counter{}).post,
-		tui.WithProber(p),
-		tui.WithBlobs(func(_ context.Context, _ string) ([]string, error) {
-			return []string{
-				"package io", "", "// split reads r into fields.",
-				"func split(r io.Reader) ([]string, error) {",
-				"\treturn fields(string(readAll(r))), nil", "}", "",
-			}, nil
-		}))
+		tui.WithProber(p), tui.WithBlobs(read))
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 

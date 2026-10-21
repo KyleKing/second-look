@@ -115,6 +115,19 @@ func (m *Model) troubleWord() string {
 	return ""
 }
 
+// noProber is the refusal K and the g chord share when nothing can answer:
+// the cause is a checkout the review does not have or a server the files do
+// not have, and the difference is what a reader does about it.
+func (m *Model) noProber() {
+	if m.tree == TreeNone {
+		m.say("a language server runs in a checkout, and this review has none", false)
+
+		return
+	}
+
+	m.say("no language server is configured for these files", false)
+}
+
 // hover answers K: every name on the line under the cursor, and what the
 // language server says each one is.
 //
@@ -123,7 +136,7 @@ func (m *Model) troubleWord() string {
 // field being read off a value is a member of the type it actually has.
 func (m *Model) hover() tea.Cmd {
 	if m.prober == nil {
-		m.say("no language server is configured for this review", false)
+		m.noProber()
 
 		return nil
 	}
@@ -153,14 +166,7 @@ func (m *Model) hover() tea.Cmd {
 // each of its names rather than at a point.
 func (m *Model) lookup(kind diag.JumpKind) tea.Cmd {
 	if m.prober == nil {
-		m.say("no language server is configured for this review", false)
-
-		return nil
-	}
-
-	r := m.screen.rows[m.cursor]
-	if r.kind != rowCode || r.path == "" || r.line.New == 0 {
-		m.say("gd asks about a line of the change", false)
+		m.noProber()
 
 		return nil
 	}
@@ -168,6 +174,13 @@ func (m *Model) lookup(kind diag.JumpKind) tea.Cmd {
 	verb := "defined"
 	if kind == diag.References {
 		verb = "used"
+	}
+
+	r := m.screen.rows[m.cursor]
+	if r.kind != rowCode || r.path == "" || r.line.New == 0 {
+		m.say("g's "+verb+" asks about a line of the change", false)
+
+		return nil
 	}
 
 	m.say("asking where line "+strconv.Itoa(r.line.New)+" is "+verb+"…", false)

@@ -2,6 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -77,11 +80,24 @@ func (m *Model) readBlob(path string) tea.Cmd {
 }
 
 // peekBlob is readBlob for the answer overlay, whose excerpts want the file
-// kept rather than a hunk grown.
+// kept rather than a hunk grown. A site outside the checkout is spelled
+// absolute, and the commit cannot answer for it — the copy on disk is the one
+// the server resolved, so it is the one read.
 func (m *Model) peekBlob(path string) tea.Cmd {
 	ctx, read := m.ctx, m.blob
 
 	return func() tea.Msg {
+		if filepath.IsAbs(path) {
+			out, err := os.ReadFile(path) //nolint:gosec // a site the language server named
+
+			var lines []string
+			if err == nil {
+				lines = strings.Split(strings.TrimSuffix(string(out), "\n"), "\n")
+			}
+
+			return blobMsg{path: path, lines: lines, peek: true, err: err}
+		}
+
 		lines, err := read(ctx, path)
 
 		return blobMsg{path: path, lines: lines, peek: true, err: err}
