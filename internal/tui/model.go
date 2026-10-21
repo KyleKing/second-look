@@ -903,9 +903,9 @@ func (m *Model) readHelp(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.helpAt--
 	case "down":
 		m.helpAt++
-	case "pgup":
+	case "pgup", "ctrl+u":
 		m.helpAt -= m.viewHeight() / halfPage
-	case "pgdown":
+	case "pgdown", "ctrl+d":
 		m.helpAt += m.viewHeight() / halfPage
 	case "home":
 		m.helpAt = 0

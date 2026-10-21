@@ -2800,6 +2800,19 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 		t.Errorf("the wheel did not move the legend back:\n%s", got)
 	}
 
+	// ctrl+d/u scroll the half page they scroll in the diff.
+	press(m, tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
+
+	if got := plain(m.Frame()); strings.Contains(got, "a line") {
+		t.Errorf("ctrl+d did not move the legend:\n%s", got)
+	}
+
+	press(m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "a line") {
+		t.Errorf("ctrl+u did not move the legend back:\n%s", got)
+	}
+
 	// G means the gg/G row inside the legend rather than a scroll key; the end
 	// key is what reaches the bottom.
 	press(m, tea.KeyPressMsg{Code: tea.KeyEnd})
