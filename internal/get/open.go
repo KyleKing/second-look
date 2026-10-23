@@ -81,7 +81,7 @@ func Open(ctx context.Context, t Target) (*Review, error) {
 
 	pr, err := github.GetPR(ctx, t.Dir(), t.Remote(), t.Number)
 	if err != nil {
-		return nil, fmt.Errorf("reading pull request #%d: %w", t.Number, err)
+		return nil, fmt.Errorf("opening review: %w", err)
 	}
 
 	standing, err := onHead(ctx, t, pr.HeadSHA)
@@ -240,7 +240,7 @@ func readMarks(t Target) (*seen.Set, string, error) {
 func CurrentHead(ctx context.Context, t Target) (string, error) {
 	pr, err := github.GetPR(ctx, t.Dir(), t.Remote(), t.Number)
 	if err != nil {
-		return "", fmt.Errorf("reading pull request #%d: %w", t.Number, err)
+		return "", fmt.Errorf("fetching current head: %w", err)
 	}
 
 	return pr.HeadSHA, nil

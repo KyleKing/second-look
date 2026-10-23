@@ -47,7 +47,7 @@ var (
 func Run(ctx context.Context, out io.Writer, t Target) error {
 	pr, err := github.GetPR(ctx, t.Dir(), t.Remote(), t.Number)
 	if err != nil {
-		return fmt.Errorf("reading pull request #%d: %w", t.Number, err)
+		return fmt.Errorf("preparing review: %w", err)
 	}
 	if pr.HeadSHA == "" {
 		return fmt.Errorf("#%d: %w", t.Number, ErrNoHeadSHA)
