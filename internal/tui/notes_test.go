@@ -90,7 +90,7 @@ func TestAThreadNoteHoldsItsTailBehindZa(t *testing.T) {
 	}
 
 	onto(t, m, "5 more lines")
-	go2(m, 'z', 'a')
+	go2(t, m, 'z', 'a')
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "step 25") {
 		t.Errorf("za did not open the held rows:\n%s", frame)
@@ -157,7 +157,7 @@ func TestOpeningASectionSemiFoldsTheScriptInside(t *testing.T) {
 
 	m := botModel(t)
 	onto(t, m, "Supported by static analysis")
-	go2(m, 'z', 'a')
+	go2(t, m, 'z', 'a')
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "shell · 11 lines") {
@@ -175,7 +175,7 @@ func TestOpeningASectionSemiFoldsTheScriptInside(t *testing.T) {
 	}
 
 	onto(t, m, "shell · 11 lines")
-	go2(m, 'z', 'a')
+	go2(t, m, 'z', 'a')
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "echo the last line") {
 		t.Errorf("za did not open the script:\n%s", frame)

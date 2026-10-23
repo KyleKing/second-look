@@ -130,8 +130,8 @@ func lockfileWith(t *testing.T, a tui.Advisor) *tui.Model {
 
 	// The cursor opens on the review's own body, and the question is asked of
 	// the lockfile the cursor is standing on.
-	pressKey(m, ']')
-	pressKey(m, 'f')
+	pressKey(t, m, ']')
+	pressKey(t, m, 'f')
 
 	return m
 }
@@ -154,7 +154,7 @@ func TestAdvisoriesAreNotAskedUntilTheReaderSaysTwice(t *testing.T) {
 		t.Errorf("the lockfile does not offer the question:\n%s", plain(m.Frame()))
 	}
 
-	pressKey(m, 'L')
+	pressKey(t, m, 'L')
 
 	if len(a.asked) != 0 {
 		t.Fatalf("one L sent %+v, and nothing should leave on one key", a.asked)
@@ -164,7 +164,7 @@ func TestAdvisoriesAreNotAskedUntilTheReaderSaysTwice(t *testing.T) {
 		t.Errorf("the confirmation does not say what it will send:\n%s", plain(m.Frame()))
 	}
 
-	pressKey(m, 'L')
+	pressKey(t, m, 'L')
 
 	if len(a.asked) != 1 || len(a.asked[0]) != 2 {
 		t.Fatalf("the second L sent %+v, want the two versions it moved to", a.asked)
@@ -250,8 +250,8 @@ func TestAdvisoriesSayWhenTheQuestionWasRefused(t *testing.T) {
 
 	m := lockfileWith(t, &advisor{err: advisory.ErrRefused})
 
-	pressKey(m, 'L')
-	pressKey(m, 'L')
+	pressKey(t, m, 'L')
+	pressKey(t, m, 'L')
 
 	if !strings.Contains(plain(m.Frame()), "osv.dev: "+advisory.ErrRefused.Error()) {
 		t.Errorf("a refused question left the row saying nothing:\n%s", plain(m.Frame()))
@@ -295,8 +295,8 @@ func lockfileVersions(t *testing.T, v tui.Versions, opts ...tui.Option) *tui.Mod
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 
-	pressKey(m, ']')
-	pressKey(m, 'f')
+	pressKey(t, m, ']')
+	pressKey(t, m, 'f')
 
 	return m
 }
@@ -334,8 +334,8 @@ func TestVersionCardsAskNothingAndAnswerBesideTheVersion(t *testing.T) {
 		t.Fatalf("the ask sent %+v, want the two versions it moved to", v.asked)
 	}
 
-	pressKey(m, 'L')
-	pressKey(m, 'L')
+	pressKey(t, m, 'L')
+	pressKey(t, m, 'L')
 
 	frame := plain(m.Frame())
 

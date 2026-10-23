@@ -47,14 +47,14 @@ func TestRestagingTakesAHeadThatMoved(t *testing.T) {
 
 	// Nothing to restage until the head has actually moved, because a key that
 	// spends three API calls on an unchanged head is a key nobody presses.
-	press(m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "nothing to restage") {
 		t.Errorf("restaging an unmoved head did not say so:\n%s", got)
 	}
 
 	m.SawHead("9f2c4d1")
-	press(m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "splitAll(r)") {
@@ -84,7 +84,7 @@ func TestARestageThatFailedKeepsTheDiff(t *testing.T) {
 	})
 	m.SawHead("9f2c4d1")
 
-	press(m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "could not restage: gh: rate limited") {

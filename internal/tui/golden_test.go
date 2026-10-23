@@ -49,7 +49,7 @@ func TestFrames(t *testing.T) {
 				m.Update(tea.WindowSizeMsg{Width: width, Height: 24})
 
 				for _, k := range frame.keys {
-					press(m, k)
+					press(t, m, k)
 				}
 
 				golden.RequireEqual(t, []byte(plain(m.Frame())))
@@ -87,7 +87,7 @@ func TestReviewProseFrames(t *testing.T) {
 
 			// The review's own prose starts closed, and how it wraps is what
 			// these frames are for.
-			go2(m, 'z', 'R')
+			go2(t, m, 'z', 'R')
 
 			golden.RequireEqual(t, []byte(plain(m.Frame())))
 		})

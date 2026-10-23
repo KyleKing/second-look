@@ -20,7 +20,7 @@ func TestSuggestOpensTheLineAndFencesTheAnswer(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	onto(t, m, "lines, err := split(r)")
-	press(m, tea.KeyPressMsg{Code: 's', Text: "s"})
+	press(t, m, tea.KeyPressMsg{Code: 's', Text: "s"})
 
 	frame := plain(m.Frame())
 
@@ -32,8 +32,8 @@ func TestSuggestOpensTheLineAndFencesTheAnswer(t *testing.T) {
 		t.Errorf("the editor did not open on the line's own text:\n%s", frame)
 	}
 
-	press(m, tea.KeyPressMsg{Code: '!', Text: "!"})
-	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: '!', Text: "!"})
+	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
 	r, err := artifact.Load(path)
 	if err != nil {
@@ -63,7 +63,7 @@ func TestSuggestRefusesARemovedLine(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	onto(t, m, "lines := split(r)")
-	press(m, tea.KeyPressMsg{Code: 's', Text: "s"})
+	press(t, m, tea.KeyPressMsg{Code: 's', Text: "s"})
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "came out") {
 		t.Errorf("a suggestion on a removed line was accepted:\n%s", frame)

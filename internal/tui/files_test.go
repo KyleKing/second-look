@@ -35,14 +35,14 @@ func TestFileFilterKeepsOnlyMatchingFiles(t *testing.T) {
 
 	m, _, _ := fixtureWith(t, twoLangPatch)
 
-	pressKey(m, 'f')
-	typeInto(m, "*.go")
+	pressKey(t, m, 'f')
+	typeInto(t, m, "*.go")
 
 	if !strings.Contains(plain(m.Frame()), "showing 2 of 3 files") {
 		t.Fatalf("the prompt does not count what the pattern keeps:\n%s", plain(m.Frame()))
 	}
 
-	press(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	frame := plain(m.Frame())
 	for _, want := range []string{"go1() int", "go2() int", "files: *.go"} {
@@ -67,9 +67,9 @@ func TestFileFilterNegatesAndEscapeKeepsTheCommittedPattern(t *testing.T) {
 
 	m, _, _ := fixtureWith(t, twoLangPatch)
 
-	pressKey(m, 'f')
-	typeInto(m, "!*.go")
-	press(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	pressKey(t, m, 'f')
+	typeInto(t, m, "!*.go")
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "ts1(): number") {
@@ -81,9 +81,9 @@ func TestFileFilterNegatesAndEscapeKeepsTheCommittedPattern(t *testing.T) {
 
 	// The prompt reopens with what was committed; typing past it and escaping
 	// puts it back rather than clearing to nothing.
-	pressKey(m, 'f')
-	typeInto(m, " z")
-	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	pressKey(t, m, 'f')
+	typeInto(t, m, " z")
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if !strings.Contains(plain(m.Frame()), "files: !*.go") {
 		t.Errorf("escape lost the committed pattern:\n%s", plain(m.Frame()))

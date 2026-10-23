@@ -31,7 +31,7 @@ func TestWrapFoldsALongLineRatherThanCuttingIt(t *testing.T) {
 		t.Fatal("the long line's tail is drawn without wrap")
 	}
 
-	go2(m, 'u', 'w')
+	go2(t, m, 'u', 'w')
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "frame can hold") {
@@ -40,12 +40,12 @@ func TestWrapFoldsALongLineRatherThanCuttingIt(t *testing.T) {
 
 	// The row still counts as one whatever it takes to draw, so a motion does
 	// not have to walk its continuations.
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	if strings.Contains(plain(m.Frame()), "no motion") {
 		t.Error("j stalled inside a wrapped row")
 	}
 
-	go2(m, 'u', 'w')
+	go2(t, m, 'u', 'w')
 
 	if strings.Contains(plain(m.Frame()), "frame can hold") {
 		t.Error("u w did not put the cut back")
@@ -68,8 +68,8 @@ func TestWrapKeepsTheCursorRowOnScreen(t *testing.T) {
 	m, _, _ := fixtureWith(t, b.String())
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 
-	go2(m, 'u', 'w')
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	go2(t, m, 'u', 'w')
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "x9") {

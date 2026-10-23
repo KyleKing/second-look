@@ -17,9 +17,9 @@ func TestOnlyNewHidesWhatIsAlreadyRead(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Mark the first hunk read, which is what an earlier pass leaves behind.
-	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
-	press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
-	press(m, tea.KeyPressMsg{Code: ' ', Text: " "})
+	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(t, m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+	press(t, m, tea.KeyPressMsg{Code: ' ', Text: " "})
 
 	const readHunk = "lines, err := split(r)"
 
@@ -27,7 +27,7 @@ func TestOnlyNewHidesWhatIsAlreadyRead(t *testing.T) {
 		t.Fatalf("the hunk to be hidden is not on screen:\n%s", before)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'U', Text: "U"})
+	press(t, m, tea.KeyPressMsg{Code: 'U', Text: "U"})
 
 	after := plain(m.Frame())
 
@@ -43,7 +43,7 @@ func TestOnlyNewHidesWhatIsAlreadyRead(t *testing.T) {
 		t.Errorf("the hunk already read is still drawn:\n%s", after)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'U', Text: "U"})
+	press(t, m, tea.KeyPressMsg{Code: 'U', Text: "U"})
 
 	back := plain(m.Frame())
 

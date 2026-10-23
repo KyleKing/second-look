@@ -36,14 +36,14 @@ func TestMoreContextReadsTheFile(t *testing.T) {
 
 	onto(t, m, "lines, err := split(r)")
 
-	press(m, tea.KeyPressMsg{Code: '+', Text: "+"})
+	press(t, m, tea.KeyPressMsg{Code: '+', Text: "+"})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "the line above the hunk") {
 		t.Fatalf("+ did not grow the hunk:\n%s", frame)
 	}
 
-	press(m, tea.KeyPressMsg{Code: '-', Text: "-"})
+	press(t, m, tea.KeyPressMsg{Code: '-', Text: "-"})
 
 	if frame = plain(m.Frame()); strings.Contains(frame, "the line above the hunk") {
 		t.Errorf("- did not shrink it back:\n%s", frame)
@@ -62,7 +62,7 @@ func TestMoreContextWithNothingToReadSaysSo(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	onto(t, m, "lines, err := split(r)")
-	press(m, tea.KeyPressMsg{Code: '+', Text: "+"})
+	press(t, m, tea.KeyPressMsg{Code: '+', Text: "+"})
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "no way to read") {
 		t.Errorf("+ with no reader said:\n%s", frame)

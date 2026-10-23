@@ -121,8 +121,8 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	go2(m, ']', 'c')
-	state(m, 't')
+	go2(t, m, ']', 'c')
+	state(t, m, 't')
 
 	run := looped(m)
 	run.key(letter('T'))

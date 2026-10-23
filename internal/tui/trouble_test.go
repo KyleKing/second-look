@@ -136,7 +136,7 @@ func TestTroubleListsEverythingFound(t *testing.T) {
 	t.Parallel()
 
 	m := checked(t, found())
-	press(m, tea.KeyPressMsg{Code: 'X', Text: "X"})
+	press(t, m, tea.KeyPressMsg{Code: 'X', Text: "X"})
 
 	frame := plain(m.Frame())
 	for _, want := range []string{
@@ -149,7 +149,7 @@ func TestTroubleListsEverythingFound(t *testing.T) {
 		}
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'X', Text: "X"})
+	press(t, m, tea.KeyPressMsg{Code: 'X', Text: "X"})
 
 	if strings.Contains(plain(m.Frame()), "line 14 · house rules") {
 		t.Error("a second X did not leave the list")
@@ -163,14 +163,14 @@ func TestProblemMotionWalksTheNotes(t *testing.T) {
 
 	m := checked(t, found())
 
-	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
-	press(m, tea.KeyPressMsg{Code: 'p', Text: "p"})
+	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(t, m, tea.KeyPressMsg{Code: 'p', Text: "p"})
 
 	if line := m.CursorText(); !strings.Contains(line, "typescript 2339") {
 		t.Errorf("]p landed on %q, want the first note", line)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	press(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
 
 	if line := m.CursorText(); !strings.Contains(line, "long-comment") {
 		t.Errorf("n after ]p landed on %q, want the next note", line)
@@ -194,7 +194,7 @@ func TestTroubleSaysWhenNothingCanCheck(t *testing.T) {
 	t.Parallel()
 
 	m := triaged(t)
-	press(m, tea.KeyPressMsg{Code: 'X', Text: "X"})
+	press(t, m, tea.KeyPressMsg{Code: 'X', Text: "X"})
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "nothing here can check") {
 		t.Errorf("X on a review with no checker said:\n%s", frame)
@@ -208,17 +208,17 @@ func TestHoverShowsWhatTheNamesAre(t *testing.T) {
 
 	m := checked(t, found())
 
-	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
-	press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	press(m, tea.KeyPressMsg{Code: 'K', Text: "K"})
+	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(t, m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: 'K', Text: "K"})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "function split(r: io.Reader)") {
 		t.Errorf("the hover answer is not on screen:\n%s", frame)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 
 	if strings.Contains(plain(m.Frame()), "function split(r: io.Reader)") {
 		t.Error("the answer stayed up after a key")
@@ -235,15 +235,15 @@ func TestGoShowsWhereTheNamesLive(t *testing.T) {
 		{Name: "split", At: []diag.Site{{Path: "io/read.go", Line: 12}}},
 	}})
 
-	go2(m, ']', 'h')
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	press(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	go2(t, m, ']', 'h')
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "[g] top") {
 		t.Fatalf("the chord did not say what it was waiting for:\n%s", frame)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+	press(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "split → io/read.go:12") {
@@ -265,8 +265,8 @@ func TestPeekDrawsTheDefinitionItself(t *testing.T) {
 		{Name: "split", At: []diag.Site{{Path: "io/read.go", Line: 4}}},
 	}})
 
-	go2(m, ']', 'h')
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	go2(t, m, ']', 'h')
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	drive(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 	drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
 
@@ -294,8 +294,8 @@ func TestPeekReadsASiteOutsideTheCheckout(t *testing.T) {
 		{Name: "Thing", At: []diag.Site{{Path: site, Line: 4}}},
 	}}, func(context.Context, string) ([]string, error) { return nil, errRefused })
 
-	go2(m, ']', 'h')
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	go2(t, m, ']', 'h')
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	drive(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 	drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
 
@@ -339,7 +339,7 @@ func TestNoProberSaysTheCause(t *testing.T) {
 			m.Init()
 			m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-			press(m, tea.KeyPressMsg{Code: 'K', Text: "K"})
+			press(t, m, tea.KeyPressMsg{Code: 'K', Text: "K"})
 
 			if frame := plain(m.Frame()); !strings.Contains(frame, tt.want) {
 				t.Errorf("K with nothing to ask said:\n%s", frame)
@@ -430,10 +430,10 @@ func TestGGIsStillTheTop(t *testing.T) {
 
 	m := checked(t, found())
 
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 	bottom := plain(m.Frame())
 
-	go2(m, 'g', 'g')
+	go2(t, m, 'g', 'g')
 
 	m2 := checked(t, found())
 	if top := plain(m.Frame()); top != plain(m2.Frame()) {
@@ -500,10 +500,10 @@ func TestHoverFitsTheFrame(t *testing.T) {
 
 	m := checked(t, &prober{syms: syms})
 
-	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
-	press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	press(m, tea.KeyPressMsg{Code: 'K', Text: "K"})
+	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(t, m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: 'K', Text: "K"})
 
 	frame := plain(m.Frame())
 	if got := len(strings.Split(frame, "\n")); got > 30 {
@@ -522,7 +522,7 @@ func TestTabWalksPastANote(t *testing.T) {
 
 	m := checked(t, found(), comment("c1", parsed, artifact.SideRight, 16, "the finding"))
 
-	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 
 	if got := m.CommentUnderCursor(); got != 0 {
 		t.Errorf("tab landed on %q, want the comment", m.CursorText())
@@ -536,8 +536,8 @@ func TestLateNotesKeepTheLineUnderTheCursor(t *testing.T) {
 
 	m := checkable(t, found())
 
-	go2(m, ']', 'h')
-	go2(m, ']', 'h')
+	go2(t, m, ']', 'h')
+	go2(t, m, ']', 'h')
 
 	row, want := m.CursorRow(), m.CursorText()
 
@@ -558,7 +558,7 @@ func TestTroubleSaysWhenThePassFailed(t *testing.T) {
 	t.Parallel()
 
 	m := checked(t, &prober{err: errNoServer})
-	press(m, tea.KeyPressMsg{Code: 'X', Text: "X"})
+	press(t, m, tea.KeyPressMsg{Code: 'X', Text: "X"})
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "nothing ran: gopls is not installed") {
 		t.Errorf("the empty list reads as a clean change:\n%s", frame)

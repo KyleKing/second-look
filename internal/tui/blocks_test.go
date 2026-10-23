@@ -54,10 +54,10 @@ func TestALongRunKeepsTheLineItAnswersInView(t *testing.T) {
 	m, _ := fixture(t, cs...)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 
-	go2(m, ']', 'c')
+	go2(t, m, ']', 'c')
 
 	for range 20 {
-		pressKey(m, 'j')
+		pressKey(t, m, 'j')
 	}
 
 	top := strings.SplitN(plain(m.Frame()), "\n", 3)[1]
@@ -85,9 +85,9 @@ func TestSkipsInARunGatherBelowTheLiveOnes(t *testing.T) {
 		t.Fatalf("the skip was not gathered:\n%s", frame)
 	}
 
-	go2(m, ']', 'c')
-	go2(m, ']', 'c')
-	go2(m, 'z', 'a')
+	go2(t, m, ']', 'c')
+	go2(t, m, ']', 'c')
+	go2(t, m, 'z', 'a')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "the skipped body") {
 		t.Errorf("za did not open the gathered skip:\n%s", got)

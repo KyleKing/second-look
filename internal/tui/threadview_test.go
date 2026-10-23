@@ -35,7 +35,7 @@ func TestTheThreadsViewCarriesTheLineEachAnswers(t *testing.T) {
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 
-	press(m, tea.KeyPressMsg{Code: 't', Text: "t"})
+	press(t, m, tea.KeyPressMsg{Code: 't', Text: "t"})
 
 	frame := plain(m.Frame())
 
@@ -52,7 +52,7 @@ func TestTheThreadsViewCarriesTheLineEachAnswers(t *testing.T) {
 		t.Errorf("a staged comment was drawn in the threads view:\n%s", frame)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 't', Text: "t"})
+	press(t, m, tea.KeyPressMsg{Code: 't', Text: "t"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "check err") {
 		t.Errorf("leaving the threads view did not come back to the diff:\n%s", got)

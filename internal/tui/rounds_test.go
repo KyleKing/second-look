@@ -42,13 +42,13 @@ func TestComparingAgainstAnEarlierRoundHidesWhatItAlreadyCarried(t *testing.T) {
 	m.SetRounds(func(context.Context, string) (*diff.Diff, error) { return diff.Parse([]byte(earlier)), nil })
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	pressKey(m, 'H')
+	pressKey(t, m, 'H')
 
 	if got := plain(m.Frame()); !strings.Contains(got, short(was)) {
 		t.Fatalf("H did not offer the earlier round:\n%s", got)
 	}
 
-	pressKey(m, '1')
+	pressKey(t, m, '1')
 
 	frame := plain(m.Frame())
 	if strings.Contains(frame, "return head") {
@@ -67,7 +67,7 @@ func TestComparingAgainstAnEarlierRoundHidesWhatItAlreadyCarried(t *testing.T) {
 
 	// A second H puts the whole diff back, since a filter with no way out is a
 	// filter nobody turns on.
-	pressKey(m, 'H')
+	pressKey(t, m, 'H')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "return head") {
 		t.Errorf("H did not put the whole diff back:\n%s", got)

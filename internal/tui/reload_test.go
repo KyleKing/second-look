@@ -51,10 +51,10 @@ func TestACommentRewrittenUnderTheCursorOffersBoth(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	onto(t, m, "MAJOR")
-	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 	for _, r := range "mine" {
-		press(m, tea.KeyPressMsg{Code: r, Text: string(r)})
+		press(t, m, tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 
 	r, err := artifact.Load(path)
@@ -80,13 +80,13 @@ func TestACommentRewrittenUnderTheCursorOffersBoth(t *testing.T) {
 		t.Errorf("what was typed was lost:\n%s", frame)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
 
 	if frame = plain(m.Frame()); !strings.Contains(frame, "what the agent wrote") {
 		t.Errorf("ctrl+t did not offer the other version:\n%s", frame)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
 
 	if frame = plain(m.Frame()); !strings.Contains(frame, "mine") {
 		t.Errorf("ctrl+t did not put what was typed back:\n%s", frame)

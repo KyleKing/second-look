@@ -88,28 +88,32 @@ func modelFor(t *testing.T, r *artifact.Review, patch string) (*tui.Model, strin
 	return m, path, sub
 }
 
-// press sends a keystroke and runs whatever it returned, which is what the
-// program loop would do and the only way a submit reaches the submitter.
-//
-// A command that has not answered quickly is dropped rather than waited on. The
-// search prompt's cursor schedules a blink half a second out and reschedules
-// forever, and a test that waited for each one would spend its whole run
-// watching a cursor the program loop runs in the background anyway.
-func nextView(m *tui.Model) { press(m, tea.KeyPressMsg{Code: 'c', Text: "c"}) }
+func nextView(tb testing.TB, m *tui.Model) {
+	tb.Helper()
 
-// The state chord is m then a letter, which is how a comment is restamped.
-func state(m *tui.Model, letter rune) {
-	press(m, tea.KeyPressMsg{Code: 'm', Text: "m"})
-	press(m, tea.KeyPressMsg{Code: letter, Text: string(letter)})
+	press(tb, m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 }
 
-func press(m *tui.Model, k tea.KeyPressMsg) {
+// The state chord is m then a letter, which is how a comment is restamped.
+func state(tb testing.TB, m *tui.Model, letter rune) {
+	tb.Helper()
+
+	press(tb, m, tea.KeyPressMsg{Code: 'm', Text: "m"})
+	press(tb, m, tea.KeyPressMsg{Code: letter, Text: string(letter)})
+}
+
+// press sends a keystroke and runs whatever it returned, which is what the
+// program loop would do and the only way a submit reaches the submitter. A
+// command that does not answer within the deadlock fails the test.
+func press(tb testing.TB, m *tui.Model, k tea.KeyPressMsg) {
+	tb.Helper()
+
 	_, cmd := m.Update(k)
 	if cmd == nil {
 		return
 	}
 
-	const patience = 100 * time.Millisecond
+	const deadlock = 10 * time.Second
 
 	done := make(chan tea.Msg, 1)
 	go func() { done <- cmd() }()
@@ -117,9 +121,13 @@ func press(m *tui.Model, k tea.KeyPressMsg) {
 	select {
 	case msg := <-done:
 		m.Update(msg)
-	case <-time.After(patience):
+	case <-time.After(deadlock):
+		tb.Fatalf("the command for %s did not answer within %s", k.String(), deadlock)
 	}
 }
+
+// pressNoWait sends a keystroke whose command blocks on purpose, so nothing is run.
+func pressNoWait(m *tui.Model, k tea.KeyPressMsg) { m.Update(k) }
 
 // TestTreeDecidesWhatCheckoutAndShellCanDo is the lazy checkout. A review opens
 // whether or not a working copy is on its head, so asking for one is C, and a
@@ -152,7 +160,7 @@ func TestTreeDecidesWhatCheckoutAndShellCanDo(t *testing.T) {
 
 			m := treeFixture(t, tc.tree)
 
-			press(m, tea.KeyPressMsg{Code: 'C', Text: "C"})
+			press(t, m, tea.KeyPressMsg{Code: 'C', Text: "C"})
 
 			if got := m.WantsCheckout(); got != tc.wants {
 				t.Errorf("C asked for a checkout = %v, want %v", got, tc.wants)
@@ -168,7 +176,7 @@ func TestTreeDecidesWhatCheckoutAndShellCanDo(t *testing.T) {
 
 			// A shell on the head is the working path and launches one, so only
 			// the two that refuse are driven here.
-			press(m, tea.KeyPressMsg{Code: '!', Text: "!"})
+			press(t, m, tea.KeyPressMsg{Code: '!', Text: "!"})
 
 			if !strings.Contains(plain(m.Frame()), tc.refusing) {
 				t.Errorf("! never said %q:\n%s", tc.refusing, plain(m.Frame()))
@@ -187,8 +195,8 @@ func TestMergeAsksTwiceAndRefusesAStagedReview(t *testing.T) {
 		t.Parallel()
 
 		m, merges := mergeFixture(t, comment("c1", parsed, "RIGHT", 16, "a word"))
-		pressKey(m, 'M')
-		pressKey(m, 'M')
+		pressKey(t, m, 'M')
+		pressKey(t, m, 'M')
 
 		if *merges != 0 {
 			t.Errorf("%d merge(s) sent with a review still staged", *merges)
@@ -204,7 +212,7 @@ func TestMergeAsksTwiceAndRefusesAStagedReview(t *testing.T) {
 
 		m, merges := mergeFixture(t)
 
-		pressKey(m, 'M')
+		pressKey(t, m, 'M')
 
 		if *merges != 0 {
 			t.Error("the first M merged without confirming")
@@ -214,7 +222,7 @@ func TestMergeAsksTwiceAndRefusesAStagedReview(t *testing.T) {
 			t.Errorf("the first M did not ask:\n%s", plain(m.Frame()))
 		}
 
-		pressKey(m, 'M')
+		pressKey(t, m, 'M')
 
 		if *merges != 1 {
 			t.Errorf("%d merge(s) after confirming, want 1", *merges)
@@ -226,9 +234,9 @@ func TestMergeAsksTwiceAndRefusesAStagedReview(t *testing.T) {
 
 		m, merges := mergeFixture(t)
 
-		pressKey(m, 'M')
-		pressKey(m, 'j')
-		pressKey(m, 'M')
+		pressKey(t, m, 'M')
+		pressKey(t, m, 'j')
+		pressKey(t, m, 'M')
 
 		if *merges != 0 {
 			t.Errorf("%d merge(s) after a cancel", *merges)
@@ -246,7 +254,7 @@ func TestDeleteBranchAsksTwiceAndIgnoresStagedComments(t *testing.T) {
 
 		m, deletes := deleteBranchFixture(t)
 
-		pressKey(m, 'D')
+		pressKey(t, m, 'D')
 
 		if *deletes != 0 {
 			t.Error("the first D deleted without confirming")
@@ -256,7 +264,7 @@ func TestDeleteBranchAsksTwiceAndIgnoresStagedComments(t *testing.T) {
 			t.Errorf("the first D did not ask:\n%s", plain(m.Frame()))
 		}
 
-		pressKey(m, 'D')
+		pressKey(t, m, 'D')
 
 		if *deletes != 1 {
 			t.Errorf("%d deletion(s) after confirming, want 1", *deletes)
@@ -268,9 +276,9 @@ func TestDeleteBranchAsksTwiceAndIgnoresStagedComments(t *testing.T) {
 
 		m, deletes := deleteBranchFixture(t)
 
-		pressKey(m, 'D')
-		pressKey(m, 'j')
-		pressKey(m, 'D')
+		pressKey(t, m, 'D')
+		pressKey(t, m, 'j')
+		pressKey(t, m, 'D')
 
 		if *deletes != 0 {
 			t.Errorf("%d deletion(s) after a cancel", *deletes)
@@ -281,8 +289,8 @@ func TestDeleteBranchAsksTwiceAndIgnoresStagedComments(t *testing.T) {
 		t.Parallel()
 
 		m, deletes := deleteBranchFixture(t, comment("c1", parsed, "RIGHT", 16, "a word"))
-		pressKey(m, 'D')
-		pressKey(m, 'D')
+		pressKey(t, m, 'D')
+		pressKey(t, m, 'D')
 
 		if *deletes != 1 {
 			t.Errorf("%d deletion(s) with a review staged, want 1", *deletes)
@@ -321,8 +329,10 @@ func deleteBranchFixture(t *testing.T, cs ...artifact.Comment) (*tui.Model, *int
 	return m, &deletes
 }
 
-func pressKey(m *tui.Model, c rune) {
-	press(m, tea.KeyPressMsg{Code: c, Text: string(c)})
+func pressKey(tb testing.TB, m *tui.Model, c rune) {
+	tb.Helper()
+
+	press(tb, m, tea.KeyPressMsg{Code: c, Text: string(c)})
 }
 
 // mergeFixture is a review with nothing staged unless comments are given, and a
@@ -400,9 +410,9 @@ func TestFramesFitTheirWidthInEveryScript(t *testing.T) {
 
 				// The help overlay is measured too: it is the widest fixed text
 				// the screen draws and nothing else pins it to the frame.
-				press(m, tea.KeyPressMsg{Code: '?', Text: "?"})
+				press(t, m, tea.KeyPressMsg{Code: '?', Text: "?"})
 				fitsWidth(t, "help", plain(m.Frame()), width)
-				press(m, tea.KeyPressMsg{Code: '?', Text: "?"})
+				press(t, m, tea.KeyPressMsg{Code: '?', Text: "?"})
 
 				frame := plain(m.Frame())
 				fitsWidth(t, "review", frame, width)
@@ -424,8 +434,8 @@ func TestRunningOutOfCommentsSaysSo(t *testing.T) {
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the only one"))
 
-	go2(m, ']', 'c')
-	go2(m, ']', 'c')
+	go2(t, m, ']', 'c')
+	go2(t, m, ']', 'c')
 
 	if want := "no comment after this one"; !strings.Contains(plain(m.Frame()), want) {
 		t.Errorf("want %q in the frame:\n%s", want, plain(m.Frame()))
@@ -433,7 +443,7 @@ func TestRunningOutOfCommentsSaysSo(t *testing.T) {
 
 	// The next real move clears it, so the hints are not hidden by a message
 	// about a key press that is already over.
-	press(m, tea.KeyPressMsg{Code: 'k', Text: "k"})
+	press(t, m, tea.KeyPressMsg{Code: 'k', Text: "k"})
 
 	if strings.Contains(plain(m.Frame()), "no comment after") {
 		t.Error("the boundary message outlived the keystroke that caused it")
@@ -452,26 +462,26 @@ func TestMotionRepeatsAndDotReplaysTheChange(t *testing.T) {
 		comment("c3", "internal/vcs/git.go", artifact.SideRight, 201, "third"))
 
 	// n before any motion, and . before any change, say so rather than guessing.
-	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	press(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
 
 	if !strings.Contains(plain(m.Frame()), "no motion to repeat") {
 		t.Error("n with nothing to repeat said nothing")
 	}
 
-	press(m, tea.KeyPressMsg{Code: '.', Text: "."})
+	press(t, m, tea.KeyPressMsg{Code: '.', Text: "."})
 
 	if !strings.Contains(plain(m.Frame()), "nothing to repeat") {
 		t.Error(". with nothing to repeat said nothing")
 	}
 
-	go2(m, ']', 'c')
+	go2(t, m, ']', 'c')
 	first := m.CommentUnderCursor()
 
-	state(m, 'x')
-	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
-	press(m, tea.KeyPressMsg{Code: '.', Text: "."})
-	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
-	press(m, tea.KeyPressMsg{Code: '.', Text: "."})
+	state(t, m, 'x')
+	press(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	press(t, m, tea.KeyPressMsg{Code: '.', Text: "."})
+	press(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	press(t, m, tea.KeyPressMsg{Code: '.', Text: "."})
 
 	saved, err := artifact.Load(path)
 	if err != nil {
@@ -489,8 +499,8 @@ func TestMotionRepeatsAndDotReplaysTheChange(t *testing.T) {
 	// come back to where the first motion landed. Comments are ordered by where
 	// they anchor, not by how they were written, which is why this compares
 	// against that index rather than zero.
-	go2(m, '[', 'c')
-	go2(m, '[', 'c')
+	go2(t, m, '[', 'c')
+	go2(t, m, '[', 'c')
 
 	if got := m.CommentUnderCursor(); got != first {
 		t.Errorf("[c twice from the last comment landed on %d, want %d", got, first)
@@ -504,18 +514,18 @@ func TestAPendingMotionCancels(t *testing.T) {
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "only"))
 
-	go2(m, ']', 'z')
+	go2(t, m, ']', 'z')
 
 	if !strings.Contains(plain(m.Frame()), "no motion for z") {
 		t.Errorf("an unknown object said nothing:\n%s", plain(m.Frame()))
 	}
 
-	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
-	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	// Escape canceled rather than quitting or resolving, so the screen still
 	// answers an ordinary key.
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
 	if strings.Contains(plain(m.Frame()), "no motion for") {
 		t.Error("escape resolved the prefix instead of canceling it")
@@ -531,7 +541,7 @@ func TestSearchIsAMotionAndCanBeScopedToUnread(t *testing.T) {
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the only one"))
 
-	typeSearch(m, "split")
+	typeSearch(t, m, "split")
 
 	if got := m.CursorText(); !strings.Contains(got, "split") {
 		t.Fatalf("the cursor landed on %q, which does not match", got)
@@ -540,7 +550,7 @@ func TestSearchIsAMotionAndCanBeScopedToUnread(t *testing.T) {
 	first := m.CursorRow()
 
 	// n walks to the next match without naming the pattern again.
-	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	press(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
 
 	if m.CursorRow() == first {
 		t.Error("n did not repeat the search")
@@ -553,11 +563,11 @@ func TestSearchIsAMotionAndCanBeScopedToUnread(t *testing.T) {
 	// Nothing is read, so an unread-scoped search finds the same rows. A screen
 	// with nowhere to record what is read finds none, which is the honest
 	// answer rather than silently searching everything.
-	go2(m, 'g', 'g')
-	press(m, tea.KeyPressMsg{Code: '/', Text: "/"})
-	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
-	typeInto(m, "split")
-	press(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	go2(t, m, 'g', 'g')
+	press(t, m, tea.KeyPressMsg{Code: '/', Text: "/"})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+	typeInto(t, m, "split")
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if !strings.Contains(plain(m.Frame()), "no unread match") {
 		t.Errorf("an unread search with nowhere to record read state found something:\n%s",
@@ -572,14 +582,14 @@ func TestSearchIsCaseInsensitiveUntilItIsNot(t *testing.T) {
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the only one"))
 
-	typeSearch(m, "SPLIT")
+	typeSearch(t, m, "SPLIT")
 
 	if !strings.Contains(plain(m.Frame()), "no match for SPLIT") {
 		t.Errorf("an uppercase pattern matched lowercase text:\n%s", plain(m.Frame()))
 	}
 
-	go2(m, 'g', 'g')
-	typeSearch(m, "SPLIT(")
+	go2(t, m, 'g', 'g')
+	typeSearch(t, m, "SPLIT(")
 
 	if !strings.Contains(plain(m.Frame()), "no match") {
 		t.Error("the second search should also find nothing")
@@ -610,8 +620,7 @@ func TestCosmeticHunksFoldAway(t *testing.T) {
 
 	m, _, _ := fixtureWith(t, patch)
 
-	// The pass shells out to ast-grep, which is more than the shared helper's
-	// patience, so the command is waited on here.
+	// The test needs the pass's own command, so it is run here rather than through press.
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'W', Text: "W"})
 	if cmd == nil {
 		t.Fatal("W started no structural pass")
@@ -632,7 +641,7 @@ func TestCosmeticHunksFoldAway(t *testing.T) {
 		t.Errorf("W hid a hunk that changes something:\n%s", frame)
 	}
 
-	pressKey(m, 'W')
+	pressKey(t, m, 'W')
 
 	if !strings.Contains(plain(m.Frame()), "new wording") {
 		t.Error("W did not bring the hunk back")
@@ -663,7 +672,7 @@ func TestWhitespaceHunksFoldAway(t *testing.T) {
 		t.Fatal("the whitespace hunk is not shown to begin with")
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'w', Text: "w"})
+	press(t, m, tea.KeyPressMsg{Code: 'w', Text: "w"})
 
 	frame := plain(m.Frame())
 	if strings.Contains(frame, "a := 1") {
@@ -678,7 +687,7 @@ func TestWhitespaceHunksFoldAway(t *testing.T) {
 		t.Error("folding hid a hunk that changes something")
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'w', Text: "w"})
+	press(t, m, tea.KeyPressMsg{Code: 'w', Text: "w"})
 
 	if !strings.Contains(plain(m.Frame()), "a := 1") {
 		t.Error("w did not bring the hunk back")
@@ -743,9 +752,9 @@ diff --git a/internal/tui/model.go b/internal/tui/model.go
 		t.Errorf("docs/guide.md was rendered between two internal/tui files:\n%s", frame)
 	}
 
-	go2(m, ']', 'd')
+	go2(t, m, ']', 'd')
 	first := m.CursorText()
-	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	press(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
 
 	if m.CursorText() == first {
 		t.Error("n did not repeat the directory motion")
@@ -768,13 +777,13 @@ func TestTheCommentViewKeepsYourPlace(t *testing.T) {
 		comment("c1", parsed, artifact.SideRight, 15, "the split can fail"),
 		skipped)
 
-	go2(m, ']', 'c')
+	go2(t, m, ']', 'c')
 	was := m.CommentUnderCursor()
 
 	// c walks three views, so the comments are two presses from the diff and
 	// the diff is one press back.
-	nextView(m)
-	nextView(m)
+	nextView(t, m)
+	nextView(t, m)
 
 	// A count of zero is left out, so what a file carries is what it says.
 	frame := plain(m.Frame())
@@ -797,8 +806,8 @@ func TestTheCommentViewKeepsYourPlace(t *testing.T) {
 	}
 
 	// Actions work here, because these are the same rows.
-	state(m, 'd')
-	nextView(m)
+	state(t, m, 'd')
+	nextView(t, m)
 
 	if got := m.CommentUnderCursor(); got != was {
 		t.Errorf("coming back landed on comment %d, want %d", got, was)
@@ -814,22 +823,28 @@ func TestTheCommentViewKeepsYourPlace(t *testing.T) {
 	}
 }
 
-func typeSearch(m *tui.Model, pattern string) {
-	press(m, tea.KeyPressMsg{Code: '/', Text: "/"})
-	typeInto(m, pattern)
-	press(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+func typeSearch(tb testing.TB, m *tui.Model, pattern string) {
+	tb.Helper()
+
+	press(tb, m, tea.KeyPressMsg{Code: '/', Text: "/"})
+	typeInto(tb, m, pattern)
+	press(tb, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 }
 
-func typeInto(m *tui.Model, text string) {
+func typeInto(tb testing.TB, m *tui.Model, text string) {
+	tb.Helper()
+
 	for _, r := range text {
-		press(m, tea.KeyPressMsg{Code: r, Text: string(r)})
+		press(tb, m, tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 }
 
 // go2 types a two-key motion: the prefix, then the object.
-func go2(m *tui.Model, prefix, object rune) {
-	press(m, tea.KeyPressMsg{Code: prefix, Text: string(prefix)})
-	press(m, tea.KeyPressMsg{Code: object, Text: string(object)})
+func go2(tb testing.TB, m *tui.Model, prefix, object rune) {
+	tb.Helper()
+
+	press(tb, m, tea.KeyPressMsg{Code: prefix, Text: string(prefix)})
+	press(tb, m, tea.KeyPressMsg{Code: object, Text: string(object)})
 }
 
 func fitsWidth(t *testing.T, what, frame string, width int) {
@@ -868,16 +883,16 @@ func TestPostingOneCommentTakesItOffTheReview(t *testing.T) {
 	})
 
 	// A draft has not been ruled on, so naming it directly still does nothing.
-	go2(m, ']', 'c')
-	state(m, 'd')
-	press(m, tea.KeyPressMsg{Code: 'P', Text: "P"})
+	go2(t, m, ']', 'c')
+	state(t, m, 'd')
+	press(t, m, tea.KeyPressMsg{Code: 'P', Text: "P"})
 
 	if len(sent) != 0 {
 		t.Fatalf("a draft was posted on its own: %v", sent)
 	}
 
-	state(m, 'r')
-	press(m, tea.KeyPressMsg{Code: 'P', Text: "P"})
+	state(t, m, 'r')
+	press(t, m, tea.KeyPressMsg{Code: 'P', Text: "P"})
 
 	if len(sent) != 1 {
 		t.Fatalf("posted %v, want exactly one comment", sent)
@@ -930,8 +945,8 @@ func TestAFailedSubmitIsReadableAndReported(t *testing.T) {
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
-	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+	press(t, m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+	press(t, m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 
 	if !errors.Is(m.Failure(), fail) {
 		t.Errorf("the screen kept %v, want the submit failure", m.Failure())
@@ -1059,7 +1074,7 @@ func TestTogglingOneLookAtATime(t *testing.T) {
 		{[]rune{'v'}, ""},
 	} {
 		for _, k := range tc.keys {
-			press(m, tea.KeyPressMsg{Code: k, Text: string(k)})
+			press(t, m, tea.KeyPressMsg{Code: k, Text: string(k)})
 		}
 
 		title := strings.SplitN(plain(m.Frame()), "\n", 2)[0]
@@ -1092,7 +1107,7 @@ func TestSideBySidePairsAnEditOntoOneRow(t *testing.T) {
 
 	m, _, _ := fixtureWith(t, patch)
 	m.Update(tea.WindowSizeMsg{Width: 160, Height: 30})
-	press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+	press(t, m, tea.KeyPressMsg{Code: 'v', Text: "v"})
 
 	frame := plain(m.Frame())
 
@@ -1131,7 +1146,7 @@ func TestSideBySideFallsBackWhenNarrow(t *testing.T) {
 
 	m, _ := fixture(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
-	press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+	press(t, m, tea.KeyPressMsg{Code: 'v', Text: "v"})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "split") {
@@ -1210,10 +1225,10 @@ func TestZaOpensAGeneratedFile(t *testing.T) {
 	m, _, _ := fixtureWith(t, patch)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
-	press(m, tea.KeyPressMsg{Code: 'f', Text: "f"})
-	press(m, tea.KeyPressMsg{Code: 'z', Text: "z"})
-	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(t, m, tea.KeyPressMsg{Code: 'f', Text: "f"})
+	press(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"})
+	press(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, `version = "1.6.0"`) {
 		t.Errorf("za did not open the lockfile:\n%s", frame)
@@ -1277,7 +1292,7 @@ diff --git a/cmd/app/main.go b/cmd/app/main.go
 
 	// O puts the forge's judgment back, which is a thing worth being able to
 	// consult when the gathering guessed wrong.
-	pressKey(m, 'O')
+	pressKey(t, m, 'O')
 
 	back := plain(m.Frame())
 	if strings.Contains(back, "gathered") {
@@ -1362,15 +1377,14 @@ func gathered(t *testing.T, patch string) *tui.Model {
 	m, _, _ := fixtureWith(t, patch)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	// The pass shells out to ast-grep, which is more than the shared helper's
-	// patience, so the command is waited on here.
+	// The test needs the pass's own command, so it is run here rather than through press.
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'W', Text: "W"})
 	if cmd == nil {
 		t.Fatal("W started no structural pass")
 	}
 
 	m.Update(cmd())
-	pressKey(m, 'W')
+	pressKey(t, m, 'W')
 
 	return m
 }
@@ -1388,18 +1402,18 @@ func TestAReadHunkRecedes(t *testing.T) {
 			m := readable(t, longPatch(t))
 			if renderer == "plain" {
 				for range 3 {
-					press(m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+					press(t, m, tea.KeyPressMsg{Code: 'v', Text: "v"})
 				}
 			}
 
 			// space acts on the hunk the cursor is in, and the screen opens on
 			// the review's own prose rather than in the diff.
-			press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
-			press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+			press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
+			press(t, m, tea.KeyPressMsg{Code: 'h', Text: "h"})
 
 			before := styledLine(t, m, "first line 1")
 
-			press(m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+			press(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 
 			after := styledLine(t, m, "first line 1")
 			if after == before {
@@ -1424,7 +1438,7 @@ func TestAFoldedHeadingRecedes(t *testing.T) {
 
 	before := ansi.FindAllString(styledLine(t, m, parsed), -1)
 
-	go2(m, 'z', 'M')
+	go2(t, m, 'z', 'M')
 
 	after := ansi.FindAllString(styledLine(t, m, parsed), -1)
 
@@ -1495,8 +1509,8 @@ func TestLandingOnACommentCentersIt(t *testing.T) {
 	m, _, _ := fixtureWith(t, longPatch(t),
 		comment("c1", "first/file.go", artifact.SideRight, deep, "the last one"))
 
-	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
-	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(t, m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 
 	body := strings.Split(plain(m.Frame()), "\n")
 
@@ -1551,7 +1565,7 @@ func TestLandingOnAThreadCentersIt(t *testing.T) {
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	go2(m, ']', 't')
+	go2(t, m, ']', 't')
 
 	body := strings.Split(plain(m.Frame()), "\n")
 
@@ -1689,11 +1703,11 @@ func TestSkippingFillsInAReason(t *testing.T) {
 
 	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "on the add"))
 
-	go2(m, ']', 'c')
+	go2(t, m, ']', 'c')
 
 	// The three state keys sit behind m, and a bare press says so rather than
 	// doing nothing, because the hand that learned them keeps reaching.
-	press(m, tea.KeyPressMsg{Code: 'x', Text: "x"})
+	press(t, m, tea.KeyPressMsg{Code: 'x', Text: "x"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "m first") {
 		t.Errorf("a bare x said nothing:\n%s", got)
@@ -1703,7 +1717,7 @@ func TestSkippingFillsInAReason(t *testing.T) {
 		t.Errorf("a bare x restamped the comment to %q", got)
 	}
 
-	state(m, 'x')
+	state(t, m, 'x')
 
 	saved, err := artifact.Load(path)
 	if err != nil {
@@ -1739,8 +1753,8 @@ func TestJumpingToAFileShowsItsContent(t *testing.T) {
 	t.Parallel()
 
 	m, _, _ := fixtureWith(t, longPatch(t))
-	go2(m, ']', 'f')
-	go2(m, ']', 'f')
+	go2(t, m, ']', 'f')
+	go2(t, m, ']', 'f')
 
 	lines := strings.Split(plain(m.Frame()), "\n")
 
@@ -1801,10 +1815,10 @@ func TestSubmitAsksFirst(t *testing.T) {
 			t.Parallel()
 
 			m, path, sub := fixtureWith(t, patch, ready)
-			press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+			press(t, m, tea.KeyPressMsg{Code: 'S', Text: "S"})
 
 			for _, k := range tc.after {
-				press(m, k)
+				press(t, m, k)
 			}
 
 			if sub.n != tc.posts {
@@ -1857,17 +1871,17 @@ func TestALocalReviewNamesItsDiffAndPostsNothing(t *testing.T) {
 		t.Errorf("a local review is titled %q rather than what it diffs", title)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+	press(t, m, tea.KeyPressMsg{Code: 'S', Text: "S"})
 	if got := plain(m.Frame()); !strings.Contains(got, "notes") {
 		t.Errorf("S never said there is nothing to post to:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+	press(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
 	if sub.n != 0 {
 		t.Error("a local review posted")
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'C', Text: "C"})
+	press(t, m, tea.KeyPressMsg{Code: 'C', Text: "C"})
 	if got := plain(m.Frame()); !strings.Contains(got, "the change under review") {
 		t.Errorf("C never said the checkout is the change:\n%s", got)
 	}
@@ -1907,12 +1921,12 @@ func TestAskChordQuestionsTheDiff(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
 	// The chord says what it takes while it waits.
-	press(m, tea.KeyPressMsg{Code: 'A', Text: "A"})
+	press(t, m, tea.KeyPressMsg{Code: 'A', Text: "A"})
 	if got := plain(m.Frame()); !strings.Contains(got, "ath through") {
 		t.Fatalf("A never said what it asks:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'p', Text: "p"})
+	press(t, m, tea.KeyPressMsg{Code: 'p', Text: "p"})
 
 	if len(asked) != 1 || !strings.Contains(asked[0], "internal/vcs/diff.go") {
 		t.Fatalf("the path question did not carry the diff: %v", asked)
@@ -1922,9 +1936,9 @@ func TestAskChordQuestionsTheDiff(t *testing.T) {
 	}
 
 	// Any key leaves the overlay, and the drift question carries the claim.
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	press(m, tea.KeyPressMsg{Code: 'A', Text: "A"})
-	press(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: 'A', Text: "A"})
+	press(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
 
 	if len(asked) != 2 || !strings.Contains(asked[1], "carry the split's error") {
 		t.Fatalf("the drift question never named the claim: %v", asked)
@@ -1932,11 +1946,11 @@ func TestAskChordQuestionsTheDiff(t *testing.T) {
 
 	// The card asks about the hunk the cursor is in — standing on its header
 	// is standing in it.
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
-	press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
-	press(m, tea.KeyPressMsg{Code: 'A', Text: "A"})
-	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(t, m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+	press(t, m, tea.KeyPressMsg{Code: 'A', Text: "A"})
+	press(t, m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 
 	if len(asked) != 3 || !strings.Contains(asked[2], "lines, err := split") {
 		t.Fatalf("the card question never carried the hunk: %v", asked)
@@ -1969,33 +1983,33 @@ func TestAskedPathIsWalkedByN(t *testing.T) {
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	press(m, tea.KeyPressMsg{Code: 'A', Text: "A"})
-	press(m, tea.KeyPressMsg{Code: 'p', Text: "p"})
+	press(t, m, tea.KeyPressMsg{Code: 'A', Text: "A"})
+	press(t, m, tea.KeyPressMsg{Code: 'p', Text: "p"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "n walks the path") {
 		t.Fatalf("the path answer did not offer the walk:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'q', Text: "q"}) // leave the overlay
+	press(t, m, tea.KeyPressMsg{Code: 'q', Text: "q"}) // leave the overlay
 
-	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	press(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
 	if got := m.CursorText(); !strings.Contains(got, "internal/vcs/git.go") {
 		t.Fatalf("n did not land on the path's first file: %q", got)
 	}
 
 	// The second path file sits earlier in the diff, where no forward scan
 	// reaches; the walk goes to it anyway.
-	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	press(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
 	if got := m.CursorText(); !strings.Contains(got, "internal/vcs/diff.go") {
 		t.Fatalf("the second n did not follow the path's own order: %q", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'n', Text: "n"})
+	press(t, m, tea.KeyPressMsg{Code: 'n', Text: "n"})
 	if got := plain(m.Frame()); !strings.Contains(got, "no path file after this one") {
 		t.Fatalf("the path's end did not say so:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'N', Text: "N"})
+	press(t, m, tea.KeyPressMsg{Code: 'N', Text: "N"})
 	if got := m.CursorText(); !strings.Contains(got, "internal/vcs/git.go") {
 		t.Fatalf("N did not walk the path back: %q", got)
 	}
@@ -2052,23 +2066,23 @@ func TestMarkerWritesATODOIntoTheSource(t *testing.T) {
 
 	// Land on the added line, which is the one a marker can guard: the row
 	// before it exists only in the old file.
-	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
-	press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(t, m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 
 	if m.KeyIsInert("F") {
 		t.Fatal("F stayed inert with a work root and code under the cursor")
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'F', Text: "F"})
+	press(t, m, tea.KeyPressMsg{Code: 'F', Text: "F"})
 
 	for _, c := range "check the nil case" {
-		press(m, tea.KeyPressMsg{Code: c, Text: string(c)})
+		press(t, m, tea.KeyPressMsg{Code: c, Text: string(c)})
 	}
 
-	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
 	body, err := os.ReadFile(filepath.Join(dir, "diff.go")) //nolint:gosec // the file this test wrote
 	if err != nil {
@@ -2096,7 +2110,7 @@ func TestAskChordWithoutAnAgent(t *testing.T) {
 
 	m, _, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 15, "a word"))
 
-	press(m, tea.KeyPressMsg{Code: 'A', Text: "A"})
+	press(t, m, tea.KeyPressMsg{Code: 'A', Text: "A"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "no agent is configured") {
 		t.Errorf("A never said what it needs:\n%s", got)
@@ -2156,20 +2170,20 @@ func TestNothingIsWrittenBackAfterAPost(t *testing.T) {
 
 	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "on the add"))
 
-	press(m, tea.KeyPressMsg{Code: 'S', Text: "S"})
-	press(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+	press(t, m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+	press(t, m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 
 	if err := os.Remove(path); err != nil {
 		t.Fatalf("standing in for the removal a post does: %v", err)
 	}
 
-	go2(m, ']', 'c')
+	go2(t, m, ']', 'c')
 
 	for _, letter := range []rune{'x', 'd', 'r'} {
-		state(m, letter)
+		state(t, m, letter)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatal("the prepared review came back, so posting again would post it twice")
@@ -2181,9 +2195,11 @@ func TestNothingIsWrittenBackAfterAPost(t *testing.T) {
 }
 
 // type writes into whatever prompt or editor owns the keyboard.
-func typeIn(m *tui.Model, text string) {
+func typeIn(tb testing.TB, m *tui.Model, text string) {
+	tb.Helper()
+
 	for _, r := range text {
-		press(m, tea.KeyPressMsg{Code: r, Text: string(r)})
+		press(tb, m, tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 }
 
@@ -2195,8 +2211,8 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 
 	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
 
-	go2(m, ']', 'c')
-	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	go2(t, m, ']', 'c')
+	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "editing c1") || !strings.Contains(frame, "ctrl+s save") {
@@ -2207,8 +2223,8 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 		t.Errorf("the line being commented on left the frame:\n%s", frame)
 	}
 
-	typeIn(m, ", it can fail")
-	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	typeIn(t, m, ", it can fail")
+	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
 	saved, err := artifact.Load(path)
 	if err != nil {
@@ -2223,23 +2239,23 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 	// comment, so tab walked past them and e said there was no comment here. It
 	// is drawn after the last hunk, with the note under it, so G lands on the
 	// note and one row back is the body.
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
-	pressKey(m, 'k')
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	pressKey(t, m, 'k')
 
 	if got := m.CursorText(); !strings.Contains(got, "REVIEW BODY") {
 		t.Fatalf("the row above the note is not the body: %q", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
-	typeIn(m, "Read it twice.")
-	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	typeIn(t, m, "Read it twice.")
+	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
 	if saved = reviewAt(t, path); saved.Body != "Read it twice." {
 		t.Errorf("review body = %q", saved.Body)
 	}
 
 	// The note is the other half, drawn under the body.
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
 	if got := m.CursorText(); !strings.Contains(got, "REVIEW NOTE") {
 		t.Errorf("the last row of the review is %q, want the review note", got)
@@ -2262,7 +2278,7 @@ func TestTheTitleCarriesTheFileOnceItsHeadingHasScrolledOff(t *testing.T) {
 		t.Errorf("the title names a heading the frame is already showing:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "internal/vcs/git.go") {
 		t.Errorf("the title lost the file the cursor is in:\n%s", got)
@@ -2279,7 +2295,7 @@ func TestTheTitleCarriesTheFileOnceItsHeadingHasScrolledOff(t *testing.T) {
 			break
 		}
 
-		press(long, tea.KeyPressMsg{Code: 'j', Text: "j"})
+		press(t, long, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	}
 
 	if got := plain(long.Frame()); !strings.Contains(got, "first/file.go:30") {
@@ -2301,7 +2317,7 @@ func TestTheTitleCarriesTheGroupOnceItsHeadingHasScrolledOff(t *testing.T) {
 		t.Errorf("the title names a group the frame is already showing:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "generated  go.sum") {
 		t.Errorf("the title does not say which group the cursor is in:\n%s", got)
@@ -2316,25 +2332,25 @@ func TestWritingANewCommentOnTheLineUnderTheCursor(t *testing.T) {
 
 	m, path := fixture(t)
 
-	go2(m, 'g', 'g')
-	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+	go2(t, m, 'g', 'g')
+	press(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "not one") {
 		t.Fatalf("a on the review's own prose was taken:\n%s", got)
 	}
 
-	go2(m, ']', 'h')
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	go2(t, m, ']', 'h')
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 
 	line := m.CursorText()
 
-	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+	press(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "[b]locker") {
 		t.Fatalf("a did not offer a severity:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'm', Text: "m"})
+	press(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "a major comment on") {
@@ -2347,8 +2363,8 @@ func TestWritingANewCommentOnTheLineUnderTheCursor(t *testing.T) {
 		t.Errorf("the line being commented on left the frame:\n%s", frame)
 	}
 
-	typeIn(m, "this can fail")
-	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	typeIn(t, m, "this can fail")
+	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
 	saved := reviewAt(t, path)
 	if len(saved.Comments) != 1 {
@@ -2380,10 +2396,10 @@ func TestSavingAnEditMakesADraftReady(t *testing.T) {
 
 	m, path := fixture(t, draft, skipped)
 
-	go2(m, ']', 'c')
-	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
-	typeIn(m, ", it can fail")
-	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	go2(t, m, ']', 'c')
+	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	typeIn(t, m, ", it can fail")
+	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
 	if got := reviewAt(t, path).Comments[0]; got.Status != artifact.StatusReady || got.Origin != artifact.OriginMe {
 		t.Errorf("the edited draft is %q by %q, want ready by me", got.Status, got.Origin)
@@ -2391,10 +2407,10 @@ func TestSavingAnEditMakesADraftReady(t *testing.T) {
 
 	// A skip is a decision with a reason against it, so writing that reason out
 	// more fully is not a decision to post it after all.
-	go2(m, ']', 'c')
-	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
-	typeIn(m, " at all")
-	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	go2(t, m, ']', 'c')
+	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	typeIn(t, m, " at all")
+	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
 	if got := reviewAt(t, path).Comments[1].Status; got != artifact.StatusSkip {
 		t.Errorf("the edited skip is %q, want skip", got)
@@ -2415,16 +2431,16 @@ func TestAnUnfinishedEditIsKeptAndOfferedBack(t *testing.T) {
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	go2(m, ']', 'c')
-	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
-	typeIn(m, ", and say why")
-	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	go2(t, m, ']', 'c')
+	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	typeIn(t, m, ", and say why")
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if got := reviewAt(t, path).Comments[0].Body; got != "check err" {
 		t.Fatalf("escape wrote the comment anyway: %q", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "check err, and say why") {
@@ -2438,22 +2454,22 @@ func TestAnUnfinishedEditIsKeptAndOfferedBack(t *testing.T) {
 	// The other half of the decision: what the comment says now is one
 	// keystroke away, so accepting the restore is a choice rather than a
 	// default nobody saw.
-	press(m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 
 	if got := plain(m.Frame()); strings.Contains(got, "and say why") {
 		t.Fatalf("ctrl+r did not put back what the comment says:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
-	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 	if got := plain(m.Frame()); strings.Contains(got, "and say why") {
 		t.Errorf("the dropped edit came back:\n%s", got)
 	}
 
 	// Saving takes the buffer, so there is nothing left to offer.
-	typeIn(m, " first")
-	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	typeIn(t, m, " first")
+	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
 	if _, err := os.Stat(artifact.DraftPath(store, "body-c1")); !os.IsNotExist(err) {
 		t.Errorf("the buffer outlived the save that consumed it")
@@ -2478,7 +2494,7 @@ func TestReplyingToAnOpenThread(t *testing.T) {
 	m2.Init()
 	m2.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	go2(m2, ']', 't')
+	go2(t, m2, ']', 't')
 
 	if got := m2.CursorText(); !strings.Contains(got, "open thread") {
 		t.Fatalf("]t landed on %q", got)
@@ -2488,9 +2504,9 @@ func TestReplyingToAnOpenThread(t *testing.T) {
 		t.Fatalf("the footer does not offer a reply:\n%s", got)
 	}
 
-	press(m2, tea.KeyPressMsg{Code: 'e', Text: "e"})
-	typeIn(m2, "yes, os.ReadFile answers a nil-safe error")
-	press(m2, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m2, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	typeIn(t, m2, "yes, os.ReadFile answers a nil-safe error")
+	press(t, m2, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
 	saved, err := artifact.Load(path)
 	if err != nil {
@@ -2527,7 +2543,7 @@ func TestTabSkipsAResolvedThread(t *testing.T) {
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 
 	if got := m.CursorText(); strings.Contains(got, "resolved") {
 		t.Fatalf("tab landed on the resolved thread: %q", got)
@@ -2540,7 +2556,7 @@ func TestTabSkipsAResolvedThread(t *testing.T) {
 	// Walking on from there never lands back on the resolved thread, since
 	// there is nothing further tab would stop on for it to answer.
 	for range 5 {
-		press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+		press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 
 		if got := m.CursorText(); strings.Contains(got, "resolved") {
 			t.Fatalf("tab landed on the resolved thread: %q", got)
@@ -2575,8 +2591,8 @@ func TestReplyKeepsTheThreadOnScreen(t *testing.T) {
 			m.Init()
 			m.Update(tea.WindowSizeMsg{Width: 100, Height: height})
 
-			go2(m, ']', 't')
-			press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+			go2(t, m, ']', 't')
+			press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 			frame := plain(m.Frame())
 			if !strings.Contains(frame, "ctrl+s save") {
@@ -2615,58 +2631,58 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 
 	// A note is the evidence for the comment above it, so it is drawn until
 	// somebody folds it rather than the other way round.
-	go2(m, ']', 'c')
+	go2(t, m, ']', 'c')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "against the fixture") {
 		t.Fatalf("the note is not open:\n%s", got)
 	}
 
-	go2(m, 'z', 'a')
+	go2(t, m, 'z', 'a')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "NOTE  4 lines · za to read") {
 		t.Fatalf("za did not fold the note:\n%s", got)
 	}
 
-	go2(m, 'z', 'i')
+	go2(t, m, 'z', 'i')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "against the fixture") {
 		t.Fatalf("zi did not open what was folded:\n%s", got)
 	}
 
-	go2(m, 'z', 'i')
+	go2(t, m, 'z', 'i')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "1 hunk folded") {
 		t.Fatalf("zi did not fold it all again:\n%s", got)
 	}
 
-	go2(m, 'z', 'R')
+	go2(t, m, 'z', 'R')
 
-	go2(m, 'g', 'g')
-	go2(m, ']', 'f')
-	go2(m, 'z', 'a')
+	go2(t, m, 'g', 'g')
+	go2(t, m, ']', 'f')
+	go2(t, m, 'z', 'a')
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "1 hunk folded") || strings.Contains(frame, "lines, err := split(r)") {
 		t.Fatalf("za on the file name did not fold it:\n%s", frame)
 	}
 
-	go2(m, 'z', 'a')
-	go2(m, ']', 'h')
-	go2(m, 'z', 'a')
+	go2(t, m, 'z', 'a')
+	go2(t, m, ']', 'h')
+	go2(t, m, 'z', 'a')
 
 	frame = plain(m.Frame())
 	if !strings.Contains(frame, "folded · za to open") || strings.Contains(frame, "lines, err := split(r)") {
 		t.Fatalf("za on the hunk heading did not fold it:\n%s", frame)
 	}
 
-	go2(m, 'z', 'M')
+	go2(t, m, 'z', 'M')
 
 	frame = plain(m.Frame())
 	if !strings.Contains(frame, "internal/vcs/git.go  1 hunk folded") {
 		t.Fatalf("zM did not fold every file:\n%s", frame)
 	}
 
-	go2(m, 'z', 'R')
+	go2(t, m, 'z', 'R')
 
 	if frame = plain(m.Frame()); !strings.Contains(frame, "lines, err := split(r)") {
 		t.Errorf("zR did not open it again:\n%s", frame)
@@ -2674,11 +2690,11 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 
 	// A fold is a change, so . does it again wherever the cursor now stands.
 	// Folding a run of files costs za once and a dot for each file after it.
-	go2(m, 'g', 'g')
-	go2(m, ']', 'f')
-	go2(m, 'z', 'a')
-	go2(m, ']', 'f')
-	press(m, tea.KeyPressMsg{Code: '.', Text: "."})
+	go2(t, m, 'g', 'g')
+	go2(t, m, ']', 'f')
+	go2(t, m, 'z', 'a')
+	go2(t, m, ']', 'f')
+	press(t, m, tea.KeyPressMsg{Code: '.', Text: "."})
 
 	if frame = plain(m.Frame()); strings.Count(frame, "hunk folded") != 2 {
 		t.Errorf(". did not repeat the fold on the next file:\n%s", frame)
@@ -2692,7 +2708,7 @@ func TestTheCodeViewShowsTheFileThatResults(t *testing.T) {
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the split can fail"))
 
-	nextView(m)
+	nextView(t, m)
 
 	frame := plain(m.Frame())
 
@@ -2714,8 +2730,8 @@ func TestTheCodeViewShowsTheFileThatResults(t *testing.T) {
 		t.Fatalf("the comment is not folded to a marker:\n%s", frame)
 	}
 
-	go2(m, ']', 'c')
-	go2(m, 'z', 'a')
+	go2(t, m, ']', 'c')
+	go2(t, m, 'z', 'a')
 
 	if got := plain(m.Frame()); strings.Contains(got, "▸ ● MAJOR") {
 		t.Errorf("za did not open the comment:\n%s", got)
@@ -2723,15 +2739,15 @@ func TestTheCodeViewShowsTheFileThatResults(t *testing.T) {
 
 	// How much came out is enough to keep reading and not enough to review
 	// the change, so the run opens where it stands.
-	go2(m, 'g', 'g')
-	typeSearch(m, "1 line removed")
-	go2(m, 'z', 'a')
+	go2(t, m, 'g', 'g')
+	typeSearch(t, m, "1 line removed")
+	go2(t, m, 'z', 'a')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "lines := split(r)") {
 		t.Errorf("za did not show what was removed:\n%s", got)
 	}
 
-	go2(m, 'z', 'a')
+	go2(t, m, 'z', 'a')
 
 	if got := plain(m.Frame()); strings.Contains(got, "lines := split(r)") {
 		t.Errorf("za did not put the removal away again:\n%s", got)
@@ -2745,18 +2761,18 @@ func TestPeekScrollsWithoutMovingTheCursor(t *testing.T) {
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
 
-	go2(m, ']', 'h')
+	go2(t, m, ']', 'h')
 	was := m.CursorRow()
 
 	for range 5 {
-		press(m, tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+		press(t, m, tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	}
 
 	if got := m.CursorRow(); got != was {
 		t.Fatalf("the peek moved the cursor to row %d, want %d", got, was)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 
 	if got := m.CursorRow(); got != was+1 {
 		t.Errorf("j after a peek landed on row %d, want %d", got, was+1)
@@ -2774,7 +2790,7 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 14})
-	press(m, tea.KeyPressMsg{Code: '?', Text: "?"})
+	press(t, m, tea.KeyPressMsg{Code: '?', Text: "?"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "a line") {
 		t.Fatalf("the legend does not start at the top:\n%s", got)
@@ -2801,13 +2817,13 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 	}
 
 	// ctrl+d/u scroll the half page they scroll in the diff.
-	press(m, tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 
 	if got := plain(m.Frame()); strings.Contains(got, "a line") {
 		t.Errorf("ctrl+d did not move the legend:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "a line") {
 		t.Errorf("ctrl+u did not move the legend back:\n%s", got)
@@ -2815,7 +2831,7 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 
 	// G means the gg/G row inside the legend rather than a scroll key; the end
 	// key is what reaches the bottom.
-	press(m, tea.KeyPressMsg{Code: tea.KeyEnd})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnd})
 
 	got := plain(m.Frame())
 	if !strings.Contains(got, "end a pane") {
@@ -2824,7 +2840,7 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 
 	// A key pressed while reading it acts on the legend, not on the review it
 	// is drawn over.
-	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if got := plain(m.Frame()); strings.Contains(got, "a line") {
 		t.Errorf("escape did not close the legend:\n%s", got)
@@ -2844,7 +2860,7 @@ func TestAChordLeftWaitingDrawsItsPage(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
 
 	// The chord answers instantly: the wait is for the page, not the keys.
-	press(m, tea.KeyPressMsg{Code: 'z', Text: "z"})
+	pressNoWait(m, tea.KeyPressMsg{Code: 'z', Text: "z"})
 	if got := plain(m.Frame()); strings.Contains(got, "the middle") {
 		t.Fatalf("the page drew before the wait ran:\n%s", got)
 	}
@@ -2858,7 +2874,7 @@ func TestAChordLeftWaitingDrawsItsPage(t *testing.T) {
 
 	// The second key lands the chord and the page with it. The crumb is what
 	// only the strip draws, since the footer's caption names the same keys.
-	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+	press(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
 	if got := plain(m.Frame()); strings.Contains(got, "z then") {
 		t.Errorf("the page stayed after the chord landed:\n%s", got)
 	}
@@ -2871,8 +2887,8 @@ func TestTheHelpAnswersABareKey(t *testing.T) {
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
-	press(m, tea.KeyPressMsg{Code: '?', Text: "?"})
-	press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	press(t, m, tea.KeyPressMsg{Code: '?', Text: "?"})
+	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 	got := plain(m.Frame())
 	if !strings.Contains(got, "writing ·") || !strings.Contains(got, "ctrl+t swaps") {
@@ -2881,7 +2897,7 @@ func TestTheHelpAnswersABareKey(t *testing.T) {
 
 	// The note is what that group carries: j under it is moving's, not a
 	// second way to scroll.
-	press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	if got := plain(m.Frame()); !strings.Contains(got, "moving ·") {
 		t.Errorf("j earned no note of its own:\n%s", got)
 	}
@@ -2894,8 +2910,8 @@ func TestTheHelpOpensAChordPage(t *testing.T) {
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
-	press(m, tea.KeyPressMsg{Code: '?', Text: "?"})
-	press(m, tea.KeyPressMsg{Code: 'z', Text: "z"})
+	press(t, m, tea.KeyPressMsg{Code: '?', Text: "?"})
+	press(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"})
 
 	got := plain(m.Frame())
 	if !strings.Contains(got, "the middle") || !strings.Contains(got, "fold this") {
@@ -2905,7 +2921,7 @@ func TestTheHelpOpensAChordPage(t *testing.T) {
 		t.Errorf("the page does not say how it was reached:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if got := plain(m.Frame()); !strings.Contains(got, "a line") {
 		t.Errorf("escape did not come back to the root page:\n%s", got)
 	}
@@ -2944,7 +2960,7 @@ func TestEveryHunkIsOneRowToWalk(t *testing.T) {
 	var stops []string
 
 	for range 4 {
-		go2(m, ']', 'h')
+		go2(t, m, ']', 'h')
 
 		if at := m.CursorText(); len(stops) == 0 || stops[len(stops)-1] != at {
 			stops = append(stops, at)
@@ -2985,8 +3001,8 @@ func TestTheReviewsOwnProseStartsFolded(t *testing.T) {
 	}
 
 	// Both blocks are drawn after the last hunk, the note under the body.
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
-	go2(m, 'z', 'a')
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	go2(t, m, 'z', 'a')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "the first pass missed the empty file") {
 		t.Errorf("za did not open the review's note:\n%s", got)
@@ -3029,15 +3045,15 @@ func TestTabAtTheEdgeSaysThereIsNothingFurther(t *testing.T) {
 		comment("c1", parsed, artifact.SideRight, 15, "first"),
 		comment("c2", parsed, artifact.SideRight, 14, "second"))
 
-	go2(m, 'g', 'g')
-	press(m, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	go2(t, m, 'g', 'g')
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "no comment or thread before this one") {
 		t.Errorf("shift+tab at the first one said nothing:\n%s", got)
 	}
 
 	for range 10 {
-		press(m, tea.KeyPressMsg{Code: tea.KeyTab})
+		press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 
 	if got := plain(m.Frame()); !strings.Contains(got, "no comment or thread after this one") {
@@ -3067,15 +3083,15 @@ func TestTheFrameCanBePlacedAroundTheCursor(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
 	// Halfway down, so every placement has rows on both sides of it.
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
 	for range 20 {
-		press(m, tea.KeyPressMsg{Code: 'k', Text: "k"})
+		press(t, m, tea.KeyPressMsg{Code: 'k', Text: "k"})
 	}
 
 	place := func(second rune) int {
-		pressKey(m, 'z')
-		pressKey(m, second)
+		pressKey(t, m, 'z')
+		pressKey(t, m, second)
 
 		return cursorRow(m.Frame())
 	}
@@ -3093,10 +3109,10 @@ func TestTheFrameCanBePlacedAroundTheCursor(t *testing.T) {
 
 	// ctrl+e keeps going a little past the last row, so the end of a review is
 	// readable rather than pinned to the bottom edge.
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
 	for range 10 {
-		press(m, tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
+		press(t, m, tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	}
 
 	// The scrollbar keeps its column on every row, so it is not content.
@@ -3114,10 +3130,10 @@ func TestScrollALine_ShiftArrow(t *testing.T) {
 	m, _, _ := fixtureWith(t, tallPatch(60))
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
-	press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
 	for range 10 {
-		press(m, tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModShift})
+		press(t, m, tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModShift})
 	}
 
 	body := strings.Split(strings.TrimRight(plain(m.Frame()), "\n"), "\n")
@@ -3169,7 +3185,7 @@ func TestTheContextOverlayCarriesWhatTheDiffCannot(t *testing.T) {
 		t.Errorf("the header says nothing about the change:\n%s", got)
 	}
 
-	press(m, tea.KeyPressMsg{Code: 'i', Text: "i"})
+	press(t, m, tea.KeyPressMsg{Code: 'i', Text: "i"})
 
 	frame := plain(m.Frame())
 	for _, want := range []string{
@@ -3190,7 +3206,7 @@ func TestTheContextOverlayCarriesWhatTheDiffCannot(t *testing.T) {
 	}
 
 	// It changes nothing, so any key leaves it.
-	press(m, tea.KeyPressMsg{Code: 'x', Text: "x"})
+	press(t, m, tea.KeyPressMsg{Code: 'x', Text: "x"})
 
 	if got := plain(m.Frame()); strings.Contains(got, "coverage is 84.2%") {
 		t.Errorf("the overlay outstayed its key:\n%s", got)
@@ -3203,7 +3219,7 @@ func TestTheContextOverlaySaysWhenNothingWasCached(t *testing.T) {
 	t.Parallel()
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
-	press(m, tea.KeyPressMsg{Code: 'i', Text: "i"})
+	press(t, m, tea.KeyPressMsg{Code: 'i', Text: "i"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "second-look get") {
 		t.Errorf("the overlay does not say how to read the context:\n%s", got)
@@ -3244,14 +3260,14 @@ func TestReactingToAConversationAndTakingItBack(t *testing.T) {
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	go2(m, ']', 't')
+	go2(t, m, ']', 't')
 
 	// Somebody else's reaction is on screen and carries no mark.
 	if got := plain(m.Frame()); !strings.Contains(got, "👀 1") || strings.Contains(got, "👀 1 ✓") {
 		t.Fatalf("the reaction already on the comment is not drawn as somebody else's:\n%s", got)
 	}
 
-	go2(m, ',', 't')
+	go2(t, m, ',', 't')
 
 	if len(sent) != 1 || sent[0].node != "PRRC_1" || sent[0].content != "THUMBS_UP" || sent[0].mine {
 		t.Fatalf("the mutation was %+v", sent)
@@ -3262,7 +3278,7 @@ func TestReactingToAConversationAndTakingItBack(t *testing.T) {
 	}
 
 	// The same key again undoes it, since addReaction refuses a duplicate.
-	go2(m, ',', 't')
+	go2(t, m, ',', 't')
 
 	if len(sent) != 2 || !sent[1].mine {
 		t.Fatalf("the second press did not take it back: %+v", sent)
@@ -3274,7 +3290,7 @@ func TestReactingToAConversationAndTakingItBack(t *testing.T) {
 	}
 
 	// A key that names no emoji says which ones do.
-	go2(m, ',', 'q')
+	go2(t, m, ',', 'q')
 }
 
 // za on a conversation's heading puts the whole thing away, and the heading
@@ -3298,15 +3314,15 @@ func TestFoldingAConversationSaysSo(t *testing.T) {
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	go2(m, ']', 't')
-	go2(m, 'z', 'a')
+	go2(t, m, ']', 't')
+	go2(t, m, 'z', 'a')
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "folded") || strings.Contains(frame, "wrap the error") {
 		t.Fatalf("the conversation is not folded, or does not say it is:\n%s", frame)
 	}
 
-	go2(m, 'z', 'a')
+	go2(t, m, 'z', 'a')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "wrap the error") {
 		t.Errorf("za did not put the conversation back:\n%s", got)
@@ -3322,7 +3338,7 @@ func TestTheFooterDimsTheKeysThatDoNothingHere(t *testing.T) {
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	go2(m, ']', 'c')
+	go2(t, m, ']', 'c')
 
 	if got := m.DimKeys(); !slices.Contains(got, "a") || slices.Contains(got, "m") {
 		t.Errorf("on a comment the dim keys are %v, want a dim and m live", got)
@@ -3335,8 +3351,8 @@ func TestTheFooterDimsTheKeysThatDoNothingHere(t *testing.T) {
 
 	// A line of the diff is where a comment is written, so a is live there and
 	// the keys that act on a staged comment are not.
-	go2(m, ']', 'h')
-	pressKey(m, 'j')
+	go2(t, m, ']', 'h')
+	pressKey(t, m, 'j')
 
 	if got := m.DimKeys(); !slices.Contains(got, "m") || slices.Contains(got, "a") {
 		t.Errorf("on a line of the diff the dim keys are %v, want m dim and a live", got)
@@ -3374,7 +3390,7 @@ func TestTheEndOfAReviewHasRoomBelowIt(t *testing.T) {
 			}, patch)
 			m.Update(tea.WindowSizeMsg{Width: 100, Height: height})
 
-			press(m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+			press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
 			lines := strings.Split(plain(m.Frame()), "\n")
 			if len(lines) < 3 {
@@ -3393,7 +3409,7 @@ func TestTheEndOfAReviewHasRoomBelowIt(t *testing.T) {
 			}
 
 			// The editor opens on the note, which is the last row of all.
-			press(m, tea.KeyPressMsg{Code: 'e', Text: "e"})
+			press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 			if frame := plain(m.Frame()); !strings.Contains(frame, "ctrl+s save") {
 				t.Errorf("the editor on the last row is off the frame:\n%s", frame)
@@ -3521,8 +3537,8 @@ func TestTheTrackMarksTheHunksStillToRead(t *testing.T) {
 
 	m := readable(t, hunkyPatch(t))
 
-	press(m, tea.KeyPressMsg{Code: ']', Text: "]"})
-	press(m, tea.KeyPressMsg{Code: 'h', Text: "h"})
+	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
+	press(t, m, tea.KeyPressMsg{Code: 'h', Text: "h"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "•") {
 		t.Errorf("the track marks nothing while two hunks are unread off screen:\n%s", got)
@@ -3531,8 +3547,8 @@ func TestTheTrackMarksTheHunksStillToRead(t *testing.T) {
 	// Reading every hunk leaves nothing to point at, which is the same thing the
 	// read count says at the other end of the title.
 	for range 3 {
-		press(m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
-		go2(m, ']', 'h')
+		press(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+		go2(t, m, ']', 'h')
 	}
 
 	if got := plain(m.Frame()); strings.Contains(got, "•") {

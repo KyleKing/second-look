@@ -19,19 +19,19 @@ func TestARangeCoversEveryLineItWasOpenedOn(t *testing.T) {
 
 	m, path := fixture(t)
 
-	toCode(m)
+	toCode(t, m)
 	first := m.CursorAnchor()
 
-	pressKey(m, 'V')
-	pressKey(m, 'j')
-	pressKey(m, 'j')
+	pressKey(t, m, 'V')
+	pressKey(t, m, 'j')
+	pressKey(t, m, 'j')
 
 	last := m.CursorAnchor()
 
-	pressKey(m, 'a')
-	pressKey(m, 'm')
-	typeIn(m, "these three lines want one comment")
-	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	pressKey(t, m, 'a')
+	pressKey(t, m, 'm')
+	typeIn(t, m, "these three lines want one comment")
+	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
 	saved := reviewAt(t, path)
 	if len(saved.Comments) != 1 {
@@ -61,18 +61,18 @@ func TestARangeIsGoneOnceItIsUsedOrDropped(t *testing.T) {
 
 			m, path := fixture(t)
 
-			toCode(m)
+			toCode(t, m)
 
 			for _, k := range tc.keys {
-				pressKey(m, k)
+				pressKey(t, m, k)
 			}
 
 			if tc.name == "writing one takes it" {
-				write(m, "the first covers a range")
-				pressKey(m, 'j')
+				write(t, m, "the first covers a range")
+				pressKey(t, m, 'j')
 			}
 
-			write(m, "and this one covers a line")
+			write(t, m, "and this one covers a line")
 
 			last := reviewAt(t, path).Comments
 			if got := last[len(last)-1]; got.StartLine != 0 || got.StartSide != "" {
@@ -90,17 +90,17 @@ func TestASuggestedRangeOpensOnEveryLineItReplaces(t *testing.T) {
 
 	m, _ := fixture(t)
 
-	toCode(m)
-	pressKey(m, 'V')
+	toCode(t, m)
+	pressKey(t, m, 'V')
 
 	from := m.CursorAnchor()
 
-	pressKey(m, 'j')
-	pressKey(m, 'j')
+	pressKey(t, m, 'j')
+	pressKey(t, m, 'j')
 
 	to := m.CursorAnchor()
 
-	pressKey(m, 's')
+	pressKey(t, m, 's')
 
 	frame := plain(m.Frame())
 
@@ -120,16 +120,20 @@ func TestASuggestedRangeOpensOnEveryLineItReplaces(t *testing.T) {
 
 // toCode puts the cursor on the first line of the diff, which is where every
 // range in these tests opens.
-func toCode(m *tui.Model) {
-	go2(m, ']', 'h')
-	pressKey(m, 'j')
+func toCode(tb testing.TB, m *tui.Model) {
+	tb.Helper()
+
+	go2(tb, m, ']', 'h')
+	pressKey(tb, m, 'j')
 }
 
 // write stages a comment on whatever the cursor covers, ranked minor because
 // the ranking is not what these tests are about.
-func write(m *tui.Model, body string) {
-	pressKey(m, 'a')
-	pressKey(m, 'n')
-	typeIn(m, body)
-	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+func write(tb testing.TB, m *tui.Model, body string) {
+	tb.Helper()
+
+	pressKey(tb, m, 'a')
+	pressKey(tb, m, 'n')
+	typeIn(tb, m, body)
+	press(tb, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 }

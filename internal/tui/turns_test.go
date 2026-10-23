@@ -41,7 +41,7 @@ func onto(t *testing.T, m *tui.Model, want string) {
 			}
 		}
 
-		press(m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+		press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	}
 
 	t.Fatalf("never reached a row carrying %q:\n%s", want, plain(m.Frame()))
@@ -92,8 +92,8 @@ func TestTurnsOpenOnFold(t *testing.T) {
 
 	onto(t, m, "TURNS")
 
-	press(m, tea.KeyPressMsg{Code: 'z', Text: "z"})
-	press(m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+	press(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"})
+	press(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "turn a says") {
@@ -111,8 +111,8 @@ func TestTodoIsItsOwnState(t *testing.T) {
 
 	onto(t, m, "MAJOR")
 
-	press(m, tea.KeyPressMsg{Code: 'm', Text: "m"})
-	press(m, tea.KeyPressMsg{Code: 't', Text: "t"})
+	press(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"})
+	press(t, m, tea.KeyPressMsg{Code: 't', Text: "t"})
 
 	frame := plain(m.Frame())
 
@@ -130,7 +130,7 @@ func TestDispatchWithNothingOwedSaysSo(t *testing.T) {
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the finding"))
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	press(m, tea.KeyPressMsg{Code: 'T', Text: "T"})
+	press(t, m, tea.KeyPressMsg{Code: 'T', Text: "T"})
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "nothing is marked todo") {
 		t.Errorf("T with nothing owed said:\n%s", frame)
@@ -185,7 +185,7 @@ func TestDispatchCarriesTheSessionTheAgentRecorded(t *testing.T) {
 			m.Init()
 			m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-			press(m, tea.KeyPressMsg{Code: 'T', Text: "T"})
+			press(t, m, tea.KeyPressMsg{Code: 'T', Text: "T"})
 
 			if handed != c.session {
 				t.Errorf("T handed over the session %q, want %q", handed, c.session)
