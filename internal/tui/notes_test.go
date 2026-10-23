@@ -45,9 +45,15 @@ Length of output: 47492
 func botModel(t *testing.T) *tui.Model {
 	t.Helper()
 
+	return threadModel(t, botBody)
+}
+
+func threadModel(t *testing.T, body string) *tui.Model {
+	t.Helper()
+
 	open := threads.Thread{
 		Path: parsed, Side: artifact.SideRight, Line: 15,
-		Notes: []threads.Note{{ID: 77, Author: "coderabbitai", Body: botBody}},
+		Notes: []threads.Note{{ID: 77, Author: "coderabbitai", Body: body}},
 	}
 
 	_, path, _ := fixtureWith(t, patch)
@@ -58,6 +64,37 @@ func botModel(t *testing.T) *tui.Model {
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 
 	return m
+}
+
+// A note longer than twenty rows draws its first twenty and holds the rest
+// behind za, so one long comment cannot bury the diff under it.
+func TestAThreadNoteHoldsItsTailBehindZa(t *testing.T) {
+	t.Parallel()
+
+	steps := make([]string, 25)
+	for i := range steps {
+		steps[i] = fmt.Sprintf("step %02d", i+1)
+	}
+
+	m := threadModel(t, strings.Join(steps, "\n"))
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 60})
+	onto(t, m, "step 01")
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "step 20") || strings.Contains(frame, "step 21") {
+		t.Fatalf("the note is not held at twenty rows:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "5 more lines · za to read") {
+		t.Fatalf("the held rows are not counted:\n%s", frame)
+	}
+
+	onto(t, m, "5 more lines")
+	go2(m, 'z', 'a')
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "step 25") {
+		t.Errorf("za did not open the held rows:\n%s", frame)
+	}
 }
 
 // The whole point of segmenting a body is that the screen shows what somebody
