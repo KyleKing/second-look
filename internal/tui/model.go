@@ -150,9 +150,10 @@ type Model struct {
 	// drawn is which renderer v is on, and refined and lexed are what the rich
 	// one reads: the runs of each changed line its partner does not carry, and
 	// the grammar's reading of each file, lexed the first time it is drawn.
-	drawn   look
-	refined diff.Refined
-	lexed   map[string]map[diff.LineRef][]highlight.Span
+	drawn    look
+	refined  diff.Refined
+	hunkCols map[hunkRef]int
+	lexed    map[string]map[diff.LineRef][]highlight.Span
 
 	// pending is the ] or [ waiting for the object that completes it.
 	pending rune
@@ -2944,6 +2945,8 @@ func (m *Model) rebuild() {
 	if m.notes == nil {
 		m.notes = noted(m.threads)
 	}
+
+	m.hunkCols = hunkWidths(m.diff)
 
 	lay := layout{
 		width: m.width, hide: m.skipper(), fold: m.folded, notes: m.notes, lit: m.lit,

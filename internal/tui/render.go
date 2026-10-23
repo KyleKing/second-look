@@ -239,21 +239,16 @@ func newRichStyles(s styles) richStyles {
 // differ from the line it is paired with marked. One answer is one frame
 // line; a wrapped line is as many as its text takes, and the continuation
 // lines keep the band so they read as the same line rather than as new rows.
-//
-// The band runs to the frame's edge rather than stopping at the text, because
-// a band that ended where a line ended would draw the length of every line as
-// if it meant something.
 func (m *Model) richCode(r row, width int) []string {
 	room := max(0, width-m.gutterWidth())
+	band := m.bandRoom(r.path, r.line.Hunk, room)
 	segs := m.richSegments(r, r.line, room)
 
 	out := make([]string, len(segs))
 	for i, seg := range segs {
-		if over := room - textWidth(seg); over > 0 {
-			seg += m.padTo(r.line.Kind, over)
-		}
+		seg = m.fill(r.path, r.line, seg, band, room)
 
-		gutter := m.padTo(r.line.Kind, m.gutterWidth())
+		gutter := m.padTo(r.path, r.line, m.gutterWidth())
 		if i == 0 {
 			gutter = m.richGutter(r)
 		}
@@ -324,18 +319,73 @@ func number(n, width int) string {
 	return fmt.Sprintf("%*d", width, n)
 }
 
-// padTo fills the rest of the frame with the line's own band, so a band reaches
-// the edge rather than stopping where the text does and drawing the length of
-// every line as if it meant something.
-func (m *Model) padTo(kind byte, cells int) string {
+// padTo fills cells with the line's band where the diff pairs the line, and
+// with spaces where it does not.
+func (m *Model) padTo(path string, l diff.Line, cells int) string {
 	spaces := strings.Repeat(" ", cells)
 
-	bg, ok := m.rich.band[kind]
+	band, ok := m.bandOf(path, l)
 	if !ok {
 		return spaces
 	}
 
-	return lipgloss.NewStyle().Background(bg).Render(spaces)
+	return lipgloss.NewStyle().Background(band).Render(spaces)
+}
+
+// fill pads seg to room cells, with the band running to band cells and plain
+// spaces after it.
+func (m *Model) fill(path string, l diff.Line, seg string, band, room int) string {
+	if over := band - textWidth(seg); over > 0 {
+		seg += m.padTo(path, l, over)
+	}
+
+	if over := room - textWidth(seg); over > 0 {
+		seg += strings.Repeat(" ", over)
+	}
+
+	return seg
+}
+
+// bandOf is the band a line is drawn under, which only a line the diff pairs
+// with a replacement has.
+func (m *Model) bandOf(path string, l diff.Line) (color.Color, bool) {
+	if _, paired := m.refined[refOf(path, l)]; !paired {
+		return nil, false
+	}
+
+	band, ok := m.rich.band[l.Kind]
+
+	return band, ok
+}
+
+// bandMargin is the cells a band runs past the widest line of its hunk.
+const bandMargin = 2
+
+// bandRoom is where a hunk's bands end, so its lines end in one column rather
+// than at their own lengths.
+func (m *Model) bandRoom(path string, hunk, room int) int {
+	return min(room, m.hunkCols[hunkRef{path: path, hunk: hunk}]+bandMargin)
+}
+
+type hunkRef struct {
+	path string
+	hunk int
+}
+
+// hunkWidths is the widest line of each hunk in cells.
+func hunkWidths(d *diff.Diff) map[hunkRef]int {
+	widths := map[hunkRef]int{}
+
+	for i := range d.Files {
+		path := pathOf(&d.Files[i])
+
+		for _, l := range d.Files[i].Lines {
+			ref := hunkRef{path: path, hunk: l.Hunk}
+			widths[ref] = max(widths[ref], textWidth(expand(l.Text)))
+		}
+	}
+
+	return widths
 }
 
 // richSegments is the line's text as styled segments no wider than width
@@ -349,7 +399,7 @@ func (m *Model) padTo(kind byte, cells int) string {
 // run against a running column rather than up front: expanding first would
 // move every byte offset the grammar and the pairing answered in.
 func (m *Model) richSegments(r row, l diff.Line, width int) []string {
-	band, ok := m.rich.band[l.Kind]
+	band, ok := m.bandOf(r.path, l)
 	mark := m.rich.mark[l.Kind]
 	marked := m.refined[refOf(r.path, l)]
 
@@ -726,9 +776,7 @@ func (m *Model) halfCode(r row, l diff.Line, at, width int) []string {
 	out := make([]string, len(segs))
 
 	for i, seg := range segs {
-		if over := room - textWidth(seg); over > 0 {
-			seg += m.padTo(l.Kind, over)
-		}
+		seg = m.fill(r.path, l, seg, m.bandRoom(r.path, l.Hunk, room), room)
 
 		lead := head
 		if i > 0 {
