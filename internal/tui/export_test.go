@@ -197,3 +197,6 @@ func (m *Model) Versioned() {
 		}
 	}
 }
+
+// ShortestTail is the name the header gives a file among the others in the diff.
+var ShortestTail = shortestTail

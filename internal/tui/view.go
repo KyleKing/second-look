@@ -2,7 +2,7 @@ package tui
 
 import (
 	"fmt"
-	"strconv"
+	"slices"
 	"strings"
 	"time"
 
@@ -59,7 +59,8 @@ func (m *Model) render() string {
 		body = m.answerLines()
 	}
 
-	out := append([]string{m.title(), m.modes()}, body...)
+	files := m.stats()
+	out := append([]string{m.title(files), m.modes(files)}, body...)
 	if m.pane != nil {
 		out = append(out, m.paneLines()...)
 	} else if m.agentOpen && m.agent != nil {
@@ -123,6 +124,25 @@ func fitPath(path string, room int) string {
 	}
 
 	return ""
+}
+
+// shortestTail is the fewest trailing segments of a path that no other path in
+// all ends with, so two index.ts files read as auth/index.ts and ui/index.ts. A
+// path another one ends with has no shorter name than itself.
+func shortestTail(path string, all []string) string {
+	parts := strings.Split(path, "/")
+
+	for n := 1; n < len(parts); n++ {
+		tail := strings.Join(parts[len(parts)-n:], "/")
+
+		if !slices.ContainsFunc(all, func(other string) bool {
+			return other != path && (other == tail || strings.HasSuffix(other, "/"+tail))
+		}) {
+			return tail
+		}
+	}
+
+	return path
 }
 
 // treeWord is where the working copy stands, which C, !, and M each behave
@@ -227,25 +247,6 @@ func (m *Model) counts() tally {
 	}
 
 	return out
-}
-
-// rowPath is the file the cursor is in and the line it is standing on, and only
-// once that file's own row has scrolled off the top: a heading the reader can
-// already see is not worth the width, and the one that has gone is exactly what
-// the eye has lost. The list screens carry their section heading the same way.
-func (m *Model) rowPath() string {
-	at := min(m.cursor, len(m.screen.rows)-1)
-
-	path := m.headingAbove(at, rowFile)
-	if path == "" {
-		return ""
-	}
-
-	if n := m.screen.rows[at].line.New; n > 0 {
-		return path + ":" + strconv.Itoa(n)
-	}
-
-	return path
 }
 
 // groupWord is the reading order's own group the cursor is in. A file's hunks

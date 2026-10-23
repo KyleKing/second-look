@@ -2264,26 +2264,22 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 	}
 }
 
-// The file name scrolls off exactly when the diff is long enough to lose track
-// of which file is in front of you, so the title carries it from then on.
 // The shortest frame the screen draws, which is where anything worth keeping on
 // screen has to earn its line.
 const minFrame = 10
 
-func TestTheTitleCarriesTheFileOnceItsHeadingHasScrolledOff(t *testing.T) {
+// The header names the file the cursor is in by its shortest unique tail, with
+// the line once the cursor is on code.
+func TestTheHeaderNamesTheFileTheCursorIsIn(t *testing.T) {
 	t.Parallel()
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: minFrame})
 
-	if got := plain(m.Frame()); strings.Contains(got, "#42  internal/vcs/diff.go") {
-		t.Errorf("the title names a heading the frame is already showing:\n%s", got)
-	}
-
 	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "internal/vcs/git.go") {
-		t.Errorf("the title lost the file the cursor is in:\n%s", got)
+	if got := plain(m.Frame()); !strings.Contains(strings.Split(got, "\n")[1], "git.go") {
+		t.Errorf("the header lost the file the cursor is in:\n%s", got)
 	}
 
 	// Where in the file is what the file name cannot say, so a code row carries
@@ -2300,7 +2296,7 @@ func TestTheTitleCarriesTheFileOnceItsHeadingHasScrolledOff(t *testing.T) {
 		press(t, long, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	}
 
-	if got := plain(long.Frame()); !strings.Contains(got, "first/file.go:30") {
+	if got := plain(long.Frame()); !strings.Contains(got, "file.go:30") {
 		t.Errorf("the title does not say which line the cursor is on:\n%s", got)
 	}
 }

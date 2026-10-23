@@ -3,8 +3,6 @@ package tui
 import (
 	"fmt"
 	"strings"
-
-	"github.com/kyleking/second-look/internal/diff"
 )
 
 const headerRows = 2
@@ -26,9 +24,9 @@ type fact struct {
 	rank int
 }
 
-func (m *Model) title() string {
+func (m *Model) title(files []fileStat) string {
 	name := m.styles.title.Render(m.name())
-	facts := m.facts()
+	facts := m.facts(files)
 	about := m.about.Title
 
 	for limit := rankCost; ; limit-- {
@@ -65,7 +63,7 @@ func joinFacts(facts []fact, limit int) string {
 	return strings.Join(out, " · ")
 }
 
-func (m *Model) facts() []fact {
+func (m *Model) facts(files []fileStat) []fact {
 	var out []fact
 
 	add := func(rank int, text string) {
@@ -74,7 +72,7 @@ func (m *Model) facts() []fact {
 		}
 	}
 
-	add(rankAuthor, m.authorWord())
+	add(rankAuthor, m.authorWord(files))
 	add(rankCounts, strings.Join(append(m.counts().words(), m.agentNotes()...), " · "))
 	add(rankRead, m.readCount())
 
@@ -105,18 +103,12 @@ func (m *Model) facts() []fact {
 	return out
 }
 
-func (m *Model) authorWord() string {
+func (m *Model) authorWord(files []fileStat) string {
 	added, removed := 0, 0
 
-	for i := range m.diff.Files {
-		for _, l := range m.diff.Files[i].Lines {
-			switch l.Kind {
-			case diff.KindAdd:
-				added++
-			case diff.KindRemove:
-				removed++
-			}
-		}
+	for _, f := range files {
+		added += f.added
+		removed += f.removed
 	}
 
 	parts := make([]string, 0, 3)
@@ -125,7 +117,7 @@ func (m *Model) authorWord() string {
 		parts = append(parts, m.about.Author)
 	}
 
-	return strings.Join(append(parts, plural(len(m.diff.Files), "file"),
+	return strings.Join(append(parts, plural(len(files), "file"),
 		fmt.Sprintf("+%d −%d", added, removed)), " · ")
 }
 
@@ -145,21 +137,29 @@ func (m *Model) agentNotes() []string {
 	return []string{fmt.Sprintf("%s %d agent", agentGlyph, n)}
 }
 
-func (m *Model) modes() string {
-	words := make([]string, 0, 5)
+func (m *Model) modes(files []fileStat) string {
+	words := make([]string, 0, 6)
+
+	if label := m.currentLabel(files); label != "" {
+		words = append(words, m.styles.file.Render(label))
+	}
 
 	for _, w := range []string{m.view.String(), m.drawnWord(), m.orderWord(), m.fileWord(), m.groupWord()} {
 		if w = strings.TrimSpace(w); w != "" {
-			words = append(words, w)
+			words = append(words, m.styles.hunk.Render(w))
 		}
 	}
 
-	right := strings.Join(words, " · ")
-	path := fitPath(m.rowPath(), m.width-textWidth(right)-indent-1)
+	right := strings.Join(words, m.styles.hunk.Render(" · "))
+	room := m.width - textWidth(right) - indent
 
-	gap := max(1, m.width-textWidth(path)-textWidth(right))
+	if room < 1 {
+		return cut(right, m.width)
+	}
 
-	return cut(m.styles.file.Render(path)+strings.Repeat(" ", gap)+m.styles.hunk.Render(right), m.width)
+	line := m.strip(files, room)
+
+	return line + strings.Repeat(" ", max(1, m.width-textWidth(line)-textWidth(right))) + right
 }
 
 func (m *Model) drawnWord() string {
