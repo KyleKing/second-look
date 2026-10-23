@@ -47,10 +47,7 @@ type editor struct {
 // beginEdit opens the editor over the block the cursor is in, on whatever an
 // earlier session left unfinished there if there is one.
 func (m *Model) beginEdit(title, start string, msg editedMsg) tea.Cmd {
-	area := textarea.New()
-	area.Prompt = ""
-	area.ShowLineNumbers = false
-	area.SetVirtualCursor(true)
+	area := newArea()
 	area.SetWidth(max(1, m.width-m.screen.numWidth-rail))
 	area.SetValue(start)
 	area.MoveToEnd()

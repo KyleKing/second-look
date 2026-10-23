@@ -22,11 +22,7 @@ type files struct {
 }
 
 func newFiles() files {
-	in := textinput.New()
-	in.Prompt = ""
-	in.Placeholder = ""
-
-	return files{input: in}
+	return files{input: newPrompt()}
 }
 
 // fileQuery is the pattern narrowing the diff right now: the prompt's text

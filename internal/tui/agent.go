@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/key"
-	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -138,7 +137,7 @@ func (m *Model) agentUp(msg agentUpMsg) tea.Cmd {
 func (m *Model) openAgent() {
 	m.agentOpen = true
 	m.agentOff = 0
-	m.agentIn = textinput.New()
+	m.agentIn = newPrompt()
 	m.agentIn.Prompt = "❯ "
 	m.agentIn.Placeholder = "talk to " + m.agent.Name()
 	m.showing = nil

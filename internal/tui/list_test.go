@@ -437,10 +437,22 @@ func TestQuitLeavesAndEscapeClearsTheFilter(t *testing.T) {
 	typeList(l, "/questions")
 	shows(t, l, []string{"showing 1 of 3", "a-much-longer-repository-name#7"}, nil)
 
+	l.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
 	_, cmd := l.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
 	if cmd == nil {
-		t.Error("q did not leave the screen while a filter was on")
+		t.Fatal("q did not leave the screen while a filter was on")
 	}
+
+	if _, quit := cmd().(tea.QuitMsg); !quit {
+		t.Error("q on a filter answered with something other than leaving")
+	}
+
+	if _, cmd := l.Update(tea.KeyPressMsg{Code: tea.KeyEscape}); cmd != nil {
+		t.Error("escape on a filter left the screen")
+	}
+
+	shows(t, l, []string{"kyleking/wavez#7"}, []string{"showing 1 of 3"})
 }
 
 // counted is a loader that records how many times it was started, since a tab

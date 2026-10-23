@@ -24,11 +24,7 @@ type search struct {
 }
 
 func newSearch() search {
-	in := textinput.New()
-	in.Prompt = ""
-	in.Placeholder = ""
-
-	return search{input: in}
+	return search{input: newPrompt()}
 }
 
 // begin opens the prompt. The scope carries over from the last search, since a

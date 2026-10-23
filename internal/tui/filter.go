@@ -24,11 +24,7 @@ type filter struct {
 }
 
 func newFilter() filter {
-	in := textinput.New()
-	in.Prompt = ""
-	in.Placeholder = ""
-
-	return filter{input: in}
+	return filter{input: newPrompt()}
 }
 
 // on reports whether anything is narrowing the queue.
