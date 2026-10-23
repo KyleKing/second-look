@@ -67,6 +67,8 @@ type row struct {
 	// which is context somebody asked for rather than context the patch
 	// carried.
 	around bool
+	// current marks the row under the cursor, which the rich renderer lights.
+	current bool
 	// hunk numbers the @@ block a row belongs to, across the whole diff, and is
 	// zero for a row that belongs to none.
 	hunk int

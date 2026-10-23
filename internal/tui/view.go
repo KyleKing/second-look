@@ -696,7 +696,10 @@ const cursorBar = "▌"
 const rangeBar = "▏"
 
 func (m *Model) renderRow(i, width int) []string {
-	bodies := m.rowBodies(m.screen.rows[i], width)
+	r := m.screen.rows[i]
+	r.current = i == m.cursor
+
+	bodies := m.rowBodies(r, width)
 	out := make([]string, len(bodies))
 
 	for j, body := range bodies {

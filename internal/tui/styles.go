@@ -24,31 +24,32 @@ func accent(p theme.Palette) color.Color { return p.Lavender }
 type styles struct {
 	// palette is kept so the rich renderer can derive faces the shared skin has
 	// no use for: a band behind code is a background, and skin carries none.
-	palette  theme.Palette
-	title    lipgloss.Style
-	subtitle lipgloss.Style
-	tab      lipgloss.Style
-	tabOn    lipgloss.Style
-	file     lipgloss.Style
-	hunk     lipgloss.Style
-	add      lipgloss.Style
-	remove   lipgloss.Style
-	context  lipgloss.Style
-	behind   lipgloss.Style
-	number   lipgloss.Style
-	cursor   lipgloss.Style
-	selected lipgloss.Style
-	rail     lipgloss.Style
-	body     lipgloss.Style
-	note     lipgloss.Style
-	footer   lipgloss.Style
-	head     lipgloss.Style
-	key      lipgloss.Style
-	warn     lipgloss.Style
-	fail     lipgloss.Style
-	ok       lipgloss.Style
-	merged   lipgloss.Style
-	severity map[string]lipgloss.Style
+	palette   theme.Palette
+	title     lipgloss.Style
+	subtitle  lipgloss.Style
+	tab       lipgloss.Style
+	tabOn     lipgloss.Style
+	file      lipgloss.Style
+	hunk      lipgloss.Style
+	add       lipgloss.Style
+	remove    lipgloss.Style
+	context   lipgloss.Style
+	behind    lipgloss.Style
+	number    lipgloss.Style
+	cursor    lipgloss.Style
+	selected  lipgloss.Style
+	selection lipgloss.Style
+	rail      lipgloss.Style
+	body      lipgloss.Style
+	note      lipgloss.Style
+	footer    lipgloss.Style
+	head      lipgloss.Style
+	key       lipgloss.Style
+	warn      lipgloss.Style
+	fail      lipgloss.Style
+	ok        lipgloss.Style
+	merged    lipgloss.Style
+	severity  map[string]lipgloss.Style
 }
 
 // loadStyles is the one palette this process draws with. Detecting it writes an
@@ -84,18 +85,19 @@ func newStyles() styles {
 		// The cursor is drawn as a solid chip rather than sk.Cursor's bold text,
 		// since a single lavender character reads the same as the rail and the
 		// title's own accent and is lost in a screen already full of them.
-		cursor:   base.Background(accent(p)).Foreground(p.Base).Bold(true),
-		selected: sk.Accent,
-		rail:     sk.Accent,
-		body:     sk.Body,
-		note:     sk.Muted.Italic(true),
-		footer:   sk.Subtitle,
-		head:     sk.Heading,
-		key:      sk.Key,
-		warn:     sk.Warning,
-		fail:     sk.Error,
-		ok:       sk.Success,
-		merged:   base.Foreground(p.Mauve),
+		cursor:    base.Background(accent(p)).Foreground(p.Base).Bold(true),
+		selected:  sk.Accent,
+		selection: sk.Selection,
+		rail:      sk.Accent,
+		body:      sk.Body,
+		note:      sk.Muted.Italic(true),
+		footer:    sk.Subtitle,
+		head:      sk.Heading,
+		key:       sk.Key,
+		warn:      sk.Warning,
+		fail:      sk.Error,
+		ok:        sk.Success,
+		merged:    base.Foreground(p.Mauve),
 		severity: map[string]lipgloss.Style{
 			"blocker": base.Foreground(p.Red).Bold(true),
 			"major":   base.Foreground(p.Peach).Bold(true),

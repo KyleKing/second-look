@@ -11,7 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
-	"github.com/lucasb-eyer/go-colorful"
+	"github.com/kyleking/aragonite/tui/theme"
 
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/highlight"
@@ -129,13 +129,6 @@ func (m *Model) sideBySide() bool {
 	return m.drawn.split && m.view == viewDiff && m.width >= splitWidth
 }
 
-// depth is how far toward the middle a band's lightness is lifted and how much
-// of the accent's saturation it keeps.
-type depth struct {
-	lift float64
-	sat  float64
-}
-
 // The two depths a side is drawn at: the band under a whole changed line, and
 // the runs inside it that actually differ from the line it is paired with. The
 // text is colored by grammar, so the side has to be said by something that
@@ -162,13 +155,13 @@ const (
 var (
 	bandMix, markMix = depths(supportsMillions())
 
-	trueBand = depth{lift: trueBandLift, sat: trueBandSat}
-	trueMark = depth{lift: trueMarkLift, sat: trueMarkSat}
-	cubeBand = depth{lift: cubeBandLift, sat: cubeSat}
-	cubeMark = depth{lift: cubeMarkLift, sat: cubeSat}
+	trueBand = theme.Depth{Lift: trueBandLift, Sat: trueBandSat}
+	trueMark = theme.Depth{Lift: trueMarkLift, Sat: trueMarkSat}
+	cubeBand = theme.Depth{Lift: cubeBandLift, Sat: cubeSat}
+	cubeMark = theme.Depth{Lift: cubeMarkLift, Sat: cubeSat}
 )
 
-func depths(millions bool) (depth, depth) {
+func depths(millions bool) (theme.Depth, theme.Depth) {
 	if millions {
 		return trueBand, trueMark
 	}
@@ -222,12 +215,12 @@ func newRichStyles(s styles) richStyles {
 			diff.KindRemove: base.Foreground(p.Red),
 		},
 		band: map[byte]color.Color{
-			diff.KindAdd:    blend(p.Base, p.Green, bandMix),
-			diff.KindRemove: blend(p.Base, p.Red, bandMix),
+			diff.KindAdd:    theme.Tint(p.Base, p.Green, bandMix),
+			diff.KindRemove: theme.Tint(p.Base, p.Red, bandMix),
 		},
 		mark: map[byte]color.Color{
-			diff.KindAdd:    blend(p.Base, p.Green, markMix),
-			diff.KindRemove: blend(p.Base, p.Red, markMix),
+			diff.KindAdd:    theme.Tint(p.Base, p.Green, markMix),
+			diff.KindRemove: theme.Tint(p.Base, p.Red, markMix),
 		},
 		gutter:  base.Foreground(p.Overlay0),
 		colored: colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ASCII,
@@ -246,9 +239,9 @@ func (m *Model) richCode(r row, width int) []string {
 
 	out := make([]string, len(segs))
 	for i, seg := range segs {
-		seg = m.fill(r.path, r.line, seg, band, room)
+		seg = m.fill(r, r.line, seg, band, room)
 
-		gutter := m.padTo(r.path, r.line, m.gutterWidth())
+		gutter := m.padTo(r, r.line, m.gutterWidth())
 		if i == 0 {
 			gutter = m.richGutter(r)
 		}
@@ -321,10 +314,10 @@ func number(n, width int) string {
 
 // padTo fills cells with the line's band where the diff pairs the line, and
 // with spaces where it does not.
-func (m *Model) padTo(path string, l diff.Line, cells int) string {
+func (m *Model) padTo(r row, l diff.Line, cells int) string {
 	spaces := strings.Repeat(" ", cells)
 
-	band, ok := m.bandOf(path, l)
+	band, ok := m.bandOf(r, l)
 	if !ok {
 		return spaces
 	}
@@ -334,9 +327,9 @@ func (m *Model) padTo(path string, l diff.Line, cells int) string {
 
 // fill pads seg to room cells, with the band running to band cells and plain
 // spaces after it.
-func (m *Model) fill(path string, l diff.Line, seg string, band, room int) string {
+func (m *Model) fill(r row, l diff.Line, seg string, band, room int) string {
 	if over := band - textWidth(seg); over > 0 {
-		seg += m.padTo(path, l, over)
+		seg += m.padTo(r, l, over)
 	}
 
 	if over := room - textWidth(seg); over > 0 {
@@ -347,16 +340,27 @@ func (m *Model) fill(path string, l diff.Line, seg string, band, room int) strin
 }
 
 // bandOf is the band a line is drawn under, which only a line the diff pairs
-// with a replacement has.
-func (m *Model) bandOf(path string, l diff.Line) (color.Color, bool) {
-	if _, paired := m.refined[refOf(path, l)]; !paired {
-		return nil, false
+// with a replacement has. The row under the cursor tints that band toward the
+// selection, and a line without one is lit in the selection itself.
+func (m *Model) bandOf(r row, l diff.Line) (color.Color, bool) {
+	_, paired := m.refined[refOf(r.path, l)]
+	band, banded := m.rich.band[l.Kind]
+	banded = banded && paired
+
+	if !r.current {
+		return band, banded
 	}
 
-	band, ok := m.rich.band[l.Kind]
+	selection := m.styles.selection.GetBackground()
+	if !banded {
+		return selection, true
+	}
 
-	return band, ok
+	return theme.Mix(band, selection, selectedShare), true
 }
+
+// selectedShare is how far a band moves toward the selection under the cursor.
+const selectedShare = 0.5
 
 // bandMargin is the cells a band runs past the widest line of its hunk.
 const bandMargin = 2
@@ -399,7 +403,7 @@ func hunkWidths(d *diff.Diff) map[hunkRef]int {
 // run against a running column rather than up front: expanding first would
 // move every byte offset the grammar and the pairing answered in.
 func (m *Model) richSegments(r row, l diff.Line, width int) []string {
-	band, ok := m.bandOf(r.path, l)
+	band, ok := m.bandOf(r, l)
 	mark := m.rich.mark[l.Kind]
 	marked := m.refined[refOf(r.path, l)]
 
@@ -655,25 +659,6 @@ func spanAt(lexed [][]highlight.Span, at int) []highlight.Span {
 	return lexed[at]
 }
 
-// blend makes a band from a background and an accent: the accent's hue at the
-// background's depth, lifted toward the middle by share.
-//
-// It keeps the hue rather than mixing the two colors, because a mix of a dark
-// background and an accent lands in the grey ramp, where a 256-color terminal
-// quantizes added and removed to the same slot and the band stops saying which
-// side the line is on.
-func blend(base, accent color.Color, at depth) color.Color {
-	from, _ := colorful.MakeColor(base)
-	to, _ := colorful.MakeColor(accent)
-
-	hue, sat, _ := to.Hsl()
-	_, _, dark := from.Hsl()
-
-	const mid = 0.5
-
-	return colorful.Hsl(hue, sat*at.sat, dark+(mid-dark)*at.lift).Clamped()
-}
-
 // cycleRenderer moves v on and says what the new one cannot do. A spike is
 // worth living with only if its limits are in front of the person living with
 // it, so the caveat is the status rather than a line in the help nobody opens.
@@ -776,7 +761,7 @@ func (m *Model) halfCode(r row, l diff.Line, at, width int) []string {
 	out := make([]string, len(segs))
 
 	for i, seg := range segs {
-		seg = m.fill(r.path, l, seg, m.bandRoom(r.path, l.Hunk, room), room)
+		seg = m.fill(r, l, seg, m.bandRoom(r.path, l.Hunk, room), room)
 
 		lead := head
 		if i > 0 {

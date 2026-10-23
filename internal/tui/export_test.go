@@ -81,10 +81,10 @@ func DiffColors(p theme.Palette, millions bool) map[string]color.Color {
 	return map[string]color.Color{
 		"page":         p.Base,
 		"text":         p.Text,
-		"added band":   blend(p.Base, p.Green, band),
-		"removed band": blend(p.Base, p.Red, band),
-		"added mark":   blend(p.Base, p.Green, mark),
-		"removed mark": blend(p.Base, p.Red, mark),
+		"added band":   theme.Tint(p.Base, p.Green, band),
+		"removed band": theme.Tint(p.Base, p.Red, band),
+		"added mark":   theme.Tint(p.Base, p.Green, mark),
+		"removed mark": theme.Tint(p.Base, p.Red, mark),
 	}
 }
 
