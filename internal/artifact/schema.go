@@ -114,6 +114,10 @@ type Comment struct {
 	// the doubt. Shown beside the comment in the TUI, never posted.
 	Note string `json:"note" toml:"note"`
 
+	// Origin is who wrote the comment last: the agent that staged it, or OriginMe once
+	// its author saves an edit. It is local, so it never posts.
+	Origin string `json:"origin,omitempty" toml:"origin,omitempty"`
+
 	// Severity ranks the comment in the TUI and orders what to read first.
 	Severity string `json:"severity" toml:"severity"`
 
@@ -138,6 +142,9 @@ type Turn struct {
 	Author string `json:"author" toml:"author"`
 	Body   string `json:"body"   toml:"body"`
 }
+
+// OriginMe is the Origin of a comment its author last saved an edit to.
+const OriginMe = "me"
 
 // Comment statuses.
 const (

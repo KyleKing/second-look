@@ -162,7 +162,8 @@ func TestWorkHandedToAnAgentComesBackAsATurn(t *testing.T) {
 
 	batch := `{"comments":[{"id":"unwrapped-read-error","path":"testdata/fixture/sample.go",` +
 		`"line":19,"side":"RIGHT","body":"Wrap it with the path.","severity":"major",` +
-		`"status":"ready","turn":[{"author":"claude","body":"Rewrote it to name the file."}]}]}`
+		`"origin":"sent by the agent","status":"ready",` +
+		`"turn":[{"author":"claude","body":"Rewrote it to name the file."}]}]}`
 
 	res = runCLIStdin(t, s, dir, batch, "comment", "add", "2")
 	if res.code != 0 {
@@ -178,6 +179,10 @@ func TestWorkHandedToAnAgentComesBackAsATurn(t *testing.T) {
 
 	if c.Status != artifact.StatusDraft {
 		t.Errorf("the agent's answer is %q, want a draft for the author to rule on", c.Status)
+	}
+
+	if c.Origin != "agent" {
+		t.Errorf("origin is %q, want the staging path to name the agent over what the batch sent", c.Origin)
 	}
 
 	if len(c.Turns) != 1 || c.Turns[0].Author != "claude" {

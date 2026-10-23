@@ -2500,6 +2500,7 @@ func (m *Model) applyEdit(msg editedMsg) {
 		}
 
 		c.Note = msg.body
+		c.Origin = artifact.OriginMe
 		m.save("note on " + c.ID + " updated; it stays local")
 
 		return
@@ -2518,6 +2519,7 @@ func (m *Model) applyEdit(msg editedMsg) {
 	}
 
 	c.Body = msg.body
+	c.Origin = artifact.OriginMe
 
 	if promote(c) {
 		m.save("edited " + c.ID + ", now ready")

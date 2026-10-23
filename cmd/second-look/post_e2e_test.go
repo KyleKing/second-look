@@ -196,7 +196,7 @@ func TestCommentAddHoldsEveryStagedCommentAsADraft(t *testing.T) {
 	seedDiff(t, dir)
 
 	batch := `{"comments":[{"id":"held","path":"testdata/fixture/sample.go","line":17,` +
-		`"side":"RIGHT","body":"wrap this","note":"","severity":"nit","status":"ready"}]}`
+		`"side":"RIGHT","body":"wrap this","note":"","severity":"nit","status":"ready","origin":"me"}]}`
 
 	res := runCLIStdin(t, s, dir, batch, "comment", "add", "2")
 	if res.code != 0 {
@@ -216,6 +216,51 @@ func TestCommentAddHoldsEveryStagedCommentAsADraft(t *testing.T) {
 		if review.Comments[i].ID == "held" && review.Comments[i].Status != artifact.StatusDraft {
 			t.Errorf("a staged comment is %q, want draft", review.Comments[i].Status)
 		}
+		if review.Comments[i].ID == "held" && review.Comments[i].Origin != "agent" {
+			t.Errorf("a staged comment is attributed to %q, want agent", review.Comments[i].Origin)
+		}
+	}
+}
+
+func TestRestagingKeepsTheAuthorsSavedComment(t *testing.T) {
+	t.Parallel()
+
+	s := ghcassette.Replay(t, derive(t, "no-calls", func(c *ghcassette.Cassette) {
+		c.Interactions = nil
+	}))
+	dir := workspace(t, "triaged.toml")
+	seedDiff(t, dir)
+
+	batch := `{"comments":[{"id":"held","path":"testdata/fixture/sample.go","line":17,` +
+		`"side":"RIGHT","body":"wrap this","note":"","severity":"nit","status":"ready"}]}`
+
+	if res := runCLIStdin(t, s, dir, batch, "comment", "add", "2"); res.code != 0 {
+		t.Fatalf("staging failed: %s", res.stderr)
+	}
+
+	path := artifact.Path(stored(t, dir), 2)
+
+	review, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	review.Find("held").Origin = artifact.OriginMe
+	if err := artifact.Save(path, review); err != nil {
+		t.Fatal(err)
+	}
+
+	if res := runCLIStdin(t, s, dir, batch, "comment", "add", "2"); res.code != 0 {
+		t.Fatalf("restaging failed: %s", res.stderr)
+	}
+
+	review, err = artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := review.Find("held").Origin; got != artifact.OriginMe {
+		t.Errorf("restaging turned the author's saved comment into %q, want me", got)
 	}
 }
 

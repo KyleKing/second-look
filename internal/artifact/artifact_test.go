@@ -32,6 +32,7 @@ func TestLocalFieldsNeverReachThePayload(t *testing.T) {
 	secret := "SHOULD-NEVER-POST"
 	c := ready("c1")
 	c.Note, c.Severity, c.SkipReason = secret, "blocker", secret
+	c.Origin = secret
 
 	r := review(c)
 	r.Note = secret
@@ -163,6 +164,7 @@ func TestRoundTripPreservesLocalFields(t *testing.T) {
 
 	c := ready("c1")
 	c.Note, c.Severity = "go test ./vcs -run Parse => FAIL", "major"
+	c.Origin = artifact.OriginMe
 
 	r := review(c)
 	r.Note = "ran the suite on a1b2c3d; the pulumi path is unverified"
@@ -179,8 +181,9 @@ func TestRoundTripPreservesLocalFields(t *testing.T) {
 	if got.Note != r.Note {
 		t.Errorf("top-level note = %q, want %q", got.Note, r.Note)
 	}
-	if got.Comments[0].Note != c.Note || got.Comments[0].Severity != "major" {
-		t.Errorf("comment locals = %+v, want note and severity preserved", got.Comments[0])
+	kept := got.Comments[0]
+	if kept.Note != c.Note || kept.Severity != "major" || kept.Origin != artifact.OriginMe {
+		t.Errorf("comment locals = %+v, want note, severity, and origin preserved", kept)
 	}
 }
 

@@ -2385,8 +2385,8 @@ func TestSavingAnEditMakesADraftReady(t *testing.T) {
 	typeIn(m, ", it can fail")
 	press(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
-	if got := reviewAt(t, path).Comments[0].Status; got != artifact.StatusReady {
-		t.Errorf("the edited draft is %q, want ready", got)
+	if got := reviewAt(t, path).Comments[0]; got.Status != artifact.StatusReady || got.Origin != artifact.OriginMe {
+		t.Errorf("the edited draft is %q by %q, want ready by me", got.Status, got.Origin)
 	}
 
 	// A skip is a decision with a reason against it, so writing that reason out

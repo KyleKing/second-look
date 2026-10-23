@@ -838,16 +838,35 @@ func stage(into *artifact.Review, batch []artifact.Comment) int {
 			held++
 		}
 
+		old := into.Find(c.ID)
+
 		// Turns append rather than replace, so answering a comment does not
 		// need the whole exchange resent and cannot lose the half already there.
-		if old := into.Find(c.ID); old != nil {
+		if old != nil {
 			c.Turns = append(slices.Clone(old.Turns), c.Turns...)
 		}
+
+		c.Origin = origin(into, old)
 
 		into.Upsert(c)
 	}
 
 	return held
+}
+
+// origin is who a staged comment is attributed to. A comment its author has saved
+// stays theirs, and anything else is the agent that staged it, whatever the batch
+// claimed.
+func origin(into *artifact.Review, old *artifact.Comment) string {
+	if old != nil && old.Origin == artifact.OriginMe {
+		return artifact.OriginMe
+	}
+
+	if into.Agent.Tool != "" {
+		return into.Agent.Tool
+	}
+
+	return "agent"
 }
 
 func commentCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
