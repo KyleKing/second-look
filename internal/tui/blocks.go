@@ -33,12 +33,18 @@ const noteLabel = "NOTE  "
 const (
 	proseWidth = 88
 	rightPad   = 2
+	cardChrome = 8
+	cardFloor  = 40
 )
 
-// proseCols is the measure a comment, a note, or the review's own prose is
-// wrapped to.
-func proseCols(width, numWidth int) int {
-	return min(width-numWidth-rail-rightPad, proseWidth)
+// cardCols is the measure a comment, a note, or the review's own prose is wrapped
+// to. A frame under cardFloor draws plain rows, which keep the wider measure.
+func cardCols(width, numWidth int) int {
+	if width < cardFloor {
+		return min(width-numWidth-rail-rightPad, proseWidth)
+	}
+
+	return min(width-numWidth-cardChrome, proseWidth)
 }
 
 // folds records which notes are open against that default.
@@ -181,7 +187,7 @@ func (l layout) taggedLit(lang string, lines []string) [][]highlight.Span {
 // body is open, since it is what posts; the note is folded, since it is the run
 // log and its evidence is for later.
 func signature(r *artifact.Review, lay layout, numWidth int) []row {
-	avail := proseCols(lay.width, numWidth)
+	avail := cardCols(lay.width, numWidth)
 
 	body := prose(reviewBody, "REVIEW BODY", r.Body, rowComment, avail, lay)
 	note := prose(reviewNote, "REVIEW NOTE", r.Note, rowNote, avail, lay)
@@ -302,7 +308,7 @@ func skipRows(r *artifact.Review, on []int, a anchor, path string, lay layout, n
 // it will post, the body at the contrast of the code it is about, and the local
 // note under it.
 func commentRows(c *artifact.Comment, index int, path string, lay layout, numWidth int, run inRun) []row {
-	avail := proseCols(lay.width, numWidth)
+	avail := cardCols(lay.width, numWidth)
 	body := wrap(c.Body, avail)
 
 	rows := make([]row, 0, len(body)+3)

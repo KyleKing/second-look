@@ -307,7 +307,7 @@ func commentMarker(c *artifact.Comment, index int, path string, lay layout, numW
 
 	return []row{{
 		kind: rowComment, path: path, comment: index, head: true, folded: true,
-		text: "▸ " + commentHead(c) + "  " + firstLine(c.Body, proseCols(lay.width, numWidth)),
+		text: "▸ " + commentHead(c) + "  " + firstLine(c.Body, cardCols(lay.width, numWidth)),
 	}}
 }
 

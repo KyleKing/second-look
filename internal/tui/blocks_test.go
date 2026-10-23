@@ -93,3 +93,37 @@ func TestSkipsInARunGatherBelowTheLiveOnes(t *testing.T) {
 		t.Errorf("za did not open the gathered skip:\n%s", got)
 	}
 }
+
+// A comment wraps to the card measure: 69 cells at 80 columns and 88 at 120, so
+// eight seven-letter words fit a line at the first and eleven at the second.
+func TestACommentWrapsToTheCardMeasure(t *testing.T) {
+	t.Parallel()
+
+	body := strings.TrimSpace(strings.Repeat("wordwrd ", 30))
+
+	for _, tc := range []struct {
+		width, words int
+	}{
+		{80, 8},
+		{120, 11},
+	} {
+		t.Run(fmt.Sprintf("%d columns", tc.width), func(t *testing.T) {
+			t.Parallel()
+
+			m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, body))
+			m.Update(tea.WindowSizeMsg{Width: tc.width, Height: 30})
+
+			for _, line := range strings.Split(plain(m.Frame()), "\n") {
+				if strings.Contains(line, "wordwrd") {
+					if got := strings.Count(line, "wordwrd"); got != tc.words {
+						t.Errorf("a line holds %d words, want %d: %q", got, tc.words, line)
+					}
+
+					return
+				}
+			}
+
+			t.Fatal("the comment body is not on screen")
+		})
+	}
+}
