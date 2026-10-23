@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"image/color"
 	"strconv"
 	"strings"
 
@@ -34,12 +35,8 @@ func (l *List) render() string {
 
 	b.WriteString(l.header())
 	b.WriteByte('\n')
-
-	if strip := l.tabStrip(); strip != "" {
-		b.WriteString(" " + strip)
-		b.WriteByte('\n')
-	}
-
+	b.WriteString(l.modes())
+	b.WriteByte('\n')
 	b.WriteString(l.bodyView())
 	b.WriteByte('\n')
 	b.WriteString(l.footer())
@@ -53,7 +50,7 @@ func (l *List) render() string {
 }
 
 func (l *List) header() string {
-	left := l.styles.title.Render(" " + l.title)
+	left := l.styles.title.Render(l.title)
 
 	right := ""
 	if l.subtitle != nil {
@@ -68,21 +65,10 @@ func (l *List) header() string {
 		if l.focusNote != "" {
 			left += l.styles.subtitle.Render("  " + l.focusNote)
 		}
+	}
 
+	if l.focused != "" || l.filter.on() {
 		right = l.styles.subtitle.Render(l.counted() + " ")
-	}
-
-	if l.filter.on() {
-		right = l.styles.subtitle.Render("/" + l.filter.query + "  " + l.counted() + " ")
-	}
-
-	// The section yields to the counts and the title, since it is the one part
-	// of the line a reader can recover by looking at the rows under it.
-	const shortest = 8
-
-	room := l.width - textWidth(left) - textWidth(right) - indent
-	if section := l.section(); section != "" && room > shortest {
-		left += l.styles.subtitle.Render("  " + cut(section, room))
 	}
 
 	gap := l.width - textWidth(left) - textWidth(right)
@@ -91,6 +77,37 @@ func (l *List) header() string {
 	}
 
 	return left + strings.Repeat(" ", gap) + right
+}
+
+// modes is the header's second line, the review screen's own shape: the tab
+// strip on the left and, on the right, what is narrowing the rows. The section
+// yields to the filter and the strip, since it is the one part of the line a
+// reader can recover by looking at the rows under it.
+func (l *List) modes() string {
+	var words []string
+
+	if l.filter.on() {
+		words = append(words, "/"+l.filter.query)
+	}
+
+	if section := l.section(); section != "" {
+		words = append(words, section)
+	}
+
+	if len(words) == 0 {
+		return cut(l.tabStrip(), l.width)
+	}
+
+	right := l.styles.hunk.Render(strings.Join(words, " · ") + " ")
+	room := l.width - textWidth(right) - indent
+
+	if room < 1 {
+		return cut(right, l.width)
+	}
+
+	left := cut(l.tabStrip(), room)
+
+	return left + strings.Repeat(" ", max(1, l.width-textWidth(left)-textWidth(right))) + right
 }
 
 // section is the heading the cursor sits under, and only once that heading has
@@ -123,7 +140,12 @@ func (l *List) bodyView() string {
 	out := make([]string, 0, rows)
 
 	for i := l.offset; i < len(l.lines) && len(out) < rows; i++ {
-		out = append(out, l.line(i, lay, width))
+		text := l.line(i, lay, width)
+		if l.lit(i) {
+			text = lightLine(text, l.width-1, l.styles.selection.GetBackground())
+		}
+
+		out = append(out, text)
 	}
 
 	for len(out) < rows {
@@ -162,6 +184,35 @@ func (l *List) line(i int, lay table.Layout, width int) string {
 	}
 
 	return " " + text
+}
+
+// lit reports whether line i belongs to the row under the cursor: its title and
+// the meta line riding under it.
+func (l *List) lit(i int) bool {
+	if i == l.cursor {
+		return true
+	}
+
+	line := l.lines[i]
+
+	return line.under && i > 0 && l.lines[i-1].row == line.row && i-1 == l.cursor
+}
+
+// lightLine paints text's background to width cells. A face inside text ends
+// with a reset that would drop the background, so each reset restores it.
+func lightLine(text string, width int, bg color.Color) string {
+	face := lipgloss.NewStyle().Background(bg).Render("x")
+	on, _, _ := strings.Cut(face, "x")
+
+	if over := width - textWidth(text); over > 0 {
+		text += strings.Repeat(" ", over)
+	}
+
+	for _, reset := range []string{"\x1b[m", "\x1b[0m"} {
+		text = strings.ReplaceAll(text, reset, reset+on)
+	}
+
+	return on + text + "\x1b[m"
 }
 
 // titleCap is how far right a row's title may run before it is cut: one line,
@@ -277,9 +328,9 @@ func (l *List) footer() string {
 		return style.Render(cut(" "+l.status, l.width))
 	}
 
-	hints := l.hints
-	if hints == nil {
-		hints = [][2]string{
+	pairs := l.hints
+	if pairs == nil {
+		pairs = [][2]string{
 			{"enter", "read"},
 			{spaceKey, "mark read"},
 			{"r", replyWord},
@@ -292,7 +343,12 @@ func (l *List) footer() string {
 		}
 	}
 
-	return cut(" "+hintLine(l.styles, hints), l.width)
+	hints := make([]hint, len(pairs))
+	for i, p := range pairs {
+		hints[i] = hint{key: p[0], what: p[1]}
+	}
+
+	return cut(" "+dimLine(l.styles, hints, l.width), l.width)
 }
 
 // helpOver floats the legend over the list's bottom corner, the same window

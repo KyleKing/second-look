@@ -86,7 +86,7 @@ func (m *Model) sinceRound(key string) tea.Cmd {
 
 	at, err := strconv.Atoi(key)
 	if err != nil || at < 1 || at > len(was) {
-		m.say("no round for "+key+"; "+hintLine(styles{}, roundHints(was, time.Now())), false)
+		m.say("no round for "+key+"; "+hintLine(roundHints(was, time.Now())), false)
 
 		return nil
 	}

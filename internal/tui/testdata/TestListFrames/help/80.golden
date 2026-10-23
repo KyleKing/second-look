@@ -1,14 +1,14 @@
- second-look co╭─ keys ───────────────────────────────────────────────────────╮ 
-  new since you│ j/k, ctrl+u/d, g/G  move, half page, top and bottom          │
-▌good catch, pu│      ctrl+e/ctrl+y  scroll without moving the cursor         │
-        ● kylek│       1/2/3, ] / [  the queue to read                        │…
- two questions │                tab  the next group                           │
-        ● …g/a-│                  /  narrow to the rows carrying a word; esc  │…
-  waiting on yo│                     puts them back                           │
-  awaiting othe│              enter  read the whole conversation, and mark it │
- no, that one i│                     read                                     │
-          kylek│              space  mark read without opening it             │…
-               │                  r  reply, staged into the prepared review   │
+second-look con╭─ keys ───────────────────────────────────────────────────────╮ 
+               │ j/k, ctrl+u/d, g/G  move, half page, top and bottom          │
+  new since you│      ctrl+e/ctrl+y  scroll without moving the cursor         │
+▌good catch, pu│       1/2/3, ] / [  the queue to read                        │
+        ● kylek│                tab  the next group                           │…
+ two questions │                  /  narrow to the rows carrying a word; esc  │
+        ● …g/a-│                     puts them back                           │…
+  waiting on yo│              enter  read the whole conversation, and mark it │
+  awaiting othe│                     read                                     │
+ no, that one i│              space  mark read without opening it             │
+          kylek│                  r  reply, staged into the prepared review   │…
                │                  R  resolve the thread, or thumbs-up what    │
                │                     cannot be resolved                       │
                │                  o  open it on GitHub                        │

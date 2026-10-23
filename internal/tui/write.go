@@ -75,7 +75,7 @@ func (m *Model) writeAs(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	if severity == "" {
-		m.say("no severity for "+msg.String()+"; "+hintLine(styles{}, severities()), false)
+		m.say("no severity for "+msg.String()+"; "+hintLine(severities()), false)
 
 		return nil
 	}

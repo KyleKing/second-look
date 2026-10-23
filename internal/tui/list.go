@@ -776,14 +776,9 @@ func (l *List) half() int {
 // visible is how many lines the frame has for rows, after the header, the tab
 // strip where there is one, and the footer.
 func (l *List) visible() int {
-	const chrome = 3
+	const footerAndSpare = 2
 
-	strip := 0
-	if len(l.tabs) >= several {
-		strip = 1
-	}
-
-	return max(0, l.height-chrome-strip)
+	return max(0, l.height-headerRows-footerAndSpare)
 }
 
 func abs(n int) int {

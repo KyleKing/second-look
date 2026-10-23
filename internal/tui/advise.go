@@ -98,7 +98,7 @@ func (m *Model) adviseKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 		cmd = m.advise("does "+m.name()+" do what it claims", m.driftPrompt(claim), false)
 	default:
-		m.say("nothing to ask for "+msg.String()+"; "+hintLine(styles{}, askObjects()), false)
+		m.say("nothing to ask for "+msg.String()+"; "+hintLine(askObjects()), false)
 	}
 
 	return m, cmd

@@ -1592,7 +1592,7 @@ func (m *Model) toNote(step int) bool {
 // brackets are unstyled because the footer renders the status as one span, and
 // a color opened inside it would close the span around it.
 func (*Model) chord(prefix string, hints [][2]string) string {
-	return prefix + keyhint.Gap + hintLine(styles{}, hints)
+	return prefix + keyhint.Gap + hintLine(hints)
 }
 
 // moved handles every key that only changes where the cursor is, so the action
@@ -2673,7 +2673,7 @@ func (m *Model) askSubmit() {
 	m.pending = 'S'
 	// The pull request is already named in the title bar, so the prompt spends
 	// its width on what the keys do and stays readable in an 80-column frame.
-	m.say("S  "+plural(c.ready, "comment")+"  "+hintLine(styles{}, events()), false)
+	m.say("S  "+plural(c.ready, "comment")+"  "+hintLine(events()), false)
 }
 
 // submitAs answers the second key of the submit chord.

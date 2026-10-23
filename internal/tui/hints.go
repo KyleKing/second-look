@@ -55,10 +55,10 @@ func asHints(hints [][2]string) []keyhint.Hint {
 	return out
 }
 
-// hintLine draws a footer's keys: the key bracketed inside the word it does,
-// and bracketed in front where the word does not carry it.
-func hintLine(s styles, hints [][2]string) string {
-	return keyhint.Line(keyhint.Styles{Key: s.key, Text: s.footer}, asHints(hints))
+// hintLine spells keys as unstyled text for a status message, bracketed the way
+// the footer brackets them.
+func hintLine(hints [][2]string) string {
+	return keyhint.Line(keyhint.Styles{}, asHints(hints))
 }
 
 // dimLine renders a footer where some keys do not apply where the cursor is.

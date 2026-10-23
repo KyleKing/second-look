@@ -3,11 +3,13 @@ package tui_test
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/kyleking/second-look/internal/tui"
@@ -83,6 +85,38 @@ func TestListFrames(t *testing.T) {
 				golden.RequireEqual(t, []byte(plain(l.ListFrame())))
 			})
 		}
+	}
+}
+
+// The row under the cursor is lit across the frame in the selection tint, its
+// title and the meta line under it alike, and no other row carries a background.
+func TestTheCursorRowIsLit(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{80, 200} {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
+			l := list(t, nil)
+			l.Update(tea.WindowSizeMsg{Width: width, Height: 20})
+
+			lit := map[int]bool{}
+
+			for i, line := range strings.Split(l.ListFrame(), "\n") {
+				lit[i] = strings.Contains(line, "\x1b[48;")
+
+				if lit[i] && xansi.StringWidth(line) < width-1 {
+					t.Errorf("line %d is lit for %d cells of %d", i, xansi.StringWidth(line), width-1)
+				}
+			}
+
+			want := map[int]bool{3: true, 4: true}
+			for i := range 8 {
+				if lit[i] != want[i] {
+					t.Errorf("line %d lit = %v, want %v", i, lit[i], want[i])
+				}
+			}
+		})
 	}
 }
 
@@ -298,8 +332,8 @@ func TestTheHeaderCarriesTheSectionOnceItScrollsOff(t *testing.T) {
 	}
 
 	lines := strings.Split(plain(l.ListFrame()), "\n")
-	if !strings.Contains(lines[0], "pending your review") {
-		t.Errorf("the header does not name the section the cursor is in:\n%s", lines[0])
+	if !strings.Contains(lines[1], "pending your review") {
+		t.Errorf("the header does not name the section the cursor is in:\n%s", lines[1])
 	}
 }
 
