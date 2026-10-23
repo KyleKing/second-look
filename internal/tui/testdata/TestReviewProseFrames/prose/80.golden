@@ -1,4 +1,5 @@
-kyleking/jj-diff #42                                                          0%
+kyleking/jj-diff #42                                      2 files · +2 −1 ·   0%
+                                                                                
 ▌                                                                              ┃
      internal/vcs/diff.go  +2 -1 ──────────────────────────────────────────────┃
        func Parse(r io.Reader) ([]Hunk, error) {                               ┃
@@ -14,11 +15,10 @@ kyleking/jj-diff #42                                                          0%
       ┃ REVIEW BODY                                                            ┃
       ┃ Picking up the review. I checked production and:                       ┃
       ┃                                                                        ┃
-      ┃ 1. Across 177 live asks, seven orgs carry an id owned by another       ┃
-      ┃    org, which is the case this change is for                           ┃
+      ┃ 1. Across 177 live asks, seven orgs carry an id owned by another       │
+      ┃    org, which is the case this change is for                           │
       ┃ 2. The org in the ticket has none of it: no cross-org pointer, no      │
       ┃    duplicate ask                                                       │
       ┃ - it does have two live questionnaires sharing a name                  │
       ┃                                                                        │
-      ┃ REVIEW NOTE                                                            │
 everything open

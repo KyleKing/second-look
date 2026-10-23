@@ -20,29 +20,6 @@ func WithAbout(a threads.About) Option {
 	return func(m *Model) { m.about = a }
 }
 
-// aboutWord is the title and author in the header, which is what says which
-// change this diff is rather than only which pull request.
-func (m *Model) aboutWord(room int) string {
-	if m.about.Title == "" {
-		return ""
-	}
-
-	word := m.about.Title
-	if m.about.Author != "" {
-		word += " · " + m.about.Author
-	}
-
-	if room < len(shortest) {
-		return ""
-	}
-
-	return "  " + cut(word, room)
-}
-
-// shortest is the room the title needs before it is worth drawing at all, since
-// a title cut to three characters says less than the space it costs.
-const shortest = "        "
-
 // readAbout scrolls the overlay and closes it. Every other key closes it too:
 // it changes nothing, so there is nothing to lose by leaving.
 func (m *Model) readAbout(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

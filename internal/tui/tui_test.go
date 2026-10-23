@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	xansi "github.com/charmbracelet/x/ansi"
@@ -1077,7 +1078,7 @@ func TestTogglingOneLookAtATime(t *testing.T) {
 			press(t, m, tea.KeyPressMsg{Code: k, Text: string(k)})
 		}
 
-		title := strings.SplitN(plain(m.Frame()), "\n", 2)[0]
+		title := strings.Join(strings.SplitN(plain(m.Frame()), "\n", 3)[:2], "\n")
 		if !strings.Contains(title, tc.want) {
 			t.Fatalf("after %q the title is %q, want it to name %q", string(tc.keys), title, tc.want)
 		}
@@ -2314,14 +2315,16 @@ func TestTheTitleCarriesTheGroupOnceItsHeadingHasScrolledOff(t *testing.T) {
 	m, _, _ := fixtureWith(t, goSumPatch)
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: minFrame})
 
-	if got := plain(m.Frame()); strings.Contains(got, "#42  generated") {
-		t.Errorf("the title names a group the frame is already showing:\n%s", got)
+	modes := func() string { return strings.Split(plain(m.Frame()), "\n")[1] }
+
+	if got := modes(); strings.Contains(got, "generated") {
+		t.Errorf("the header names a group the frame is already showing:\n%s", plain(m.Frame()))
 	}
 
 	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "generated  go.sum") {
-		t.Errorf("the title does not say which group the cursor is in:\n%s", got)
+	if got := modes(); !strings.Contains(got, "go.sum") || !strings.Contains(got, "generated") {
+		t.Errorf("the header does not say which group the cursor is in:\n%s", plain(m.Frame()))
 	}
 }
 
@@ -3068,7 +3071,7 @@ func cursorRow(frame string) int {
 	body := strings.Split(plain(frame), "\n")
 	for i, line := range body {
 		if strings.HasPrefix(line, "▌") {
-			return i - 1
+			return i - 2
 		}
 	}
 
@@ -3554,5 +3557,57 @@ func TestTheTrackMarksTheHunksStillToRead(t *testing.T) {
 
 	if got := plain(m.Frame()); strings.Contains(got, "•") {
 		t.Errorf("the track still marks a hunk after every one was read:\n%s", got)
+	}
+}
+
+// The header gives the pull request's title the room the counts leave, and the
+// counts go before the title is cut under its floor. Every row is the frame's
+// own width, and the body is the two header rows shorter.
+func TestTheHeaderKeepsTheTitleAndDropsCountsFirst(t *testing.T) {
+	t.Parallel()
+
+	const title = "feat(vcs): read the head through the operations interface so callers never see a nil"
+
+	tests := []struct {
+		width, height int
+		whole         bool
+	}{
+		{width: 80, height: 24},
+		{width: 200, height: 60, whole: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("%dx%d", tc.width, tc.height), func(t *testing.T) {
+			t.Parallel()
+
+			_, path, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 14, "check err"))
+			m := tui.New(t.Context(), reviewAt(t, path), diff.Parse([]byte(patch)), path,
+				func(context.Context, *artifact.Review) (string, error) { return "", nil },
+				tui.WithAbout(threads.About{Title: title, Author: "octocat"}))
+			m.Init()
+			m.Update(tea.WindowSizeMsg{Width: tc.width, Height: tc.height})
+
+			lines := strings.Split(plain(m.Frame()), "\n")
+			if len(lines) != tc.height {
+				t.Errorf("the frame is %d lines, want %d", len(lines), tc.height)
+			}
+
+			head := lines[0]
+			if n := utf8.RuneCountInString(head); n > tc.width {
+				t.Errorf("the header is %d cells in a %d-column frame: %q", n, tc.width, head)
+			}
+
+			if !strings.Contains(head, title[:24]) {
+				t.Errorf("the title was cut under its floor: %q", head)
+			}
+
+			if got := strings.Contains(head, "octocat · 2 files · +2 −1"); got != tc.whole {
+				t.Errorf("author and size drawn = %v at %d columns, want %v: %q", got, tc.width, tc.whole, head)
+			}
+
+			if tc.whole && !strings.Contains(head, title) {
+				t.Errorf("the whole title is not drawn where there is room: %q", head)
+			}
+		})
 	}
 }

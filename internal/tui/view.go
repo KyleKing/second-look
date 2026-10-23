@@ -59,7 +59,7 @@ func (m *Model) render() string {
 		body = m.answerLines()
 	}
 
-	out := append([]string{m.title()}, body...)
+	out := append([]string{m.title(), m.modes()}, body...)
 	if m.pane != nil {
 		out = append(out, m.paneLines()...)
 	} else if m.agentOpen && m.agent != nil {
@@ -81,50 +81,6 @@ func (m *Model) paneLines() []string {
 	}
 
 	return append([]string{m.styles.hunk.Render(cut(head, m.width))}, m.pane.Lines()...)
-}
-
-func (m *Model) title() string {
-	left := m.name()
-	right := cut(m.facts(), m.width)
-
-	if word := m.view.String(); word != "" {
-		left += "  " + word
-	}
-
-	if m.drawn != opening {
-		left += "  " + m.drawn.String()
-	}
-
-	left += m.orderWord()
-
-	if word := m.fileWord(); word != "" {
-		left += "  " + word
-	}
-
-	// A head that moved outlives the footer message that announced it, because
-	// every row under this line belongs to the diff it moved away from.
-	if m.newHead != "" {
-		left += "  head moved to " + short(m.newHead)
-	}
-
-	left += m.groupWord()
-
-	if path := fitPath(m.rowPath(), m.width-textWidth(right)-textWidth(left)-indent); path != "" {
-		left += "  " + path
-	}
-
-	// The title and the author are what the frame has room for after the file
-	// and the counts, which are what a reader needs on every row. i has the
-	// rest of it whatever the width.
-	left += m.aboutWord(m.width - textWidth(right) - textWidth(left) - indent)
-
-	// The counts and the position are fixed width, so the path yields to them
-	// rather than pushing the line past the frame.
-	left = cut(left, max(1, m.width-textWidth(right)-1))
-	gap := max(1, m.width-textWidth(left)-textWidth(right))
-
-	return m.styles.title.Render(left) +
-		strings.Repeat(" ", gap) + m.styles.subtitle.Render(right)
 }
 
 // name is what the title calls the review: the pull request by its number,
@@ -185,39 +141,6 @@ func (m *Model) treeWord() string {
 	return ""
 }
 
-// facts is the right of the title. A count of zero and a working copy standing
-// where the review was staged say nothing happened, so neither is drawn, and a
-// tree standing somewhere a key would refuse to work is the one fact colored.
-func (m *Model) facts() string {
-	parts := []string{m.position()}
-
-	if word := m.treeWord(); word != "" {
-		parts = append(parts, m.styles.warn.Render(word))
-	}
-
-	if m.cost.Rated() {
-		parts = append(parts, fmt.Sprintf("cost %d", m.cost.Total))
-	}
-
-	if word := m.readCount(); word != "" {
-		parts = append(parts, word)
-	}
-
-	if m.verifying {
-		parts = append(parts, m.styles.note.Render("checking head…"))
-	}
-
-	if word := m.agentWord(); word != "" {
-		parts = append(parts, word)
-	}
-
-	if word := m.troubleWord(); word != "" {
-		parts = append(parts, m.styles.warn.Render(word))
-	}
-
-	return strings.Join(append(parts, m.counts().words()...), " · ")
-}
-
 // readCount is how much of the diff has been read, which is the number that
 // says whether the review is finished. It is absent when nothing records it.
 func (m *Model) readCount() string {
@@ -232,7 +155,7 @@ func (m *Model) readCount() string {
 		return ""
 	}
 
-	return fmt.Sprintf("%d/%d read", m.read.Count(refs), len(refs))
+	return fmt.Sprintf("read %d of %d hunks", m.read.Count(refs), len(refs))
 }
 
 // position is where the cursor is. On a comment it counts them, since "which
@@ -1030,11 +953,12 @@ func (c tally) words() []string {
 	var out []string
 
 	for _, at := range [...]struct {
-		n    int
-		word string
-	}{{c.ready, "ready"}, {c.draft, "draft"}, {c.skip, "skipped"}, {c.todo, "todo"}} {
+		n     int
+		glyph string
+		word  string
+	}{{c.ready, "", "ready"}, {c.draft, "◐ ", "draft"}, {c.skip, "", "skipped"}, {c.todo, "", "todo"}} {
 		if at.n > 0 {
-			out = append(out, fmt.Sprintf("%d %s", at.n, at.word))
+			out = append(out, fmt.Sprintf("%s%d %s", at.glyph, at.n, at.word))
 		}
 	}
 

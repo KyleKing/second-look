@@ -1,4 +1,5 @@
-kyleking/jj-diff #42                                                                 0% · 2 problems
+kyleking/jj-diff #42                                             2 files · +2 −1 · 2 problems ·   0%
+                                                                                                    
 ▌
      internal/vcs/diff.go  +2 -1 ───────────────────────────────────────────────────────────────────
        func Parse(r io.Reader) ([]Hunk, error) {
@@ -15,7 +16,6 @@ kyleking/jj-diff #42                                                            
  
       ┃ REVIEW BODY  empty · e to write one
       ┃ REVIEW NOTE  empty · e to write one
-
 
 
 

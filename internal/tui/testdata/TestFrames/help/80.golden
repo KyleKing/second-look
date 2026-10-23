@@ -1,4 +1,5 @@
-kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skipped
+kyleking/jj-diff #42    2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
+                                                                                
 ▌                              ╭─ keys ───────────────────────────────────────╮┃
      internal/vcs/diff.go  +2 -│ moving                                       │┃
        func Parse(r io.Reader) │       j/k  a line                            │┃
@@ -15,10 +16,9 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
        │ split can fail now, so│         /  search                            │┃
        ╰─ [e]dit · [r]eady · [d│            tab in the prompt narrows a       │┃
   16 +     if err != nil {     │            search to hunks not yet read      │┃
-  17       last := 4           │ what is shown                                │┃
+  17       last := 4           │ what is shown                                ││
      internal/vcs/git.go ──────│         c  the next view                     ││
        func Head() string {    │         t  threads                           ││
  201       return head         │         v  the next renderer                 ││
-                               │         u  one of them…                      ││
-       ╭─ ○ skip · nit · Out of╰ · · ·────────────────────────────────────────╯│
+                               ╰ · · ·────────────────────────────────────────╯│
  [j/k] line  ] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit

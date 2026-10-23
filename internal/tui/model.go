@@ -3226,17 +3226,15 @@ func (m *Model) blockEnd() int {
 	return end
 }
 
-// viewHeight is the frame minus the title, the footer lines, and the pane
+// viewHeight is the frame minus the header, the footer lines, and the pane
 // when one is running.
 func (m *Model) viewHeight() int {
-	const title = 1
-
 	child := 0
 	if m.pane != nil || (m.agentOpen && m.agent != nil) {
 		child = m.paneHeight() + 1
 	}
 
-	return max(1, m.height-title-child-len(m.footerLines()))
+	return max(1, m.height-headerRows-child-len(m.footerLines()))
 }
 
 // maxOffset is how far the frame may scroll. It looks past the last row by

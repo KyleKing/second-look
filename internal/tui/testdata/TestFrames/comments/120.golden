@@ -1,6 +1,7 @@
-kyleking/jj-diff #42  comments                                                        0% · 1 ready · 1 draft · 1 skipped
+kyleking/jj-diff #42                                            2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
+                                                                                                                comments
 ▌
-     internal/vcs/diff.go  1 ready · 1 draft ───────────────────────────────────────────────────────────────────────────
+     internal/vcs/diff.go  1 ready · ◐ 1 draft ─────────────────────────────────────────────────────────────────────────
  
        ╭─ ● ready · major ─────────────────────────────────────────────────────────── diff.go:15 ─╮
        │ split can fail now, so this has to check err.                                            │
@@ -15,7 +16,6 @@ kyleking/jj-diff #42  comments                                                  
  
       ┃ REVIEW BODY  empty · e to write one
       ┃ REVIEW NOTE  empty · e to write one
-
 
 
 

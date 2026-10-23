@@ -229,7 +229,7 @@ func TestReviewScreenSubmits(t *testing.T) {
 
 	sc := openReview(t, s, dir, "2")
 	sc.await("testdata/fixture/sample.go")
-	sc.await("3 ready · 1 draft · 1 skipped")
+	sc.await("3 ready · ◐ 1 draft · 1 skipped")
 
 	// A draft blocks the submit rather than posting or vanishing, and the screen
 	// jumps to it so the person rules on the one it stopped for.
