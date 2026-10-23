@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -87,21 +88,25 @@ func (m *Model) peekBlob(path string) tea.Cmd {
 	ctx, read := m.ctx, m.blob
 
 	return func() tea.Msg {
-		if filepath.IsAbs(path) {
-			out, err := os.ReadFile(path) //nolint:gosec // a site the language server named
-
-			var lines []string
-			if err == nil {
-				lines = strings.Split(strings.TrimSuffix(string(out), "\n"), "\n")
-			}
-
-			return blobMsg{path: path, lines: lines, peek: true, err: err}
-		}
-
-		lines, err := read(ctx, path)
+		lines, err := readSite(ctx, read, path)
 
 		return blobMsg{path: path, lines: lines, peek: true, err: err}
 	}
+}
+
+// readSite reads a file a language server pointed at: the commit's copy where
+// the path is the diff's, and the copy on disk where it is absolute.
+func readSite(ctx context.Context, read Blobs, path string) ([]string, error) {
+	if !filepath.IsAbs(path) {
+		return read(ctx, path)
+	}
+
+	out, err := os.ReadFile(path) //nolint:gosec // a site the language server named
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	return strings.Split(strings.TrimSuffix(string(out), "\n"), "\n"), nil
 }
 
 // absorbBlob keeps the file and grows the hunk the reader asked about, since the
@@ -117,6 +122,14 @@ func (m *Model) absorbBlob(msg blobMsg) {
 	m.blobs[msg.path] = msg.lines
 
 	if msg.peek {
+		if p := m.peeked; p != nil {
+			m.rebuild()
+
+			if p.placing && msg.path == p.sites[0].Path {
+				m.enterPeek()
+			}
+		}
+
 		return
 	}
 

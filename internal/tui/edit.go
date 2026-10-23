@@ -97,7 +97,7 @@ func (m *Model) toHead() {
 // typed, and ctrl+e hands the buffer to $EDITOR rather than starting over in it.
 func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc":
+	case escKey:
 		done := m.editing
 		m.editing = nil
 

@@ -77,8 +77,13 @@ func (m *Model) topEdge(r row, edge lipgloss.Style, width int) string {
 
 func (m *Model) footEdge(r row, edge lipgloss.Style, width int) string {
 	keys := commentKeys()
+
 	if r.kind == rowThread {
 		keys = threadKeys()
+	}
+
+	if r.kind == rowPeek {
+		keys = peekKeys()
 	}
 
 	face := keyhint.Styles{Key: m.on(m.styles.key), Text: m.on(m.styles.footer)}
@@ -88,7 +93,11 @@ func (m *Model) footEdge(r row, edge lipgloss.Style, width int) string {
 	var line string
 
 	for i, k := range keys {
-		next := keyhint.One(face, keyhint.Hint{Key: k[0], What: k[1]})
+		next := face.Key.Render("[" + k[0] + "]")
+		if k[1] != "" {
+			next = keyhint.One(face, keyhint.Hint{Key: k[0], What: k[1]})
+		}
+
 		if i > 0 {
 			next = sep + next
 		}
@@ -154,6 +163,8 @@ func cardOf(r row) (blockKey, bool) {
 		return blockKey{}, false
 	case r.kind == rowThread:
 		return blockKey{rowThread, r.thread}, true
+	case r.kind == rowPeek:
+		return blockKey{rowPeek, 0}, true
 	}
 
 	return blockKey{rowComment, r.comment}, true

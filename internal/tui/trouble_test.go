@@ -3,6 +3,7 @@ package tui_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,9 +33,16 @@ var errRefused = errors.New("the commit cannot read an absolute path")
 type prober struct {
 	notes  []diag.Note
 	syms   []diag.Symbol
-	jumps  []diag.Jump
+	jump   diag.Jump
 	err    error
 	closed bool
+	asked  []ask
+}
+
+// ask is one question put to Jumps.
+type ask struct {
+	line, col int
+	kind      diag.JumpKind
 }
 
 func (p *prober) Notes(context.Context) ([]diag.Note, error) { return p.notes, p.err }
@@ -43,8 +51,10 @@ func (p *prober) Hover(context.Context, string, int) ([]diag.Symbol, error) {
 	return p.syms, p.err
 }
 
-func (p *prober) Jumps(_ context.Context, _ string, _ int, _ diag.JumpKind) ([]diag.Jump, error) {
-	return p.jumps, p.err
+func (p *prober) Jumps(_ context.Context, _ string, line, col int, kind diag.JumpKind) (diag.Jump, error) {
+	p.asked = append(p.asked, ask{line: line, col: col, kind: kind})
+
+	return p.jump, p.err
 }
 
 func (p *prober) Close() { p.closed = true }
@@ -225,64 +235,190 @@ func TestHoverShowsWhatTheNamesAre(t *testing.T) {
 	}
 }
 
-// gd is the other half of K: where each name on the line lives, drawn as the
-// same overlay. And g alone no longer jumps: it waits for its object and says
-// so, because gr is the other thing it can mean.
-func TestGoShowsWhereTheNamesLive(t *testing.T) {
-	t.Parallel()
+// splitLine is the added line with four names on it, asked about at the byte
+// column each one starts at.
+const splitLine = "lines, err := split(r)"
 
-	m := checked(t, &prober{jumps: []diag.Jump{
-		{Name: "split", At: []diag.Site{{Path: "io/read.go", Line: 12}}},
-	}})
+// walkToSplit moves the cursor down to the row carrying splitLine.
+func walkToSplit(t *testing.T, m *tui.Model) {
+	t.Helper()
 
-	go2(t, m, ']', 'h')
-	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	for range 20 {
+		if strings.Contains(cursorText(m), splitLine) {
+			return
+		}
 
-	if frame := plain(m.Frame()); !strings.Contains(frame, "[g] top") {
-		t.Fatalf("the chord did not say what it was waiting for:\n%s", frame)
+		press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	}
 
-	press(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
-
-	frame := plain(m.Frame())
-	if !strings.Contains(frame, "split → io/read.go:12") {
-		t.Errorf("the definition is not on screen:\n%s", frame)
-	}
-
-	if !strings.Contains(frame, "where each name is defined") {
-		t.Errorf("the overlay does not say which question it answered:\n%s", frame)
-	}
+	t.Fatalf("the cursor never reached %q:\n%s", splitLine, plain(m.Frame()))
 }
 
-// gd names the place, and the peek draws what the place says: the lines
-// around the definition under the name's own, so the question is answered
-// without leaving the diff for an editor.
-func TestPeekDrawsTheDefinitionItself(t *testing.T) {
+// cursorText is the frame line the cursor bar is on.
+func cursorText(m *tui.Model) string {
+	for _, line := range strings.Split(plain(m.Frame()), "\n") {
+		if strings.HasPrefix(line, "▌") {
+			return line
+		}
+	}
+
+	return ""
+}
+
+// framed pins one frame of a scenario under its own golden name.
+func framed(t *testing.T, name, frame string) {
+	t.Helper()
+
+	t.Run(name, func(t *testing.T) { golden.RequireEqual(t, []byte(frame)) })
+}
+
+func resize(m *tui.Model, width, height int) {
+	m.Update(tea.WindowSizeMsg{Width: width, Height: height})
+}
+
+// gd and gr label every name on a line with a letter and ask about the one the
+// letter picks: the label draws over the name, the letter reaches the server as
+// that name's column, and the answer is a card under the line, at both ends of
+// the sizes the screen runs at.
+func TestGoLabelsTheNamesAndPeeksAtTheOneChosen(t *testing.T) {
 	t.Parallel()
 
-	m := peekable(t, &prober{jumps: []diag.Jump{
-		{Name: "split", At: []diag.Site{{Path: "io/read.go", Line: 4}}},
-	}})
+	for _, tt := range []struct {
+		name   string
+		verb   rune
+		kind   diag.JumpKind
+		answer diag.Jump
+		want   []string
+	}{
+		{
+			"definition", 'd', diag.Definitions,
+			diag.Jump{Name: "split", At: []diag.Site{{Path: "io/read.go", Line: 4}}},
+			[]string{"⇢ split · io/read.go:4", "› 4  func split(r io.Reader)", "[enter] open · [j/k] · [esc] close"},
+		},
+		{
+			"references", 'r', diag.References,
+			diag.Jump{Name: "split", At: []diag.Site{{Path: "io/read.go", Line: 3}, {Path: "io/read.go", Line: 4}}},
+			[]string{
+				"⇢ split · 2 references", "io/read.go:3  // split reads r into fields.", "io/read.go:4  func split",
+			},
+		},
+	} {
+		for _, size := range [][2]int{{80, 24}, {200, 60}} {
+			t.Run(fmt.Sprintf("%s/%dx%d", tt.name, size[0], size[1]), func(t *testing.T) {
+				t.Parallel()
 
-	go2(t, m, ']', 'h')
-	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	drive(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
-	drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+				p := &prober{jump: tt.answer}
+				m := peekable(t, p)
+				resize(m, size[0], size[1])
 
-	frame := plain(m.Frame())
-	for _, want := range []string{"split → io/read.go:4", "› 4", "func split(r io.Reader)"} {
-		if !strings.Contains(frame, want) {
-			t.Errorf("the peek does not draw %q:\n%s", want, frame)
+				go2(t, m, ']', 'h')
+				walkToSplit(t, m)
+				press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+				press(t, m, tea.KeyPressMsg{Code: tt.verb, Text: string(tt.verb)})
+
+				framed(t, "labels", plain(m.Frame()))
+
+				if row := cursorText(m); !strings.Contains(row, "aines, srr := dplit(f)") {
+					t.Fatalf("the names are not labeled a, s, d, f:\n%s", row)
+				}
+
+				drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+
+				want := []ask{{line: 15, col: len("\tlines, err := "), kind: tt.kind}}
+				if fmt.Sprint(p.asked) != fmt.Sprint(want) {
+					t.Fatalf("asked %+v, want %+v", p.asked, want)
+				}
+
+				card := plain(m.Frame())
+				framed(t, "card", card)
+
+				for _, want := range tt.want {
+					if !strings.Contains(card, want) {
+						t.Errorf("the card does not draw %q:\n%s", want, card)
+					}
+				}
+
+				fitsWidth(t, "the card", card, size[0])
+			})
 		}
 	}
 }
 
-// A definition outside the checkout is spelled absolute, and the commit has no
-// answer for it: the excerpt reads the copy the server resolved, which is the
-// one on disk. Where most names live is other files, so this is the common
-// jump rather than the edge.
-func TestPeekReadsASiteOutsideTheCheckout(t *testing.T) {
+// A line with one name has nothing to choose between, so it asks at once; and
+// esc gives up a pick without asking anyone.
+func TestGoAsksAtOnceForOneNameAndEscCancelsAPick(t *testing.T) {
+	t.Parallel()
+
+	p := &prober{jump: diag.Jump{Name: "first", At: []diag.Site{{Path: "io/read.go", Line: 4}}}}
+	m := peekable(t, p)
+
+	go2(t, m, ']', 'h')
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+
+	if len(p.asked) != 1 || p.asked[0].col != len("\t") {
+		t.Fatalf("the only name was not asked about at once: %+v", p.asked)
+	}
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "⇢ first · io/read.go:4") {
+		t.Errorf("the card is not under the line:\n%s", frame)
+	}
+
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	walkToSplit(t, m)
+	go2(t, m, 'g', 'd')
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if len(p.asked) != 1 || strings.Contains(cursorText(m), "aines") {
+		t.Errorf("esc did not give up the pick: asked %+v\n%s", p.asked, cursorText(m))
+	}
+}
+
+// A peek is a card in the walk: esc takes it down, and so does moving off it,
+// and either leaves the cursor on the line that asked.
+func TestPeekClosesOnEscAndOnMovingOff(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		keys []tea.KeyPressMsg
+	}{
+		{"esc", []tea.KeyPressMsg{{Code: tea.KeyEscape}}},
+		{"up past the title", []tea.KeyPressMsg{
+			{Code: 'k', Text: "k"}, {Code: 'k', Text: "k"}, {Code: 'k', Text: "k"}, {Code: 'k', Text: "k"},
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := peekable(t, &prober{jump: diag.Jump{Name: "split", At: []diag.Site{{Path: "io/read.go", Line: 4}}}})
+
+			go2(t, m, ']', 'h')
+			walkToSplit(t, m)
+			press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+			press(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+			drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+
+			if !strings.Contains(plain(m.Frame()), "⇢ split") {
+				t.Fatalf("no card to close:\n%s", plain(m.Frame()))
+			}
+
+			for _, k := range tt.keys {
+				press(t, m, k)
+			}
+
+			frame := plain(m.Frame())
+			if strings.Contains(frame, "⇢ split") || !strings.Contains(cursorText(m), splitLine) {
+				t.Errorf("the card is still up or the cursor left its line:\n%s", frame)
+			}
+		})
+	}
+}
+
+// References are rows the cursor walks, and a definition outside the checkout
+// is read from the copy the server resolved, which is where most names live.
+func TestPeekWalksReferencesAndReadsOutsideTheCheckout(t *testing.T) {
 	t.Parallel()
 
 	site := filepath.Join(t.TempDir(), "dep.go")
@@ -290,20 +426,23 @@ func TestPeekReadsASiteOutsideTheCheckout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m := peekableWith(t, &prober{jumps: []diag.Jump{
-		{Name: "Thing", At: []diag.Site{{Path: site, Line: 4}}},
-	}}, func(context.Context, string) ([]string, error) { return nil, errRefused })
+	p := &prober{jump: diag.Jump{Name: "Thing", At: []diag.Site{{Path: site, Line: 3}, {Path: site, Line: 4}}}}
+	m := peekableWith(t, p, func(context.Context, string) ([]string, error) { return nil, errRefused })
 
 	go2(t, m, ']', 'h')
-	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	drive(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	walkToSplit(t, m)
+	press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	press(t, m, tea.KeyPressMsg{Code: 'r', Text: "r"})
 	drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
 
-	frame := plain(m.Frame())
-	for _, want := range []string{"Thing →", "dep.go:4", "› 4", "func Thing() {}"} {
-		if !strings.Contains(frame, want) {
-			t.Errorf("the peek does not draw %q:\n%s", want, frame)
-		}
+	if row := cursorText(m); !strings.Contains(row, "dep.go:3  // Thing is shared.") {
+		t.Fatalf("the cursor is not on the first reference:\n%s", plain(m.Frame()))
+	}
+
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+
+	if row := cursorText(m); !strings.Contains(row, "dep.go:4  func Thing() {}") {
+		t.Errorf("j did not walk to the second reference:\n%s", plain(m.Frame()))
 	}
 }
 

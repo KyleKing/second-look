@@ -16,6 +16,7 @@ import (
 var (
 	ErrNoServer = errors.New("no language server is configured for this file")
 	ErrNoLine   = errors.New("that line is not in the file")
+	ErrNoName   = errors.New("there is no name at that column")
 )
 
 // hoverDeadline bounds one line's worth of questions. A warm server answers each

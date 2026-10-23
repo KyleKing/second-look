@@ -37,6 +37,7 @@ const (
 	rowThread
 	rowTrouble
 	rowBlank
+	rowPeek
 )
 
 // cardRole is which part of a card a row draws.
@@ -111,6 +112,8 @@ type row struct {
 	// severity is how much a checker's note wants attention, read only where
 	// kind is rowTrouble.
 	severity diag.Severity
+	// site is the place a peek row shows, read only where kind is rowPeek.
+	site diag.Site
 }
 
 // screen is the flattened review: the diff with each open thread and each

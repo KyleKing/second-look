@@ -2,6 +2,7 @@ package lsp_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -182,10 +183,10 @@ func TestHoverRefusesALineOutsideTheFile(t *testing.T) {
 }
 
 // The other half of "what is this name" is where it lives, asked of the same
-// warm server once per name. The stub answers with the character it was asked
-// about as the line, so the names landing right is the proof that UTF-16
+// warm server at one name. The stub answers with the character it was asked
+// about as the line, so the name landing right is the proof that UTF-16
 // columns crossed the wire right.
-func TestDefinitionAnswersWithThePlaceEachNameLives(t *testing.T) {
+func TestDefinitionAnswersWithThePlaceTheNameLives(t *testing.T) {
 	t.Parallel()
 
 	s := lsp.New(t.Context(), t.TempDir(), stubServer())
@@ -193,40 +194,31 @@ func TestDefinitionAnswersWithThePlaceEachNameLives(t *testing.T) {
 
 	// "café" is five bytes and four code units, so beta is asked about at
 	// column 7 on the wire and not 8.
-	got, err := s.Definitions(t.Context(), lsp.Doc{Path: "a.ts", Text: "café = beta\n"}, 1)
+	got, err := s.Definitions(t.Context(), lsp.Doc{Path: "a.ts", Text: "café = beta\n"}, 1, 8)
 	if err != nil {
-		t.Fatalf("asking where the names live: %v", err)
+		t.Fatalf("asking where the name lives: %v", err)
 	}
 
-	want := []diag.Jump{
-		{Name: "café", At: []diag.Site{{Path: "a.ts", Line: 1}}},
-		{Name: "beta", At: []diag.Site{{Path: "a.ts", Line: 8}}},
-	}
-
+	want := diag.Jump{Name: "beta", At: []diag.Site{{Path: "a.ts", Line: 8}}}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("read %+v, want %+v", got, want)
 	}
 }
 
-// A name used twice on a line points the same way both times, so the second
-// answer collapses the way a repeated hover does. And a site outside the asked
-// file is spelled the way the diff spells paths, not as the URL the server
-// answered with.
+// A site outside the asked file is spelled the way the diff spells paths, not
+// as the URL the server answered with, and the declaration is left out.
 func TestReferencesListsUsesWithoutTheDeclaration(t *testing.T) {
 	t.Parallel()
 
 	s := lsp.New(t.Context(), t.TempDir(), stubServer())
 	defer s.Close()
 
-	got, err := s.References(t.Context(), lsp.Doc{Path: "a.ts", Text: "alpha + alpha\n"}, 1)
+	got, err := s.References(t.Context(), lsp.Doc{Path: "a.ts", Text: "alpha + alpha\n"}, 1, 8)
 	if err != nil {
-		t.Fatalf("asking where the names are read: %v", err)
+		t.Fatalf("asking where the name is read: %v", err)
 	}
 
-	want := []diag.Jump{
-		{Name: "alpha", At: []diag.Site{{Path: "a.ts", Line: 1}, {Path: "other.ts", Line: 42}}},
-	}
-
+	want := diag.Jump{Name: "alpha", At: []diag.Site{{Path: "a.ts", Line: 1}, {Path: "other.ts", Line: 42}}}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("read %+v, want %+v", got, want)
 	}
@@ -239,18 +231,24 @@ func TestPlacesRefusesWhatItCannotAnswer(t *testing.T) {
 	defer s.Close()
 
 	doc := lsp.Doc{Path: "a.ts", Text: "one\n"}
-	if _, err := s.Definitions(t.Context(), doc, 9); err == nil {
-		t.Error("a line past the end of the file was answered")
+	if _, err := s.Definitions(t.Context(), doc, 9, 0); !errors.Is(err, lsp.ErrNoLine) {
+		t.Errorf("a line past the end of the file was answered: %v", err)
 	}
 
-	if _, err := s.References(t.Context(), lsp.Doc{Path: "README.md", Text: "one\n"}, 1); err == nil {
-		t.Error("a file nothing claims was answered")
+	between := lsp.Doc{Path: "a.ts", Text: "a + b\n"}
+	if _, err := s.Definitions(t.Context(), between, 1, 1); !errors.Is(err, lsp.ErrNoName) {
+		t.Errorf("a column between two names was answered: %v", err)
 	}
 
-	// The stub refuses every ask pointed at column zero, so a line whose only
-	// name sits there is a line the server could not answer at all.
-	if _, err := s.References(t.Context(), lsp.Doc{Path: "a.ts", Text: "func\n"}, 1); err == nil {
-		t.Error("a line whose only name was refused read as answered")
+	unclaimed := lsp.Doc{Path: "README.md", Text: "one\n"}
+	if _, err := s.References(t.Context(), unclaimed, 1, 0); !errors.Is(err, lsp.ErrNoServer) {
+		t.Errorf("a file nothing claims was answered: %v", err)
+	}
+
+	// The stub refuses every ask pointed at column zero, the way a real server
+	// refuses a keyword it cannot place.
+	if _, err := s.References(t.Context(), lsp.Doc{Path: "a.ts", Text: "func\n"}, 1, 0); err == nil {
+		t.Error("a name the server refused read as answered")
 	}
 }
 

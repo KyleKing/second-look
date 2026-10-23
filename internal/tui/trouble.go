@@ -28,8 +28,8 @@ type Prober interface {
 	Notes(ctx context.Context) ([]diag.Note, error)
 	// Hover is what each name on one line resolves to.
 	Hover(ctx context.Context, path string, line int) ([]diag.Symbol, error)
-	// Jumps is where each name on one line lives or is read.
-	Jumps(ctx context.Context, path string, line int, kind diag.JumpKind) ([]diag.Jump, error)
+	// Jumps is where the name at a byte column of one line lives or is read.
+	Jumps(ctx context.Context, path string, line, col int, kind diag.JumpKind) (diag.Jump, error)
 	// Close ends whatever is still running.
 	Close()
 }
@@ -159,51 +159,12 @@ func (m *Model) hover() tea.Cmd {
 	}
 }
 
-// lookup answers the g chord: where each name on the line under the cursor is
-// declared, or everywhere it is read.
-//
-// A review screen has no column cursor, so like K the line is asked about at
-// each of its names rather than at a point.
-func (m *Model) lookup(kind diag.JumpKind) tea.Cmd {
-	if m.prober == nil {
-		m.noProber()
-
-		return nil
-	}
-
-	verb := "defined"
-	if kind == diag.References {
-		verb = "used"
-	}
-
-	r := m.screen.rows[m.cursor]
-	if r.kind != rowCode || r.path == "" || r.line.New == 0 {
-		m.say("g's "+verb+" asks about a line of the change", false)
-
-		return nil
-	}
-
-	m.say("asking where line "+strconv.Itoa(r.line.New)+" is "+verb+"…", false)
-
-	ask, path, line := m.prober, r.path, r.line.New
-
-	return func() tea.Msg {
-		jumps, err := ask.Jumps(context.Background(), path, line, kind)
-
-		return answerMsg{path: path, line: line, verb: verb, jumps: jumps, err: err}
-	}
-}
-
-// answerMsg carries what one line was asked, whichever question asked it:
-// hover's symbols or a jump's places, and verb is empty for a hover and the
-// question's word ("defined", "read") for a jump. An asker's answer arrives
-// the same way, as said under title rather than as sites of a line.
+// answerMsg carries what hover asked of one line, or the prose an asker
+// answered with, said under title rather than as symbols.
 type answerMsg struct {
 	path    string
 	line    int
-	verb    string
 	symbols []diag.Symbol
-	jumps   []diag.Jump
 	title   string
 	said    string
 	// walk marks a path answer that registered itself as a motion, so the
@@ -216,91 +177,14 @@ func (m *Model) applyAnswer(msg answerMsg) tea.Cmd {
 	switch {
 	case msg.err != nil:
 		m.say("asking about line "+strconv.Itoa(msg.line)+": "+msg.err.Error(), true)
-	case len(msg.symbols)+len(msg.jumps) == 0:
-		if msg.verb == "" {
-			m.say("nothing on line "+strconv.Itoa(msg.line)+" has a type to show", false)
-		} else {
-			m.say("nothing on line "+strconv.Itoa(msg.line)+" is "+msg.verb+" anywhere", false)
-		}
+	case len(msg.symbols) == 0 && msg.said == "":
+		m.say("nothing on line "+strconv.Itoa(msg.line)+" has a type to show", false)
 	default:
 		m.showing = &msg
 		m.say("", false)
-
-		return m.peekReads(msg)
 	}
 
 	return nil
-}
-
-// peekReads asks for the files the jumps' first sites live in, where no
-// hunk's growth already did. Where a name lives answers less than what it
-// says, so the overlay draws the site's own lines once it has them — and
-// first sites only, since that is the excerpt each name gets.
-func (m *Model) peekReads(msg answerMsg) tea.Cmd {
-	if m.blob == nil || len(msg.jumps) == 0 {
-		return nil
-	}
-
-	var cmds []tea.Cmd
-
-	// A references answer can name a dozen files; the overlay draws at most a
-	// few excerpts before the frame runs out, so the reads stop there too.
-	read := map[string]bool{}
-	for _, j := range msg.jumps {
-		if len(cmds) >= peekReadsMax {
-			break
-		}
-
-		if len(j.At) == 0 {
-			continue
-		}
-
-		path := j.At[0].Path
-		if _, held := m.blobs[path]; held || read[path] {
-			continue
-		}
-
-		read[path] = true
-
-		cmds = append(cmds, m.peekBlob(path))
-	}
-
-	return tea.Batch(cmds...)
-}
-
-// peekReadsMax is how many files one answer's excerpts may read.
-const peekReadsMax = 8
-
-// peekExcerpt is the lines around a jump's first site, drawn under its name:
-// a peek that showed only the address would be a list wearing a nicer title.
-func (m *Model) peekExcerpt(j diag.Jump, room int) []string {
-	if len(j.At) == 0 {
-		return nil
-	}
-
-	site := j.At[0]
-
-	lines, ok := m.blobs[site.Path]
-	if !ok || site.Line < 1 || site.Line > len(lines) {
-		return nil
-	}
-
-	const pad = 3
-	lo, hi := max(1, site.Line-pad), min(len(lines), site.Line+pad)
-	num := len(strconv.Itoa(hi))
-
-	var out []string
-	for at := lo; at <= hi; at++ {
-		mark, face := "  ", m.styles.note
-		if at == site.Line {
-			mark, face = "› ", m.styles.body
-		}
-
-		out = append(out, face.Render(fmt.Sprintf("    %s%*d  %s",
-			mark, num, at, cut(lines[at-1], room))))
-	}
-
-	return out
 }
 
 // troubleRows is what is said about one line, drawn under it.
@@ -546,74 +430,38 @@ func (m *Model) troubleStyle(s diag.Severity) lipgloss.Style {
 // the overlay's own rows have to leave room for.
 const hoverChrome = 6
 
-// places is one jump's sites as a line: the file and the line, comma-joined.
-func places(at []diag.Site) string {
-	out := make([]string, 0, len(at))
-
-	for _, s := range at {
-		out = append(out, fmt.Sprintf("%s:%d", s.Path, s.Line))
-	}
-
-	return strings.Join(out, ", ")
-}
-
 // answerLines is what a line question left up: each name on the line and what
-// it is, or where each one is declared or read. An asker's answer is the same
-// surface with prose in place of sites.
+// it is. An asker's answer is the same surface with prose in place of symbols.
 func (m *Model) answerLines() []string {
 	if m.showing.said != "" {
 		return m.saidLines()
 	}
 
-	head := fmt.Sprintf("%s line %d", m.showing.path, m.showing.line)
-	if m.showing.verb != "" {
-		head += " · where each name is " + m.showing.verb
-	}
-
-	out := []string{m.styles.head.Render(head), ""}
+	out := []string{m.styles.head.Render(fmt.Sprintf("%s line %d", m.showing.path, m.showing.line)), ""}
 
 	room := max(minTroubleWidth, m.width-indent*2)
 	// The overlay does not scroll, so what does not fit is counted rather than
 	// drawn: a frame taller than the terminal loses its own footer off the top.
 	fits := m.height - hoverChrome
 
-	// An answerBlock is one name's lines; styled is where the peek excerpt
-	// starts, since those lines arrive already drawn.
-	type answerBlock struct {
-		lines  []string
-		styled int
-	}
+	for i, sym := range m.showing.symbols {
+		lines := clip(wrap(sym.Text, room), noteLines)
 
-	rows := make([]answerBlock, 0, len(m.showing.symbols)+len(m.showing.jumps))
-	for _, sym := range m.showing.symbols {
-		rows = append(rows, answerBlock{lines: clip(wrap(sym.Text, room), noteLines)})
-	}
-
-	for _, j := range m.showing.jumps {
-		name := clip(wrap(j.Name+" → "+places(j.At), room), noteLines)
-		excerpt := m.peekExcerpt(j, room-indent*2)
-		block := answerBlock{lines: append(name, excerpt...), styled: len(name)}
-
-		rows = append(rows, block)
-	}
-
-	for i, block := range rows {
-		if len(out)+len(block.lines) > fits {
-			left := plural(len(rows)-i, "more name")
+		if len(out)+len(lines) > fits {
+			left := plural(len(m.showing.symbols)-i, "more name")
 			out = append(out, "", m.styles.footer.Render("  "+left+" not shown"))
 
 			break
 		}
 
-		for j, line := range block.lines {
-			switch {
-			case j >= block.styled:
-				out = append(out, line)
-			case j == 0:
+		for j, line := range lines {
+			if j == 0 {
 				out = append(out, m.styles.body.Render("  "+line))
-			default:
-				out = append(out, m.styles.note.Render("    "+line))
+
+				continue
 			}
+
+			out = append(out, m.styles.note.Render("    "+line))
 		}
 	}
 

@@ -82,16 +82,14 @@ func Archived(r Row) bool {
 
 	// The same warm session answers where a name lives: r on the return line
 	// was declared as the parameter two lines above it.
-	jumps, err := p.Jumps(t.Context(), "a.go", 6, diag.Definitions)
+	jump, err := p.Jumps(t.Context(), "a.go", 6, len("\treturn "), diag.Definitions)
 	if err != nil {
-		t.Fatalf("asking where the names live: %v", err)
+		t.Fatalf("asking where the name lives: %v", err)
 	}
 
-	var lives []string
-	for _, j := range jumps {
-		for _, s := range j.At {
-			lives = append(lives, j.Name+"→"+s.Path+":"+strconv.Itoa(s.Line))
-		}
+	lives := make([]string, 0, len(jump.At))
+	for _, s := range jump.At {
+		lives = append(lives, jump.Name+"→"+s.Path+":"+strconv.Itoa(s.Line))
 	}
 
 	if !slices.Contains(lives, "r→a.go:5") {

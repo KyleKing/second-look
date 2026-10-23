@@ -208,6 +208,10 @@ type Model struct {
 	versioned map[string]asked
 	// showing is the answer a line question left up, nil when nothing is.
 	showing *answerMsg
+	// picking is a gd or gr waiting for the letter of a name, and peeked is the
+	// card its answer drew under the line.
+	picking *pick
+	peeked  *peekCard
 	// pane is a program running on a pty inside the frame — $EDITOR on the
 	// comment's temp file — with paneMsg saying where its buffer lands and
 	// paneFile naming that file, empty where the pane's own screen is the
@@ -544,6 +548,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		was := m.pending
 		mod, cmd := m.handleKey(msg)
+		m.settlePeek()
 
 		// A chord that just opened arms the wait that draws its page, the way
 		// which-key surfaces once a prefix sits a moment.
@@ -604,6 +609,8 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 		return tea.ClearScreen
 	case answerMsg:
 		return m.applyAnswer(msg)
+	case peekedMsg:
+		return m.applyPeeked(msg)
 	case fileMsg:
 		return m.openWhole(msg)
 	}
@@ -763,6 +770,10 @@ func (m *Model) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		mod, cmd := m.complete(msg)
 
 		return mod, cmd, true
+	case m.picking != nil:
+		mod, cmd := m.pickName(msg)
+
+		return mod, cmd, true
 	}
 
 	return nil, nil, false
@@ -891,7 +902,7 @@ func (m *Model) readHelp(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg.String() {
-	case "esc":
+	case escKey:
 		if len(m.helpPath) > 0 {
 			m.helpPath = m.helpPath[:len(m.helpPath)-1]
 		} else {
@@ -993,6 +1004,8 @@ func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		m.askRange()
 
 		return nil, true
+	case key.Matches(msg, m.keys.Accept) && m.screen.rows[m.cursor].kind == rowPeek:
+		return m.wholeFile(), true
 	}
 
 	return nil, false
@@ -1015,14 +1028,20 @@ func (m *Model) overlayKey(msg tea.KeyPressMsg) bool {
 }
 
 // leaves answers the two keys that leave the screen: q, which closes the legend
-// first where it is open and otherwise hands back to whatever is behind the
-// review, and enter on a review that has posted, which carries the sitting on
+// and then a peek first where they are open and otherwise hands back to whatever
+// is behind the review, and enter on a review that has posted, which carries the sitting on
 // to the next one staged rather than ending on each review.
 func (m *Model) leaves(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Quit):
 		if m.help {
 			m.help, m.helpAt, m.helpPath, m.helpNote = false, 0, nil, nil
+
+			return nil, true
+		}
+
+		if m.peeked != nil {
+			m.closePeek()
 
 			return nil, true
 		}
@@ -1234,28 +1253,39 @@ type fileMsg struct {
 // reads — the commit's copy rather than the working tree's — so the pane can
 // open on a review with no checkout at all.
 func (m *Model) wholeFile() tea.Cmd {
-	r := m.screen.rows[m.cursor]
-	if r.path == "" {
+	path, at := m.siteUnderCursor()
+	if path == "" {
 		m.say("no file under the cursor", false)
 
 		return nil
 	}
 
 	if m.blob == nil {
-		m.say("no way to read "+r.path+" from here", false)
+		m.say("no way to read "+path+" from here", false)
 
 		return nil
 	}
 
-	m.say("reading "+r.path+"…", false)
+	m.say("reading "+path+"…", false)
 
-	path, at := r.path, r.line.New
+	ctx, read := m.ctx, m.blob
 
 	return func() tea.Msg {
-		lines, err := m.blob(m.ctx, path)
+		lines, err := readSite(ctx, read, path)
 
 		return fileMsg{path: path, at: at, lines: lines, err: err}
 	}
+}
+
+// siteUnderCursor is the file and line the cursor row stands for: a peek row's
+// own place, and otherwise the line of the diff.
+func (m *Model) siteUnderCursor() (string, int) {
+	r := m.screen.rows[m.cursor]
+	if r.kind == rowPeek {
+		return r.site.Path, r.site.Line
+	}
+
+	return r.path, r.line.New
 }
 
 // openWhole lands the file's lines as a temp file the editor opens. The temp
@@ -2982,6 +3012,7 @@ func (m *Model) rebuild() {
 		m.screen = build(m.review, m.diff, m.threads, lay)
 	}
 
+	m.splicePeek()
 	m.done = m.readHunks()
 
 	m.stay(was)
@@ -3160,6 +3191,8 @@ func (m *Model) groupOf(i int) (blockKey, bool) {
 		return blockKey{rowComment, r.comment}, true
 	case rowThread:
 		return blockKey{rowThread, r.thread}, true
+	case rowPeek:
+		return blockKey{rowPeek, 0}, true
 	default:
 		return blockKey{}, false
 	}

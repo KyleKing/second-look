@@ -91,11 +91,11 @@ func (p *prober) Hover(ctx context.Context, path string, line int) ([]diag.Symbo
 	return syms, nil
 }
 
-// Jumps is where each name on one line lives or is read.
-func (p *prober) Jumps(ctx context.Context, path string, line int, kind diag.JumpKind) ([]diag.Jump, error) {
+// Jumps is where the name at byte column col of one line lives or is read.
+func (p *prober) Jumps(ctx context.Context, path string, line, col int, kind diag.JumpKind) (diag.Jump, error) {
 	lines, err := p.read.Read(ctx, path)
 	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", path, err)
+		return diag.Jump{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 
 	doc := lsp.Doc{Path: path, Text: strings.Join(lines, "\n")}
@@ -105,12 +105,12 @@ func (p *prober) Jumps(ctx context.Context, path string, line int, kind diag.Jum
 		ask = p.session.References
 	}
 
-	jumps, err := ask(ctx, doc, line)
+	jump, err := ask(ctx, doc, line, col)
 	if err != nil {
-		return nil, fmt.Errorf("asking about %s: %w", path, err)
+		return diag.Jump{}, fmt.Errorf("asking about %s: %w", path, err)
 	}
 
-	return jumps, nil
+	return jump, nil
 }
 
 func (p *prober) Close() { p.session.Close() }

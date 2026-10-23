@@ -428,7 +428,7 @@ func (m *Model) hints() []hint {
 	}
 
 	return []hint{
-		{key: "j/k", what: "line"},
+		{key: walkKeys, what: "line"},
 		{key: "]", what: "go to"},
 		view,
 		{key: "m", what: "mark", off: m.current() < 0},
@@ -624,6 +624,10 @@ func (m *Model) renderRow(i, width int) []string {
 	r.current = i == m.cursor
 
 	bodies := m.rowBodies(r, width)
+	if m.picking != nil && i == m.picking.row {
+		bodies = m.labeled(bodies, r, width)
+	}
+
 	out := make([]string, len(bodies))
 
 	for j, body := range bodies {
@@ -809,6 +813,8 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 		return m.troubleRow(r)
 	case rowCode:
 		return m.codeRow(r)
+	case rowPeek:
+		return r.text, m.styles.body
 	}
 
 	return r.text, m.styles.body

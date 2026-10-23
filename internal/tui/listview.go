@@ -331,7 +331,7 @@ func (l *List) footer() string {
 	pairs := l.hints
 	if pairs == nil {
 		pairs = [][2]string{
-			{"enter", "read"},
+			{enterKey, "read"},
 			{spaceKey, "mark read"},
 			{"r", replyWord},
 			{"R", "resolve"},
@@ -384,7 +384,7 @@ func defaultListHelp() [][2]string {
 		{"1/2/3, ] / [", "the queue to read"},
 		{tabKey, "the next group"},
 		{"/", "narrow to the rows carrying a word; esc puts them back"},
-		{"enter", "read the whole conversation, and mark it read"},
+		{enterKey, "read the whole conversation, and mark it read"},
 		{spaceKey, "mark read without opening it"},
 		{"r", "reply, staged into the prepared review"},
 		{"R", "resolve the thread, or thumbs-up what cannot be resolved"},

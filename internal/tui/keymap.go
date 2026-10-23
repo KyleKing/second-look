@@ -26,6 +26,9 @@ const (
 	refreshKey  = "ctrl+r"
 	spaceKey    = "space"
 	tabKey      = "tab"
+	enterKey    = "enter"
+	escKey      = "esc"
+	walkKeys    = "j/k"
 )
 
 type keyMap struct {
@@ -100,8 +103,8 @@ type keyMap struct {
 
 func defaultKeyMap() keyMap {
 	return keyMap{
-		Up:     key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("j/k", "line")),
-		Down:   key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "line")),
+		Up:     key.NewBinding(key.WithKeys("k", "up"), key.WithHelp(walkKeys, "line")),
+		Down:   key.NewBinding(key.WithKeys("j", "down"), key.WithHelp(walkKeys, "line")),
 		HalfUp: key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
 		PeekUp: key.NewBinding(
 			key.WithKeys("ctrl+y", "shift+up", "y"), key.WithHelp("ctrl+y/e", "scroll a line"),
@@ -152,7 +155,7 @@ func defaultKeyMap() keyMap {
 		Range:        key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "range")),
 		More:         key.NewBinding(key.WithKeys("+"), key.WithHelp("+", "more context")),
 		Less:         key.NewBinding(key.WithKeys("-"), key.WithHelp("-", "less context")),
-		Accept:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "accept")),
+		Accept:       key.NewBinding(key.WithKeys(enterKey), key.WithHelp(enterKey, "accept")),
 		Ask:          key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "ask the agent")),
 		Send:         key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
 		Submit:       key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
@@ -163,8 +166,8 @@ func defaultKeyMap() keyMap {
 		About:        key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "context")),
 		Help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		EndPane:      key.NewBinding(key.WithKeys("ctrl+\\"), key.WithHelp("ctrl+\\", "end the pane's program")),
-		Back:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c", "esc"), key.WithHelp("q", quitWord)),
+		Back:         key.NewBinding(key.WithKeys(escKey), key.WithHelp(escKey, "back")),
+		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c", escKey), key.WithHelp("q", quitWord)),
 	}
 }
 
@@ -195,7 +198,7 @@ func lookObjects() [][2]string {
 }
 
 // goObjects are what g accepts: gg keeps the top it always was, d and r ask
-// the language server where each name on the line is declared and read, and f
+// the language server where a name on the line is declared and read, and f
 // opens the file itself in $EDITOR at the line the cursor is on.
 func goObjects() [][2]string {
 	return [][2]string{{"g", "top"}, {"d", "where defined"}, {"r", "where used"}, {"f", "the file"}}
@@ -229,7 +232,7 @@ func events() [][2]string {
 func helpTree(rounds [][2]string) []keyhint.Hint {
 	return []keyhint.Hint{
 		{What: "moving", Head: true},
-		{Key: "j/k", What: "a line"},
+		{Key: walkKeys, What: "a line"},
 		{Key: "ctrl+d/u", What: "half a page"},
 		{Key: "ctrl+e/y", What: "scroll a line"},
 		{What: "y/Y and shift+up/down do the same"},

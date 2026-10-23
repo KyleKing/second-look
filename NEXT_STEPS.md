@@ -51,14 +51,13 @@ it.
 ### 2. Definitions and usages, built before codeintel
 
 `gd` asks `textDocument/definition` and `gr` `textDocument/references` of the
-same warm session `K` hovers with, once per name on the line because there is
-no column cursor. `g` is a chord now: `gg` keeps the top `g` was, and the chord
-says so while it waits. Answers draw in K's overlay as `name → path:line`
-lists, spelled the way the diff spells paths where the place is inside the
-checkout and absolute where it is not — and under each name's first site, the
-peek: a few lines of the file itself around the target line, read the way a
-hunk's grown context is, so the question is answered by the code rather than
-its address. Its limits are the session's own:
+same warm session `K` hovers with, about one name because there is no column
+cursor: a line with several names labels each with a letter and waits for one.
+`g` is a chord now: `gg` keeps the top `g` was, and the chord says so while it
+waits. The answer is a peek card under the line: a few lines of the file itself
+around the definition, read the way a hunk's grown context is, or one row per
+reference, spelled the way the diff spells paths where the place is inside the
+checkout and absolute where it is not. Its limits are the session's own:
 nothing answers without a checkout, and what a name resolves to outside the
 changed files is whatever the checkout on disk holds.
 
