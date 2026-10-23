@@ -152,8 +152,8 @@ type depth struct {
 // ramp and the band says nothing.
 const (
 	// What a terminal that mixes its own colors gets.
-	trueBandLift, trueBandSat = 0.11, 0.75
-	trueMarkLift, trueMarkSat = 0.34, 0.95
+	trueBandLift, trueBandSat = 0.035, 0.45
+	trueMarkLift, trueMarkSat = 0.28, 0.70
 	// What a 256-color terminal gets, deep enough to survive the cube.
 	cubeBandLift, cubeMarkLift = 0.14, 0.34
 	cubeSat                    = 1.0
@@ -205,10 +205,10 @@ func newRichStyles(s styles) richStyles {
 	faces := map[highlight.Class]lipgloss.Style{
 		highlight.Comment:     base.Foreground(p.Overlay1).Italic(true),
 		highlight.Keyword:     base.Foreground(p.Mauve),
-		highlight.String:      base.Foreground(p.Green),
+		highlight.String:      base.Foreground(p.Yellow),
 		highlight.Number:      base.Foreground(p.Peach),
 		highlight.Function:    base.Foreground(p.Blue),
-		highlight.Type:        base.Foreground(p.Yellow),
+		highlight.Type:        base.Foreground(p.Teal),
 		highlight.Name:        base.Foreground(p.Text),
 		highlight.Punctuation: base.Foreground(p.Overlay2),
 		highlight.Plain:       base.Foreground(p.Text),

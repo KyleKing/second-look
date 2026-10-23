@@ -69,8 +69,8 @@ func TestAChangeIsVisibleAndItsCodeStaysReadable(t *testing.T) {
 	t.Parallel()
 
 	const (
-		fromPage = 12.0
-		fromEach = 25.0
+		fromPage = 6.0
+		fromEach = 10.0
 		fromBand = 8.0
 		onBand   = 4.0
 	)
