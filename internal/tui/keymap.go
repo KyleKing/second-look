@@ -19,7 +19,9 @@ import (
 // Leaving is called the same thing on every screen, so the three footers that
 // offer it cannot drift.
 const (
+	foldVerb    = "fold"
 	quitWord    = "quit"
+	replyWord   = "reply"
 	commentWord = "comment"
 	refreshKey  = "ctrl+r"
 	spaceKey    = "space"
@@ -301,6 +303,6 @@ func zPage() []keyhint.Hint {
 		{Key: "z", What: "the middle"},
 		{Key: "t", What: "the top"},
 		{Key: "b", What: "the bottom"},
-		{What: "fold", Head: true},
+		{What: foldVerb, Head: true},
 	}, asHints(foldObjects())...)
 }

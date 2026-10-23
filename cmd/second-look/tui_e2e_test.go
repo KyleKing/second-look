@@ -286,7 +286,7 @@ func TestReviewScreenFetchesThreadsWithoutAGet(t *testing.T) {
 	// own prose depends on how much of that there is, which is not what this
 	// test is about.
 	sc.press("]t")
-	sc.await("open thread")
+	sc.await("unresolved")
 	sc.press("q")
 
 	if code := sc.wait(); code != 0 {
@@ -353,7 +353,7 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 	// ]t names the thread; e opens the editor in the frame, and ctrl+e hands
 	// what is in it to $EDITOR, which runs in the pane under the diff.
 	sc.press("]t")
-	sc.await("open thread")
+	sc.await("unresolved")
 	sc.press("e")
 	sc.await("ctrl+s save")
 	sc.press("\x05")

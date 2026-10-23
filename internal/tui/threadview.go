@@ -36,7 +36,7 @@ func buildThreads(d *diff.Diff, ts []threads.Thread, lay layout) screen {
 			}
 
 			s.rows = append(s.rows, quoted(&ts[i], at)...)
-			s.rows = append(s.rows, threadRows(&ts[i], i, path, s.numWidth, lay, anchorWord(&ts[i]))...)
+			s.rows = append(s.rows, threadRows(&ts[i], i, path, s.numWidth, lay)...)
 		}
 	}
 
@@ -59,16 +59,6 @@ func quoted(t *threads.Thread, at map[anchor]diff.Line) []row {
 	}
 
 	return []row{{kind: rowCode, line: ln, path: t.Path, comment: noComment, hunk: ln.Hunk}}
-}
-
-// anchorWord names the line a thread answers, which the diff view does not have
-// to say because the thread is drawn under it.
-func anchorWord(t *threads.Thread) string {
-	if t.Side == "LEFT" {
-		return fmt.Sprintf("left %d", t.Line)
-	}
-
-	return fmt.Sprintf("line %d", t.Line)
 }
 
 // anchorLines is every commentable line of the diff by the anchor that reaches

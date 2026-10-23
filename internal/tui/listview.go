@@ -282,7 +282,7 @@ func (l *List) footer() string {
 		hints = [][2]string{
 			{"enter", "read"},
 			{spaceKey, "mark read"},
-			{"r", "reply"},
+			{"r", replyWord},
 			{"R", "resolve"},
 			{"o", "GitHub"},
 			{tabKey, "group"},

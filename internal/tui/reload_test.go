@@ -50,7 +50,7 @@ func TestACommentRewrittenUnderTheCursorOffersBoth(t *testing.T) {
 	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the finding"))
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	onto(t, m, "MAJOR")
+	onto(t, m, "· major")
 	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 	for _, r := range "mine" {

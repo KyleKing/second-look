@@ -2,19 +2,19 @@ kyleking/jj-diff #42  comments                                                  
 ▌
      internal/vcs/diff.go  1 ready · 1 draft ───────────────────────────────────────────────────────────────────────────
  
-      ┃ ● MAJOR  ready
-      ┃ split can fail now, so this has to check err.
+       ╭─ ● ready · major ─────────────────────────────────────────────────────────── diff.go:15 ─╮
+       │ split can fail now, so this has to check err.                                            │
+       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯
  
-      ┃ ◐ QUESTION  draft
-      ┃ Is first still 1 after the change?
-      ┃ NOTE  Unverified: I have not read the caller.
+       ╭─ ◐ draft · question ──────────────────────────────────────────────────────── diff.go:14 ─╮
+       │ Is first still 1 after the change?                                                       │
+       │ note  Unverified: I have not read the caller.                                            │
+       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯
  
      internal/vcs/git.go  1 skipped ────────────────────────────────────────────────────────────────────────────────────
  
       ┃ REVIEW BODY  empty · e to write one
       ┃ REVIEW NOTE  empty · e to write one
-
-
 
 
 

@@ -262,7 +262,7 @@ func (s screen) hanging(p string, ln diff.Line, c codeCtx) []row {
 	rows := make([]row, 0, len(c.byThread[a])+len(c.byLine[a]))
 
 	for _, t := range c.byThread[a] {
-		rows = append(rows, threadMarker(&c.ts[t], t, p)...)
+		rows = append(rows, threadMarker(&c.ts[t], t, p, c.lay)...)
 	}
 
 	for _, i := range c.byLine[a] {
@@ -305,29 +305,25 @@ func commentMarker(c *artifact.Comment, index int, path string, lay layout, numW
 		return commentRows(c, index, path, lay, numWidth, inRun{})
 	}
 
-	return []row{{
+	lines := len(wrap(c.Body, cardCols(lay.width, numWidth)))
+
+	return []row{closedRow(row{
 		kind: rowComment, path: path, comment: index, head: true, folded: true,
-		text: "▸ " + commentHead(c) + "  " + firstLine(c.Body, cardCols(lay.width, numWidth)),
-	}}
+		text: commentTitle(c) + " · " + plural(lines, "line"),
+	}, lay.width)}
 }
 
-func threadMarker(t *threads.Thread, index int, path string) []row {
-	return []row{{
+func threadMarker(t *threads.Thread, index int, path string, lay layout) []row {
+	return []row{closedRow(row{
 		kind: rowThread, path: path, comment: -1, thread: index, head: true, resolved: t.Resolved,
-		text: "▸ ⤷ open thread · " + plural(len(t.Notes), "comment") + " · @" + t.Notes[0].Author,
-	}}
+		text: threadTitle(t),
+	}, lay.width)}
 }
 
-// firstLine is as much of a body as one row has for it.
-func firstLine(body string, width int) string {
-	lines := wrap(body, width)
-	if len(lines) == 0 {
-		return ""
+func closedRow(r row, width int) row {
+	if r.role = foldRole(width); r.role == 0 {
+		r.text = "▸ " + r.text
 	}
 
-	if len(lines) == 1 {
-		return lines[0]
-	}
-
-	return lines[0] + "…"
+	return r
 }

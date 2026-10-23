@@ -65,7 +65,7 @@ func noted(ts []threads.Thread) map[noteAt][]ghmd.Block {
 // threadRows renders one conversation already on GitHub: who said what, in
 // order, under the line it hangs from. It is read-only, and answering it stages
 // a comment in the prepared review like any other.
-func threadRows(t *threads.Thread, index int, path string, numWidth int, lay layout, where string) []row {
+func threadRows(t *threads.Thread, index int, path string, numWidth int, lay layout) []row {
 	s := scribe{
 		at: index, path: path, lay: lay,
 		// bodyIndent is applied after wrapping, so it comes off the width first.
@@ -74,7 +74,7 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 	}
 
 	head := row{
-		kind: rowThread, text: "⤷ " + lead(where) + status(t) + " · " + plural(len(t.Notes), "comment"),
+		kind: rowThread, text: threadTitle(t), aside: place(path, t.Side, t.Line, t.Line),
 		path: path, comment: -1, thread: index, head: true, resolved: t.Resolved,
 	}
 
@@ -97,27 +97,32 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 	// A folded conversation says so and says how much it is holding back, since
 	// a heading that looks the same either way is one nobody trusts.
 	if lay.fold.threads[index] {
-		head.text = arrow(false) + " " + lead(where) + status(t) + " · " +
-			plural(len(t.Notes), "comment") + " · " + plural(len(rows)-1, "line") + " folded"
+		head.text += " · " + plural(len(rows)-1, "line")
 		head.folded = true
 
-		return []row{head}
+		return []row{closedRow(head, lay.width)}
 	}
 
-	return rows
+	return framed(rows, row{kind: rowThread, path: path, comment: -1, thread: index}, lay.width)
 }
 
-// status names what became of a thread since it was opened, so a resolved or
-// outdated conversation reads as settled rather than as one still asking
-// something. An open thread carries none.
-func status(t *threads.Thread) string {
+func threadTitle(t *threads.Thread) string {
+	author := ""
+	if len(t.Notes) > 0 {
+		author = "@" + t.Notes[0].Author + " · "
+	}
+
+	return "⤷ " + author + threadState(t) + " · " + plural(len(t.Notes), "comment")
+}
+
+func threadState(t *threads.Thread) string {
 	switch {
 	case t.Resolved:
-		return " · resolved"
+		return "resolved"
 	case t.Outdated:
-		return " · outdated"
+		return "outdated"
 	default:
-		return ""
+		return "unresolved"
 	}
 }
 
@@ -374,14 +379,4 @@ func sectionWord(b *ghmd.Block) string {
 	}
 
 	return plural(len(b.Blocks), "hidden block")
-}
-
-// lead names what a thread head says it is. The diff view draws a thread under
-// the line it answers, so there it says only that it is open.
-func lead(where string) string {
-	if where == "" {
-		return "open thread"
-	}
-
-	return where
 }

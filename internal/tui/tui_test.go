@@ -1091,7 +1091,8 @@ func TestTogglingOneLookAtATime(t *testing.T) {
 func railed(line string) bool {
 	trimmed := strings.TrimSpace(line)
 
-	return trimmed == "" || strings.HasPrefix(trimmed, "┃ ") || strings.HasPrefix(trimmed, "│ ")
+	return trimmed == "" || strings.HasPrefix(trimmed, "┃ ") ||
+		strings.HasPrefix(trimmed, "╭─") || strings.HasPrefix(trimmed, "│ ")
 }
 
 // Side by side pairs each removal with the addition that replaced it, so both
@@ -1572,7 +1573,7 @@ func TestLandingOnAThreadCentersIt(t *testing.T) {
 	at := -1
 
 	for i, l := range body {
-		if strings.Contains(l, "open thread") {
+		if strings.Contains(l, "unresolved") {
 			at = i
 		}
 	}
@@ -1644,12 +1645,12 @@ func TestARangeSaysWhatItCovers(t *testing.T) {
 
 	m, _ := fixture(t, ranged)
 
-	if got := plain(m.Frame()); !strings.Contains(got, "lines 12-15") {
+	if got := plain(m.Frame()); !strings.Contains(got, "diff.go:12-15") {
 		t.Errorf("the range is not on screen:\n%s", got)
 	}
 
 	single, _ := fixture(t, comment("c2", parsed, artifact.SideRight, 15, "one line only"))
-	if got := plain(single.Frame()); regexp.MustCompile(`lines \d+-\d+`).MatchString(got) {
+	if got := plain(single.Frame()); regexp.MustCompile(`diff\.go:\d+-\d+`).MatchString(got) {
 		t.Errorf("a single-line comment claims a range:\n%s", got)
 	}
 }
@@ -2496,7 +2497,7 @@ func TestReplyingToAnOpenThread(t *testing.T) {
 
 	go2(t, m2, ']', 't')
 
-	if got := m2.CursorText(); !strings.Contains(got, "open thread") {
+	if got := m2.CursorText(); !strings.Contains(got, "unresolved") {
 		t.Fatalf("]t landed on %q", got)
 	}
 
@@ -2545,7 +2546,7 @@ func TestTabSkipsAResolvedThread(t *testing.T) {
 
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 
-	if got := m.CursorText(); strings.Contains(got, "resolved") {
+	if got := m.CursorText(); strings.Contains(got, "· resolved") {
 		t.Fatalf("tab landed on the resolved thread: %q", got)
 	}
 
@@ -2558,7 +2559,7 @@ func TestTabSkipsAResolvedThread(t *testing.T) {
 	for range 5 {
 		press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 
-		if got := m.CursorText(); strings.Contains(got, "resolved") {
+		if got := m.CursorText(); strings.Contains(got, "· resolved") {
 			t.Fatalf("tab landed on the resolved thread: %q", got)
 		}
 	}
@@ -2639,7 +2640,7 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 
 	go2(t, m, 'z', 'a')
 
-	if got := plain(m.Frame()); !strings.Contains(got, "NOTE  4 lines · za to read") {
+	if got := plain(m.Frame()); !strings.Contains(got, "note  4 lines · za to read") {
 		t.Fatalf("za did not fold the note:\n%s", got)
 	}
 
@@ -2726,14 +2727,14 @@ func TestTheCodeViewShowsTheFileThatResults(t *testing.T) {
 
 	// A comment stands as one row until it is asked for, so four on one hunk
 	// do not bury the code they are about.
-	if !strings.Contains(frame, "▸ ● MAJOR  ready  the split can fail") {
+	if !strings.Contains(frame, "╶─ ● ready · major · 1 line ─╴") {
 		t.Fatalf("the comment is not folded to a marker:\n%s", frame)
 	}
 
 	go2(t, m, ']', 'c')
 	go2(t, m, 'z', 'a')
 
-	if got := plain(m.Frame()); strings.Contains(got, "▸ ● MAJOR") {
+	if got := plain(m.Frame()); strings.Contains(got, "╶─ ● ready") {
 		t.Errorf("za did not open the comment:\n%s", got)
 	}
 
@@ -3318,7 +3319,7 @@ func TestFoldingAConversationSaysSo(t *testing.T) {
 	go2(t, m, 'z', 'a')
 
 	frame := plain(m.Frame())
-	if !strings.Contains(frame, "folded") || strings.Contains(frame, "wrap the error") {
+	if !strings.Contains(frame, "4 lines") || strings.Contains(frame, "wrap the error") {
 		t.Fatalf("the conversation is not folded, or does not say it is:\n%s", frame)
 	}
 

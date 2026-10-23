@@ -522,7 +522,7 @@ func (m *Model) hints() []hint {
 func (m *Model) writeWord() string {
 	switch {
 	case m.currentThread() >= 0:
-		return "reply"
+		return replyWord
 	case m.current() >= 0:
 		return "edit"
 	}
@@ -735,6 +735,10 @@ func (m *Model) rowBodies(r row, width int) []string {
 		}
 	}
 
+	if r.role != 0 {
+		return []string{m.cardLine(r, width)}
+	}
+
 	text, style := m.rowContent(r)
 	if (r.kind == rowCode && m.behind(r)) || closed(r) {
 		style = m.styles.behind
@@ -807,7 +811,7 @@ func (m *Model) pastedCode(r row) string {
 			face = m.styles.note
 		}
 
-		b.WriteString(face.Render(r.text[piece.from:piece.to]))
+		b.WriteString(under(face, m.styles.fill, r.role != 0).Render(r.text[piece.from:piece.to]))
 	}
 
 	return b.String()

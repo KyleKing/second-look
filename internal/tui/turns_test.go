@@ -90,7 +90,7 @@ func TestTurnsOpenOnFold(t *testing.T) {
 	m, _ := fixture(t, c)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 60})
 
-	onto(t, m, "TURNS")
+	onto(t, m, "turns")
 
 	press(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"})
 	press(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
@@ -109,14 +109,14 @@ func TestTodoIsItsOwnState(t *testing.T) {
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the finding"))
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	onto(t, m, "MAJOR")
+	onto(t, m, "· major")
 
 	press(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"})
 	press(t, m, tea.KeyPressMsg{Code: 't', Text: "t"})
 
 	frame := plain(m.Frame())
 
-	for _, want := range []string{"MAJOR  todo", "1 todo"} {
+	for _, want := range []string{"todo · major", "1 todo"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("%q is missing after m t:\n%s", want, frame)
 		}

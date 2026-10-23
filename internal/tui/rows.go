@@ -39,11 +39,18 @@ const (
 	rowBlank
 )
 
-// cardRole is which part of an open card a row draws.
+// cardRole is which part of a card a row draws.
 type cardRole byte
 
-// roleFoot is the row that closes a card. The cursor passes over it.
-const roleFoot cardRole = 1
+const (
+	// The top row opens a card and names it.
+	roleTop cardRole = iota + 1
+	roleBody
+	// The foot row closes a card, and the cursor passes over it.
+	roleFoot
+	// A folded card is drawn as one rule with its title in it.
+	roleFold
+)
 
 // row is one rendered line of the review screen. Comments occupy rows of their
 // own so the cursor lands on prose the same way it lands on code.
@@ -75,8 +82,10 @@ type row struct {
 	around bool
 	// current marks the row under the cursor, which the rich renderer lights.
 	current bool
-	// role is which part of an open card the row draws, and zero outside any card.
+	// role is which part of a card the row draws, and zero outside any card.
 	role cardRole
+	// aside is what a card's top edge says at its right end.
+	aside string
 	// hunk numbers the @@ block a row belongs to, across the whole diff, and is
 	// zero for a row that belongs to none.
 	hunk int
@@ -285,7 +294,7 @@ func (s screen) hanger(
 		// What is already on GitHub comes before what this pass is adding, so a
 		// comment reads as an answer to the conversation above it.
 		for _, t := range byThread[a] {
-			out = append(out, threadRows(&ts[t], t, p, s.numWidth, lay, "")...)
+			out = append(out, threadRows(&ts[t], t, p, s.numWidth, lay)...)
 		}
 
 		for _, c := range byLine[a] {

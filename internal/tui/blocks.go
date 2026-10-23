@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/kyleking/second-look/internal/advisory"
@@ -24,23 +25,30 @@ const (
 )
 
 // noteLabel introduces a note and sets the column its continuation lines align
-// to, so a wrapped note reads as one block rather than as a list. It is capital
-// because it is the block's label and not the first words of it.
-const noteLabel = "NOTE  "
+// to, so a wrapped note reads as one block rather than as a list.
+const noteLabel = "note  "
 
 // How wide prose is set. A comment measured to the full width of a wide
 // terminal is hard to read back, and the margin keeps it off the right edge.
 const (
 	proseWidth = 88
 	rightPad   = 2
-	cardChrome = 8
 	cardFloor  = 40
 )
+
+// A card spends its gutter inset, both borders with a space inside each, the
+// cursor's column, and the scrollbar's, so its right edge is never cut.
+const (
+	cardBorder = 4
+	cardChrome = cardBorder + 3 + 1 + trackWidth
+)
+
+func carded(width int) bool { return width >= cardFloor }
 
 // cardCols is the measure a comment, a note, or the review's own prose is wrapped
 // to. A frame under cardFloor draws plain rows, which keep the wider measure.
 func cardCols(width, numWidth int) int {
-	if width < cardFloor {
+	if !carded(width) {
 		return min(width-numWidth-rail-rightPad, proseWidth)
 	}
 
@@ -289,6 +297,7 @@ func skipRows(r *artifact.Review, on []int, a anchor, path string, lay layout, n
 		return []row{head, {
 			kind: rowComment, path: path, comment: on[0], head: true, folded: true, skips: a,
 			text: plural(len(on), "comment") + " skipped here · za to read",
+			role: foldRole(lay.width),
 		}}
 	}
 
@@ -304,14 +313,14 @@ func skipRows(r *artifact.Review, on []int, a anchor, path string, lay layout, n
 	return rows
 }
 
-// commentRows is one prepared comment: a heading naming what it is and whether
-// it will post, the body at the contrast of the code it is about, and the local
-// note under it.
+// commentRows is one prepared comment: a card whose top edge names who wrote it,
+// where it stands, and how much it matters, with the body at the contrast of
+// the code it is about and the local note under it.
 func commentRows(c *artifact.Comment, index int, path string, lay layout, numWidth int, run inRun) []row {
 	avail := cardCols(lay.width, numWidth)
 	body := wrap(c.Body, avail)
 
-	rows := make([]row, 0, len(body)+3)
+	rows := make([]row, 0, len(body)+4)
 
 	// The run's heading is the row above, so a blank here would detach it.
 	if !run.opens() {
@@ -321,7 +330,8 @@ func commentRows(c *artifact.Comment, index int, path string, lay layout, numWid
 	rows = append(rows,
 		row{
 			kind: rowComment, path: path, comment: index, head: true,
-			text: commentHead(c) + run.runWord() + driftWord(lay.drifted[c.ID]),
+			text:  commentTitle(c) + run.runWord() + driftWord(lay.drifted[c.ID]),
+			aside: place(path, c.Side, firstOf(c.StartLine, c.Line), c.Line),
 		})
 
 	for _, line := range body {
@@ -329,33 +339,84 @@ func commentRows(c *artifact.Comment, index int, path string, lay layout, numWid
 	}
 
 	rows = append(rows, turnRows(c, index, path, avail, lay)...)
+	rows = append(rows, noteRows(c.Note, index, path, avail, lay)...)
 
-	return append(rows, noteRows(c.Note, index, path, avail, lay)...)
+	return framed(rows, row{kind: rowComment, path: path, comment: index}, lay.width)
 }
 
-// commentHead names the severity in caps because it is what the eye is looking
-// for on a screen of code, and keeps the glyph so a monochrome terminal still
-// says whether the comment will post.
-func commentHead(c *artifact.Comment) string {
-	head := fmt.Sprintf("%s %s  %s%s", statusGlyph(c.Status), strings.ToUpper(c.Severity), c.Status, span(c))
+func framed(rows []row, foot row, width int) []row {
+	if !carded(width) {
+		return rows
+	}
+
+	for i := range rows {
+		if rows[i].kind == rowBlank {
+			continue
+		}
+
+		rows[i].role = roleBody
+		if rows[i].head {
+			rows[i].role = roleTop
+		}
+	}
+
+	foot.role = roleFoot
+
+	return append(rows, foot)
+}
+
+func foldRole(width int) cardRole {
+	if !carded(width) {
+		return 0
+	}
+
+	return roleFold
+}
+
+// commentTitle names who wrote a comment, where it stands, and how much it
+// matters. The state keeps its glyph so a monochrome terminal still says whether
+// the comment will post.
+func commentTitle(c *artifact.Comment) string {
+	parts := make([]string, 0, 5)
+
+	if who := whoWord(c.Origin); who != "" {
+		parts = append(parts, who)
+	}
+
+	parts = append(parts, statusGlyph(c.Status)+" "+c.Status, c.Severity)
 
 	if c.InReplyTo != 0 {
-		head += fmt.Sprintf("  reply to %d", c.InReplyTo)
+		parts = append(parts, fmt.Sprintf("reply to %d", c.InReplyTo))
 	}
 
 	if c.Status == artifact.StatusSkip && c.SkipReason != "" {
-		head += "  " + c.SkipReason
+		parts = append(parts, c.SkipReason)
 	}
 
-	return head
+	return strings.Join(parts, " · ")
 }
+
+func whoWord(origin string) string {
+	switch origin {
+	case "":
+		return ""
+	case artifact.OriginMe:
+		return "you"
+	}
+
+	return agentGlyph + " " + origin
+}
+
+const agentGlyph = "◆"
+
+func agentOrigin(origin string) bool { return origin != "" && origin != artifact.OriginMe }
 
 // driftWord marks a comment whose line no longer reads the way it did when the
 // comment was written. The posting guard asks the same question and answers it
 // too late to do anything about, so it is asked here as well.
 func driftWord(drifted bool) string {
 	if drifted {
-		return "  ⚠ the line under it changed"
+		return " · ⚠ the line under it changed"
 	}
 
 	return ""
@@ -388,25 +449,16 @@ func noteRows(note string, index int, path string, avail int, lay layout) []row 
 	return rows
 }
 
-// span is the lines a comment covers, and nothing for one on a single line. A
-// comment renders under its end line, so a range that said nothing read as a
-// comment on that line alone and left the lines above it looking untouched.
-//
-// The sides are named only where they differ, which GitHub allows and which
-// means the range crosses a change rather than sitting on one side of it.
-func span(c *artifact.Comment) string {
-	if c.StartLine == 0 || c.StartLine == c.Line {
-		return ""
+func place(path, side string, from, to int) string {
+	where := rangeWord(filepath.Base(path), from, to)
+	if side == artifact.SideLeft {
+		where += " left"
 	}
 
-	if c.StartSide != "" && c.StartSide != c.Side {
-		return fmt.Sprintf("  lines %s %d-%s %d", c.StartSide, c.StartLine, c.Side, c.Line)
-	}
-
-	return fmt.Sprintf("  lines %d-%d", c.StartLine, c.Line)
+	return where
 }
 
-const turnLabel = "TURNS  "
+const turnLabel = "turns  "
 
 // Collapsed, an exchange shows its last turn trimmed to lastLines and one line
 // of the turn before it. Length is what makes a turn thread unreadable, so the

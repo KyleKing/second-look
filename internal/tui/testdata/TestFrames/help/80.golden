@@ -4,21 +4,21 @@ kyleking/jj-diff #42                          0% · 1 ready · 1 draft · 1 skip
        func Parse(r io.Reader) │       j/k  a line                            │┃
   14       first := 1          │  ctrl+d/u  half a page                       │┃
                                │  ctrl+e/y  scroll a line                     │┃
-      ┃ ◐ QUESTION  draft      │            y/Y and shift+up/down do the same │┃
-      ┃ Is first still 1 after │      gg/G  the ends                          │┃
-      ┃ NOTE  Unverified: I hav│         ]  go to…                            │┃
-  15 -     lines := split(r)   │         [  go back…                          │┃
-  15 +     lines, err := split(│       n/N  the same, or back                 │┃
-                               │         .  the last change                   │┃
-      ┃ ● MAJOR  ready         │       tab  what wants a decision             │┃
-      ┃ split can fail now, so │ shift+tab  and back                          │┃
-  16 +     if err != nil {     │         /  search                            │┃
-  17       last := 4           │            tab in the prompt narrows a       │┃
-     internal/vcs/git.go ──────│            search to hunks not yet read      │┃
-       func Head() string {    │ what is shown                                │┃
- 201       return head         │         c  the next view                     │┃
-                               │         t  threads                           │┃
-      ┃ ○ NIT  skip  Out of sco│         v  the next renderer                 │┃
-      ┃ Rename this to headSHA.│         u  one of them…                      ││
-                               ╰ · · ·────────────────────────────────────────╯│
+       ╭─ ◐ draft · question ──│            y/Y and shift+up/down do the same │┃
+       │ Is first still 1 after│      gg/G  the ends                          │┃
+       │ note  Unverified: I ha│         ]  go to…                            │┃
+       ╰─ [e]dit · [r]eady · [d│         [  go back…                          │┃
+  15 -     lines := split(r)   │       n/N  the same, or back                 │┃
+  15 +     lines, err := split(│         .  the last change                   │┃
+                               │       tab  what wants a decision             │┃
+       ╭─ ● ready · major ─────│ shift+tab  and back                          │┃
+       │ split can fail now, so│         /  search                            │┃
+       ╰─ [e]dit · [r]eady · [d│            tab in the prompt narrows a       │┃
+  16 +     if err != nil {     │            search to hunks not yet read      │┃
+  17       last := 4           │ what is shown                                │┃
+     internal/vcs/git.go ──────│         c  the next view                     ││
+       func Head() string {    │         t  threads                           ││
+ 201       return head         │         v  the next renderer                 ││
+                               │         u  one of them…                      ││
+       ╭─ ○ skip · nit · Out of╰ · · ·────────────────────────────────────────╯│
  [j/k] line  ] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit

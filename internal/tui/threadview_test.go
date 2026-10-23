@@ -41,7 +41,7 @@ func TestTheThreadsViewCarriesTheLineEachAnswers(t *testing.T) {
 
 	// The line the thread hangs from is drawn above it, and it is a line of the
 	// diff rather than quoted text, so it keeps its number and its grammar.
-	for _, want := range []string{"line 15 · 1 comment", "does this handle nil?", "lines, err := split(r)"} {
+	for _, want := range []string{"diff.go:15", "1 comment", "does this handle nil?", "lines, err := split(r)"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the threads view never said %q:\n%s", want, frame)
 		}
