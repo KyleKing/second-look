@@ -589,6 +589,10 @@ func refOf(path string, l diff.Line) diff.LineRef {
 // carry state across them, so the only state lost is above the file's first
 // hunk; the caveat says so.
 func (m *Model) spansFor(r row, l diff.Line) []highlight.Span {
+	if m.view == viewFile {
+		return m.spansIn(l.New)
+	}
+
 	read, ok := m.lexed[r.path]
 	if !ok {
 		read = m.lexFile(r.path)

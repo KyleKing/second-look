@@ -212,6 +212,10 @@ type Model struct {
 	// card its answer drew under the line.
 	picking *pick
 	peeked  *peekCard
+	// whole is the file the view shows while it is viewFile, and jumps is where
+	// jumps left from.
+	whole *openFile
+	jumps jumpList
 	// pane is a program running on a pty inside the frame — $EDITOR on the
 	// comment's temp file — with paneMsg saying where its buffer lands and
 	// paneFile naming that file, empty where the pane's own screen is the
@@ -1005,7 +1009,7 @@ func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 
 		return nil, true
 	case key.Matches(msg, m.keys.Accept) && m.screen.rows[m.cursor].kind == rowPeek:
-		return m.wholeFile(), true
+		return m.openSite(m.screen.rows[m.cursor].site), true
 	}
 
 	return nil, false
@@ -1036,6 +1040,12 @@ func (m *Model) leaves(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	case key.Matches(msg, m.keys.Quit):
 		if m.help {
 			m.help, m.helpAt, m.helpPath, m.helpNote = false, 0, nil, nil
+
+			return nil, true
+		}
+
+		if m.view == viewFile {
+			m.leaveFile()
 
 			return nil, true
 		}
@@ -1576,7 +1586,7 @@ func (m *Model) object(prefix rune, msg tea.KeyPressMsg) {
 	case "h":
 		m.repeatable(motion{step: step, what: "hunk", want: isHunk})
 	case "f":
-		m.repeatable(motion{step: step, what: "file", want: isKind(rowFile)})
+		m.repeatable(motion{step: step, what: fileNoun, want: isKind(rowFile)})
 	case "d":
 		m.repeatable(motion{step: step, what: "directory", want: isKind(rowGroup)})
 	case "c":
@@ -1601,13 +1611,15 @@ func (m *Model) repeatable(mo motion) {
 // runMotion applies a remembered motion in a direction: a steered motion is
 // driven rather than scanned for.
 func (m *Model) runMotion(mo motion, direction int) {
+	from := m.snapshot()
+
 	if mo.steer != nil {
 		mo.steer(direction * mo.step)
-
-		return
+	} else {
+		m.jump(mo.step*direction, mo.what, mo.want)
 	}
 
-	m.jump(mo.step*direction, mo.what, mo.want)
+	m.jumpedFrom(from)
 }
 
 // toNote walks to the next or previous thing wanting a decision. It reports its
@@ -1629,6 +1641,10 @@ func (*Model) chord(prefix string, hints [][2]string) string {
 // keys below stay a flat list of things that change the review.
 func (m *Model) moved(msg tea.KeyPressMsg) bool {
 	const halfPage = 2
+
+	if m.walked(msg) {
+		return true
+	}
 
 	half := m.viewHeight() / halfPage
 
@@ -3010,6 +3026,9 @@ func (m *Model) rebuild() {
 		m.screen = buildThreads(m.diff, m.threads, lay)
 	case viewDiff:
 		m.screen = build(m.review, m.diff, m.threads, lay)
+	case viewFile:
+		lines, loaded := m.blobs[m.whole.path]
+		m.screen = buildWhole(m.review, m.diff, m.threads, lay, m.whole, lines, loaded)
 	}
 
 	m.splicePeek()
@@ -3018,6 +3037,7 @@ func (m *Model) rebuild() {
 	m.stay(was)
 	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()
+	m.landOpen()
 
 	if m.landing != 0 {
 		m.land()

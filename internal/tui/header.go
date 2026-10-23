@@ -144,7 +144,9 @@ func (m *Model) modes(files []fileStat) string {
 		words = append(words, m.styles.file.Render(label))
 	}
 
-	for _, w := range []string{m.view.String(), m.drawnWord(), m.orderWord(), m.fileWord(), m.groupWord()} {
+	for _, w := range []string{
+		m.view.String(), m.outsideWord(), m.drawnWord(), m.orderWord(), m.fileWord(), m.groupWord(),
+	} {
 		if w = strings.TrimSpace(w); w != "" {
 			words = append(words, m.styles.hunk.Render(w))
 		}

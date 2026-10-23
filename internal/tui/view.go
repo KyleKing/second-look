@@ -427,7 +427,7 @@ func (m *Model) hints() []hint {
 		view.what = "the diff"
 	}
 
-	return []hint{
+	out := []hint{
 		{key: walkKeys, what: "line"},
 		{key: "]", what: "go to"},
 		view,
@@ -439,6 +439,12 @@ func (m *Model) hints() []hint {
 		{key: "?", what: "help"},
 		{key: "q", what: quitWord},
 	}
+
+	if m.view == viewFile {
+		out = append([]hint{{key: escKey, what: "back"}}, out...)
+	}
+
+	return out
 }
 
 // writeWord is what e does where the cursor is: answer a conversation, rewrite
@@ -490,7 +496,13 @@ func (m *Model) inert(k string) bool {
 // onCode reports whether the cursor is on a line of the diff, which is the one
 // place a new comment can anchor.
 func (m *Model) onCode() bool {
-	return m.cursor >= 0 && m.cursor < len(m.screen.rows) && m.screen.rows[m.cursor].kind == rowCode
+	if m.cursor < 0 || m.cursor >= len(m.screen.rows) {
+		return false
+	}
+
+	r := m.screen.rows[m.cursor]
+
+	return r.kind == rowCode && (m.view != viewFile || r.hunk != 0)
 }
 
 // helpTree is the legend with the H chord's page filled in from the rounds

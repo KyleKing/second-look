@@ -1,0 +1,60 @@
+kyleking/jj-diff #42                                                                                                                                                  2 files · +2 −1 · checking… ·  75%
+vcs ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┊─  diff.go:15 · file
+     internal/vcs/diff.go ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1   line 1 of internal/vcs/diff.go                                                                                                                                                                   
+   2   line 2 of internal/vcs/diff.go                                                                                                                                                                   
+   3   line 3 of internal/vcs/diff.go                                                                                                                                                                   
+   4   line 4 of internal/vcs/diff.go                                                                                                                                                                   
+   5   line 5 of internal/vcs/diff.go                                                                                                                                                                   
+   6   line 6 of internal/vcs/diff.go                                                                                                                                                                   
+   7   line 7 of internal/vcs/diff.go                                                                                                                                                                   
+   8   line 8 of internal/vcs/diff.go                                                                                                                                                                   
+   9   line 9 of internal/vcs/diff.go                                                                                                                                                                   
+  10   line 10 of internal/vcs/diff.go                                                                                                                                                                  
+  11   line 11 of internal/vcs/diff.go                                                                                                                                                                  
+  12   line 12 of internal/vcs/diff.go                                                                                                                                                                  
+  13   line 13 of internal/vcs/diff.go                                                                                                                                                                  
+  14   line 14 of internal/vcs/diff.go                                                                                                                                                                  
+▌ 15 +     lines, err := split(r)                                                                                                                                                                       
+  16 + line 16 of internal/vcs/diff.go                                                                                                                                                                  
+  17   line 17 of internal/vcs/diff.go                                                                                                                                                                  
+  18   line 18 of internal/vcs/diff.go                                                                                                                                                                  
+  19   line 19 of internal/vcs/diff.go                                                                                                                                                                  
+  20   line 20 of internal/vcs/diff.go                                                                                                                                                                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ [esc] back  [j/k] line  ] go to  [c] the diff  [m]ark  writ[e]  [a]dd  [i] context  [S]ubmit  [?] help  [q]uit

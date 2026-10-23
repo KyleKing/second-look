@@ -29,6 +29,7 @@ const (
 	enterKey    = "enter"
 	escKey      = "esc"
 	walkKeys    = "j/k"
+	fileNoun    = "file"
 )
 
 type keyMap struct {
@@ -99,6 +100,11 @@ type keyMap struct {
 	// cannot be typed a word containing one.
 	Back key.Binding
 	Quit key.Binding
+	// JumpBack and JumpForward walk the jump list. A terminal sends tab for
+	// ctrl+i, so tab walks forward too, but only once ctrl+o has left a place
+	// ahead, and otherwise keeps its own job.
+	JumpBack    key.Binding
+	JumpForward key.Binding
 }
 
 func defaultKeyMap() keyMap {
@@ -168,6 +174,8 @@ func defaultKeyMap() keyMap {
 		EndPane:      key.NewBinding(key.WithKeys("ctrl+\\"), key.WithHelp("ctrl+\\", "end the pane's program")),
 		Back:         key.NewBinding(key.WithKeys(escKey), key.WithHelp(escKey, "back")),
 		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c", escKey), key.WithHelp("q", quitWord)),
+		JumpBack:     key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "back")),
+		JumpForward:  key.NewBinding(key.WithKeys("ctrl+i"), key.WithHelp("ctrl+i", "forward")),
 	}
 }
 
@@ -177,7 +185,7 @@ func objects() [][2]string {
 	return [][2]string{
 		{"h", "hunk"},
 		{"d", "directory"},
-		{"f", "file"},
+		{"f", fileNoun},
 		{"c", commentWord},
 		{"t", "thread"},
 		{"u", "unread hunk"},
@@ -240,6 +248,8 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "]", What: "go to", Kids: asHints(objects())},
 		{Key: "[", What: "go back", Kids: asHints(objects())},
 		{Key: "n/N", What: "the same, or back"},
+		{Key: "ctrl+o/i", What: "back and forward through jumps"},
+		{What: "tab goes forward too once ctrl+o has left a place ahead"},
 		{Key: ".", What: "the last change"},
 		{Key: tabKey, What: "what wants a decision"},
 		{Key: "shift+tab", What: "and back"},

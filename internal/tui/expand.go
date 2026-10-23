@@ -116,12 +116,23 @@ func (m *Model) absorbBlob(msg blobMsg) {
 	if msg.err != nil {
 		m.say("reading "+msg.path+": "+msg.err.Error(), true)
 
+		if m.view == viewFile && m.whole.path == msg.path {
+			m.whole.err = msg.err
+			m.rebuild()
+		}
+
 		return
 	}
 
 	m.blobs[msg.path] = msg.lines
 
 	if msg.peek {
+		if m.view == viewFile && m.whole.path == msg.path {
+			m.rebuild()
+
+			return
+		}
+
 		if p := m.peeked; p != nil {
 			m.rebuild()
 

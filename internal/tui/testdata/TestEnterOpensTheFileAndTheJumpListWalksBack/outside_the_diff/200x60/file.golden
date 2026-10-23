@@ -1,0 +1,60 @@
+kyleking/jj-diff #42                                                                                                                                                  2 files · +2 −1 · checking… ·  60%
+vcs ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┊─  read.go:12 · file · outside the diff
+     io/read.go ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1   line 1 of io/read.go                                                                                                                                                                             
+   2   line 2 of io/read.go                                                                                                                                                                             
+   3   line 3 of io/read.go                                                                                                                                                                             
+   4   line 4 of io/read.go                                                                                                                                                                             
+   5   line 5 of io/read.go                                                                                                                                                                             
+   6   line 6 of io/read.go                                                                                                                                                                             
+   7   line 7 of io/read.go                                                                                                                                                                             
+   8   line 8 of io/read.go                                                                                                                                                                             
+   9   line 9 of io/read.go                                                                                                                                                                             
+  10   line 10 of io/read.go                                                                                                                                                                            
+  11   line 11 of io/read.go                                                                                                                                                                            
+▌ 12   line 12 of io/read.go                                                                                                                                                                            
+  13   line 13 of io/read.go                                                                                                                                                                            
+  14   line 14 of io/read.go                                                                                                                                                                            
+  15       lines, err := split(r)                                                                                                                                                                       
+  16   line 16 of io/read.go                                                                                                                                                                            
+  17   line 17 of io/read.go                                                                                                                                                                            
+  18   line 18 of io/read.go                                                                                                                                                                            
+  19   line 19 of io/read.go                                                                                                                                                                            
+  20   line 20 of io/read.go                                                                                                                                                                            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ [esc] back  [j/k] line  ] go to  [c] the diff  [m]ark  writ[e]  [a]dd  [i] context  [S]ubmit  [?] help  [q]uit

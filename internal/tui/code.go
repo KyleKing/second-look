@@ -33,12 +33,15 @@ const (
 	// off the cycle for the reason the conversations are: what is wrong with
 	// the change is a different axis from how the change is drawn.
 	viewTrouble
+	// One whole file at head, opened from a peek. It is off the cycle because
+	// it is a place the review went to rather than a way to draw the change.
+	viewFile
 )
 
 // next cycles the views: both, the code, then the comments. The conversations
 // are off the cycle, so leaving them goes back to the diff.
 func (v viewMode) next() viewMode {
-	if v == viewComments || v == viewThreads || v == viewTrouble {
+	if v == viewComments || v == viewThreads || v == viewTrouble || v == viewFile {
 		return viewDiff
 	}
 
@@ -55,6 +58,8 @@ func (v viewMode) String() string {
 		return "threads"
 	case viewTrouble:
 		return "trouble"
+	case viewFile:
+		return fileNoun
 	case viewDiff:
 	}
 

@@ -447,8 +447,10 @@ in the margin says a line is wrong and leaves you to go somewhere else to find o
 which is the trip out to an editor this exists to save. A note on a line the change only
 carried is context rather than a finding, so it waits in the trouble list instead of
 sitting in the diff. `]p` walks the notes, `X` lists every one of them under the line it
-lands on, and `K` asks what each name on the line under the cursor actually is. All of it
-needs a checkout, since a server resolves what a file imports from the tree around it and
+lands on, and `K` asks what each name on the line under the cursor actually is. `gd` and `gr` label
+the names on a line with letters and open the one you pick as a card under the line,
+`enter` on the card reads the whole file, and `ctrl+o` and `ctrl+i` walk the jumps back
+and forward. All of it needs a checkout, since a server resolves what a file imports from the tree around it and
 a review staged with none has no tree.
 
 `v` walks the renderers, which change how a line of the diff is drawn rather than which

@@ -177,7 +177,7 @@ func (m *Model) askName(kind diag.JumpKind, r row, name ident) tea.Cmd {
 // labeled draws each pick's letter over the first cell of its name, in the
 // row's own frame lines. Which lines and columns a name falls on follows the
 // layout the row was drawn in, so a name past a cut or in a half the row does
-// not draw is left unlabelled.
+// not draw is left unlabeled.
 func (m *Model) labeled(lines []string, r row, width int) []string {
 	origin, room := m.codeBox(width)
 	if room < 1 {

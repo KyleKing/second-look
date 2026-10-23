@@ -10,15 +10,15 @@ vcs ─────────────────────────�
        │ note  Unverified: I ha│         ]  go to…                            │┃
        ╰─ [e]dit · [r]eady · [d│         [  go back…                          │┃
   15 -     lines := split(r)   │       n/N  the same, or back                 │┃
-  15 +     lines, err := split(│         .  the last change                   │┃
-                               │       tab  what wants a decision             │┃
-       ╭─ ● ready · major ─────│ shift+tab  and back                          │┃
-       │ split can fail now, so│         /  search                            │┃
-       ╰─ [e]dit · [r]eady · [d│            tab in the prompt narrows a       │┃
-  16 +     if err != nil {     │            search to hunks not yet read      │┃
-  17       last := 4           │ what is shown                                ││
-     internal/vcs/git.go ──────│         c  the next view                     ││
-       func Head() string {    │         t  threads                           ││
- 201       return head         │         v  the next renderer                 ││
+  15 +     lines, err := split(│  ctrl+o/i  back and forward through jumps    │┃
+                               │            tab goes forward too once ctrl+o  │┃
+       ╭─ ● ready · major ─────│            has left a place ahead            │┃
+       │ split can fail now, so│         .  the last change                   │┃
+       ╰─ [e]dit · [r]eady · [d│       tab  what wants a decision             │┃
+  16 +     if err != nil {     │ shift+tab  and back                          │┃
+  17       last := 4           │         /  search                            ││
+     internal/vcs/git.go ──────│            tab in the prompt narrows a       ││
+       func Head() string {    │            search to hunks not yet read      ││
+ 201       return head         │ what is shown                                ││
                                ╰ · · ·────────────────────────────────────────╯│
  [j/k] line  ] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit

@@ -239,21 +239,6 @@ func TestHoverShowsWhatTheNamesAre(t *testing.T) {
 // column each one starts at.
 const splitLine = "lines, err := split(r)"
 
-// walkToSplit moves the cursor down to the row carrying splitLine.
-func walkToSplit(t *testing.T, m *tui.Model) {
-	t.Helper()
-
-	for range 20 {
-		if strings.Contains(cursorText(m), splitLine) {
-			return
-		}
-
-		press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	}
-
-	t.Fatalf("the cursor never reached %q:\n%s", splitLine, plain(m.Frame()))
-}
-
 // cursorText is the frame line the cursor bar is on.
 func cursorText(m *tui.Model) string {
 	for _, line := range strings.Split(plain(m.Frame()), "\n") {
@@ -312,7 +297,7 @@ func TestGoLabelsTheNamesAndPeeksAtTheOneChosen(t *testing.T) {
 				resize(m, size[0], size[1])
 
 				go2(t, m, ']', 'h')
-				walkToSplit(t, m)
+				onto(t, m, splitLine)
 				press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 				press(t, m, tea.KeyPressMsg{Code: tt.verb, Text: string(tt.verb)})
 
@@ -366,7 +351,7 @@ func TestGoAsksAtOnceForOneNameAndEscCancelsAPick(t *testing.T) {
 	}
 
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
-	walkToSplit(t, m)
+	onto(t, m, splitLine)
 	go2(t, m, 'g', 'd')
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 
@@ -395,7 +380,7 @@ func TestPeekClosesOnEscAndOnMovingOff(t *testing.T) {
 			m := peekable(t, &prober{jump: diag.Jump{Name: "split", At: []diag.Site{{Path: "io/read.go", Line: 4}}}})
 
 			go2(t, m, ']', 'h')
-			walkToSplit(t, m)
+			onto(t, m, splitLine)
 			press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 			press(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
 			drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
@@ -430,7 +415,7 @@ func TestPeekWalksReferencesAndReadsOutsideTheCheckout(t *testing.T) {
 	m := peekableWith(t, p, func(context.Context, string) ([]string, error) { return nil, errRefused })
 
 	go2(t, m, ']', 'h')
-	walkToSplit(t, m)
+	onto(t, m, splitLine)
 	press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 	press(t, m, tea.KeyPressMsg{Code: 'r', Text: "r"})
 	drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})

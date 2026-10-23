@@ -61,6 +61,8 @@ func (m *Model) applyPeeked(msg peekedMsg) tea.Cmd {
 	case !m.onAnchor(msg.path, msg.line):
 		m.say("the cursor moved on before "+msg.jump.Name+" was answered", false)
 	default:
+		m.jumps.push(m.snapshot())
+
 		m.peeked = &peekCard{
 			kind: msg.kind, name: msg.jump.Name, path: msg.path, line: msg.line, sites: msg.jump.At,
 			placing: true,
