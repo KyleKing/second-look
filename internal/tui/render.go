@@ -195,8 +195,9 @@ type richStyles struct {
 	// side is the green or red a line's side is said with: its sign and the
 	// line number the side carries, the way delta and GitHub color them rather
 	// than inverted.
-	side   map[byte]lipgloss.Style
-	gutter lipgloss.Style
+	side    map[byte]lipgloss.Style
+	gutter  lipgloss.Style
+	colored bool
 }
 
 func newRichStyles(s styles) richStyles {
@@ -228,11 +229,12 @@ func newRichStyles(s styles) richStyles {
 			diff.KindAdd:    blend(p.Base, p.Green, markMix),
 			diff.KindRemove: blend(p.Base, p.Red, markMix),
 		},
-		gutter: base.Foreground(p.Overlay0),
+		gutter:  base.Foreground(p.Overlay0),
+		colored: colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ASCII,
 	}
 }
 
-// richCode draws one line of the diff: both line numbers, the sign, and the
+// richCode draws one line of the diff: its number, its side mark, and the
 // text colored by grammar under the band for its side, with the runs that
 // differ from the line it is paired with marked. One answer is one frame
 // line; a wrapped line is as many as its text takes, and the continuation
@@ -265,37 +267,42 @@ func (m *Model) richCode(r row, width int) []string {
 // rule closes the gutter, so the code has a left edge to run down.
 const rule = "\u2502"
 
-// gutterWidth is what both numbers and the sign take, which every rich row
-// spends whether or not it carries either number: the two numbers, a space
-// between them, then the sign, the rule, and one space before the code.
+// gutterWidth is the number, and the side mark with a space on either side.
 func (m *Model) gutterWidth() int {
-	const signRuleAndSpaces = 5
+	const markAndSpaces = 3
 
-	const numberColumns = 2
-
-	return m.screen.numWidth*numberColumns + signRuleAndSpaces
+	return m.screen.numWidth + markAndSpaces
 }
 
-// richGutter is the old and the new number, the rule, and then the sign, which
-// sits against the code so it reads as the code's own left edge. The number a
-// line's side carries is colored the way delta colors it, and a line on one
-// side leaves the other blank rather than repeating itself, so the column of
-// numbers says which side each line is on even where color is gone.
+// richGutter is the number a line carries and its side mark. A side line's number
+// and mark take its side's color, and the mark is the sign where color is gone.
 func (m *Model) richGutter(r row) string {
 	l := r.line
-	oldNum := m.rich.gutter.Render(number(l.Old, m.screen.numWidth))
-	newNum := m.rich.gutter.Render(number(l.New, m.screen.numWidth))
-
-	switch l.Kind {
-	case diff.KindAdd:
-		newNum = m.rich.side[l.Kind].Render(number(l.New, m.screen.numWidth))
-	case diff.KindRemove:
-		oldNum = m.rich.side[l.Kind].Render(number(l.Old, m.screen.numWidth))
+	num, style := l.New, m.rich.gutter
+	if l.Kind == diff.KindRemove {
+		num = l.Old
 	}
 
-	gutter := oldNum + " " + newNum + " " + m.rich.gutter.Render(rule) + m.signCell(l.Kind)
+	side, changed := m.rich.side[l.Kind]
+	mark := sideGlyph(l.Kind, m.rich.colored)
+	if changed {
+		style = side
+		mark = side.Render(mark)
+	}
 
-	return gutter + " "
+	return style.Render(number(num, m.screen.numWidth)) + " " + mark + " "
+}
+
+// sideGlyph is the bar a changed line is marked with, or its sign where the terminal draws no color.
+func sideGlyph(kind byte, colored bool) string {
+	switch {
+	case kind == diff.KindContext:
+		return " "
+	case colored:
+		return "▎"
+	default:
+		return string(kind)
+	}
 }
 
 // signCell is the line's +/-. The glyph stays, so a monochrome terminal loses
