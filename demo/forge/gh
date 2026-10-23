@@ -1,0 +1,67 @@
+#!/bin/sh
+# The stand-in forge. Every scene runs with this ahead of the real gh, so a
+# screen is driven from seed data on disk and reaches no network.
+#
+# SEED names the directories searched in order, so a scene overrides the shared
+# fixture by dropping a file of the same name beside its own routes. A call
+# nothing routes fails loudly rather than answering empty: a screen that draws
+# nothing because a seed was missing is the one failure this must not hide.
+set -eu
+
+# A token has to start an argument rather than appear anywhere in the call.
+# Matching a substring of the whole command line reads --review-requested as
+# the word "view", which routed the inbox's searches to the pull request.
+matches() {
+  token=$1
+  shift
+
+  for arg in "$@"; do
+    case "$arg" in "$token"*) return 0 ;; esac
+  done
+
+  return 1
+}
+
+answer() {
+  for from in $SEED; do
+    [ -f "$from/$1" ] || continue
+
+    # A seed named .err is the failure that scene exists to draw: gh writes its
+    # own reason to stderr and exits non-zero, which is the shape every caller
+    # here reports.
+    case "$1" in
+      *.err) cat "$from/$1" >&2; exit 1 ;;
+      *) exec cat "$from/$1" ;;
+    esac
+  done
+
+  echo "the scene routes $1 and no seed directory holds it" >&2
+  exit 1
+}
+
+for dir in $SEED; do
+  [ -f "$dir/routes" ] || continue
+
+  while read -r line; do
+    case "$line" in ''|'#'*) continue ;; esac
+
+    want=$(echo "$line" | sed 's/[[:space:]]*[^[:space:]]*$//')
+    file=$(echo "$line" | awk '{print $NF}')
+
+    hit=yes
+    for token in $want; do
+      if ! matches "$token" "$@"; then
+        hit=no
+        break
+      fi
+    done
+
+    [ "$hit" = yes ] || continue
+
+    answer "$file"
+  done < "$dir/routes"
+done
+
+echo "no seed answers this call: gh $*" >&2
+echo "add a route to demo/scenes/<scene>/routes or demo/fixture/routes" >&2
+exit 1

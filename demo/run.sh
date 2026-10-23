@@ -24,4 +24,4 @@ command = ["second-look-no-such-language-server"]
 extensions = [".go", ".ts", ".py"]
 CONF
 
-HOME="$work/home" SEED="$here/fixture" PATH="$here/bin:$PATH" "$here/../second-look" 2
+HOME="$work/home" SEED="$here/fixture" PATH="$here/forge:$PATH" "$here/../second-look" 2

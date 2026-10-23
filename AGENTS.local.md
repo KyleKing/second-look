@@ -116,7 +116,7 @@ takes. It runs in CI through `ci:project`.
 
 `mise run demo` builds the binary and runs `demo/demo.tape` through VHS. The tape drives
 `demo/run.sh`, which copies `demo/fixture/.second-look` into a throwaway checkout and puts
-`demo/bin/gh` ahead of the real one. That stand-in answers the single `pr view` the screen
+`demo/forge/gh` ahead of the real one. That stand-in answers the single `pr view` the screen
 makes to open a cached review and refuses everything else, so a recording reaches no
 network, needs no auth, and cannot touch a real review. A demo that failed because the
 fixture's head moved would be a fixture problem, not a network one.
@@ -146,7 +146,7 @@ argv in `scene.conf` and brings only what it changes about the shared fixture: a
 review as `review.toml`, its conversations as `threads.json`, extra `gh` routes, and any
 seed those routes name. `demo/scene.sh` with no argument lists them.
 
-`demo/bin/gh` is the forge every scene runs against. It reads a routing table, `routes`,
+`demo/forge/gh` is the forge every scene runs against. It reads a routing table, `routes`,
 whose rows are the tokens a call must carry and the seed file that answers it, and a token
 has to start an argument rather than appear anywhere in the call: matching a substring of
 the whole command line reads `--review-requested` as the word "view", which routed the

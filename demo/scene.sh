@@ -92,4 +92,4 @@ CONF
 # answer is dropping a file of the same name into the scene.
 # shellcheck disable=SC2086 # args is a command line, so it has to split
 HOME="$work/home" XDG_CONFIG_HOME="$work/config" SEED="$scene $here/fixture" \
-  PATH="$here/bin:$PATH" "$here/../second-look" $args
+  PATH="$here/forge:$PATH" "$here/../second-look" $args
