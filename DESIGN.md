@@ -286,24 +286,27 @@ coverage report, a preview build, and an agent's summary all arrive. It reads th
 `second-look get` cached in the threads' own query, so it costs no request of its own.
 
 ```
- kyleking/jj-diff #42          internal/vcs/diff.go     hunk 2/5  ● 3 unseen
-┌────────────────────────────────────────────────────────────────────────┐
-│ @@ -14,7 +14,9 @@                                                      │
-│    func Parse(r io.Reader) ([]Hunk, error) {                           │
-│  -     lines := split(r)                                               │
-│  +     lines, err := split(r)                                          │
-│  +     if err != nil { return nil, err }                               │
-│  │ [AI:] split returns a wrapped error here, so callers that            │
-│  │ match on io.EOF stop matching. Worth unwrapping?                    │
-│  │ ── 2 replies ──                                                     │
-│  │ kyleking: good catch, io.EOF is load-bearing in Read                │
-│  +     }                                                               │
-│                                                                        │
-│ @@ -31,4 +33,4 @@                              ▸ moved from util.go:88 │
-│  ~     func normalize(s string) string {                               │
-└────────────────────────────────────────────────────────────────────────┘
- [n/p]hunk [space]seen [c]omment [-]files [g]raph [s]plit [S]ubmit [?]
+ kyleking/jj-diff #42  parse: wrap the split error     2 ready · read 1 of 5 hunks
+ internal/ ━━━━━━┊────────  cmd/ ───                        vcs/diff.go:16
+      internal/vcs/diff.go  +9 -3 ──────────────────────────────────────────────
+  14 ▎ func Parse(r io.Reader) ([]Hunk, error) {
+  15 ▎     lines := split(r)
+  15 ▎     lines, err := split(r)
+  16 ▎     if err != nil { return nil, err }
+       ╭─ ◆ agent · ● ready · minor ────────────────────── diff.go:16 ─╮
+       │ split returns a wrapped error here, so callers that match on   │
+       │ io.EOF stop matching. Worth unwrapping?                        │
+       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip ──────────────╯
+ [j/k] line  ] go to  [c]ode  [a]dd  [i] context  [S]ubmit  [?] help  [q]uit
 ```
+
+The header's first line is the change and what is left of it, and the PR title is the
+last thing it gives up. The second line is the strip: each file a segment sized by its
+changed lines, `━` read and `─` not, grouped by directory, with the current file named by
+its shortest unique tail. Comments and threads are cards. An agent's card is edged in
+mauve, and the card under the cursor in the accent. Below 40 columns a card draws as plain
+rows. How the order of a large change is planned, and the views built on that plan, are in
+[docs/reading-plan.md](docs/reading-plan.md).
 
 An unresolved thread caps at three rendered lines: two lines of the comment when it is
 alone, or one line of the first, a thread count, and one line of the last when it is not.
