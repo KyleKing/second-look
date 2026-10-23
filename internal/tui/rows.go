@@ -39,6 +39,12 @@ const (
 	rowBlank
 )
 
+// cardRole is which part of an open card a row draws.
+type cardRole byte
+
+// roleFoot is the row that closes a card. The cursor passes over it.
+const roleFoot cardRole = 1
+
 // row is one rendered line of the review screen. Comments occupy rows of their
 // own so the cursor lands on prose the same way it lands on code.
 type row struct {
@@ -69,6 +75,8 @@ type row struct {
 	around bool
 	// current marks the row under the cursor, which the rich renderer lights.
 	current bool
+	// role is which part of an open card the row draws, and zero outside any card.
+	role cardRole
 	// hunk numbers the @@ block a row belongs to, across the whole diff, and is
 	// zero for a row that belongs to none.
 	hunk int

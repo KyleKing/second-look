@@ -1624,7 +1624,7 @@ func (m *Model) moved(msg tea.KeyPressMsg) bool {
 	case key.Matches(msg, m.keys.Top):
 		m.cursor = 0
 	case key.Matches(msg, m.keys.Bottom):
-		m.cursor = len(m.screen.rows) - 1
+		m.cursor = m.lastStop()
 	case key.Matches(msg, m.keys.NextNote):
 		return m.toNote(1)
 	case key.Matches(msg, m.keys.PrevNote):
@@ -3046,7 +3046,37 @@ func (m *Model) behind(r row) bool {
 }
 
 func (m *Model) moveBy(n int) {
-	m.cursor = clamp(m.cursor+n, len(m.screen.rows)-1)
+	step := 1
+	if n < 0 {
+		step, n = -1, -n
+	}
+
+	for range n {
+		m.cursor = m.stopFrom(m.cursor, step)
+	}
+}
+
+// stopFrom is the nearest row past from, in step, that the cursor can rest on,
+// or from itself when there is none.
+func (m *Model) stopFrom(from, step int) int {
+	for i := from + step; i >= 0 && i < len(m.screen.rows); i += step {
+		if m.screen.rows[i].role != roleFoot {
+			return i
+		}
+	}
+
+	return from
+}
+
+// lastStop is the final row the cursor can rest on, so G does not land on a foot.
+func (m *Model) lastStop() int {
+	for i := len(m.screen.rows) - 1; i >= 0; i-- {
+		if m.screen.rows[i].role != roleFoot {
+			return i
+		}
+	}
+
+	return len(m.screen.rows) - 1
 }
 
 // jump moves to the next row matching want and anchors it near the top of the
