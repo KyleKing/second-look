@@ -142,22 +142,34 @@ func (m *Model) agentNotes() []string {
 }
 
 func (m *Model) modes(files []fileStat) string {
-	words := make([]string, 0, 6)
+	sep := m.styles.hunk.Render(" · ")
+
+	var where []string
 
 	if label := m.currentLabel(files); label != "" {
-		words = append(words, m.styles.file.Render(label))
+		where = append(where, m.styles.file.Render(label))
 	}
 
+	if w := strings.TrimSpace(m.groupWord()); w != "" {
+		where = append(where, m.styles.hunk.Render(w))
+	}
+
+	words := make([]string, 0, 6)
+
 	for _, w := range []string{
-		m.outlineWord(), m.view.String(), m.outsideWord(), m.drawnWord(), m.orderWord(), m.fileWord(), m.groupWord(),
+		m.outlineWord(), m.view.String(), m.outsideWord(), m.drawnWord(), m.orderWord(), m.fileWord(),
 	} {
 		if w = strings.TrimSpace(w); w != "" {
 			words = append(words, m.styles.hunk.Render(w))
 		}
 	}
 
-	right := strings.Join(words, m.styles.hunk.Render(" · "))
-	room := m.width - textWidth(right) - indent
+	// What the cursor stands on gets a fixed slot, so the strip holds still as it moves.
+	slot := m.width / labelShare
+	words = append([]string{cut(strings.Join(where, sep), slot)}, words...)
+
+	right := strings.TrimPrefix(strings.Join(words, sep), sep)
+	room := m.width - slot - textWidth(right) + textWidth(words[0]) - indent
 
 	if room < 1 {
 		return cut(right, m.width)

@@ -1,5 +1,5 @@
 kyleking/jj-diff #42                          2 files · +2 −1 · checking… ·  60%
-vcs ────────────────────────────────────┊─  read.go:12 · file · outside the diff
+vcs ────────────────────┊─                  read.go:12 · file · outside the diff
    3   line 3 of io/read.go                                                     
    4   line 4 of io/read.go                                                     
    5   line 5 of io/read.go                                                     

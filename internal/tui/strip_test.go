@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -67,6 +68,51 @@ func TestTheStripFollowsWhatIsRead(t *testing.T) {
 
 	if got := headerLine(m); !strings.Contains(got, "━") {
 		t.Errorf("a file whose hunks are read is not drawn read: %q", got)
+	}
+}
+
+// The strip keeps its segments where they are as the cursor walks a file, and
+// its mark moves left to right through the lit one.
+func TestTheStripHoldsStillAsTheCursorMoves(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range [][2]int{{80, 24}, {200, 60}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			t.Parallel()
+
+			m := readable(t, patch)
+			resize(m, size[0], size[1])
+
+			var segments string
+
+			mark := -1
+
+			for range 4 {
+				press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+
+				line := []rune(headerLine(m))
+				end := strings.LastIndexAny(string(line), "─━┊●")
+				strip := []rune(string(line)[:end])
+				at := slices.Index(strip, '●')
+
+				if at < mark {
+					t.Errorf("the mark moved back from %d to %d: %q", mark, at, string(line))
+				}
+
+				mark = at
+				drawn := strings.ReplaceAll(string(strip), "●", "─")
+
+				if segments != "" && drawn != segments {
+					t.Errorf("the strip moved:\n%q\n%q", segments, drawn)
+				}
+
+				segments = drawn
+			}
+
+			if mark < 0 {
+				t.Errorf("the strip draws no mark where the cursor stands: %q", headerLine(m))
+			}
+		})
 	}
 }
 

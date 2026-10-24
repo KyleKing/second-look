@@ -21,6 +21,12 @@ const (
 	labelCols  = 16
 	// The rail spends railGap on its mark and the spaces around a chapter's mode.
 	railGap = 4
+	// A chapter's name gives glyphGap to its source glyph and the space either side of it.
+	glyphGap = 3
+	// The rail spends railEdge on its rule and the column before it.
+	railEdge = 2
+	// The margin spends marginRule on the space and rule that part it from the scrollbar.
+	marginRule = 2
 )
 
 // touring reports whether the diff is walked as a tour. A plan of one stop or
@@ -198,12 +204,12 @@ func (m *Model) bodyLines() []string {
 
 func (m *Model) railLines(h int) []string {
 	g, _ := m.tourGroup()
-	w := railCols - 1
+	w := railCols - railEdge
 
 	var out []string
 
 	line := func(text string, style func(...string) string) {
-		out = append(out, pad(style(cut(" "+text, w)), railCols))
+		out = append(out, pad(style(cut(" "+text, w)), w+1))
 	}
 
 	if n := len(m.plan.Stops); n > 0 {
@@ -218,11 +224,17 @@ func (m *Model) railLines(h int) []string {
 	}
 
 	holding := m.chapterOf(g)
+	names := make([]string, len(m.plan.Chapters))
+
+	for i, c := range m.plan.Chapters {
+		names[i] = c.Name
+	}
+
 	line(countHead("chapters", g.chapter, len(m.plan.Chapters)), m.styles.head.Render)
 
 	for i, c := range m.plan.Chapters {
 		here := i+1 == g.chapter || (g.stop > 0 && i == holding)
-		name := cut(c.Source.Glyph()+" "+c.Name, w-len(c.Mode)-railGap)
+		name := c.Source.Glyph() + " " + fitName(c.Name, names, w-len(c.Mode)-railGap-glyphGap)
 		gap := strings.Repeat(" ", max(1, w-railGap-textWidth(name)-len(c.Mode)))
 
 		line(m.railMark(here, m.readAll(c.Hunks))+name+gap+string(c.Mode), m.railFace(here))
@@ -241,8 +253,25 @@ func (m *Model) railLines(h int) []string {
 	line("p the plain screen", m.styles.note.Render)
 	line("I the outline", m.styles.note.Render)
 
-	return block(out, h, railCols)
+	return m.divided(block(out, h, w+1), true)
 }
+
+// divided draws the rule between a tour panel and the diff, on the side facing it.
+func (m *Model) divided(lines []string, left bool) []string {
+	rule := m.styles.edge.Render(panelRule)
+
+	for i, l := range lines {
+		if left {
+			lines[i] = l + rule
+		} else {
+			lines[i] = " " + rule + l
+		}
+	}
+
+	return lines
+}
+
+const panelRule = "│"
 
 func countHead(what string, at, n int) string {
 	if at == 0 {
@@ -273,13 +302,13 @@ func (m *Model) railFace(here bool) func(...string) string {
 
 func (m *Model) marginLines(h int) []string {
 	g, ok := m.tourGroup()
-	w := marginCols - indent
+	w := marginCols - indent - marginRule
 
 	var out []string
 
 	add := func(text string, style func(...string) string) {
 		for _, l := range wrap(text, w) {
-			out = append(out, pad("  "+style(l), marginCols))
+			out = append(out, pad(" "+style(l), marginCols-marginRule))
 		}
 	}
 
@@ -311,7 +340,7 @@ func (m *Model) marginLines(h int) []string {
 		add("next: "+next, m.styles.note.Render)
 	}
 
-	return block(out, h, marginCols)
+	return m.divided(block(out, h, marginCols-marginRule), false)
 }
 
 func (m *Model) chapterNote(at int, add func(string, func(...string) string)) {
@@ -408,15 +437,17 @@ func (m *Model) tourStrip(room int) string {
 	}
 
 	cs := make([]cluster, len(m.screen.groups))
+	names := m.groupNames()
+	through := m.groupThrough(at)
 
 	for k, g := range m.screen.groups {
 		label := strconv.Itoa(g.stop)
 		if g.stop == 0 {
-			label = cut(g.name, labelCols)
+			label = fitName(g.name, names, labelCols)
 		}
 
 		cs[k] = cluster{label: label, segs: []seg{{
-			weight: m.changed(g), read: m.readAll(groupRefs(g, m.diff)), lit: k == at,
+			weight: m.changed(g), read: m.readAll(groupRefs(g, m.diff)), lit: k == at, marked: k == at, at: through,
 		}}}
 	}
 
@@ -432,6 +463,43 @@ func (m *Model) tourStrip(room int) string {
 	}
 
 	return cut(m.draw(cs, widths, false), room)
+}
+
+// groupThrough is how far the cursor stands through the drawn group at.
+func (m *Model) groupThrough(at int) float64 {
+	lo, hi := m.screen.heads[at], len(m.screen.rows)
+	if at+1 < len(m.screen.heads) {
+		hi = m.screen.heads[at+1]
+	}
+
+	return span(m.cursor, lo, hi-1)
+}
+
+func span(at, lo, hi int) float64 {
+	if hi <= lo {
+		return 0
+	}
+
+	return float64(min(max(at, lo), hi)-lo) / float64(hi-lo)
+}
+
+func (m *Model) groupNames() []string {
+	out := make([]string, len(m.screen.groups))
+	for k, g := range m.screen.groups {
+		out[k] = g.name
+	}
+
+	return out
+}
+
+// fitName fits a chapter's name to room, keeping a path's end, since chapters
+// named for directories share their first segments.
+func fitName(name string, all []string, room int) string {
+	if !strings.Contains(name, "/") {
+		return cut(name, room)
+	}
+
+	return cutTail(shortestTail(name, all), room)
 }
 
 func groupRefs(g planGroup, d *diff.Diff) []order.Ref {

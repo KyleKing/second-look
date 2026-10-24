@@ -71,6 +71,15 @@ func (m *Model) currentLabel(files []fileStat) string {
 type seg struct {
 	weight    int
 	read, lit bool
+	// at is how far through the lit segment the cursor stands, from 0 to 1, where marked.
+	at     float64
+	marked bool
+}
+
+// inFile is the file the cursor is in and how far through it.
+type inFile struct {
+	path string
+	at   float64
 }
 
 type cluster struct {
@@ -104,6 +113,7 @@ func (m *Model) readFiles() map[string]bool {
 func (m *Model) strip(files []fileStat, room int) string {
 	read, current := m.readFiles(), m.cursorPath()
 	dirs := directories(files)
+	here := inFile{path: current, at: m.through(func(r row) bool { return r.path == current })}
 
 	attempts := []struct {
 		byFile, labels bool
@@ -114,13 +124,13 @@ func (m *Model) strip(files []fileStat, room int) string {
 			continue
 		}
 
-		cs := clusters(files, dirs, read, current, a.byFile)
+		cs := clusters(files, dirs, read, here, a.byFile)
 		if widths, ok := stripWidths(cs, a.labels, room); ok {
 			return m.draw(cs, widths, a.labels)
 		}
 	}
 
-	cs := clusters(files, dirs, read, current, false)
+	cs := clusters(files, dirs, read, here, false)
 	widths := make([]int, len(cs))
 
 	for i := range widths {
@@ -150,7 +160,7 @@ func directories(files []fileStat) map[string]string {
 	return out
 }
 
-func clusters(files []fileStat, names map[string]string, read map[string]bool, current string, byFile bool) []cluster {
+func clusters(files []fileStat, names map[string]string, read map[string]bool, here inFile, byFile bool) []cluster {
 	var (
 		out   []cluster
 		index = map[string]int{}
@@ -172,7 +182,8 @@ func clusters(files []fileStat, names map[string]string, read map[string]bool, c
 			out = append(out, cluster{label: name})
 		}
 
-		s := seg{weight: f.changed(), read: read[f.path], lit: f.path == current}
+		s := seg{weight: f.changed(), read: read[f.path], lit: f.path == here.path}
+		s.marked, s.at = byFile && s.lit, here.at
 
 		switch {
 		case byFile || len(out[at].segs) == 0:
@@ -282,13 +293,54 @@ func (m *Model) draw(cs []cluster, widths []int, labels bool) string {
 				b.WriteString(m.styles.behind.Render(fileGap))
 			}
 
-			b.WriteString(m.face(s).Render(strings.Repeat(stripGlyph(s), widths[at])))
+			b.WriteString(m.segment(s, widths[at]))
 
 			at++
 		}
 	}
 
 	return b.String()
+}
+
+// segment draws a segment, with a mark on the lit one where the cursor stands in it.
+func (m *Model) segment(s seg, width int) string {
+	line := m.face(s)
+	if !s.marked || width < 2 {
+		return line.Render(strings.Repeat(stripGlyph(s), width))
+	}
+
+	k := min(width-1, int(s.at*float64(width)))
+
+	return line.Render(strings.Repeat(stripGlyph(s), k)) + m.styles.cursor.Render(stripMark) +
+		line.Render(strings.Repeat(stripGlyph(s), width-k-1))
+}
+
+const stripMark = "●"
+
+// through is how far the cursor stands through the run of rows around it that
+// belong, from 0 at the run's first row to 1 at its last.
+func (m *Model) through(belongs func(row) bool) float64 {
+	rows := m.screen.rows
+	if len(rows) == 0 {
+		return 0
+	}
+
+	at := min(m.cursor, len(rows)-1)
+	lo, hi := at, at
+
+	for lo > 0 && belongs(rows[lo-1]) {
+		lo--
+	}
+
+	for hi+1 < len(rows) && belongs(rows[hi+1]) {
+		hi++
+	}
+
+	if hi == lo {
+		return 0
+	}
+
+	return float64(at-lo) / float64(hi-lo)
 }
 
 func stripGlyph(s seg) string {
