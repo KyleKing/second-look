@@ -10,6 +10,7 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/humanize"
+	"github.com/kyleking/second-look/internal/order"
 	"github.com/kyleking/second-look/internal/threads"
 )
 
@@ -42,6 +43,9 @@ const (
 	rowStop
 	rowWhat
 	rowThen
+	// A shape chapter's own rows: its section labels, a row per member, and a
+	// row per file at head still carrying what the members carried.
+	rowShape
 )
 
 // cardRole is which part of a card a row draws.
@@ -116,8 +120,10 @@ type row struct {
 	// severity is how much a checker's note wants attention, read only where
 	// kind is rowTrouble.
 	severity diag.Severity
-	// site is the place a peek row shows, read only where kind is rowPeek.
+	// site is the place a peek or a shape row opens, read only where kind is one of those.
 	site diag.Site
+	// refs is the hunks a shape chapter's member row stands for.
+	refs []order.Ref
 }
 
 // screen is the flattened review: the diff with each open thread and each
@@ -157,6 +163,12 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 
 		if lay.inline {
 			s.rows = append(s.rows, lay.stopNotes(g)...)
+		}
+
+		if p := lay.patternOf(g); p != nil {
+			s.rows = append(s.rows, s.shapeRows(p, ctx)...)
+
+			continue
 		}
 
 		for _, at := range g.parts {

@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -68,6 +69,66 @@ func (r Reader) Read(ctx context.Context, path string) ([]string, error) {
 	}
 
 	return lines(out), nil
+}
+
+// Hit is the first line of one file carrying the text a Grep asked for.
+type Hit struct {
+	Path string
+	Line int
+}
+
+// Grep is every file at the commit carrying text verbatim, each at its first
+// line holding it. Only the checkout is asked: GitHub has no search scoped to
+// one commit, so a Reader with no Work answers ErrNoSource.
+func (r Reader) Grep(ctx context.Context, text string) ([]Hit, error) {
+	if r.Work == "" {
+		return nil, fmt.Errorf("searching for %q: %w", text, ErrNoSource)
+	}
+
+	args := []string{"grep", "-n", "-I", "-F", "--max-count=1", "-e", text}
+	if r.SHA != "" {
+		args = append(args, r.SHA)
+	}
+
+	cmd := exec.CommandContext(ctx, "git", append(args, "--")...) // #nosec G204 -- text is passed after -e
+	cmd.Dir = r.Work
+
+	out, err := cmd.Output()
+
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == 1 && len(exit.Stderr) == 0 {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("searching for %q: %w", text, err)
+	}
+
+	return hits(out, r.SHA), nil
+}
+
+// hits reads git grep's path:line:text lines, which carry the commit first
+// where one was searched.
+func hits(out []byte, sha string) []Hit {
+	var found []Hit
+
+	for _, l := range lines(out) {
+		if sha != "" {
+			l = strings.TrimPrefix(l, sha+":")
+		}
+
+		path, rest, ok := strings.Cut(l, ":")
+		if !ok {
+			continue
+		}
+
+		number, _, _ := strings.Cut(rest, ":")
+		if n, err := strconv.Atoi(number); err == nil {
+			found = append(found, Hit{Path: path, Line: n})
+		}
+	}
+
+	return found
 }
 
 // readDisk is the file as the working copy holds it, which is what a review of

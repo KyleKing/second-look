@@ -839,6 +839,8 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 		return r.text, m.styles.body
 	case rowThen:
 		return r.text, m.styles.note
+	case rowShape:
+		return m.shapeRow(r)
 	}
 
 	return r.text, m.styles.body

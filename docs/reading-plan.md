@@ -27,6 +27,19 @@ The layers apply cheapest first, and each may move what an earlier one placed:
    writes what each one does and what follows from it, and places what the first three
    could not
 
+Between the first layer and the rules, an edit made in many files is gathered into a shape
+chapter, with no agent. Each changed line is matched with its whitespace, its numbers, and
+any identifier spelling the file's own name taken out, and a line with fewer than four
+letters and digits, such as a brace, is ignored. A line made in five or more files seeds a
+shape, the shape is every line at least 80% of those files make, and a file is in it when
+it makes at least 80% of the shape. A commit's hunks are searched on their own and every
+other chapter's together, and a hunk a rule reads or a chapter the agent or you named is
+left alone. A shape takes only the files making the edit, and the rest of the change stays
+where it was. The agent turns one off, or turns any chapter into one, with `plan mode`,
+which finds a shape among as few as two files. The search of the head is for the longest
+line every member removed, or kept around the edit where they removed none in common, runs
+in the checkout behind the first frame, and lists at most twenty files.
+
 Layers 1 through 3 are recomputed on every open. What the agent and you change is kept in a
 local `[plan]` table in the prepared review, anchored by path and line range so it survives
 a head that moved, and it never posts. Without an agent pass there are no stops, and the
@@ -50,10 +63,12 @@ not honor, which the header counts. `O` still puts the diff's own order back.
   under it below that, where the list keeps at most half the frame so the detail has room.
   A file another chapter also reads names that chapter. `enter` opens the chapter at its
   heading in the diff, and `ctrl-o` walks back to the row the diff was on
-- **Pattern.** A chapter mode, not a screen. When five or more files share one normalized
-  edit, the edit is read once, then a table of what each file does beyond it, then the
-  places at head that still carry the old shape and were not changed. A rule or the agent
-  can turn it off
+- **Pattern.** A chapter mode, not a screen. The edit is drawn once from one file that
+  makes it exactly, then a row per file saying what it does beyond it, then the files at
+  head that still carry the line the edited files carried before and were not changed.
+  `enter` on either kind of row opens that file, and `space` on a file's row marks its
+  hunks read. The files making the edit exactly are not drawn again, and the ones doing
+  more are, in full, under the table
 - **Features.** `tab` in the outline, one row per feature, for a change too big to read as
   one. A row counts its chapters, files, and lines, and the files another feature also
   touches. The selected feature lists its chapters, then its files with the shared ones

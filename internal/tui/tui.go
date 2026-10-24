@@ -125,6 +125,7 @@ type Restaged struct {
 	Read      *seen.Set
 	HeadSHA   string
 	Blobs     Blobs
+	Search    HeadSearch
 	Prober    Prober
 }
 

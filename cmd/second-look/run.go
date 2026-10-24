@@ -502,7 +502,8 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 
 	reader := blob.Reader{Work: opened.Work, Repo: t.RepoID(), SHA: opened.Review.HeadSHA}
 	opts = append(opts,
-		tui.WithBlobs(reader.Read), tui.WithRestage(restager(t)), tui.WithRounds(rounds(t)))
+		tui.WithBlobs(reader.Read), tui.WithHeadSearch(reader.Grep), tui.WithRestage(restager(t)),
+		tui.WithRounds(rounds(t)))
 
 	// A checker runs in a checkout or not at all: a language server resolves
 	// what a file imports from the tree around it, and a review staged with
@@ -667,7 +668,7 @@ func localScreen(ctx context.Context, root string, mode local.Mode, base string)
 		tui.WithSeen(opened.Read, opened.SeenPath), tui.WithAbout(opened.About),
 		tui.WithTree(tui.TreeOnHead), tui.WithStore(opened.Work),
 		tui.WithWorkRoot(opened.Work),
-		tui.WithBlobs(reader.Read), tui.WithRestage(localRestager(root, mode, base)),
+		tui.WithBlobs(reader.Read), tui.WithHeadSearch(reader.Grep), tui.WithRestage(localRestager(root, mode, base)),
 		tui.WithGenerated(generatedPatterns()), tui.WithPlanRules(planRules(opened.Review)),
 		tui.WithCommits(opened.Commits, opened.NoCommits),
 		tui.WithAdvisor(advisory.Client{}), tui.WithVersions(versions.Client{}),
@@ -712,7 +713,7 @@ func localRestager(root string, mode local.Mode, base string) tui.Restager {
 			Review: opened.Review, Diff: opened.Diff, Read: opened.Read,
 			Commits: opened.Commits, NoCommits: opened.NoCommits,
 			HeadSHA: opened.HeadSHA,
-			Blobs:   reader.Read, Prober: probeFor(ctx, opened.Work, opened.Diff, reader),
+			Blobs:   reader.Read, Search: reader.Grep, Prober: probeFor(ctx, opened.Work, opened.Diff, reader),
 		}, nil
 	}
 }
@@ -1925,7 +1926,7 @@ func restager(t get.Target) tui.Restager {
 		return &tui.Restaged{
 			Review: opened.Review, Diff: opened.Diff, Threads: opened.Threads,
 			Read: opened.Read, HeadSHA: opened.Review.HeadSHA,
-			Blobs: reader.Read, Prober: probeFor(ctx, opened.Work, opened.Diff, reader),
+			Blobs: reader.Read, Search: reader.Grep, Prober: probeFor(ctx, opened.Work, opened.Diff, reader),
 		}, nil
 	}
 }

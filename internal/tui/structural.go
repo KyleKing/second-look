@@ -88,7 +88,7 @@ func (m *Model) replan() {
 
 	m.plan = plan.Build(plan.Input{
 		Hunks: hunks, Commits: m.commits, NoCommits: m.noCommits,
-		Rules: m.rules, Overlay: m.review.Plan.Overlay(m.diff),
+		Rules: m.rules, Overlay: m.review.Plan.Overlay(m.diff), Changes: hunkChanges(m.diff),
 	})
 
 	m.reselect(was)

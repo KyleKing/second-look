@@ -104,6 +104,10 @@ type Model struct {
 	agentSaw   bool
 	agentIn    textinput.Model
 	restage    Restager
+	// headSearch finds files at head carrying a line, and atHead is what each
+	// shape chapter's search found, keyed by the line.
+	headSearch HeadSearch
+	atHead     map[string]headHits
 	// around is how many lines of the file either side of a hunk the reader
 	// asked for, blobs is the files read to answer that, and blob is what reads
 	// one. blob is nil where nothing can.
@@ -361,6 +365,7 @@ func New(
 		built:  time.Now(),
 		made:   generated.New(nil),
 		around: map[hunkAt]int{}, blobs: map[string][]string{},
+		atHead: map[string]headHits{},
 	}
 
 	for _, opt := range opts {
@@ -384,7 +389,7 @@ func (m *Model) Init() tea.Cmd {
 	// redraw by the time anyone presses it.
 	m.wrote, _ = stampOf(m.path)
 
-	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe(), m.probeAgent()}
+	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe(), m.probeAgent(), m.askHead()}
 	cmds = append(cmds, m.fetchVersions()...)
 
 	if structure.Available() {
@@ -696,6 +701,8 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applyVersions(msg)
 	case headMsg:
 		m.applyHead(msg)
+	case headedMsg:
+		m.applyHeaded(msg)
 	case roundMsg:
 		m.applyRound(msg)
 	case branchDeletedMsg:
@@ -1028,6 +1035,8 @@ func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 
 		return nil, true
 	case key.Matches(msg, m.keys.Accept) && m.screen.rows[m.cursor].kind == rowPeek:
+		return m.openSite(m.screen.rows[m.cursor].site), true
+	case key.Matches(msg, m.keys.Accept) && m.screen.rows[m.cursor].site.Path != "":
 		return m.openSite(m.screen.rows[m.cursor].site), true
 	}
 
@@ -1879,8 +1888,12 @@ func (m *Model) markRead() {
 
 	r := m.screen.rows[m.cursor]
 
-	if r.kind == rowFile {
+	if r.kind == rowFile || len(r.refs) > 0 {
 		refs := m.hunksOf(r.path)
+		if len(r.refs) > 0 {
+			refs = m.seenRefs(r.refs)
+		}
+
 		if len(refs) == 0 {
 			m.say("nothing to read in "+r.path, false)
 
@@ -3034,6 +3047,8 @@ func (m *Model) rebuild() {
 			return m.surround(path, hunk, span[0], span[1])
 		},
 		progress:  m.fileProgress,
+		atHead:    m.atHead,
+		searches:  m.headSearch != nil,
 		known:     m.advisories,
 		answered:  m.advised,
 		cards:     m.cards,

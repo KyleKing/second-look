@@ -1,7 +1,9 @@
 package tui_test
 
 import (
+	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,7 +11,9 @@ import (
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/plan"
+	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -235,4 +239,98 @@ func triaged(t *testing.T) *tui.Model {
 	m, _ := fixture(t, ready, draft, skipped)
 
 	return m
+}
+
+// shaped is six cards making one edit, two doing more beside it, and a search
+// of the head that finds one card left out and one member it must not list.
+func shaped(t *testing.T) *tui.Model {
+	t.Helper()
+
+	var b strings.Builder
+
+	for i, name := range []string{"CardA", "CardB", "CardC", "CardD", "CardE", "CardF"} {
+		extra, size := "", 2
+		if i >= 4 {
+			extra, size = fmt.Sprintf("+  const limit = %d\n", i), 3
+		}
+
+		fmt.Fprintf(&b, "diff --git a/cards/%[1]s.tsx b/cards/%[1]s.tsx\n"+
+			"--- a/cards/%[1]s.tsx\n+++ b/cards/%[1]s.tsx\n@@ -3,2 +3,%[2]d @@ export function %[1]s() {\n"+
+			"-  const id = useSuspenseVendor(data => data.id)\n+  const id = useVendorId()\n%[3]s"+
+			"   return <%[1]sBody id={id} />\n", name, size, extra)
+	}
+
+	b.WriteString("diff --git a/boot.go b/boot.go\n--- a/boot.go\n+++ b/boot.go\n" +
+		"@@ -1,1 +1,2 @@\n func boot() {\n+\twarm(cache)\n")
+
+	search := func(_ context.Context, text string) ([]blob.Hit, error) {
+		if text != "const id = useSuspenseVendor(data => data.id)" {
+			return nil, nil
+		}
+
+		return []blob.Hit{{Path: "cards/CardA.tsx", Line: 3}, {Path: "cards/RisksCard.tsx", Line: 4}}, nil
+	}
+
+	read := func(context.Context, string) ([]string, error) {
+		return []string{"export function RisksCard() {", "", "", "  const id = useSuspenseVendor(data => data.id)"}, nil
+	}
+
+	at := filepath.Join(t.TempDir(), "seen.toml")
+
+	marks, err := seen.Load(at)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m, _, _ := modelFor(t, &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}, b.String(), tui.WithHeadSearch(search), tui.WithBlobs(read), tui.WithSeen(marks, at))
+	m.SearchHead()
+
+	return m
+}
+
+// A shape chapter draws its edit once, a row per card saying what it does
+// beyond it, and the files at head the edit missed; space on a card's row
+// marks its hunks read, and enter on a missed file opens it.
+func TestAShapeChapterReadsTheEditOnce(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range [][2]int{{200, 60}, {140, 40}, {80, 24}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			t.Parallel()
+
+			m := shaped(t)
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			go2(t, m, ']', ']')
+
+			golden.RequireEqual(t, []byte(plain(m.Frame())))
+		})
+	}
+
+	m := shaped(t)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+
+	for _, k := range "/CardE.tsx" {
+		pressKey(t, m, k)
+	}
+
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	pressKey(t, m, ' ')
+
+	if got := plain(m.Frame()); !strings.Contains(got, "✓ CardE.tsx") {
+		t.Errorf("space on a card's row did not mark it read:\n%s", got)
+	}
+
+	for _, k := range "/RisksCard" {
+		pressKey(t, m, k)
+	}
+
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "RisksCard.tsx:4 · file · outside the diff") {
+		t.Errorf("enter on a file the edit missed did not open it:\n%s", got)
+	}
 }

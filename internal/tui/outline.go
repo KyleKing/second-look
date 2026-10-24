@@ -397,6 +397,14 @@ func (m *Model) chapterDetail(size sizes, at, w int) []string {
 
 	add(placed, m.styles.note.Render)
 
+	if p := c.Pattern; p != nil {
+		out = append(out, "", " "+m.styles.head.Render("SHAPE · "+plural(len(p.Members), fileNoun)))
+
+		for _, line := range m.shapeWords(p) {
+			add(line, m.styles.note.Render)
+		}
+	}
+
 	files := refPaths(c.Hunks)
 	out = append(out, "", " "+m.styles.head.Render(fmt.Sprintf("FILES · %d", len(files))))
 

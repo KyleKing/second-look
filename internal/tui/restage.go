@@ -80,6 +80,12 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 		m.blob = msg.fresh.Blobs
 	}
 
+	if msg.fresh.Search != nil {
+		m.headSearch = msg.fresh.Search
+	}
+
+	m.atHead = map[string]headHits{}
+
 	if m.prober != nil {
 		m.prober.Close()
 	}
@@ -96,7 +102,7 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 		m.last = nil
 	}
 
-	cmds := []tea.Cmd{m.probe(), m.probeAgent()}
+	cmds := []tea.Cmd{m.probe(), m.probeAgent(), m.askHead()}
 	// The cards already cached still answer, but a restaged lockfile's asking
 	// state is stale, so the new diff's packages get asked again.
 	m.versioned = nil

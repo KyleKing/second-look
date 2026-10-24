@@ -1,0 +1,40 @@
+kyleking/jj-diff #42                                                                              7 files · +9 −6 · read 0 of 7 hunks ·   2%
+the same edit i… ──────────────────────────────────────────────────────────────────────────────────────  . ───────  the same edit in 6 files
+                                                                                                                                           ┃
+▌⇢ the same edit in 6 files  6 files · 6 hunks · shape · one edit, read once                                                               ┃
+     THE SHAPE · read once for 6 files · as cards/CardA.tsx                                                                                ┃
+     cards/CardA.tsx  +1 -1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────┃
+       export function CardA() {                                                                                                           ┃
+   3 -   const id = useSuspenseVendor(data => data.id)                                                                                     ┃
+   3 +   const id = useVendorId()                                                                                                          ┃
+   4     return <CardABody id={id} />                                                                                                      ┃
+                                                                                                                                           ┃
+     THE FILES · 6 in cards/ · 4 exactly the shape, 2 do more                                                                              ┃
+       CardA.tsx  1 hunk  +1 −1  exactly the shape                                                                                         ┃
+       CardB.tsx  1 hunk  +1 −1  exactly the shape                                                                                         ┃
+       CardC.tsx  1 hunk  +1 −1  exactly the shape                                                                                         ┃
+       CardD.tsx  1 hunk  +1 −1  exactly the shape                                                                                         ┃
+       CardE.tsx  1 hunk  +2 −1  1 line beyond it: + const limit = 4                                                                       ┃
+       CardF.tsx  1 hunk  +2 −1  1 line beyond it: + const limit = 5                                                                       ┃
+                                                                                                                                           ┃
+     NOT CHANGED AT HEAD · 1 file still carries “const id = useSuspenseVendor(data => data.id)”                                            ┃
+     ○ cards/RisksCard.tsx:4                                                                                                               ┃
+                                                                                                                                           ┃
+     BEYOND THE SHAPE                                                                                                                      ┃
+     cards/CardE.tsx  +2 -1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────┃
+       export function CardE() {                                                                                                           ┃
+   3 -   const id = useSuspenseVendor(data => data.id)                                                                                     ┃
+   3 +   const id = useVendorId()                                                                                                          ┃
+   4 +   const limit = 4                                                                                                                   ┃
+   5     return <CardEBody id={id} />                                                                                                      ┃
+     cards/CardF.tsx  +2 -1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────┃
+       export function CardF() {                                                                                                           ┃
+   3 -   const id = useSuspenseVendor(data => data.id)                                                                                     ┃
+   3 +   const id = useVendorId()                                                                                                          ┃
+   4 +   const limit = 5                                                                                                                   ┃
+   5     return <CardFBody id={id} />                                                                                                      ┃
+                                                                                                                                           │
+ ⇢ .  1 file · 1 hunk                                                                                                                      │
+     boot.go  +1 -0 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────│
+   1   func boot() {                                                                                                                       │
+ [j/k] line  ] go to  [c]ode  [m]ark  writ[e]  [a]dd  [i] context  [S]ubmit  [?] help  [q]uit

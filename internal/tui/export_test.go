@@ -200,3 +200,13 @@ func (m *Model) Versioned() {
 
 // ShortestTail is the name the header gives a file among the others in the diff.
 var ShortestTail = shortestTail
+
+// SearchHead runs the head searches Init asked for behind the first frame.
+func (m *Model) SearchHead() {
+	for needle, h := range m.atHead {
+		if !h.done {
+			hits, err := m.headSearch(m.ctx, needle)
+			m.applyHeaded(headedMsg{needle: needle, hits: hits, err: err})
+		}
+	}
+}

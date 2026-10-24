@@ -90,7 +90,7 @@ cat > "$work/config/second-look/config.toml" <<'CONF'
 [[server]]
 name = "none"
 command = ["second-look-no-such-language-server"]
-extensions = [".go", ".ts", ".py"]
+extensions = [".go", ".js", ".py", ".ts", ".tsx"]
 CONF
 
 # A scene that keeps reading rules brings them as config of its own.

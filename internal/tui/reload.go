@@ -86,7 +86,7 @@ func (m *Model) reloaded(msg reloadMsg) tea.Cmd {
 
 	m.take(fresh)
 
-	return next
+	return tea.Batch(next, m.askHead())
 }
 
 // merge takes the review from disk. What is being typed is never overwritten:

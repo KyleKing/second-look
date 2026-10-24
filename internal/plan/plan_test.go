@@ -353,3 +353,122 @@ func TestMatch(t *testing.T) {
 		}
 	}
 }
+
+// cards is n card files making one edit, the last two doing more beside it, and
+// a file in another directory making none of it.
+func cards(n int) ([]order.Hunk, map[order.Ref]plan.Change) {
+	hunks := make([]order.Hunk, 0, n+1)
+	hunks = append(hunks, hunk("other/boot.go", 1))
+	changes := map[order.Ref]plan.Change{
+		ref("other/boot.go", 1): {Added: []string{"warm(cache)"}},
+	}
+
+	for i := range n {
+		name := fmt.Sprintf("Card%c", 'A'+i)
+		h := hunk("cards/"+name+".tsx", i+2)
+		c := plan.Change{
+			Removed: []string{"  const id = " + oldID},
+			Added:   []string{"  const id = useVendorId()"},
+			Context: []string{"export function " + name + "() {", "  return <" + name + "Body id={id} />"},
+		}
+
+		if i >= n-2 {
+			c.Added = append(c.Added, fmt.Sprintf("  const limit = %d", i))
+		}
+
+		hunks = append(hunks, h)
+		changes[h.Ref] = c
+	}
+
+	return hunks, changes
+}
+
+const oldID = "useSuspenseVendor(data => data.id)"
+
+// cardRefs is the hunks cards(n) writes, as shown prints them.
+func cardRefs(n int) string {
+	out := make([]string, n)
+	for i := range n {
+		out[i] = fmt.Sprintf("cards/Card%c.tsx#%d", 'A'+i, i+2)
+	}
+
+	return strings.Join(out, " ")
+}
+
+// A repeated edit is read once: five or more files making it become a shape
+// chapter whose members say what each does beyond it, the agent's mode wins
+// either way, a chapter the agent named is left whole, and fewer files than
+// that read as their directory.
+func TestARepeatedEditReadsOnce(t *testing.T) {
+	t.Parallel()
+
+	const (
+		shape = "the same edit in 6 files"
+		other = "⇢ read other: other/boot.go#1\n"
+	)
+
+	for _, tc := range []struct {
+		name    string
+		files   int
+		edits   []plan.Edit
+		want    string
+		members int
+	}{
+		{name: "found", files: 6, members: 6, want: other + "⇢ shape " + shape + ": " + cardRefs(6) + "\n"},
+		{
+			name: "vetoed", files: 6,
+			edits: []plan.Edit{{Chapter: shape, Mode: plan.ModeRead, Source: plan.SourceAgent}},
+			want:  other + "◆ read " + shape + ": " + cardRefs(6) + "\n",
+		},
+		{
+			name: "named by the agent", files: 6,
+			edits: []plan.Edit{{Chapter: "cards", Why: "the cards", Source: plan.SourceAgent}},
+			want:  other + "◆ read cards: " + cardRefs(6) + "\n",
+		},
+		{
+			name: "too few to find, set by the agent", files: 3, members: 3,
+			edits: []plan.Edit{{Chapter: "cards", Mode: plan.ModeShape, Source: plan.SourceAgent}},
+			want:  other + "◆ shape cards: " + cardRefs(3) + "\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			hunks, changes := cards(tc.files)
+			p := plan.Build(plan.Input{Hunks: hunks, Changes: changes, Overlay: plan.Overlay{Chapters: tc.edits}})
+
+			if got := shown(p.Chapters); got != tc.want {
+				t.Errorf("got\n%s\nwant\n%s", got, tc.want)
+			}
+
+			patterned(t, p.Chapters[len(p.Chapters)-1].Pattern, tc.members)
+		})
+	}
+}
+
+// patterned checks a card chapter's pattern: members of them all but the last
+// two exact, the last doing its one line beyond, drawn from the first card.
+func patterned(t *testing.T, p *plan.Pattern, members int) {
+	t.Helper()
+
+	if members == 0 {
+		if p != nil {
+			t.Errorf("a chapter read as read carries a pattern: %+v", p)
+		}
+
+		return
+	}
+
+	if p == nil || len(p.Members) != members || p.Exactly() != members-2 {
+		t.Fatalf("the pattern is %+v, want %d members, all but two exact", p, members)
+	}
+
+	last := p.Members[members-1]
+	if strings.Join(last.Beyond, "|") != fmt.Sprintf("+  const limit = %d", members-1) || last.Missing != 0 {
+		t.Errorf("the last card does %q beyond the shape, missing %d", last.Beyond, last.Missing)
+	}
+
+	if p.Representative != "cards/CardA.tsx" || p.Before != "const id = "+oldID {
+		t.Errorf("the shape is drawn from %s and searched for by %q", p.Representative, p.Before)
+	}
+}

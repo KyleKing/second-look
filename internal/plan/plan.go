@@ -89,6 +89,8 @@ type Chapter struct {
 	Why     string
 	Hunks   []order.Ref
 	Feature string
+	// Pattern is the repeated edit a shape chapter reads once, nil in every other mode.
+	Pattern *Pattern
 }
 
 // Stop is one place the tour pauses: what the code there is for, and what
@@ -137,14 +139,19 @@ type Input struct {
 	NoCommits string
 	Rules     Rules
 	Overlay   Overlay
+	// Changes is each hunk's lines. Without them no edit is found to repeat.
+	Changes map[order.Ref]Change
 }
 
-// Build applies the layers in turn. Every hunk handed in comes back in exactly
-// one chapter, and whatever would have broken that is in Problems.
+// Build applies the layers in turn: the commits or order's groups, a repeated
+// edit gathered into a shape chapter, the rules, and the overlay. Every hunk
+// handed in comes back in exactly one chapter, and whatever would have broken
+// that is in Problems.
 func Build(in Input) Plan {
 	commits, problems := known(in.Commits, in.Hunks)
 
 	chapters, basis := cut(commits, in)
+	chapters = shapes(chapters, in)
 	chapters = in.Rules.apply(chapters, in.Hunks)
 
 	p := Plan{Chapters: chapters, Basis: basis, Problems: problems}
@@ -154,6 +161,7 @@ func Build(in Input) Plan {
 
 	p.Chapters, settled = settle(p.Chapters, in.Hunks)
 	p.Problems = append(p.Problems, settled...)
+	p.Problems = append(p.Problems, patterns(p.Chapters, in.Changes)...)
 	p.Features = features(p.Chapters)
 
 	return p

@@ -1,0 +1,17 @@
+{
+  "baseRefName": "main",
+  "headRefName": "fixture/review-target",
+  "headRefOid": "a11c2669ee1446ce5f6540b8c3c93c4cffc3900a",
+  "headRepositoryOwner": {
+    "id": "MDQ6VXNlcjM3ODQzMzk=",
+    "login": "KyleKing",
+    "name": "Kyle King"
+  },
+  "isDraft": true,
+  "mergeStateStatus": "CLEAN",
+  "number": 2,
+  "state": "OPEN",
+  "statusCheckRollup": [],
+  "title": "refactor(vendor): start each card from the route id",
+  "url": "https://github.com/KyleKing/second-look/pull/2"
+}

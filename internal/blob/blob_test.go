@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -59,6 +60,21 @@ func TestReadsFromTheCheckoutAtTheCommit(t *testing.T) {
 	if len(got) != 3 || got[0] != "one" || got[2] != "three" {
 		t.Errorf("read %q, want the file as it was at the commit", got)
 	}
+
+	// A search reads the same commit, and the working tree where none is named.
+	for _, tc := range []struct {
+		sha, text string
+		want      []blob.Hit
+	}{
+		{sha, "two", []blob.Hit{{Path: "read.go", Line: 2}}},
+		{sha, "rewritten", nil},
+		{"", "rewritten", []blob.Hit{{Path: "read.go", Line: 1}}},
+	} {
+		hits, err := blob.Reader{Work: dir, SHA: tc.sha}.Grep(t.Context(), tc.text)
+		if err != nil || !slices.Equal(hits, tc.want) {
+			t.Errorf("searching %q at %q found %v, %v; want %v", tc.text, tc.sha, hits, err, tc.want)
+		}
+	}
 }
 
 // With no checkout holding the commit and no repository to ask about, the
@@ -72,5 +88,9 @@ func TestReadWithNoSource(t *testing.T) {
 
 	if _, err := (blob.Reader{SHA: "abc"}).Read(t.Context(), "read.go"); err == nil {
 		t.Error("a reader with no checkout and no repository answered")
+	}
+
+	if _, err := (blob.Reader{SHA: "abc"}).Grep(t.Context(), "two"); err == nil {
+		t.Error("a search with no checkout answered")
 	}
 }
