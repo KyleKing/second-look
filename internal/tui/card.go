@@ -25,7 +25,7 @@ func threadKeys() [][2]string {
 
 func (m *Model) cardLine(r row, width int) string {
 	inset := m.gutterWidth()
-	cols := max(1, min(cardCols(m.width, m.screen.numWidth), width-inset-cardBorder))
+	cols := max(1, min(cardCols(m.diffWidth(), m.screen.numWidth), width-inset-cardBorder))
 	lead := strings.Repeat(" ", inset)
 	edge := m.cardEdge(r)
 

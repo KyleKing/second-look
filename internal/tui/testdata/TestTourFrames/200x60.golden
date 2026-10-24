@@ -1,0 +1,60 @@
+kyleking/jj-diff #42                                                                                                                                                              2 files · +2 −1 ·   7%
+1 ─────────────────────────────────────────────────────────────  api ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  lock.go
+ STOPS · 1 of 1                                                                                                                                               STOP 1 OF 1 · THE CORE DECISION           
+ ▸ 1 Every save takes the lo… ▌◆ stop 1 of 1 · the core decision                                                                                              Every save takes the lock before it       
+                                   core/lock.go  +1 -0 ─────────────────────────────────────────────────────────────────────────────────────────────────────  writes.                                   
+ CHAPTERS · 2                    4   func save() {                                                                                                                                                      
+   ⇢ api                read     5 +     lock()                                                                                                               → The route waits on it, with no timeout. 
+ ▸ ⇢ core               read     6       write()                                                                                                                                                        
+                                                                                                                                                              ◆ placed by the agent                     
+ by symbol and directory: no   ⇢ api  1 file · 1 hunk                                                                                                                                                   
+ commits to read by                api/route.go  +1 -1 ─────────────────────────────────────────────────────────────────────────────────────────────────────  CHAPTER 2 OF 2 · read                     
+ p the plain screen              1   func route() {                                                                                                           core                                      
+                                 2 -     serve(1)                                                                                                             ⇢ placed by the code                      
+                                 2 +     serve(2)                                                                                                                                                       
+                                                                                                                                                              next: api                                 
+                                    ┃ REVIEW BODY  empty · e to write one                                                                                                                               
+                                    ┃ REVIEW NOTE  empty · e to write one                                                                                                                               
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+                                                                                                                                                                                                        
+ [j/k] line  ] go to  [c]ode  [m]ark  writ[e]  [a]dd  [i] context  [S]ubmit  [?] help  [q]uit

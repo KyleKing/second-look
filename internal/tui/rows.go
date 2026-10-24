@@ -38,6 +38,10 @@ const (
 	rowTrouble
 	rowBlank
 	rowPeek
+	// A tour stop draws as its heading, then its what and then above its hunk.
+	rowStop
+	rowWhat
+	rowThen
 )
 
 // cardRole is which part of a card a row draws.
@@ -121,6 +125,9 @@ type row struct {
 type screen struct {
 	rows     []row
 	numWidth int
+	// groups is what the diff view drew, each starting at the row heads holds.
+	groups []planGroup
+	heads  []int
 }
 
 // build flattens the diff and the prepared review into rows at the given width.
@@ -138,12 +145,18 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 		placed: placed, lay: lay, split: splitFiles(groups), grown: lay.grown,
 	}
 
+	s.groups = groups
+
 	for _, g := range groups {
+		s.heads = append(s.heads, len(s.rows))
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1})
 
 		if g.named(len(groups)) {
-			s.rows = append(s.rows,
-				row{kind: rowGroup, text: g.heading(), path: g.name, comment: -1})
+			s.rows = append(s.rows, g.headRow())
+		}
+
+		if lay.inline {
+			s.rows = append(s.rows, lay.stopNotes(g)...)
 		}
 
 		for _, at := range g.parts {

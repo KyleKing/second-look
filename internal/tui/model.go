@@ -246,6 +246,8 @@ type Model struct {
 	commits   []plan.Commit
 	noCommits string
 	rules     plan.Rules
+	// tour walks the plan's stops and chapters, which p turns off and on.
+	tour bool
 	// done is which hunks are already read, so a row can recede without hashing
 	// its hunk to find out.
 	done map[hunkAt]bool
@@ -365,6 +367,7 @@ func New(
 	}
 
 	m.replan()
+	m.tour = len(d.Files) <= tourFiles
 
 	return m
 }
@@ -1155,7 +1158,7 @@ func (m *Model) startsChord(msg tea.KeyPressMsg) bool {
 			m.pending = '['
 		}
 
-		m.say(m.chord(string(m.pending), objects()), false)
+		m.say(m.chord(string(m.pending), objects(string(m.pending))), false)
 	default:
 		return false
 	}
@@ -1597,8 +1600,10 @@ func (m *Model) object(prefix rune, msg tea.KeyPressMsg) {
 		m.repeatable(motion{step: step, what: "hunk", want: isHunk})
 	case "f":
 		m.repeatable(motion{step: step, what: fileNoun, want: isKind(rowFile)})
-	case "d":
-		m.repeatable(motion{step: step, what: "directory", want: isKind(rowGroup)})
+	case "]", "[":
+		m.repeatable(chapterMotion(step))
+	case "s":
+		m.repeatable(stopMotion(step))
 	case "c":
 		m.repeatable(motion{step: step, what: commentWord, want: isComment})
 	case "t":
@@ -1733,7 +1738,7 @@ func (m *Model) fitCursor() {
 	}
 
 	h := m.viewHeight()
-	width := bodyWidth(m.width, scrollbar(h, len(m.screen.rows), m.offset))
+	width := bodyWidth(m.diffWidth(), scrollbar(h, len(m.screen.rows), m.offset))
 
 	for m.offset < m.cursor {
 		tall := 0
@@ -1840,6 +1845,12 @@ func (m *Model) cycleView() {
 // again repeats the last motion, in its own direction or reversed. It is what
 // makes a two-key motion cost two keys once rather than every time.
 func (m *Model) again(direction int) bool {
+	if m.last == nil && m.touring() {
+		m.runMotion(m.tourMotion(), direction)
+
+		return true
+	}
+
 	if m.last == nil {
 		m.say("no motion to repeat; ] names one", false)
 
@@ -2195,6 +2206,8 @@ func (m *Model) reshapes(msg tea.KeyPressMsg) bool {
 		m.cycleRenderer()
 	case key.Matches(msg, m.keys.Order):
 		m.cycleOrder()
+	case key.Matches(msg, m.keys.Tour):
+		m.toggleTour()
 	case key.Matches(msg, m.keys.Fold):
 		m.setFold(foldWhitespace)
 	case key.Matches(msg, m.keys.OnlyNew):
@@ -3007,7 +3020,7 @@ func (m *Model) rebuild() {
 	m.hunkCols = hunkWidths(m.diff)
 
 	lay := layout{
-		width: m.width, hide: m.skipper(), fold: m.folded, notes: m.notes, lit: m.lit,
+		width: m.diffWidth(), hide: m.skipper(), fold: m.folded, notes: m.notes, lit: m.lit,
 		split: m.sideBySide(), made: m.made,
 		drifted: artifact.Drifted(m.review.Comments, m.diff),
 		grown: func(path string, hunk int, span [2]int) ([]row, []row) {
@@ -3022,6 +3035,10 @@ func (m *Model) rebuild() {
 	if !m.asDiffed {
 		lay.plan = m.plan.Chapters
 		lay.folds = foldedPaths(m.plan.Chapters)
+	}
+
+	if m.touring() {
+		lay.tour, lay.inline, lay.stops = true, !m.tourWide(), m.plan.Stops
 	}
 
 	lay.trouble = m.trouble

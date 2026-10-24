@@ -39,9 +39,10 @@ not honor, which the header counts. `O` still puts the diff's own order back.
 
 ## Views
 
-- **Tour.** The default up to about 60 files. The stops first, then the chapters. At 160
-  columns a rail of stops sits left and a margin of notes sits right. Below that the rail
-  becomes a strip across the top and the notes move inline
+- **Tour.** The default up to 60 files, and `p` switches it off and on. The stops first,
+  then the chapters. At 160 columns a rail of stops and chapters sits left and a margin of
+  notes sits right. Below that the rail becomes a strip across the top and the notes move
+  inline. Above 60 files the screen opens plain until the outline exists
 - **Outline.** The default above about 60 files. A contents list of chapters on the left,
   each row carrying its files, hunks, read progress, mode, and source. The selected chapter
   shows its summary, files, stops, and what it shares with other chapters on the right
@@ -53,8 +54,8 @@ not honor, which the header counts. `O` still puts the diff's own order back.
   one. It is for understanding the change, so nothing is staged from it. The same structure
   is what splitting your own change into a stack would start from
 
-The strip under the header names chapters once a plan exists, and each file by its shortest
-unique tail until then.
+In the tour the strip under the header names the stops by number and the chapters by name.
+The plain screen's strip names each file by its shortest unique tail.
 
 ## Local changes
 

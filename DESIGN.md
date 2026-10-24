@@ -308,6 +308,13 @@ mauve, and the card under the cursor in the accent. Below 40 columns a card draw
 rows. How the order of a large change is planned, and the views built on that plan, are in
 [docs/reading-plan.md](docs/reading-plan.md).
 
+A change of up to 60 files opens as the tour: the plan's stops, then its chapters. From 160
+columns a rail lists them on the left and a margin on the right holds the current stop's
+what and then and its chapter's why. Below that the strip names the stops by number and the
+chapters by name, and a stop's note draws above its hunk. `n` walks the stops (the chapters
+where nothing named any) until another motion is named, and `p` gives the plain screen. A
+plan of one chapter has nothing to tour and draws the plain screen.
+
 An unresolved thread caps at three rendered lines: two lines of the comment when it is
 alone, or one line of the first, a thread count, and one line of the last when it is not.
 The cap exists so a long thread inserts between hunks instead of burying the code.
@@ -383,11 +390,11 @@ line drops the dim ones instead of truncating it.
 | Layer | Keys |
 | --- | --- |
 | Universal | `q` quit, `esc` back, `enter` select, `/` search, `?` help, `:` command |
-| Motion | `j`/`k` line, `n`/`p` hunk, `}`/`{` file, `gg`/`G` top and bottom |
+| Motion | `j`/`k` line, `]`/`[` then `]` chapter, `s` stop, `h` hunk, or `f` file, `n`/`N` the same again, `gg`/`G` top and bottom |
 | Review | `space` seen, `c` comment, `a` then a severity writes one, `S` then `a`/`r`/`c` submit, `i` what the pull request says, `o` on GitHub, `u` unresolved only |
 | Fold | `z` then `a` here, `i` invert all, `R` open all, `M` to the file names |
 | Queue | `1`/`2`/`3` and `]`/`[` the tab, `tab` the next group, `f`/`F` focus one repository |
-| View | `-` file overlay, `g` context pane, `s` split, `w` whitespace, `t` syntax-aware |
+| View | `p` the tour or the plain screen, `-` file overlay, `g` context pane, `s` split, `w` whitespace, `t` syntax-aware |
 | Thread | `ctrl+j`/`ctrl+k` scroll, `tab` complete, `r` reply, `R` resolve, `,` then an emoji reacts, `z` then `a` folds the conversation |
 
 `space` marks the hunk under the cursor seen and advances, because marking and moving on

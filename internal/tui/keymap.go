@@ -30,6 +30,8 @@ const (
 	escKey      = "esc"
 	walkKeys    = "j/k"
 	fileNoun    = "file"
+	stopNoun    = "stop"
+	chapterNoun = "chapter"
 )
 
 type keyMap struct {
@@ -72,6 +74,7 @@ type keyMap struct {
 	Renderer     key.Binding
 	Look         key.Binding
 	Order        key.Binding
+	Tour         key.Binding
 	Fold         key.Binding
 	Zed          key.Binding
 	Structure    key.Binding
@@ -152,6 +155,7 @@ func defaultKeyMap() keyMap {
 		Hover:        key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "what is this")),
 		Restage:      key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "restage")),
 		Order:        key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
+		Tour:         key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "tour")),
 		Fold:         key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
 		Zed:          key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
 		Structure:    key.NewBinding(key.WithKeys("W"), key.WithHelp("W", "no code changed")),
@@ -180,11 +184,13 @@ func defaultKeyMap() keyMap {
 }
 
 // objects are what `]` and `[` accept. The letter is the first letter of the
-// thing, and the order is the order they appear in a review.
-func objects() [][2]string {
+// thing, and the order is the order they appear in a review; the bracket
+// itself again is the chapter, as a section is in vim.
+func objects(bracket string) [][2]string {
 	return [][2]string{
+		{bracket, chapterNoun},
+		{"s", stopNoun},
 		{"h", "hunk"},
-		{"d", "directory"},
 		{"f", fileNoun},
 		{"c", commentWord},
 		{"t", "thread"},
@@ -245,8 +251,8 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "ctrl+e/y", What: "scroll a line"},
 		{What: "y/Y and shift+up/down do the same"},
 		{Key: "gg/G", What: "the ends"},
-		{Key: "]", What: "go to", Kids: asHints(objects())},
-		{Key: "[", What: "go back", Kids: asHints(objects())},
+		{Key: "]", What: "go to", Kids: asHints(objects("]"))},
+		{Key: "[", What: "go back", Kids: asHints(objects("["))},
 		{Key: "n/N", What: "the same, or back"},
 		{Key: "ctrl+o/i", What: "back and forward through jumps"},
 		{What: "tab goes forward too once ctrl+o has left a place ahead"},
@@ -263,6 +269,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "z", What: "folds, the frame", Kids: zPage()},
 		{Key: "f", What: "files matching a pattern"},
 		{What: "! drops its matches instead: *.go !*_test.go keeps the go that is not tests"},
+		{Key: "p", What: "the tour, or the plain screen"},
 		{Key: "O", What: "the diff's own order"},
 		{Key: "w", What: "whitespace"},
 		{Key: "W", What: "no code changed"},

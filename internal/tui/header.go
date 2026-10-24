@@ -164,6 +164,9 @@ func (m *Model) modes(files []fileStat) string {
 	}
 
 	line := m.strip(files, room)
+	if m.touring() {
+		line = m.tourStrip(room)
+	}
 
 	return line + strings.Repeat(" ", max(1, m.width-textWidth(line)-textWidth(right))) + right
 }

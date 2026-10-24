@@ -30,16 +30,23 @@ type planGroup struct {
 	files  int
 	hunks  int
 	parts  []part
+	// stop and chapter number the plan's stop or chapter the group draws, from one.
+	stop    int
+	chapter int
 }
 
 // named reports whether the heading says anything the file paths under it do
 // not. One directory over a review whose files each carry their whole path is
 // the same words twice; a chapter with a reason or a mode of its own is not.
 func (g planGroup) named(groups int) bool {
-	return groups > 1 || g.mode != plan.ModeRead || g.why != ""
+	return groups > 1 || g.mode != plan.ModeRead || g.why != "" || g.stop > 0
 }
 
 func (g planGroup) heading() string {
+	if g.stop > 0 {
+		return g.source.Glyph() + " " + g.name
+	}
+
 	words := []string{fmt.Sprintf("%s · %s", plural(g.files, "file"), plural(g.hunks, "hunk"))}
 
 	switch g.mode {
@@ -71,15 +78,14 @@ func (l layout) groups(d *diff.Diff) []planGroup {
 
 	at := fileIndex(d)
 	drawn := make([]bool, len(d.Files))
+	out, taken := l.stopGroups(at, drawn)
 
-	out := make([]planGroup, 0, len(l.plan)+1)
-
-	for _, c := range l.plan {
-		group := planGroup{name: c.Name, mode: c.Mode, source: c.Source, why: c.Why}
+	for n, c := range l.plan {
+		group := planGroup{name: c.Name, mode: c.Mode, source: c.Source, why: c.Why, chapter: n + 1}
 
 		for _, h := range c.Hunks {
 			i, ok := at[h.Path]
-			if !ok {
+			if !ok || taken[h] {
 				continue
 			}
 

@@ -94,6 +94,50 @@ func TestReviewProseFrames(t *testing.T) {
 	}
 }
 
+// The tour at the three sizes its layout changes across: rail and margin beside
+// the diff at 160 columns and past, and the strip with the stop's note inline
+// below that.
+func TestTourFrames(t *testing.T) {
+	t.Parallel()
+
+	const tour = `diff --git a/api/route.go b/api/route.go
+--- a/api/route.go
++++ b/api/route.go
+@@ -1,2 +1,2 @@
+ func route() {
+-	serve(1)
++	serve(2)
+diff --git a/core/lock.go b/core/lock.go
+--- a/core/lock.go
++++ b/core/lock.go
+@@ -4,2 +4,3 @@
+ func save() {
++	lock()
+ 	write()
+`
+
+	for _, size := range [][2]int{{200, 60}, {140, 40}, {80, 24}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			t.Parallel()
+
+			m, _, _ := modelFor(t, &artifact.Review{
+				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+				HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+				Plan: artifact.Plan{Stops: []artifact.PlanStop{{
+					ID: "lock", Role: "the core decision", Origin: "claude-code",
+					Span: artifact.Span{Path: "core/lock.go", Side: artifact.SideRight, Line: 5, Anchor: "\tlock()"},
+					What: "Every save takes the lock before it writes.",
+					Then: "The route waits on it, with no timeout.",
+				}}},
+			}, tour)
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			pressKey(t, m, 'n')
+
+			golden.RequireEqual(t, []byte(plain(m.Frame())))
+		})
+	}
+}
+
 // triaged is a review in every state the screen can show: one comment ready to
 // post, one still a draft, and one skipped with its reason.
 func triaged(t *testing.T) *tui.Model {

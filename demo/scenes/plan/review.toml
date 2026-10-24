@@ -7,6 +7,17 @@ head_sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
 event = "COMMENT"
 body = ""
 
+[[comment]]
+id = "who-passes-the-head"
+path = "internal/cache/key.go"
+line = 16
+side = "RIGHT"
+body = "Every caller now has to pass the head it read. Is there a caller outside cmd/app that still has only the number, and would it compile against this signature without anyone noticing the cache went cold?"
+anchor = "func KeyFor(repo, head string) Key {"
+severity = "question"
+status = "draft"
+origin = "claude-code"
+
 [[plan.chapter]]
 chapter = "the migration"
 mode = "table"
@@ -22,4 +33,36 @@ anchor = "alter table diffs add column head text not null default '';"
 [[plan.chapter]]
 chapter = "the docs"
 why = "renamed by an agent that misread the plan"
+origin = "agent"
+
+[[plan.stop]]
+id = "the-key"
+path = "internal/cache/key.go"
+side = "RIGHT"
+line = 16
+anchor = "func KeyFor(repo, head string) Key {"
+role = "the new key"
+what = "A diff is cached by repository and head commit rather than by pull request number."
+then = "Every caller has to know the head it read, and a push is a miss rather than a stale hit."
+origin = "agent"
+
+[[plan.stop]]
+id = "the-caller"
+path = "cmd/app/main.go"
+side = "RIGHT"
+line = 21
+anchor = "	if d, ok := c.Get(cache.KeyFor(pr.Repo, pr.HeadSHA)); ok {"
+role = "the one caller"
+what = "The command passes the head it fetched, so the screen and the cache agree on which diff this is."
+origin = "agent"
+
+[[plan.stop]]
+id = "the-proof"
+path = "internal/cache/key_test.go"
+side = "RIGHT"
+line = 12
+anchor = "	if _, ok := c.Get(cache.KeyFor(\"o/r\", \"bbb\")); ok {"
+role = "the proof"
+what = "The test puts one head and reads another, which is the push the change is for."
+then = "Nothing tests the migration: it is read as a table."
 origin = "agent"

@@ -45,7 +45,7 @@ func (m *Model) render() string {
 		return fmt.Sprintf("second-look needs %dx%d, this is %dx%d", minWidth, minHeight, m.width, m.height)
 	}
 
-	body := m.rowLines()
+	body := m.bodyLines()
 	if m.waiting {
 		body = m.waitLines(body)
 	}
@@ -584,7 +584,7 @@ func (m *Model) waitLines(body []string) []string {
 func (m *Model) rowLines() []string {
 	h := m.viewHeight()
 	bar := mark(scrollbar(h, len(m.screen.rows), m.offset), len(m.screen.rows), m.elsewhere(h))
-	width := bodyWidth(m.width, bar)
+	width := bodyWidth(m.diffWidth(), bar)
 
 	out := make([]string, 0, h)
 
@@ -618,7 +618,7 @@ func (m *Model) rowLines() []string {
 		out = append(out, "")
 	}
 
-	return alongside(out[:h], bar, m.styles, m.width)
+	return alongside(out[:h], bar, m.styles, m.diffWidth())
 }
 
 // cursorBar is the column every row spends on saying whether the cursor is on
@@ -807,7 +807,7 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 	switch r.kind {
 	case rowBlank:
 		return "", m.styles.footer
-	case rowGroup:
+	case rowGroup, rowStop:
 		return r.text, m.styles.title
 	case rowFile:
 		return "  " + m.readMark(r) + r.text, m.styles.file
@@ -825,8 +825,10 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 		return m.troubleRow(r)
 	case rowCode:
 		return m.codeRow(r)
-	case rowPeek:
+	case rowPeek, rowWhat:
 		return r.text, m.styles.body
+	case rowThen:
+		return r.text, m.styles.note
 	}
 
 	return r.text, m.styles.body

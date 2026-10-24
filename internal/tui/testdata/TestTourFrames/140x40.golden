@@ -1,0 +1,40 @@
+kyleking/jj-diff #42                                                                                                  2 files · +2 −1 ·   6%
+1 ─────────────────────────────────────────  api ──────────────────────────────────────────────────────────────────────────────────  lock.go
+ 
+▌◆ stop 1 of 1 · the core decision
+    Every save takes the lock before it writes.
+    → The route waits on it, with no timeout.
+     core/lock.go  +1 -0 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   4   func save() {                                                                                                                        
+   5 +     lock()                                                                                                                           
+   6       write()                                                                                                                          
+ 
+ ⇢ api  1 file · 1 hunk
+     api/route.go  +1 -1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1   func route() {                                                                                                                       
+   2 -     serve(1)                                                                                                                         
+   2 +     serve(2)                                                                                                                         
+ 
+      ┃ REVIEW BODY  empty · e to write one
+      ┃ REVIEW NOTE  empty · e to write one
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ [j/k] line  ] go to  [c]ode  [m]ark  writ[e]  [a]dd  [i] context  [S]ubmit  [?] help  [q]uit

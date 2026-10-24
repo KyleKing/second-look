@@ -70,21 +70,36 @@ func TestTheStripFollowsWhatIsRead(t *testing.T) {
 	}
 }
 
+// A change small enough to tour opens on its chapters and p gives the files
+// back; one too big for the tour opens on the files, drawn as directories once
+// there are too many for a segment each.
 func TestTheStripCollapsesToDirectories(t *testing.T) {
 	t.Parallel()
 
-	for _, n := range []int{9, 130} {
-		m, _, _ := fixtureWith(t, manyFiles(n))
+	for _, tc := range []struct {
+		n       int
+		toured  bool
+		divider bool
+	}{{9, true, true}, {130, false, false}} {
+		m, _, _ := fixtureWith(t, manyFiles(tc.n))
 		m.Update(tea.WindowSizeMsg{Width: 200, Height: 30})
 
+		if line := headerLine(m); tc.toured && (strings.Contains(line, "┊") || !strings.Contains(line, "alpha")) {
+			t.Errorf("%d files: the tour does not name its chapters: %q", tc.n, line)
+		}
+
+		if tc.toured {
+			pressKey(t, m, 'p')
+		}
+
 		line := headerLine(m)
-		if got := strings.Contains(line, "┊"); got != (n < 100) {
-			t.Errorf("%d files: divider between files = %v: %q", n, got, line)
+		if got := strings.Contains(line, "┊"); got != tc.divider {
+			t.Errorf("%d files: divider between files = %v: %q", tc.n, got, line)
 		}
 
 		for _, dir := range []string{"alpha", "beta", "gamma"} {
 			if !strings.Contains(line, dir) {
-				t.Errorf("%d files: no label for %s: %q", n, dir, line)
+				t.Errorf("%d files: no label for %s: %q", tc.n, dir, line)
 			}
 		}
 	}

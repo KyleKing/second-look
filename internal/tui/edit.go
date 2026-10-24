@@ -48,7 +48,7 @@ type editor struct {
 // earlier session left unfinished there if there is one.
 func (m *Model) beginEdit(title, start string, msg editedMsg) tea.Cmd {
 	area := newArea()
-	area.SetWidth(max(1, m.width-m.screen.numWidth-rail))
+	area.SetWidth(max(1, m.diffWidth()-m.screen.numWidth-rail))
 	area.SetValue(start)
 	area.MoveToEnd()
 
@@ -301,10 +301,10 @@ func (m *Model) editorLines() []string {
 	gutter := strings.Repeat(" ", m.screen.numWidth+indent)
 	frame := m.styles.warn
 
-	out := []string{frame.Render(cut(gutter+"┏ "+m.editing.title, m.width))}
+	out := []string{frame.Render(cut(gutter+"┏ "+m.editing.title, m.diffWidth()))}
 
 	for _, line := range strings.Split(m.editing.area.View(), "\n") {
-		out = append(out, frame.Render(gutter+"┃ ")+cut(line, m.width))
+		out = append(out, frame.Render(gutter+"┃ ")+cut(line, m.diffWidth()))
 	}
 
 	keys := "┗ ctrl+s save · esc keeps it · ctrl+e $EDITOR · ctrl+n complete"
@@ -316,7 +316,7 @@ func (m *Model) editorLines() []string {
 		keys += " · ctrl+t swaps the version from disk"
 	}
 
-	return append(out, frame.Render(cut(gutter+keys, m.width)))
+	return append(out, frame.Render(cut(gutter+keys, m.diffWidth())))
 }
 
 // answering reports an edit that adds to a thread rather than rewriting a

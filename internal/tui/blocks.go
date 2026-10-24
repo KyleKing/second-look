@@ -150,6 +150,11 @@ type layout struct {
 	// the diff's own order back, and folds is each file only fold chapters hold.
 	plan  []plan.Chapter
 	folds map[string]bool
+	// tour draws the stops ahead of the chapters, and inline draws a stop's
+	// note above its hunk where no margin has room for it.
+	tour   bool
+	inline bool
+	stops  []plan.Stop
 	// progress is how many of a file's hunks have been read and how many it
 	// has, which is what a piece of a file cannot say about the whole of it.
 	progress func(path string) (int, int)

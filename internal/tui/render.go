@@ -126,7 +126,7 @@ const splitWidth = 120
 // changed which rows exist under them would be a fourth and a fifth screen. So
 // the split applies to the diff, which is the view it is about.
 func (m *Model) sideBySide() bool {
-	return m.drawn.split && m.view == viewDiff && m.width >= splitWidth
+	return m.drawn.split && m.view == viewDiff && m.diffWidth() >= splitWidth
 }
 
 // The two depths a side is drawn at: the band under a whole changed line, and

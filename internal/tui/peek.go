@@ -214,7 +214,7 @@ func (m *Model) peekRows() []row {
 		body = m.definitionRows(p.sites[0])
 	}
 
-	return framed(append([]row{head}, body...), row{kind: rowPeek, comment: noComment}, m.width)
+	return framed(append([]row{head}, body...), row{kind: rowPeek, comment: noComment}, m.diffWidth())
 }
 
 func (m *Model) definitionRows(site diag.Site) []row {
