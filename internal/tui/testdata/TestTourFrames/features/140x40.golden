@@ -1,0 +1,40 @@
+kyleking/jj-diff #42                                                                                                  3 files · +5 −1 ·   0%
+1 ─────────────────  the lock's call… ────────────────  api ────────────────────────────────  gen ────────────────────────────────  features
+ FEATURES · 1 of 2 · 1 chapter in no feature                                                                                                
+▌  locking                                           2 chapters  2 files       +2 −0  ◇ 1 shared                                            
+   routing                                            1 chapter   1 file       +1 −1  ◇ 1 shared                                            
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ FEATURE 1 OF 2                                                                                                                             
+ locking                                                                                                                                    
+                                                                                                                                            
+ CHAPTERS · 2                                                                                                                               
+   1 ◆ the lock's caller  read                                                                                                              
+   3 ◆ core  read                                                                                                                           
+                                                                                                                                            
+ FILES · 2                                                                                                                                  
+ ◇ api/route.go  +1 −0  also routing                                                                                                        
+   core/lock.go  +1 −0                                                                                                                      
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+ [j/k] feature  [enter] open  [tab] chapters  [esc] the diff  [?] help  [q]uit

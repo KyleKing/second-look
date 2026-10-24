@@ -1,10 +1,10 @@
-kyleking/jj-diff #42                                                                                                                                                              3 files · +4 −1 ·   0%
-1 ────────────────────────────────────  api ───────────────────────────────────────────────────────────────────────  gen ──────────────────────────────────────────────────────────────────────  outline
- CHAPTERS · 2 of 3 · 0 read · 2 of 5 lines folded                                          │  CHAPTER 2 OF 3 · read                                                                                     
-   ⇢ api                                                       read     1 file       +1 −1 │  ⇢ core                                                                                                    
-▌  ⇢ core                                                      read     1 file       +1 −0 │  placed by the code                                                                                        
-   § gen                                                       fold     1 file    2 folded │                                                                                                            
-                                                                                           │  FILES · 1                                                                                                 
+kyleking/jj-diff #42                                                                                                                                                              3 files · +5 −1 ·   0%
+1 ───────────────────────────  the lock's call… ───────────────────────────  api ────────────────────────────────────────────────────  gen ────────────────────────────────────────────────────  outline
+ CHAPTERS · 3 of 4 · 0 read · 2 of 6 lines folded                                          │  CHAPTER 3 OF 4 · read                                                                                     
+   ◆ the lock's caller                                         read     1 file       +1 −0 │  ◆ core                                                                                                    
+   ◆ api                                                       read     1 file       +1 −1 │  placed by the agent · part of locking                                                                     
+▌  ◆ core                                                      read     1 file       +1 −0 │                                                                                                            
+   § gen                                                       fold     1 file    2 folded │  FILES · 1                                                                                                 
                                                                                            │    core/lock.go  1 hunk  +1 −0                                                                             
                                                                                            │                                                                                                            
                                                                                            │  STOPS · 1                                                                                                 
@@ -57,4 +57,4 @@ kyleking/jj-diff #42                                                            
                                                                                            │                                                                                                            
                                                                                            │                                                                                                            
                                                                                            │                                                                                                            
- [j/k] chapter  [enter] open it  [esc] the diff  [i] context  [?] help  [q]uit
+ [j/k] chapter  [enter] open  [tab] features  [esc] the diff  [?] help  [q]uit

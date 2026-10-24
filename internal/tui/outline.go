@@ -15,12 +15,21 @@ import (
 	"github.com/kyleking/second-look/internal/plan"
 )
 
-// outline is the plan's chapters as a list, with the selected one in detail
-// beside it from tourWidth columns and under it below that. A change past
-// tourFiles opens on it.
+// outline is the plan's chapters or features as a list, the selected one in
+// detail beside it from tourWidth columns and under it below that.
 type outline struct {
-	open bool
-	at   int
+	open     bool
+	features bool
+	at       int
+	feature  int
+}
+
+// listPane is one list of the outline and what it says about the selected row.
+type listPane struct {
+	head   string
+	n, at  int
+	row    func(i, w int) string
+	detail func(w int) []string
 }
 
 const (
@@ -134,23 +143,28 @@ func (m *Model) chapterHere() int {
 func (m *Model) readOutline(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	const halfPage = 2
 
-	n := len(m.plan.Chapters)
+	n, at := len(m.plan.Chapters), &m.outline.at
+	if m.outline.features {
+		n, at = len(m.plan.Features), &m.outline.feature
+	}
 
 	switch {
 	case key.Matches(msg, m.keys.Down):
-		m.outline.at++
+		*at++
 	case key.Matches(msg, m.keys.Up):
-		m.outline.at--
+		*at--
 	case key.Matches(msg, m.keys.HalfDown):
-		m.outline.at += m.viewHeight() / halfPage
+		*at += m.viewHeight() / halfPage
 	case key.Matches(msg, m.keys.HalfUp):
-		m.outline.at -= m.viewHeight() / halfPage
+		*at -= m.viewHeight() / halfPage
 	case key.Matches(msg, m.keys.Top):
-		m.outline.at = 0
+		*at = 0
 	case key.Matches(msg, m.keys.Bottom):
-		m.outline.at = n - 1
+		*at = n - 1
+	case key.Matches(msg, m.keys.NextNote), key.Matches(msg, m.keys.PrevNote):
+		m.switchList()
 	case key.Matches(msg, m.keys.Accept):
-		m.openChapter(clamp(m.outline.at, n-1))
+		m.openSelected()
 
 		return m, nil
 	case key.Matches(msg, m.keys.Back), key.Matches(msg, m.keys.Outline):
@@ -166,9 +180,34 @@ func (m *Model) readOutline(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.say("enter opens the chapter · esc the diff", false)
 	}
 
-	m.outline.at = clamp(m.outline.at, n-1)
+	*at = clamp(*at, n-1)
 
 	return m, nil
+}
+
+// switchList moves between the chapters and the features, where there are any.
+func (m *Model) switchList() {
+	if len(m.plan.Features) == 0 {
+		m.say("no features: a chapter belongs to one when the agent names it", false)
+
+		return
+	}
+
+	m.outline.features = !m.outline.features
+	m.say("", false)
+}
+
+// openSelected reads the selected chapter, or the first chapter of the
+// selected feature.
+func (m *Model) openSelected() {
+	at := clamp(m.outline.at, len(m.plan.Chapters)-1)
+
+	if m.outline.features {
+		at = m.plan.Features[clamp(m.outline.feature, len(m.plan.Features)-1)].Chapters[0]
+		m.outline.at = at
+	}
+
+	m.openChapter(at)
 }
 
 // openChapter closes the outline on the chapter's heading, put at the top of
@@ -212,14 +251,18 @@ func (m *Model) chapterRow(n int) int {
 
 func (m *Model) outlineLines() []string {
 	h := m.viewHeight()
-	at := clamp(m.outline.at, len(m.plan.Chapters)-1)
 	size := hunkSizes(m.diff)
+
+	p := m.chapterPane(size)
+	if m.outline.features && len(m.plan.Features) > 0 {
+		p = m.featurePane(size)
+	}
 
 	if m.width >= tourWidth {
 		lw := min(listCols, m.width*listShare/percent)
 		dw := m.width - lw - indent - 1
-		list := m.outlineList(size, at, lw, h)
-		detail := block(m.chapterDetail(size, at, dw), h, dw)
+		list := m.listLines(p, lw, h)
+		detail := block(p.detail(dw), h, dw)
 		bar := m.styles.edge.Render("│")
 
 		out := make([]string, h)
@@ -230,13 +273,13 @@ func (m *Model) outlineLines() []string {
 		return out
 	}
 
-	lh := min(len(m.plan.Chapters)+1, max(minList, h/half))
+	lh := min(p.n+1, max(minList, h/half))
 	rest := h - lh - 1
 
-	out := m.outlineList(size, at, m.width, lh)
+	out := m.listLines(p, m.width, lh)
 	out = append(out, m.styles.edge.Render(strings.Repeat("─", m.width-1)))
 
-	return append(out, fitRows(m.chapterDetail(size, at, m.width), rest, m.width, m.styles.note.Render)...)
+	return append(out, fitRows(p.detail(m.width), rest, m.width, m.styles.note.Render)...)
 }
 
 // fitRows is lines as exactly h rows, the last one saying how many did not fit.
@@ -249,8 +292,9 @@ func fitRows(lines []string, h, width int, face func(...string) string) []string
 	return block(lines, h, width)
 }
 
-func (m *Model) outlineList(size sizes, at, w, h int) []string {
+func (m *Model) chapterPane(size sizes) listPane {
 	cs := m.plan.Chapters
+	at := clamp(m.outline.at, len(cs)-1)
 	read, folded, total := 0, 0, 0
 
 	for _, c := range cs {
@@ -273,14 +317,23 @@ func (m *Model) outlineList(size sizes, at, w, h int) []string {
 		facts += fmt.Sprintf(" · %s of %s lines folded", humanize.Count(folded), humanize.Count(total))
 	}
 
-	out := []string{cut(head+m.styles.note.Render(facts), w)}
+	return listPane{
+		head: head + m.styles.note.Render(facts), n: len(cs), at: at,
+		row:    func(i, w int) string { return m.outlineRow(size, cs[i], w) },
+		detail: func(w int) []string { return m.chapterDetail(size, at, w) },
+	}
+}
+
+// listLines is a pane's list in h rows, scrolled to keep the selection mid-frame.
+func (m *Model) listLines(p listPane, w, h int) []string {
+	out := []string{cut(p.head, w)}
 	room := h - 1
-	top := clamp(at-room/2, len(cs)-room)
+	top := clamp(p.at-room/half, p.n-room)
 
-	for i := top; i < len(cs) && len(out) < h; i++ {
-		text := m.outlineRow(size, cs[i], min(w, listCols)-1)
+	for i := top; i < p.n && len(out) < h; i++ {
+		text := p.row(i, min(w, listCols)-1)
 
-		if i != at {
+		if i != p.at {
 			out = append(out, " "+text)
 
 			continue
@@ -424,18 +477,26 @@ func (m *Model) stopsIn(c plan.Chapter) []int {
 }
 
 func (m *Model) outlineHints() []hint {
+	what, other := chapterNoun, "features"
+	if m.outline.features {
+		what, other = featureNoun, "chapters"
+	}
+
 	return []hint{
-		{key: walkKeys, what: chapterNoun},
-		{key: enterKey, what: "open it"},
+		{key: walkKeys, what: what},
+		{key: enterKey, what: "open"},
+		{key: tabKey, what: other, off: len(m.plan.Features) == 0},
 		{key: escKey, what: "the diff"},
-		{key: "i", what: m.keys.About.Help().Desc},
 		{key: "?", what: m.keys.Help.Help().Desc},
 		{key: "q", what: quitWord},
 	}
 }
 
 func (m *Model) outlineWord() string {
-	if m.outline.open {
+	switch {
+	case m.outline.open && m.outline.features:
+		return "features"
+	case m.outline.open:
 		return "outline"
 	}
 

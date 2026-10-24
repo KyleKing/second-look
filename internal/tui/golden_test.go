@@ -109,6 +109,10 @@ func TestTourFrames(t *testing.T) {
  func route() {
 -	serve(1)
 +	serve(2)
+@@ -10,2 +10,3 @@
+ func call() {
++	waitLock()
+ 	done()
 diff --git a/core/lock.go b/core/lock.go
 --- a/core/lock.go
 +++ b/core/lock.go
@@ -125,10 +129,15 @@ diff --git a/gen/client.go b/gen/client.go
 +var B = 2
 `
 
+	outline := tea.KeyPressMsg{Code: 'I', Text: "I"}
 	frames := []struct {
 		name string
-		keys []rune
-	}{{"tour", []rune{'n'}}, {"outline", []rune{'I'}}}
+		keys []tea.KeyPressMsg
+	}{
+		{"tour", []tea.KeyPressMsg{{Code: 'n', Text: "n"}}},
+		{"outline", []tea.KeyPressMsg{outline}},
+		{"features", []tea.KeyPressMsg{outline, {Code: tea.KeyTab}}},
+	}
 
 	for _, size := range [][2]int{{200, 60}, {140, 40}, {80, 24}} {
 		for _, frame := range frames {
@@ -145,12 +154,21 @@ diff --git a/gen/client.go b/gen/client.go
 						},
 						What: "Every save takes the lock before it writes.",
 						Then: "The route waits on it, with no timeout.",
-					}}},
+					}}, Chapters: []artifact.PlanChapter{
+						{Chapter: "api", Feature: "routing", Origin: "claude-code"},
+						{Chapter: "core", Feature: "locking", Origin: "claude-code"},
+						{
+							Chapter: "the lock's caller", Feature: "locking", Origin: "claude-code",
+							Hunks: []artifact.Span{{
+								Path: "api/route.go", Side: artifact.SideRight, Line: 11, Anchor: "\twaitLock()",
+							}},
+						},
+					}},
 				}, tour, tui.WithPlanRules(plan.Rules{Repo: "kyleking/jj-diff", Fold: []string{"gen/**"}}))
 				m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 
 				for _, k := range frame.keys {
-					pressKey(t, m, k)
+					press(t, m, k)
 				}
 
 				golden.RequireEqual(t, []byte(plain(m.Frame())))

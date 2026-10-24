@@ -1,13 +1,14 @@
-kyleking/jj-diff #42                                      3 files · +4 −1 ·   0%
-1 ────────────  api ───────────────────────  gen ──────────────────────  outline
- CHAPTERS · 2 of 3 · 0 read · 2 of 5 lines folded                               
-   ⇢ api                                             read     1 file       +1 −1
-▌  ⇢ core                                            read     1 file       +1 −0
+kyleking/jj-diff #42                                      3 files · +5 −1 ·   0%
+1 ───────  the lock's call… ───────  api ────────────  gen ────────────  outline
+ CHAPTERS · 3 of 4 · 0 read · 2 of 6 lines folded                               
+   ◆ the lock's caller                               read     1 file       +1 −0
+   ◆ api                                             read     1 file       +1 −1
+▌  ◆ core                                            read     1 file       +1 −0
    § gen                                             fold     1 file    2 folded
 ───────────────────────────────────────────────────────────────────────────────
- CHAPTER 2 OF 3 · read                                                          
- ⇢ core                                                                         
- placed by the code                                                             
+ CHAPTER 3 OF 4 · read                                                          
+ ◆ core                                                                         
+ placed by the agent · part of locking                                          
                                                                                 
  FILES · 1                                                                      
    core/lock.go  1 hunk  +1 −0                                                  
@@ -20,5 +21,4 @@ kyleking/jj-diff #42                                      3 files · +4 −1 · 
                                                                                 
                                                                                 
                                                                                 
-                                                                                
- [j/k] chapter  [enter] open it  [esc] the diff  [i] context  [?] help  [q]uit
+ [j/k] chapter  [enter] open  [tab] features  [esc] the diff  [?] help  [q]uit

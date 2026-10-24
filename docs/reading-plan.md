@@ -54,9 +54,12 @@ not honor, which the header counts. `O` still puts the diff's own order back.
   edit, the edit is read once, then a table of what each file does beyond it, then the
   places at head that still carry the old shape and were not changed. A rule or the agent
   can turn it off
-- **Features.** The outline again, one row per feature, for a change too big to read as
-  one. It is for understanding the change, so nothing is staged from it. The same structure
-  is what splitting your own change into a stack would start from
+- **Features.** `tab` in the outline, one row per feature, for a change too big to read as
+  one. A row counts its chapters, files, and lines, and the files another feature also
+  touches. The selected feature lists its chapters, then its files with the shared ones
+  first, each marked `◇` and naming the features that share it. It is for understanding the
+  change, so nothing is staged from it and it proposes no split. The same structure is what
+  splitting your own change into a stack would start from
 
 In the tour the strip under the header names the stops by number and the chapters by name.
 The plain screen's strip names each file by its shortest unique tail.

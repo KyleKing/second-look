@@ -315,7 +315,7 @@ chapters by name, and a stop's note draws above its hunk. `n` walks the stops (t
 where nothing named any) until another motion is named, and `p` gives the plain screen. A
 plan of one chapter has nothing to tour and draws the plain screen. A bigger change opens
 on the outline, the plan's chapters as a list with the selected one in detail, and `I`
-moves between it and the diff.
+moves between it and the diff. `tab` there lists the features and the files they share.
 
 An unresolved thread caps at three rendered lines: two lines of the comment when it is
 alone, or one line of the first, a thread count, and one line of the last when it is not.

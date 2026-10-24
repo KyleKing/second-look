@@ -32,6 +32,7 @@ const (
 	fileNoun    = "file"
 	stopNoun    = "stop"
 	chapterNoun = "chapter"
+	featureNoun = "feature"
 )
 
 type keyMap struct {
@@ -273,6 +274,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{What: "! drops its matches instead: *.go !*_test.go keeps the go that is not tests"},
 		{Key: "p", What: "the tour, or the plain screen"},
 		{Key: "I", What: "the outline of chapters, and back"},
+		{What: "tab in the outline lists the features and the files they share"},
 		{Key: "O", What: "the diff's own order"},
 		{Key: "w", What: "whitespace"},
 		{Key: "W", What: "no code changed"},

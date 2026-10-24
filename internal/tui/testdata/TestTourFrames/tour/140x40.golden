@@ -1,5 +1,5 @@
-kyleking/jj-diff #42                                                                                                  3 files · +4 −1 ·   5%
-1 ────────────────────────  api ───────────────────────────────────────────────  gen ──────────────────────────────────────────────  lock.go
+kyleking/jj-diff #42                                                                                                  3 files · +5 −1 ·   4%
+1 ─────────────────  the lock's call… ─────────────────  api ────────────────────────────────  gen ────────────────────────────────  lock.go
  
 ▌◆ stop 1 of 1 · the core decision
     Every save takes the lock before it writes.
@@ -9,8 +9,14 @@ kyleking/jj-diff #42                                                            
    5 +     lock()                                                                                                                           
    6       write()                                                                                                                          
  
- ⇢ api  1 file · 1 hunk
-     api/route.go  +1 -1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ◆ the lock's caller  1 file · 1 hunk
+     api/route.go  part of this file · 1 piece elsewhere · 0/2 read · ]f walks to it  +1 -0 ────────────────────────────────────────────────
+  10   func call() {                                                                                                                        
+  11 +     waitLock()                                                                                                                       
+  12       done()                                                                                                                           
+ 
+ ◆ api  1 file · 1 hunk
+     api/route.go  part of this file · 1 piece elsewhere · 0/2 read · ]f walks to it  +1 -1 ────────────────────────────────────────────────
    1   func route() {                                                                                                                       
    2 -     serve(1)                                                                                                                         
    2 +     serve(2)                                                                                                                         
@@ -20,12 +26,6 @@ kyleking/jj-diff #42                                                            
  
       ┃ REVIEW BODY  empty · e to write one
       ┃ REVIEW NOTE  empty · e to write one
-
-
-
-
-
-
 
 
 
