@@ -180,4 +180,38 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 	if _, err := os.Stat(artifact.TodoPath(home, 42)); err != nil {
 		t.Errorf("the todo set was never written: %v", err)
 	}
+
+	askedOverTheSession(t, run, path)
+}
+
+// askedOverTheSession puts a question about a line to the live session, and
+// checks the agent's reply in that turn alone lands in [plan].
+func askedOverTheSession(t *testing.T, run *loop, path string) {
+	t.Helper()
+
+	m := run.m
+	run.key(tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	for _, k := range "]hjAl" + "why one?" {
+		run.key(letter(k))
+	}
+
+	run.key(tea.KeyPressMsg{Code: tea.KeyEnter})
+	run.wait(func() bool { return strings.Contains(plain(m.Frame()), "1 Allow") })
+	run.key(letter('1'))
+
+	var answer string
+
+	run.wait(func() bool {
+		saved, err := artifact.Load(path)
+		if err == nil && len(saved.Plan.Asks) == 1 {
+			answer = saved.Plan.Asks[0].Answer
+		}
+
+		return answer != ""
+	})
+
+	if !strings.HasPrefix(answer, "stub heard: A reviewer") || strings.Contains(answer, "fix") {
+		t.Errorf("the ask was answered %q, want this turn's reply alone", answer)
+	}
 }

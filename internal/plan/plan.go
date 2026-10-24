@@ -108,6 +108,7 @@ type Ask struct {
 	ID        string
 	Ref       order.Ref
 	Path      string
+	Side      string
 	StartLine int
 	Line      int
 	Question  string

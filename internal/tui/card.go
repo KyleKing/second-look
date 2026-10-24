@@ -86,6 +86,10 @@ func (m *Model) footEdge(r row, edge lipgloss.Style, width int) string {
 		keys = peekKeys()
 	}
 
+	if r.kind == rowAsk {
+		keys = nil
+	}
+
 	face := keyhint.Styles{Key: m.on(m.styles.key), Text: m.on(m.styles.footer)}
 	sep := m.on(edge).Render(" · ")
 	room := width - cornerCells
@@ -119,7 +123,7 @@ func (m *Model) footEdge(r row, edge lipgloss.Style, width int) string {
 }
 
 func (m *Model) cardTitle(r row) lipgloss.Style {
-	if r.kind == rowThread || r.comment < 0 || r.comment >= len(m.review.Comments) {
+	if r.kind == rowThread || r.kind == rowAsk || r.comment < 0 || r.comment >= len(m.review.Comments) {
 		return m.styles.rail
 	}
 
@@ -165,6 +169,8 @@ func cardOf(r row) (blockKey, bool) {
 		return blockKey{rowThread, r.thread}, true
 	case r.kind == rowPeek:
 		return blockKey{rowPeek, 0}, true
+	case r.kind == rowAsk:
+		return blockKey{rowAsk, r.ask}, true
 	}
 
 	return blockKey{rowComment, r.comment}, true

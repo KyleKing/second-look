@@ -242,7 +242,7 @@ func (p *Plan) Overlay(d *diff.Diff) plan.Overlay {
 		a := &p.Asks[i]
 		if s, ref, ok := place("ask "+a.ID, a.Span); ok {
 			out.Asks = append(out.Asks, plan.Ask{
-				ID: a.ID, Ref: ref, Path: s.Path, StartLine: s.StartLine, Line: s.Line,
+				ID: a.ID, Ref: ref, Path: s.Path, Side: s.Side, StartLine: s.StartLine, Line: s.Line,
 				Question: a.Question, Answer: a.Answer, Source: sourceOf(a.Origin),
 			})
 		}

@@ -23,14 +23,24 @@ func WithAsker(a Asker) Option {
 	return func(m *Model) { m.asker = a }
 }
 
-// askObjects are what A accepts: the three questions a reviewer asks an agent
-// about a diff that is already on screen.
-func askObjects() [][2]string {
+// allAskObjects are what A accepts: your own question about the line, then the asker's three.
+func allAskObjects() [][2]string {
 	return [][2]string{
+		{"l", "about this line"},
 		{"p", "a path through"},
 		{"c", "this hunk, decided"},
 		{"d", "what it claims"},
 	}
+}
+
+// askObjects is what A offers here: the three asker questions only where one
+// is configured, since a question about a line is kept for an agent either way.
+func (m *Model) askObjects() [][2]string {
+	if m.asker == nil {
+		return allAskObjects()[:1]
+	}
+
+	return allAskObjects()
 }
 
 // askedMsg carries an asker's answer, titled by what was asked. Path marks
@@ -76,6 +86,18 @@ func (m *Model) saidLines() []string {
 func (m *Model) adviseKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
+	if msg.String() == "l" {
+		cmd = m.beginQuestion()
+
+		return m, cmd
+	}
+
+	if m.asker == nil {
+		m.say("no agent is configured; dispatch = [...] in the config is what A runs", false)
+
+		return m, nil
+	}
+
 	switch msg.String() {
 	case "p":
 		cmd = m.advise("a path through "+m.name(), m.pathPrompt(), true)
@@ -98,7 +120,7 @@ func (m *Model) adviseKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 		cmd = m.advise("does "+m.name()+" do what it claims", m.driftPrompt(claim), false)
 	default:
-		m.say("nothing to ask for "+msg.String()+"; "+hintLine(askObjects()), false)
+		m.say("nothing to ask for "+msg.String()+"; "+hintLine(m.askObjects()), false)
 	}
 
 	return m, cmd

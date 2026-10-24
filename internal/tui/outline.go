@@ -405,6 +405,15 @@ func (m *Model) chapterDetail(size sizes, at, w int) []string {
 		}
 	}
 
+	if asks := m.asksIn(c); len(asks) > 0 {
+		out = append(out, "", " "+m.styles.head.Render(fmt.Sprintf("ASKED · %d", len(asks))))
+
+		for _, n := range asks {
+			a := m.plan.Asks[n]
+			add(place(a.Path, a.Side, firstOf(a.StartLine, a.Line), a.Line)+" · "+a.Question, m.styles.body.Render)
+		}
+	}
+
 	files := refPaths(c.Hunks)
 	out = append(out, "", " "+m.styles.head.Render(fmt.Sprintf("FILES · %d", len(files))))
 

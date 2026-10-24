@@ -351,6 +351,10 @@ func (m *Model) footerLines() []string {
 		return []string{m.filesPrompt()}
 	}
 
+	if m.drafting != nil {
+		return []string{m.questionPrompt()}
+	}
+
 	if m.helpNote != nil {
 		return m.helpNoteLines()
 	}
@@ -493,7 +497,7 @@ func (m *Model) inert(k string) bool {
 		file, _ := m.lockedAt()
 		return m.advisor == nil || file == ""
 	case "A":
-		return m.asker == nil
+		return m.asker == nil && !m.onCode()
 	case "T":
 		return m.dispatcher == nil
 	case "X", "K":
@@ -841,6 +845,8 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 		return r.text, m.styles.note
 	case rowShape:
 		return m.shapeRow(r)
+	case rowAsk:
+		return m.askRow(r)
 	}
 
 	return r.text, m.styles.body

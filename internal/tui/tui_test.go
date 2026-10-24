@@ -15,6 +15,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	xansi "github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -2021,6 +2022,40 @@ func TestAskChordQuestionsTheDiff(t *testing.T) {
 	if len(asked) != 3 || !strings.Contains(asked[2], "lines, err := split") {
 		t.Fatalf("the card question never carried the hunk: %v", asked)
 	}
+
+	askedALine(t, m, path, &asked)
+}
+
+// askedALine puts a question of your own to the same agent, and checks its
+// answer is kept.
+func askedALine(t *testing.T, m *tui.Model, path string, asked *[]string) {
+	t.Helper()
+
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	go2(t, m, 'g', 'g')
+	go2(t, m, ']', 'h')
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+	go2(t, m, 'A', 'l')
+
+	for _, k := range "is first ever 0?" {
+		pressKey(t, m, k)
+	}
+
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if len(*asked) != 4 || !strings.Contains((*asked)[3], "is first ever 0?") ||
+		!strings.Contains((*asked)[3], "first := 1") {
+		t.Fatalf("the question did not carry itself and its line: %v", *asked)
+	}
+
+	saved, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(saved.Plan.Asks) != 1 || !strings.Contains(saved.Plan.Asks[0].Answer, "the parser's signature") {
+		t.Errorf("the answer was not kept in [plan]: %+v", saved.Plan.Asks)
+	}
 }
 
 // The path answer is a motion, not only prose: it registers as the last
@@ -2169,17 +2204,81 @@ func TestMarkerWritesATODOIntoTheSource(t *testing.T) {
 	}
 }
 
-// A review with no agent configured still has the chord: it says what would
-// configure one rather than pretending the question went out.
-func TestAskChordWithoutAnAgent(t *testing.T) {
+// With no agent configured, A on a range still asks: the question is kept in
+// [plan] as yours, drawn as a card under the range's last line that says nobody
+// was asked, listed in its chapter's outline, and reached with ]a. The chord's
+// agent questions say what would configure one.
+func TestAskingWithoutAnAgentKeepsTheQuestion(t *testing.T) {
 	t.Parallel()
 
-	m, _, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 15, "a word"))
+	for _, size := range [][2]int{{200, 60}, {140, 40}, {80, 24}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			t.Parallel()
+			askedWithoutAnAgent(t, size[0], size[1])
+		})
+	}
+}
 
-	press(t, m, tea.KeyPressMsg{Code: 'A', Text: "A"})
+func askedWithoutAnAgent(t *testing.T, width, height int) {
+	t.Helper()
+
+	m, path, _ := fixtureWith(t, patch)
+	m.Update(tea.WindowSizeMsg{Width: width, Height: height})
+
+	go2(t, m, ']', 'h')
+
+	for _, k := range "jjjVjA" {
+		pressKey(t, m, k)
+	}
+
+	for _, k := range "why can split fail?" {
+		pressKey(t, m, k)
+	}
+
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	saved, err := artifact.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(saved.Plan.Asks) != 1 {
+		t.Fatalf("the review on disk holds %d asks", len(saved.Plan.Asks))
+	}
+
+	got := saved.Plan.Asks[0]
+	if got.Path != parsed || got.StartLine != 15 || got.Line != 16 || got.Question != "why can split fail?" ||
+		got.Origin != artifact.OriginMe {
+		t.Errorf("the ask on disk is %+v", got)
+	}
+
+	frame := plain(m.Frame())
+	golden.RequireEqual(t, []byte(frame))
+
+	for _, want := range []string{"✎ you asked", "why can split fail?", "no agent here to ask", "diff.go:15-16"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the card is missing %q:\n%s", want, frame)
+		}
+	}
+
+	pressKey(t, m, 'G')
+	go2(t, m, '[', 'a')
+
+	if got := m.CursorText(); !strings.Contains(got, "you asked") {
+		t.Errorf("[a landed on %q, want the ask", got)
+	}
+
+	pressKey(t, m, 'I')
+
+	if got := plain(m.Frame()); !strings.Contains(got, "ASKED · 1") {
+		t.Errorf("the outline does not list the ask:\n%s", got)
+	}
+
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	go2(t, m, 'A', 'p')
 
 	if got := plain(m.Frame()); !strings.Contains(got, "no agent is configured") {
-		t.Errorf("A never said what it needs:\n%s", got)
+		t.Errorf("A then p never said what it needs:\n%s", got)
 	}
 }
 

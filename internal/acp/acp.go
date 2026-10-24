@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os/exec"
 	"strings"
 	"sync"
@@ -206,6 +207,11 @@ func (s *Session) Prompt(ctx context.Context, text string) (string, error) {
 	}
 	s.busy = true
 	s.lines = append(s.lines, Entry{Kind: You, Text: text})
+
+	// A message id is unique within a turn at most, and an agent may send none.
+	maps.DeleteFunc(s.seen, func(id string, _ int) bool {
+		return strings.HasPrefix(id, "agent:") || strings.HasPrefix(id, "thought:")
+	})
 	s.mu.Unlock()
 	s.wake()
 

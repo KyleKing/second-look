@@ -38,6 +38,7 @@ const planHelp = `second-look plan — stage the reading plan's claim, stops, ch
 
   A stop or an ask with an id already staged replaces it, and a chapter entry
   replaces what was staged for the chapter it names; mode changes the mode alone.
+  An ask the review screen staged is answered by staging its id with an answer.
   chapter is the name the plan gave the chapter, or a new name, which starts a
   chapter around the hunks it moves. mode is read, skim, shape, table, or fold.
 `

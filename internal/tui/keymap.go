@@ -199,6 +199,7 @@ func objects(bracket string) [][2]string {
 		{"t", "thread"},
 		{"u", "unread hunk"},
 		{"p", "problem"},
+		{"a", "ask"},
 	}
 }
 
@@ -285,7 +286,8 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "K", What: "what is this"},
 		{Key: "g", What: "go", Kids: asHints(goObjects())},
 		{Key: "L", What: "the lockfile"},
-		{Key: "A", What: "ask the agent", Kids: asHints(askObjects())},
+		{Key: "A", What: "ask the agent", Kids: asHints(allAskObjects())},
+		{What: "A on an open V range asks about the range, kept in [plan]"},
 		{What: "marking", Head: true},
 		{Key: spaceKey, What: "mark read"},
 		{Key: "m", What: "a state", Kids: asHints(states())},

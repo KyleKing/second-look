@@ -105,36 +105,7 @@ func TestSessionStreamsAWholeTurn(t *testing.T) {
 		t.Errorf("the session id is %q", s.ID())
 	}
 
-	type turn struct {
-		reason string
-		err    error
-	}
-
-	done := make(chan turn, 1)
-	go func() {
-		reason, err := s.Prompt(t.Context(), "fix it")
-		done <- turn{reason, err}
-	}()
-
-	var asked *acp.Permit
-	until(t, s, func() bool {
-		asked = s.Pending()
-		return asked != nil
-	})
-
-	if len(asked.Options) != 2 {
-		t.Fatalf("the ask carried %d options", len(asked.Options))
-	}
-
-	asked.Answer("allow")
-
-	var ended turn
-
-	select {
-	case ended = <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatal("the turn never ended")
-	}
+	ended := turnThrough(t, s, "fix it")
 
 	if ended.err != nil {
 		t.Fatalf("the turn failed: %v", ended.err)
@@ -156,6 +127,51 @@ func TestSessionStreamsAWholeTurn(t *testing.T) {
 	if tool := toolEntry(t, s); tool.Text != "runs the tests" || tool.Status != "completed" {
 		t.Errorf("the tool call reads %q / %q", tool.Text, tool.Status)
 	}
+
+	// The stub names every message m1, and a second turn's reply is its own
+	// entry all the same.
+	turnThrough(t, s, "and again")
+
+	if got := entryTexts(s, acp.Agent); len(got) != 2 || !strings.HasPrefix(got[1], "stub heard: and again") {
+		t.Errorf("the second turn's reply reads back as %q", got)
+	}
+}
+
+type turn struct {
+	reason string
+	err    error
+}
+
+// turnThrough prompts the stub and allows the permission it asks for.
+func turnThrough(t *testing.T, s *acp.Session, text string) turn {
+	t.Helper()
+
+	done := make(chan turn, 1)
+	go func() {
+		reason, err := s.Prompt(t.Context(), text)
+		done <- turn{reason, err}
+	}()
+
+	var asked *acp.Permit
+	until(t, s, func() bool {
+		asked = s.Pending()
+		return asked != nil
+	})
+
+	if len(asked.Options) != 2 {
+		t.Fatalf("the ask carried %d options", len(asked.Options))
+	}
+
+	asked.Answer("allow")
+
+	select {
+	case ended := <-done:
+		return ended
+	case <-time.After(10 * time.Second):
+		t.Fatal("the turn never ended")
+	}
+
+	return turn{}
 }
 
 // A review that already carried a session hands its id back, and an agent

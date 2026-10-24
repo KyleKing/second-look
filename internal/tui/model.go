@@ -108,6 +108,11 @@ type Model struct {
 	// shape chapter's search found, keyed by the line.
 	headSearch HeadSearch
 	atHead     map[string]headHits
+	// drafting is a question being typed about a range, inFlight is who each ask
+	// still being answered was put to by id, and failedAsks why one got nothing.
+	drafting   *askDraft
+	inFlight   map[string]string
+	failedAsks map[string]string
 	// around is how many lines of the file either side of a hunk the reader
 	// asked for, blobs is the files read to answer that, and blob is what reads
 	// one. blob is nil where nothing can.
@@ -365,7 +370,7 @@ func New(
 		built:  time.Now(),
 		made:   generated.New(nil),
 		around: map[hunkAt]int{}, blobs: map[string][]string{},
-		atHead: map[string]headHits{},
+		atHead: map[string]headHits{}, inFlight: map[string]string{}, failedAsks: map[string]string{},
 	}
 
 	for _, opt := range opts {
@@ -703,6 +708,8 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applyHead(msg)
 	case headedMsg:
 		m.applyHeaded(msg)
+	case askAnsweredMsg:
+		m.applyAnswered(msg)
 	case roundMsg:
 		m.applyRound(msg)
 	case branchDeletedMsg:
@@ -768,7 +775,7 @@ func (m *Model) keyOwner() (func(tea.KeyPressMsg) (tea.Model, tea.Cmd), bool) {
 // commands — the in-place editor, the search, or a child's own program — which
 // is what the journal must never record.
 func (m *Model) writing() bool {
-	return m.editing != nil || m.searching || m.files.typing || m.pane != nil ||
+	return m.editing != nil || m.searching || m.files.typing || m.pane != nil || m.drafting != nil ||
 		(m.agentOpen && m.agent != nil)
 }
 
@@ -782,6 +789,10 @@ func (m *Model) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		return mod, cmd, true
 	case m.asking != askNothing:
 		mod, cmd := m.answer(msg)
+
+		return mod, cmd, true
+	case m.drafting != nil:
+		mod, cmd := m.typeQuestion(msg)
 
 		return mod, cmd, true
 	case m.searching:
@@ -1118,6 +1129,10 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 		return true, m, cmd
 	case m.reshapes(msg):
 		return true, m, nil
+	case key.Matches(msg, m.keys.Ask) && m.selected != nil:
+		cmd := m.beginQuestion()
+
+		return true, m, cmd
 	case m.startsChord(msg):
 		return true, m, nil
 	case key.Matches(msg, m.keys.Search):
@@ -1161,12 +1176,8 @@ func (m *Model) startsChord(msg tea.KeyPressMsg) bool {
 
 		m.say(m.chord(",", reactObjects()), false)
 	case key.Matches(msg, m.keys.Ask):
-		if m.asker == nil {
-			m.say("no agent is configured; dispatch = [...] in the config is what A runs", false)
-		} else {
-			m.pending = 'A'
-			m.say(m.chord("A", askObjects()), false)
-		}
+		m.pending = 'A'
+		m.say(m.chord("A", m.askObjects()), false)
 	case key.Matches(msg, m.keys.Forward), key.Matches(msg, m.keys.Backward):
 		m.pending = ']'
 		if key.Matches(msg, m.keys.Backward) {
@@ -1627,6 +1638,8 @@ func (m *Model) object(prefix rune, msg tea.KeyPressMsg) {
 		m.repeatable(motion{step: step, what: "unread hunk", want: m.isUnread})
 	case "p":
 		m.repeatable(motion{step: step, what: "problem", want: isTrouble})
+	case "a":
+		m.repeatable(motion{step: step, what: "ask", want: isAsk})
 	default:
 		m.say("no motion for "+msg.String(), false)
 	}
@@ -3046,9 +3059,10 @@ func (m *Model) rebuild() {
 		grown: func(path string, hunk int, span [2]int) ([]row, []row) {
 			return m.surround(path, hunk, span[0], span[1])
 		},
-		progress:  m.fileProgress,
-		atHead:    m.atHead,
-		searches:  m.headSearch != nil,
+		progress: m.fileProgress,
+		atHead:   m.atHead,
+		searches: m.headSearch != nil,
+		asks:     askCards(m.plan.Asks), inFlight: m.inFlight, failedAsks: m.failedAsks,
 		known:     m.advisories,
 		answered:  m.advised,
 		cards:     m.cards,

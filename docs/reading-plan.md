@@ -96,5 +96,11 @@ belong to, so there is one thing to learn:
 - `enter` on a peek opens the whole file at head with the change marked in the gutter.
   `ctrl-o` and `ctrl-i` walk the jump list back to the diff row and forward again, and
   `gf` opens the same place in `$EDITOR`
-- `A` on a selection asks the agent about it. The answer is a local card anchored to the
-  range, kept in `[plan]`, listed under "asked" to come back to, and made a comment with `y`
+- `A` on an open `V` range, or `A` then `l` on one line, of the diff or of the whole file,
+  asks about it. The question is kept in `[plan]` as yours and drawn as a card under the
+  range's last line, and the outline lists it under its chapter as asked. `]a` and `[a`
+  walk the asks. A live agent session gets the question first, with its pane open so a
+  permission it asks for can be answered, and the configured one-shot agent next. The
+  answer is written into the ask. With neither, the card says nobody was asked, and an
+  agent answers later by staging the same id with `second-look plan ask`. A line the diff
+  does not carry cannot be asked about, since the ask anchors the way a comment does

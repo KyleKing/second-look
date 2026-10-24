@@ -162,6 +162,11 @@ type layout struct {
 	// and searches whether the head can be searched at all.
 	atHead   map[string]headHits
 	searches bool
+	// asks is each ask by the line it hangs under, inFlight who each one still
+	// being answered was put to, and failedAsks why one got no answer.
+	asks       map[anchor][]askCard
+	inFlight   map[string]string
+	failedAsks map[string]string
 }
 
 // shut reports whether a file is drawn as one row rather than in full. What a

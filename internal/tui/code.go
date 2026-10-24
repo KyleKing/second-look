@@ -275,6 +275,10 @@ func (s screen) hanging(p string, ln diff.Line, c codeCtx) []row {
 		rows = append(rows, commentMarker(&c.r.Comments[i], i, p, c.lay, s.numWidth)...)
 	}
 
+	for _, ask := range c.lay.asks[a] {
+		rows = append(rows, askRows(ask, c.lay, s.numWidth)...)
+	}
+
 	return rows
 }
 

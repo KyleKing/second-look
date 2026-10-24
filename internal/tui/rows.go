@@ -46,6 +46,8 @@ const (
 	// A shape chapter's own rows: its section labels, a row per member, and a
 	// row per file at head still carrying what the members carried.
 	rowShape
+	// A question asked about a range, drawn as a card under the line it ends on.
+	rowAsk
 )
 
 // cardRole is which part of a card a row draws.
@@ -124,6 +126,8 @@ type row struct {
 	site diag.Site
 	// refs is the hunks a shape chapter's member row stands for.
 	refs []order.Ref
+	// ask indexes the plan's asks, read only where kind is rowAsk.
+	ask int
 }
 
 // screen is the flattened review: the diff with each open thread and each
@@ -344,6 +348,10 @@ func (s screen) hanger(
 		}
 
 		out = append(out, skipRows(r, skipped, a, p, lay, s.numWidth)...)
+
+		for _, c := range lay.asks[a] {
+			out = append(out, askRows(c, lay, s.numWidth)...)
+		}
 
 		if run.of >= aRun {
 			for i := at; i < len(out); i++ {
