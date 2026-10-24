@@ -83,38 +83,43 @@ func Verify(comments []Comment, d *diff.Diff) ([]string, error) {
 			continue
 		}
 
-		text, ok := d.Anchor(c.Path, c.Side, c.Line)
-		if ok && text == c.Anchor {
-			if err := checkSpan(c, d); err != nil {
-				errs = append(errs, fmt.Errorf("%s: %w", name(c, i), err))
-			}
+		line, err := locate(d, c.Path, c.Side, c.Line, c.Anchor)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", name(c, i), err))
 
 			continue
 		}
 
-		if line, relocated := d.Relocate(c.Path, c.Side, c.Anchor); relocated {
+		if line != c.Line {
 			moved = append(moved, fmt.Sprintf("%s: line %d -> %d", name(c, i), c.Line, line))
 			c.Line = line
-
-			if err := checkSpan(c, d); err != nil {
-				errs = append(errs, fmt.Errorf("%s: %w", name(c, i), err))
-			}
-
-			continue
 		}
 
-		if !ok {
-			errs = append(errs, fmt.Errorf("%s: %w: %s %s line %d",
-				name(c, i), ErrAnchorMissing, c.Path, c.Side, c.Line))
-
-			continue
+		if err := checkSpan(c, d); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", name(c, i), err))
 		}
-
-		errs = append(errs, fmt.Errorf("%s: %w\n  staged against: %s\n  now reads:      %s",
-			name(c, i), ErrAnchorMoved, c.Anchor, text))
 	}
 
 	return moved, errors.Join(errs...)
+}
+
+// locate is the line an anchor stands on in d: where it was staged when the text
+// there still matches, and where that text moved to when it is found once.
+func locate(d *diff.Diff, path, side string, line int, anchor string) (int, error) {
+	text, ok := d.Anchor(path, side, line)
+	if ok && text == anchor {
+		return line, nil
+	}
+
+	if moved, relocated := d.Relocate(path, side, anchor); relocated {
+		return moved, nil
+	}
+
+	if !ok {
+		return 0, fmt.Errorf("%w: %s %s line %d", ErrAnchorMissing, path, side, line)
+	}
+
+	return 0, fmt.Errorf("%w\n  staged against: %s\n  now reads:      %s", ErrAnchorMoved, anchor, text)
 }
 
 // name identifies a comment in a message, since one with no id still has to be

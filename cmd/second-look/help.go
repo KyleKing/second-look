@@ -6,6 +6,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
 
   second-look get <pr>             fetch the PR, prepare the review, check it out
   second-look comment add <pr>     stage comments from a JSON batch on stdin
+  second-look plan <verb> <pr>     stage the reading plan: claim, stop, chapter, mode, ask
   second-look show <pr>            print the prepared review
   second-look show <pr> --diff     print the diff with every comment marked on it
   second-look show <pr> --payload  print exactly what would be sent
@@ -220,6 +221,14 @@ NAMING A PULL REQUEST
       other than the author is a proposal about someone else's code, and post
       refuses while any draft remains, so the author rules on each one. A skip
       is left alone: it records a finding already considered and declined.
+
+  second-look plan claim|stop|chapter|mode|ask <pr>
+      Stage the reading plan the review screen reads the change in: what it
+      claims, the stops a tour pauses at, chapter names, modes, and moves, and
+      the questions asked of an agent with their answers. Each verb reads one
+      JSON object on stdin, anchored to the cached diff like a comment, and
+      writes the local [plan] table, which never posts. second-look plan alone
+      prints every verb's shape.
 
   second-look show <pr>
       Print the prepared review as JSON, local fields included.

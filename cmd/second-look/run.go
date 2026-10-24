@@ -155,6 +155,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		"get":     func() error { return getCmd(ctx, args[1:], stdin, stdout) },
 		"local":   func() error { return localCmd(ctx, args[1:], stdout) },
 		"comment": func() error { return commentCmd(ctx, args[1:], stdin, stdout) },
+		"plan":    func() error { return planCmd(ctx, args[1:], stdin, stdout) },
 		"show":    func() error { return showCmd(ctx, args[1:], stdout) },
 		"context": func() error { return contextCmd(ctx, args[1:], stdout) },
 		"todo":    func() error { return todoCmd(ctx, args[1:], stdout) },
@@ -846,7 +847,12 @@ func stage(into *artifact.Review, batch []artifact.Comment) int {
 			c.Turns = append(slices.Clone(old.Turns), c.Turns...)
 		}
 
-		c.Origin = origin(into, old)
+		was := ""
+		if old != nil {
+			was = old.Origin
+		}
+
+		c.Origin = origin(into, was)
 
 		into.Upsert(c)
 	}
@@ -854,11 +860,10 @@ func stage(into *artifact.Review, batch []artifact.Comment) int {
 	return held
 }
 
-// origin is who a staged comment is attributed to. A comment its author has saved
-// stays theirs, and anything else is the agent that staged it, whatever the batch
-// claimed.
-func origin(into *artifact.Review, old *artifact.Comment) string {
-	if old != nil && old.Origin == artifact.OriginMe {
+// origin is who a staged entry is attributed to: an entry its author saved stays
+// theirs, and anything else is the agent that staged it, whatever the batch claimed.
+func origin(into *artifact.Review, was string) string {
+	if was == artifact.OriginMe {
 		return artifact.OriginMe
 	}
 

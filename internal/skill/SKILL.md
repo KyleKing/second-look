@@ -153,6 +153,24 @@ the review posts, and a second round is a session of its own against a diff that
 `second-look session <pr>` with no id prints what is recorded, which is how to tell a
 follow-up from a first pass.
 
+## The reading plan
+
+A large change is read in chapters, and you can shape them. Each verb takes one JSON
+object on stdin, anchored to the diff like a comment, and none of it ever posts;
+`second-look plan` prints the shapes.
+
+```sh
+second-look plan claim <pr> <<< '{"claim": "what the change does, in a sentence"}'
+second-look plan stop <pr> < stops.json      # where the tour pauses: what, and then what
+second-look plan chapter <pr> < chapters.json  # rename, explain, or move hunks between chapters
+second-look plan mode <pr> <<< '{"chapter": "internal/tui", "mode": "skim"}'
+second-look plan ask <pr> < asks.json        # answer a question the user asked about a range
+```
+
+Name the stops a reader needs to understand the change, in the order to read them,
+and say what each one does and what follows from it. Leave the chapters alone unless
+the commits and directories put something where it does not belong.
+
 ## Suggestions
 
 A body whose text is fenced with ```suggestion posts as a GitHub suggestion the author can

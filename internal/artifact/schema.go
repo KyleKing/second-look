@@ -67,6 +67,10 @@ type Review struct {
 	// session of its own rather than resuming one whose context is a diff that
 	// no longer exists.
 	Agent Agent `json:"agent,omitzero" toml:"agent,omitempty"`
+
+	// Plan is what the agent and you changed about the reading order. It never
+	// posts, which is why nothing in it carries a post tag.
+	Plan Plan `json:"plan,omitzero" toml:"plan,omitempty"`
 }
 
 // Agent is one agent's session on one review.
@@ -195,6 +199,8 @@ func (r *Review) Validate() error {
 
 		errs = append(errs, c.validate(where)...)
 	}
+
+	errs = append(errs, r.Plan.validate()...)
 
 	return errors.Join(errs...)
 }
