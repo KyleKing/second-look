@@ -107,5 +107,6 @@ belong to, so there is one thing to learn:
   walk the asks. A live agent session gets the question first, with its pane open so a
   permission it asks for can be answered, and the configured one-shot agent next. The
   answer is written into the ask. With neither, the card says nobody was asked, and an
-  agent answers later by staging the same id with `second-look plan ask`. A line the diff
-  does not carry cannot be asked about, since the ask anchors the way a comment does
+  agent answers later by staging the same id with `second-look plan ask`. An ask about a
+  line the diff does not carry is marked `outside`, is placed by its path and line alone
+  rather than re-anchored when the head moves, and draws only in the whole file

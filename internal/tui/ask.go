@@ -17,8 +17,9 @@ import (
 )
 
 type askDraft struct {
-	input textinput.Model
-	span  artifact.Span
+	input   textinput.Model
+	span    artifact.Span
+	outside bool
 }
 
 type askAnsweredMsg struct {
@@ -33,19 +34,20 @@ type askCard struct {
 }
 
 func (m *Model) beginQuestion() tea.Cmd {
-	if !m.onCode() {
-		m.say("A asks about a line of the diff, and this row is not one", false)
+	if !m.onCode() && !m.onWholeLine() {
+		m.say("A asks about a line of code, and this row is not one", false)
 
 		return nil
 	}
 
 	r := m.screen.rows[m.cursor]
 	start, line, side := m.takeRange(r.line, r.path)
-	anchor, _ := m.diff.Anchor(r.path, side, line)
+	anchor, carried := m.diff.Anchor(r.path, side, line)
 
 	m.drafting = &askDraft{
-		input: newPrompt(),
-		span:  artifact.Span{Path: r.path, Side: side, StartLine: start, Line: line, Anchor: anchor},
+		input:   newPrompt(),
+		span:    artifact.Span{Path: r.path, Side: side, StartLine: start, Line: line, Anchor: anchor},
+		outside: !carried,
 	}
 	m.say("", false)
 
@@ -57,7 +59,7 @@ func (m *Model) typeQuestion(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Accept):
 		q := m.drafting
 		m.drafting = nil
-		cmd := m.ask(q.span, strings.TrimSpace(q.input.Value()))
+		cmd := m.ask(q.span, q.outside, strings.TrimSpace(q.input.Value()))
 
 		return m, cmd
 	case key.Matches(msg, m.keys.Back):
@@ -84,7 +86,7 @@ func (m *Model) questionPrompt() string {
 
 // ask keeps the question in [plan] and puts it to whichever agent is here: the
 // live session first, the one-shot asker next, and otherwise nobody, saying so.
-func (m *Model) ask(span artifact.Span, text string) tea.Cmd {
+func (m *Model) ask(span artifact.Span, outside bool, text string) tea.Cmd {
 	if text == "" {
 		m.say("nothing asked", false)
 
@@ -93,7 +95,7 @@ func (m *Model) ask(span artifact.Span, text string) tea.Cmd {
 
 	id := m.nextAskID()
 	m.review.Plan.Asks = append(m.review.Plan.Asks, artifact.PlanAsk{
-		ID: id, Span: span, Question: text, Origin: artifact.OriginMe,
+		ID: id, Span: span, Question: text, Origin: artifact.OriginMe, Outside: outside,
 	})
 	m.replan()
 
@@ -185,7 +187,11 @@ func (m *Model) nextAskID() string {
 
 func (m *Model) askPrompt(s artifact.Span, text string) string {
 	from := firstOf(s.StartLine, s.Line)
-	lines, _ := m.rangeText(s.Path, s.Side, from, s.Line)
+
+	lines, ok := m.rangeText(s.Path, s.Side, from, s.Line)
+	if !ok {
+		lines = m.headText(s.Path, from, s.Line)
+	}
 
 	return fmt.Sprintf(`A reviewer reading a change selected %s (the %s side of the diff) and asks:
 
@@ -198,6 +204,22 @@ The lines:
 Answer in a few plain sentences, naming a file and line where it helps. Do not
 edit anything.
 `, rangeWord(s.Path, from, s.Line), strings.ToLower(s.Side), text, lines)
+}
+
+// onWholeLine is whether the cursor is on a line of a file opened whole, which
+// an ask can be about even where the diff does not carry it.
+func (m *Model) onWholeLine() bool {
+	return m.view == viewFile && m.cursor < len(m.screen.rows) && m.screen.rows[m.cursor].kind == rowCode
+}
+
+// headText is lines from to through to of a file as it was read whole at head.
+func (m *Model) headText(file string, from, to int) string {
+	lines := m.blobs[file]
+	if from < 1 || to > len(lines) || from > to {
+		return ""
+	}
+
+	return strings.Join(lines[from-1:to], "\n")
 }
 
 func askCards(asks []plan.Ask) map[anchor][]askCard {

@@ -58,6 +58,8 @@ type PlanAsk struct {
 	Question string `json:"question"         toml:"question"`
 	Answer   string `json:"answer,omitempty" toml:"answer,omitempty"`
 	Origin   string `json:"origin,omitempty" toml:"origin,omitempty"`
+	// Outside marks a line the diff does not carry, which is placed by its path and line alone.
+	Outside bool `json:"outside,omitempty" toml:"outside,omitempty"`
 }
 
 // Reasons a plan entry is refused.
@@ -157,7 +159,9 @@ func (p *Plan) spans() []*Span {
 	}
 
 	for i := range p.Asks {
-		out = append(out, &p.Asks[i].Span)
+		if !p.Asks[i].Outside {
+			out = append(out, &p.Asks[i].Span)
+		}
 	}
 
 	return out
@@ -240,6 +244,15 @@ func (p *Plan) Overlay(d *diff.Diff) plan.Overlay {
 
 	for i := range p.Asks {
 		a := &p.Asks[i]
+		if a.Outside {
+			out.Asks = append(out.Asks, plan.Ask{
+				ID: a.ID, Path: a.Path, Side: a.Side, StartLine: a.StartLine, Line: a.Line,
+				Question: a.Question, Answer: a.Answer, Source: sourceOf(a.Origin),
+			})
+
+			continue
+		}
+
 		if s, ref, ok := place("ask "+a.ID, a.Span); ok {
 			out.Asks = append(out.Asks, plan.Ask{
 				ID: a.ID, Ref: ref, Path: s.Path, Side: s.Side, StartLine: s.StartLine, Line: s.Line,

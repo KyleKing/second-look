@@ -179,6 +179,51 @@ func TestEnterOpensTheFileAndTheJumpListWalksBack(t *testing.T) {
 	}
 }
 
+// A in a file opened whole asks about the line under the cursor though the diff
+// does not carry it, puts the file's own lines to the agent, and hangs the card
+// under the line.
+func TestAskingAboutALineOutsideTheDiff(t *testing.T) {
+	t.Parallel()
+
+	var asked string
+
+	site := diag.Site{Path: "io/read.go", Line: 12}
+	m := peekableWith(t, &prober{jump: diag.Jump{Name: "split", At: []diag.Site{site}}}, fileAt)
+	tui.WithAsker(func(_ context.Context, prompt string) (string, error) {
+		asked = prompt
+
+		return "it reads the header", nil
+	})(m)
+
+	go2(t, m, ']', 'h')
+	onto(t, m, splitLine)
+	peekAt(t, m)
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "outside the diff") {
+		t.Fatalf("the file did not open:\n%s", got)
+	}
+
+	go2(t, m, 'A', 'l')
+
+	for _, k := range "what is twelve?" {
+		pressKey(t, m, k)
+	}
+
+	drive(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	if !strings.Contains(asked, "line 12 of io/read.go") || !strings.Contains(asked, "what is twelve?") {
+		t.Errorf("the agent was not given the file's own line:\n%s", asked)
+	}
+
+	frame := plain(m.Frame())
+	for _, want := range []string{"you asked", "what is twelve?", "it reads the header"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("the card under line 12 is missing %q:\n%s", want, frame)
+		}
+	}
+}
+
 // walkBack walks the jump list from the file back to the diff and forward
 // again, checking the frame at each stop is the one that was left there.
 func walkBack(t *testing.T, m *tui.Model, diffRow, peeked, whole string) {
