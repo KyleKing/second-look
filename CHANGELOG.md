@@ -1,3 +1,53 @@
+## v0.33.0 (2026-10-24)
+
+### Feat
+
+- **tui**: mark a run of lines the change moved, name its other end, and jump there on enter
+- **tui**: badge a file the change creates or deletes and drop the sign from its lines
+- **tui**: pair a line pushed to a new indent with itself, mark it, and tint the indent of an unpaired change
+- **tui**: ask about a line outside the diff from the whole file
+- **tui**: find a shape's look-alikes at head by name and file name, and read its exact files at once
+- **tui**: cap an unresolved thread at three rows until za opens it
+- **get**: read a pull request's commits into its plan, as local reviews do
+- **tui**: ask about any selection and keep the answers in the plan
+- **plan**: read a repeated edit once, then what each file does beyond it
+- **tui**: show which features share files
+- **tui**: open a big change on an outline of its chapters
+- **tui**: walk the plan as a tour
+- **tui**: read the change in its plan's chapters
+- **local**: review a git range or a jj revset
+- **artifact**: keep the agent's and your plan edits in the prepared review
+- **plan**: build a reading plan from the change's commits, your rules, and its symbols
+- **tui**: open a peek as the whole file and walk back with a jump list
+- **tui**: pick a name with a letter and peek at it in a card
+- **tui**: light the queues the way the review screen is lit
+- **tui**: name each file in a directory strip by its shortest unique tail
+- **tui**: split the title into a two-line header
+- **tui**: draw comments and threads as bordered cards
+- **tui**: hold the prompt cursor still
+- **tui**: wrap comments and threads to the card measure
+- **artifact**: record who last wrote each comment
+- **tui**: light the cursor row, through aragonite's tint
+
+### Fix
+
+- **get**: say a pull request lists no commits rather than counting one missing
+- **tui**: leave the cursor's file and line off the strip row, which the strip's mark already says
+- **tui**: leave a blank row between a line's cards and the next line of code
+- **tui**: read esc then a letter typed quickly as the two keys, outside a prompt
+- **tui**: return the cursor from an off-cycle view, wheel through the outline, and keep a plan problem at 80 columns
+- **tui**: hold the strip still as the cursor moves, and rule the tour's panels off the diff
+- **tui**: keep the cursor on its hunk when the view changes
+- **tui**: band only a line paired with its replacement, as wide as its hunk's code
+- **tui**: one line number in the unified gutter
+- **tui**: tint changed lines instead of washing them, and keep strings off the add color
+- **get**: say "reading pull request #N" once
+- **demo**: keep the stand-in gh out of the ignored bin/ pattern
+
+### Refactor
+
+- **tui**: let the cursor pass over a card's foot
+
 ## v0.32.3 (2026-10-21)
 
 ### Refactor
