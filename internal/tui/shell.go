@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -151,6 +152,10 @@ func (s *Shell) both(msg tea.Msg) tea.Cmd {
 }
 
 func (s *Shell) key(msg tea.KeyPressMsg) tea.Cmd {
+	if bare, ok := escaped(msg); ok && !s.typing() {
+		return tea.Sequence(s.key(tea.KeyPressMsg{Code: tea.KeyEscape}), s.key(bare))
+	}
+
 	switch s.at {
 	case modeOpening:
 		return nil
@@ -173,6 +178,29 @@ func (s *Shell) key(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	return nil
+}
+
+// escaped splits an alt-held letter back into the escape and the letter, since
+// a terminal sends esc then q typed quickly as alt+q and no screen binds alt.
+func escaped(msg tea.KeyPressMsg) (tea.KeyPressMsg, bool) {
+	if msg.Mod != tea.ModAlt || msg.Code > unicode.MaxASCII || !unicode.IsPrint(msg.Code) || msg.Code == ' ' {
+		return msg, false
+	}
+
+	return tea.KeyPressMsg{Code: msg.Code, Text: string(msg.Code)}, true
+}
+
+// typing is whether a prompt holds the keyboard, where alt is a word motion rather than an escape.
+func (s *Shell) typing() bool {
+	switch s.at {
+	case modeReview:
+		return s.review.writing()
+	case modeList:
+		return s.list.filter.typing
+	case modeOpening:
+	}
+
+	return false
 }
 
 // opening asks the caller what the chosen row meant. A row that means

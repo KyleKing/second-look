@@ -205,21 +205,39 @@ func TestShellQuitsForACheckout(t *testing.T) {
 }
 
 // A review named on the command line has no queue behind it, so leaving it ends
-// the program rather than dropping into a screen that is not there.
+// the program rather than dropping into a screen that is not there. Esc then q
+// typed quickly arrives as alt+q, and closes the legend and leaves all the same.
 func TestReviewShellQuitsWithNothingBehindIt(t *testing.T) {
 	t.Parallel()
 
-	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 16, "check err"))
+	for _, tc := range []struct {
+		name  string
+		first []tea.KeyPressMsg
+		quit  tea.KeyPressMsg
+	}{
+		{"q", nil, letter('q')},
+		{"esc then q from the legend", []tea.KeyPressMsg{letter('?')}, tea.KeyPressMsg{Code: 'q', Mod: tea.ModAlt}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	s := tui.NewReviewShell(t.Context(), m)
-	pump(t, s, s.Init())
-	s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+			m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 16, "check err"))
 
-	if got := plain(s.Frame()); !strings.Contains(got, parsed) {
-		t.Fatalf("the review is not on screen:\n%s", got)
-	}
+			s := tui.NewReviewShell(t.Context(), m)
+			pump(t, s, s.Init())
+			s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	if quit := sendTo(t, s, letter('q')); !quit {
-		t.Error("q did not leave the program")
+			if got := plain(s.Frame()); !strings.Contains(got, parsed) {
+				t.Fatalf("the review is not on screen:\n%s", got)
+			}
+
+			for _, k := range tc.first {
+				sendTo(t, s, k)
+			}
+
+			if quit := sendTo(t, s, tc.quit); !quit {
+				t.Errorf("%s did not leave the program:\n%s", tc.name, plain(s.Frame()))
+			}
+		})
 	}
 }
