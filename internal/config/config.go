@@ -14,6 +14,8 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"github.com/kyleking/second-look/internal/plan"
 )
 
 // Reasons a config is refused. A file that exists and says something wrong is
@@ -27,6 +29,7 @@ var (
 	ErrNoFormat   = errors.New("a check needs a format: ast-grep, ruff, or text")
 	ErrNoExts     = errors.New("a server needs the extensions it answers for")
 	ErrNoAgent    = errors.New("an agent needs the command that starts it")
+	ErrTwoPlans   = errors.New("a repository has one set of plan rules")
 )
 
 // Section is one query the inbox runs, under the name it is shown by.
@@ -139,6 +142,9 @@ type Config struct {
 	// Servers add languages to the built-in server list, or replace an entry in
 	// it for an extension.
 	Servers []Server `toml:"server,omitempty"`
+	// Plans are the reading rules each repository keeps: what folds, what
+	// never does, what reads after what, and what reads in which mode.
+	Plans []plan.Rules `toml:"plan,omitempty"`
 }
 
 // Path is where the config lives.
@@ -231,7 +237,38 @@ func (c *Config) validate() error {
 		}
 	}
 
+	return c.validatePlans()
+}
+
+func (c *Config) validatePlans() error {
+	seen := map[string]bool{}
+
+	for i := range c.Plans {
+		if err := c.Plans[i].Validate(); err != nil {
+			return fmt.Errorf("plan %d: %w", i+1, err)
+		}
+
+		repo := strings.ToLower(c.Plans[i].Repo)
+		if seen[repo] {
+			return fmt.Errorf("plan %q: %w", c.Plans[i].Repo, ErrTwoPlans)
+		}
+
+		seen[repo] = true
+	}
+
 	return nil
+}
+
+// PlanRules are the rules kept for a repository, named owner/name. A
+// repository with none gets the empty set.
+func (c *Config) PlanRules(repo string) plan.Rules {
+	for _, r := range c.Plans {
+		if strings.EqualFold(r.Repo, repo) {
+			return r
+		}
+	}
+
+	return plan.Rules{}
 }
 
 func (c *Check) validate(i int) error {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/kyleking/second-look/internal/config"
+	"github.com/kyleking/second-look/internal/plan"
 )
 
 func write(t *testing.T, body string) string {
@@ -102,6 +103,16 @@ func TestLoadRefusesWhatCannotBeRun(t *testing.T) {
 			want: config.ErrNoName,
 		},
 		{
+			name: "a plan rule reading in no mode the plan knows",
+			body: "[[plan]]\nrepo = \"o/r\"\nmode = [{ glob = \"*.md\", mode = \"squint\" }]\n",
+			want: plan.ErrMode,
+		},
+		{
+			name: "two plan rule sets for one repository",
+			body: "[[plan]]\nrepo = \"o/r\"\n[[plan]]\nrepo = \"O/R\"\n",
+			want: config.ErrTwoPlans,
+		},
+		{
 			name: "gh-dash's own keys",
 			body: "prSections = []\n",
 			want: config.ErrUnknownKey,
@@ -120,6 +131,34 @@ func TestLoadRefusesWhatCannotBeRun(t *testing.T) {
 				t.Errorf("err = %v, want %v", err, tc.want)
 			}
 		})
+	}
+}
+
+// A repository's reading rules are found by its name however it is cased,
+// and a repository with none reads by the built-in layers alone.
+func TestLoadReadsPlanRulesForARepository(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := config.Load(write(t, `
+[[plan]]
+repo = "KyleKing/second-look"
+fold = ["**/*.golden"]
+never_fold = ["internal/artifact/schema.go"]
+after = [{ read = "**/migrations/**", after = "**/models/**" }]
+mode = [{ glob = "**/*_test.go", mode = "skim" }]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := cfg.PlanRules("kyleking/second-look")
+	if len(got.Fold) != 1 || len(got.NeverFold) != 1 || len(got.After) != 1 ||
+		got.Modes[0] != (plan.ModeRule{Glob: "**/*_test.go", Mode: plan.ModeSkim}) {
+		t.Errorf("the rules came back as %+v", got)
+	}
+
+	if other := cfg.PlanRules("kyleking/aragonite"); other.Repo != "" {
+		t.Errorf("another repository got %+v", other)
 	}
 }
 
