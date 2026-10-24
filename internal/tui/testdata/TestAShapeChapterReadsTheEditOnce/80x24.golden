@@ -9,7 +9,7 @@ the same edit i… ●───────────────────�
    3 +   const id = useVendorId()                                              ┃
    4     return <CardABody id={id} />                                          ┃
                                                                                ┃
-     THE FILES · 6 in cards/ · 4 exactly the shape, 2 do more                  ┃
+     THE FILES · 6 in cards/ · 4 exactly the shape, 2 do more · space reads th…┃
        CardA.tsx  1 hunk  +1 −1  exactly the shape                             │
        CardB.tsx  1 hunk  +1 −1  exactly the shape                             │
        CardC.tsx  1 hunk  +1 −1  exactly the shape                             │
@@ -17,8 +17,8 @@ the same edit i… ●───────────────────�
        CardE.tsx  1 hunk  +2 −1  1 line beyond it: + const limit = 4           │
        CardF.tsx  1 hunk  +2 −1  1 line beyond it: + const limit = 5           │
                                                                                │
-     NOT CHANGED AT HEAD · 1 file still carries “const id = useSuspenseVendor(…│
-     ○ cards/RisksCard.tsx:4                                                   │
-                                                                               │
-     BEYOND THE SHAPE                                                          │
+     NOT CHANGED AT HEAD · 3 files like these the edit did not touch           │
+     ○ cards/RisksCard.tsx:4 · carries “const id = useSuspenseVendor(data => d…│
+     ○ hooks/legacy.ts:9 · calls useSuspenseVendor                             │
+     ○ cards/CardG.tsx · named like them                                       │
  [j/k] line  ] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit

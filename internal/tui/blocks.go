@@ -96,6 +96,8 @@ type folded struct {
 	// and a screenful of tool output between two sentences is worse in a
 	// terminal than it is there, so both stay shut until somebody asks.
 	blocks map[blockAt]bool
+	// members is a shape's file opened under its row, which starts as the row alone.
+	members map[string]bool
 }
 
 func newFolded() folded {
@@ -103,7 +105,7 @@ func newFolded() folded {
 		notes: folds{}, turns: map[int]bool{}, hunks: map[hunkAt]bool{},
 		skips: map[anchor]bool{}, files: map[string]bool{},
 		gone: map[goneAt]bool{}, blocks: map[blockAt]bool{},
-		threads: map[int]bool{},
+		threads: map[int]bool{}, members: map[string]bool{},
 	}
 }
 

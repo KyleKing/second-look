@@ -502,7 +502,8 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 
 	reader := blob.Reader{Work: opened.Work, Repo: t.RepoID(), SHA: opened.Review.HeadSHA}
 	opts = append(opts,
-		tui.WithBlobs(reader.Read), tui.WithHeadSearch(reader.Grep), tui.WithRestage(restager(t)),
+		tui.WithBlobs(reader.Read), tui.WithHeadSearch(reader.Grep), tui.WithHeadList(reader.List),
+		tui.WithRestage(restager(t)),
 		tui.WithRounds(rounds(t)), tui.WithCommitReader(commitReader(t)))
 
 	// A checker runs in a checkout or not at all: a language server resolves
@@ -668,7 +669,8 @@ func localScreen(ctx context.Context, root string, mode local.Mode, base string)
 		tui.WithSeen(opened.Read, opened.SeenPath), tui.WithAbout(opened.About),
 		tui.WithTree(tui.TreeOnHead), tui.WithStore(opened.Work),
 		tui.WithWorkRoot(opened.Work),
-		tui.WithBlobs(reader.Read), tui.WithHeadSearch(reader.Grep), tui.WithRestage(localRestager(root, mode, base)),
+		tui.WithBlobs(reader.Read), tui.WithHeadSearch(reader.Grep), tui.WithHeadList(reader.List),
+		tui.WithRestage(localRestager(root, mode, base)),
 		tui.WithGenerated(generatedPatterns()), tui.WithPlanRules(planRules(opened.Review)),
 		tui.WithCommits(opened.Commits, opened.NoCommits),
 		tui.WithAdvisor(advisory.Client{}), tui.WithVersions(versions.Client{}),

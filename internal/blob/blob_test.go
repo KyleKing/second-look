@@ -75,6 +75,14 @@ func TestReadsFromTheCheckoutAtTheCommit(t *testing.T) {
 			t.Errorf("searching %q at %q found %v, %v; want %v", tc.text, tc.sha, hits, err, tc.want)
 		}
 	}
+
+	// A listing reads the commit too, and the tracked files where none is named.
+	for _, s := range []string{sha, ""} {
+		files, err := blob.Reader{Work: dir, SHA: s}.List(t.Context(), "")
+		if err != nil || !slices.Equal(files, []string{"read.go"}) {
+			t.Errorf("listing at %q found %v, %v", s, files, err)
+		}
+	}
 }
 
 // With no checkout holding the commit and no repository to ask about, the
@@ -92,5 +100,9 @@ func TestReadWithNoSource(t *testing.T) {
 
 	if _, err := (blob.Reader{SHA: "abc"}).Grep(t.Context(), "two"); err == nil {
 		t.Error("a search with no checkout answered")
+	}
+
+	if _, err := (blob.Reader{SHA: "abc"}).List(t.Context(), ""); err == nil {
+		t.Error("a listing with no checkout answered")
 	}
 }

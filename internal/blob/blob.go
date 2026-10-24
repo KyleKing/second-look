@@ -107,6 +107,30 @@ func (r Reader) Grep(ctx context.Context, text string) ([]Hit, error) {
 	return hits(out, r.SHA), nil
 }
 
+// List is every file at the commit under dir, which an empty dir makes the
+// whole tree. Like Grep, only the checkout is asked.
+func (r Reader) List(ctx context.Context, dir string) ([]string, error) {
+	if r.Work == "" {
+		return nil, fmt.Errorf("listing %s: %w", dir, ErrNoSource)
+	}
+
+	if dir == "" {
+		dir = "."
+	}
+
+	args := []string{"ls-files", "--", dir}
+	if r.SHA != "" {
+		args = []string{"ls-tree", "-r", "--name-only", r.SHA, "--", dir}
+	}
+
+	out, err := run(ctx, r.Work, "git", args...)
+	if err != nil {
+		return nil, fmt.Errorf("listing %s: %w", dir, err)
+	}
+
+	return lines(out), nil
+}
+
 // hits reads git grep's path:line:text lines, which carry the commit first
 // where one was searched.
 func hits(out []byte, sha string) []Hit {

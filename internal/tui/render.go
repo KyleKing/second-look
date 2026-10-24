@@ -273,13 +273,20 @@ func (m *Model) richGutter(r row) string {
 
 	side, changed := m.rich.side[l.Kind]
 	mark := sideGlyph(l.Kind, m.rich.colored)
-	if changed {
+
+	switch {
+	case r.shared && m.rich.colored:
+		style, mark = side, m.styles.behind.Render(sharedGlyph)
+	case changed:
 		style = side
 		mark = side.Render(mark)
 	}
 
 	return style.Render(number(num, m.screen.numWidth)) + " " + mark + " "
 }
+
+// sharedGlyph marks a line a shape's file makes as the shape does.
+const sharedGlyph = "≈"
 
 // sideGlyph is the bar a changed line is marked with, or its sign where the terminal draws no color.
 func sideGlyph(kind byte, colored bool) string {

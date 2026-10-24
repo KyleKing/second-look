@@ -205,7 +205,7 @@ var ShortestTail = shortestTail
 func (m *Model) SearchHead() {
 	for needle, h := range m.atHead {
 		if !h.done {
-			hits, err := m.headSearch(m.ctx, needle)
+			hits, err := m.look(m.ctx, needle)
 			m.applyHeaded(headedMsg{needle: needle, hits: hits, err: err})
 		}
 	}

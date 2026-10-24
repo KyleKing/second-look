@@ -71,6 +71,38 @@ func (p *Pattern) Exactly() int {
 	return n
 }
 
+// Dropped is the longest name the shape's removed lines use and its added
+// lines do not, which is what finds the files at head still calling it.
+func (p *Pattern) Dropped() string {
+	const shortest = 4
+
+	kept := map[string]bool{}
+
+	for _, l := range p.Shape {
+		if strings.HasPrefix(l, "+") {
+			for _, id := range identifier.FindAllString(l, -1) {
+				kept[id] = true
+			}
+		}
+	}
+
+	best := ""
+
+	for _, l := range p.Shape {
+		if !strings.HasPrefix(l, "-") {
+			continue
+		}
+
+		for _, id := range identifier.FindAllString(l, -1) {
+			if !kept[id] && len(id) >= shortest && (len(id) > len(best) || len(id) == len(best) && id < best) {
+				best = id
+			}
+		}
+	}
+
+	return best
+}
+
 var (
 	identifier = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
 	number     = regexp.MustCompile(`\d+`)

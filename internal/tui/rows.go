@@ -91,6 +91,8 @@ type row struct {
 	// which is context somebody asked for rather than context the patch
 	// carried.
 	around bool
+	// shared marks a changed line of a shape's file that the shape itself makes.
+	shared bool
 	// current marks the row under the cursor, which the rich renderer lights.
 	current bool
 	// role is which part of a card the row draws, and zero outside any card.

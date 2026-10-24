@@ -264,11 +264,22 @@ func shaped(t *testing.T) *tui.Model {
 		"@@ -1,1 +1,2 @@\n func boot() {\n+\twarm(cache)\n")
 
 	search := func(_ context.Context, text string) ([]blob.Hit, error) {
-		if text != "const id = useSuspenseVendor(data => data.id)" {
-			return nil, nil
+		switch text {
+		case "const id = useSuspenseVendor(data => data.id)":
+			return []blob.Hit{{Path: "cards/CardA.tsx", Line: 3}, {Path: "cards/RisksCard.tsx", Line: 4}}, nil
+		case "useSuspenseVendor":
+			return []blob.Hit{{Path: "cards/RisksCard.tsx", Line: 4}, {Path: "hooks/legacy.ts", Line: 9}}, nil
 		}
 
-		return []blob.Hit{{Path: "cards/CardA.tsx", Line: 3}, {Path: "cards/RisksCard.tsx", Line: 4}}, nil
+		return nil, nil
+	}
+
+	list := func(_ context.Context, dir string) ([]string, error) {
+		if dir != "cards/" {
+			t.Errorf("listed %q, want the cards' directory", dir)
+		}
+
+		return []string{"cards/CardA.tsx", "cards/CardG.tsx", "cards/RisksCard.tsx", "cards/CardG.test.ts"}, nil
 	}
 
 	read := func(context.Context, string) ([]string, error) {
@@ -285,7 +296,7 @@ func shaped(t *testing.T) *tui.Model {
 	m, _, _ := modelFor(t, &artifact.Review{
 		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
 		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
-	}, b.String(), tui.WithHeadSearch(search), tui.WithBlobs(read), tui.WithSeen(marks, at))
+	}, b.String(), tui.WithHeadSearch(search), tui.WithHeadList(list), tui.WithBlobs(read), tui.WithSeen(marks, at))
 	m.SearchHead()
 
 	return m
@@ -321,6 +332,27 @@ func TestAShapeChapterReadsTheEditOnce(t *testing.T) {
 
 	if got := plain(m.Frame()); !strings.Contains(got, "✓ CardE.tsx") {
 		t.Errorf("space on a card's row did not mark it read:\n%s", got)
+	}
+
+	for range 10 {
+		if strings.Contains(cursorText(m), "THE FILES") {
+			break
+		}
+
+		pressKey(t, m, 'k')
+	}
+
+	pressKey(t, m, ' ')
+
+	if got := plain(m.Frame()); strings.Count(got, "✓ Card") != 5 {
+		t.Errorf("space on the files did not mark every exact one read:\n%s", got)
+	}
+
+	onto(t, m, "CardB.tsx  1 hunk")
+	go2(t, m, 'z', 'a')
+
+	if got := plain(m.Frame()); !strings.Contains(got, "<CardBBody") {
+		t.Errorf("za on an exact card did not open its edit under it:\n%s", got)
 	}
 
 	for _, k := range "/RisksCard" {

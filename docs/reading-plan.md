@@ -39,9 +39,11 @@ it makes at least 80% of the shape. A commit's hunks are searched on their own a
 other chapter's together, and a hunk a rule reads or a chapter the agent or you named is
 left alone. A shape takes only the files making the edit, and the rest of the change stays
 where it was. The agent turns one off, or turns any chapter into one, with `plan mode`,
-which finds a shape among as few as two files. The search of the head is for the longest
-line every member removed, or kept around the edit where they removed none in common, runs
-in the checkout behind the first frame, and lists at most twenty files.
+which finds a shape among as few as two files. The head is searched three ways for files the
+edit missed: the longest line every member removed (or kept around the edit, where they
+removed none in common), the longest name the shape stops calling, and file names like the
+members', in their directory at their depth. The searches run in the checkout behind the
+first frame and list at most twenty files between them.
 
 Layers 1 through 3 are recomputed on every open. What the agent and you change is kept in a
 local `[plan]` table in the prepared review, anchored by path and line range so it survives

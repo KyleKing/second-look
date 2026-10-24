@@ -107,6 +107,7 @@ type Model struct {
 	// headSearch finds files at head carrying a line, and atHead is what each
 	// shape chapter's search found, keyed by the line.
 	headSearch HeadSearch
+	headList   HeadList
 	atHead     map[string]headHits
 	// drafting is a question being typed about a range, inFlight is who each ask
 	// still being answered was put to by id, and failedAsks why one got nothing.
@@ -1524,18 +1525,9 @@ func (m *Model) foldHere(open bool) {
 		m.folded.turns[r.comment] = open
 	case r.kind == rowThread && r.head:
 		m.folded.threads[r.thread] = !open
-	case r.kind == rowThread:
-		at, ok := foldKey(r)
-		if !ok {
-			m.say("nothing to fold here", false)
-
+	case r.kind == rowThread, isMember(r):
+		if !m.foldInside(r, open) {
 			return
-		}
-
-		m.folded.blocks[at] = open
-		// Opening anything inside a capped thread asks for more of it than the cap draws.
-		if open {
-			m.folded.blocks[blockAt{noteAt{r.thread, 0}, capBlock}] = true
 		}
 	case r.skips.path != "":
 		m.folded.skips[r.skips] = open
@@ -1555,6 +1547,37 @@ func (m *Model) foldHere(open bool) {
 	m.say("", false)
 }
 
+// foldInside folds a block of a thread or a shape's file, and reports whether
+// there was one to fold.
+func (m *Model) foldInside(r row, open bool) bool {
+	if isMember(r) {
+		if !m.exactMember(r.path) {
+			m.say(r.path+" is drawn in full beyond the shape", false)
+
+			return false
+		}
+
+		m.folded.members[r.path] = open
+
+		return true
+	}
+
+	at, ok := foldKey(r)
+	if !ok {
+		m.say("nothing to fold here", false)
+
+		return false
+	}
+
+	m.folded.blocks[at] = open
+	// Opening anything inside a capped thread asks for more of it than the cap draws.
+	if open {
+		m.folded.blocks[blockAt{noteAt{r.thread, 0}, capBlock}] = true
+	}
+
+	return true
+}
+
 // openHere is whether what the cursor is on is showing, which is what za has
 // to invert.
 func (m *Model) openHere() bool {
@@ -1569,6 +1592,8 @@ func (m *Model) openHere() bool {
 		at, ok := foldKey(r)
 
 		return !ok || m.folded.blocks[at]
+	case isMember(r):
+		return m.folded.members[r.path]
 	case r.skips.path != "":
 		return m.folded.skips[r.skips]
 	case r.kind == rowFile:
@@ -1972,8 +1997,13 @@ func (m *Model) markRead() {
 			ids = append(ids, ref.ID)
 		}
 
+		name := r.path
+		if name == "" {
+			name = "the files exactly the shape"
+		}
+
 		m.read.Mark(read, ids...)
-		m.saveRead(r.path + ": " + plural(len(refs), "hunk") + " " + readWord(read))
+		m.saveRead(name + ": " + plural(len(refs), "hunk") + " " + readWord(read))
 
 		return
 	}

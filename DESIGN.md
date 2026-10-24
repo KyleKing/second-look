@@ -317,7 +317,9 @@ plan of one chapter has nothing to tour and draws the plain screen. A bigger cha
 on the outline, the plan's chapters as a list with the selected one in detail, and `I`
 moves between it and the diff. `tab` there lists the features and the files they share.
 A chapter in shape mode, an edit made in many files, draws the edit once, then a row per
-file saying what it does beyond it, then the files at head the edit missed.
+file saying what it does beyond it, then the files at head the edit missed. `space` on the
+files' heading marks every exact one read, `za` on an exact file opens its edit under its
+row, and a file drawn beyond the shape marks the lines it shares with the shape `≈`.
 
 An unresolved thread caps at three rendered lines: two lines of the comment when it is
 alone, or one line of the first, a thread count, and one line of the last when it is not.
