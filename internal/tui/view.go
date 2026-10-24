@@ -778,6 +778,8 @@ func (m *Model) rowContent(r row) (string, lipgloss.Style) {
 		return "    " + m.readMark(r) + r.text, m.styles.hunk
 	case rowComment, rowNote, rowTurn:
 		return m.commentRow(r)
+	case rowMoved:
+		return strings.Repeat(" ", m.screen.numWidth+1) + movedGlyph + " " + r.text, m.styles.hunk
 	case rowGone:
 		// It sits in the column the sign of a kept line sits in, so what came
 		// out reads as part of the file rather than as something said about it.

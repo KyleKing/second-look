@@ -19,6 +19,8 @@ type pairer struct {
 	// hang is the threads and comments sitting under one line, which follow the
 	// row the line was drawn on rather than the line itself.
 	hang func(diff.Line) []row
+	// lead is what sits above a line, which only the first line of a moved run has.
+	lead func(diff.Line) []row
 	path string
 	hunk int
 	// out is the caller's own rows, appended to in place: a slice of its own
@@ -74,6 +76,14 @@ func (p *pairer) flush() {
 // conversations come first: it is the older side, and a comment on the line
 // that came out reads before the answer to it.
 func (p *pairer) emit(line, mate diff.Line) {
+	if p.lead != nil {
+		if mate.Kind != 0 {
+			*p.out = append(*p.out, p.lead(mate)...)
+		}
+
+		*p.out = append(*p.out, p.lead(line)...)
+	}
+
 	*p.out = append(*p.out, row{
 		kind: rowCode, line: line, mate: mate, path: p.path, comment: noComment, hunk: p.hunk,
 		whole: p.whole,

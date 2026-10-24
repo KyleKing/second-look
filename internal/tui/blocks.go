@@ -8,6 +8,7 @@ import (
 	"github.com/kyleking/second-look/internal/advisory"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diag"
+	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/highlight"
@@ -160,6 +161,7 @@ type layout struct {
 	// progress is how many of a file's hunks have been read and how many it
 	// has, which is what a piece of a file cannot say about the whole of it.
 	progress func(path string) (int, int)
+	moved    map[diff.LineRef]diff.Move
 	// atHead is how each search of the head for a shape's earlier line went,
 	// and searches whether the head can be searched at all.
 	atHead   map[string]headHits

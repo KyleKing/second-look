@@ -48,6 +48,8 @@ const (
 	rowShape
 	// A question asked about a range, drawn as a card under the line it ends on.
 	rowAsk
+	// The line above a moved run, naming where its other end is.
+	rowMoved
 )
 
 // cardRole is which part of a card a row draws.
@@ -233,6 +235,7 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 	lines := &pairer{
 		split: c.lay.split, path: p, out: &rows, whole: f.Created() || f.Deleted(),
 		hang: s.hanger(p, c.r, c.ts, c.byLine, c.byThread, c.placed, c.lay),
+		lead: movedRow(p, c.lay.moved),
 	}
 
 	hide := false
@@ -381,6 +384,63 @@ func (s screen) hanger(
 
 		return gapped(out, p)
 	}
+}
+
+// movedRow names where a moved run's other end is, above the run's first line.
+func movedRow(p string, moved map[diff.LineRef]diff.Move) func(diff.Line) []row {
+	return func(l diff.Line) []row {
+		mv, ok := moved[refOf(p, l)]
+		if !ok || !mv.First {
+			return nil
+		}
+
+		dir := "from"
+		if l.Kind == diff.KindRemove {
+			dir = "to"
+		}
+
+		return []row{{
+			kind: rowMoved, path: p, comment: noComment, hunk: l.Hunk,
+			text: fmt.Sprintf("%s moved %s %s:%d", plural(mv.Lines, "line"), dir, mv.Path, mv.Line),
+		}}
+	}
+}
+
+// otherEnd moves the cursor from a moved run's note to the run's other end,
+// with the note kept on the jump list so ctrl-o comes back.
+func (m *Model) otherEnd() {
+	if m.cursor+1 >= len(m.screen.rows) {
+		return
+	}
+
+	first := m.screen.rows[m.cursor+1]
+	line := first.line
+
+	if _, ok := m.moves[refOf(first.path, line)]; !ok {
+		line = first.mate
+	}
+
+	mv := m.moves[refOf(first.path, line)]
+
+	for i := range m.screen.rows {
+		r := &m.screen.rows[i]
+		if r.kind != rowCode || r.path != mv.Path {
+			continue
+		}
+
+		for _, l := range []diff.Line{r.line, r.mate} {
+			far := (l.Kind == diff.KindRemove && l.Old == mv.Line) || (l.Kind == diff.KindAdd && l.New == mv.Line)
+			if far && l.Kind != line.Kind {
+				m.jumps.push(m.snapshot())
+				m.cursor = i
+				m.reveal()
+
+				return
+			}
+		}
+	}
+
+	m.say("the other end of this move is not drawn; zR opens everything", false)
 }
 
 // hunkRow is one hunk's own row and whether its lines are held back. A hunk the

@@ -279,6 +279,8 @@ func (m *Model) richGutter(r row) string {
 		style, mark = side, m.styles.behind.Render(sharedGlyph)
 	case changed && r.whole:
 		style, mark = side, " "
+	case changed && m.rich.colored && m.moves[refOf(r.path, l)].Lines > 0:
+		style, mark = side, side.Render(movedGlyph)
 	case changed && m.rich.colored && m.reindented[refOf(r.path, l)]:
 		style, mark = side, side.Render(reindentGlyph)
 	case changed:
@@ -291,6 +293,9 @@ func (m *Model) richGutter(r row) string {
 
 // sharedGlyph marks a line a shape's file makes as the shape does.
 const sharedGlyph = "≈"
+
+// movedGlyph marks a line of a run the change took from one place and put in another.
+const movedGlyph = "⇄"
 
 // reindentGlyph marks a line that only moved to another indent, where its neighbors changed what it sits inside.
 const reindentGlyph = "⇥"

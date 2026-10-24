@@ -43,10 +43,12 @@ func (d *Diff) Reindented() map[LineRef]bool { return d.pair().reindented }
 type pairing struct {
 	marks      Refined
 	reindented map[LineRef]bool
+	// moved lines answer a run elsewhere, so they pair with nothing in their own block.
+	moved map[LineRef]Move
 }
 
 func (d *Diff) pair() pairing {
-	out := pairing{marks: Refined{}, reindented: map[LineRef]bool{}}
+	out := pairing{marks: Refined{}, reindented: map[LineRef]bool{}, moved: d.Moved()}
 
 	for i := range d.Files {
 		refineFile(out, pathOf(&d.Files[i]), d.Files[i].Lines)
@@ -59,7 +61,7 @@ func refineFile(out pairing, path string, lines []Line) {
 	var gone, came []Line
 
 	flush := func() {
-		gone, came = refineMoved(out, path, gone, came)
+		gone, came = refineReindented(out, path, gone, came)
 
 		for at := range min(len(gone), len(came)) {
 			refineOne(out, path, gone[at], came[at])
@@ -69,6 +71,10 @@ func refineFile(out pairing, path string, lines []Line) {
 	}
 
 	for _, l := range lines {
+		if _, ok := out.moved[refOf(path, l)]; ok {
+			continue
+		}
+
 		switch l.Kind {
 		case KindRemove:
 			// An addition already seen closes the block, so what follows opens
@@ -88,9 +94,9 @@ func refineFile(out pairing, path string, lines []Line) {
 	flush()
 }
 
-// refineMoved pairs a block's lines that say the same thing at another indent,
+// refineReindented pairs a block's lines that say the same thing at another indent,
 // so a line pushed under a new `if` does not pair with the `if` by position.
-func refineMoved(out pairing, path string, gone, came []Line) ([]Line, []Line) {
+func refineReindented(out pairing, path string, gone, came []Line) ([]Line, []Line) {
 	if len(gone) == 0 || len(came) == 0 || len(gone)*len(came) > blockCap {
 		return gone, came
 	}

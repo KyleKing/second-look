@@ -169,8 +169,10 @@ type Model struct {
 	refined diff.Refined
 	// reindented is every changed line whose partner says the same thing at another indent.
 	reindented map[diff.LineRef]bool
-	hunkCols   map[hunkRef]int
-	lexed      map[string]map[diff.LineRef][]highlight.Span
+	// moves is both ends of every run the change takes from one place and puts in another.
+	moves    map[diff.LineRef]diff.Move
+	hunkCols map[hunkRef]int
+	lexed    map[string]map[diff.LineRef][]highlight.Span
 
 	// pending is the ] or [ waiting for the object that completes it.
 	pending rune
@@ -371,7 +373,8 @@ func New(
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
 		files: newFiles(),
 		width: minWidth, height: startHeight, folded: newFolded(),
-		refined: d.Refine(), reindented: d.Reindented(), lexed: map[string]map[diff.LineRef][]highlight.Span{},
+		refined: d.Refine(), reindented: d.Reindented(), moves: d.Moved(),
+		lexed:  map[string]map[diff.LineRef][]highlight.Span{},
 		lit:    map[string][][]highlight.Span{},
 		drawn:  opening,
 		built:  time.Now(),
@@ -1098,6 +1101,10 @@ func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.suggest(), true
 	case key.Matches(msg, m.keys.Range):
 		m.askRange()
+
+		return nil, true
+	case key.Matches(msg, m.keys.Accept) && m.screen.rows[m.cursor].kind == rowMoved:
+		m.otherEnd()
 
 		return nil, true
 	case key.Matches(msg, m.keys.Accept) && m.screen.rows[m.cursor].kind == rowPeek:
@@ -3149,6 +3156,7 @@ func (m *Model) rebuild() {
 			return m.surround(path, hunk, span[0], span[1])
 		},
 		progress: m.fileProgress,
+		moved:    m.moves,
 		atHead:   m.atHead,
 		searches: m.headSearch != nil,
 		asks:     askCards(m.plan.Asks), inFlight: m.inFlight, failedAsks: m.failedAsks,

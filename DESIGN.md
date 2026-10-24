@@ -287,7 +287,7 @@ coverage report, a preview build, and an agent's summary all arrive. It reads th
 
 ```
  kyleking/jj-diff #42  parse: wrap the split error     2 ready · read 1 of 5 hunks
- internal/ ━━━━━━┊────────  cmd/ ───                        vcs/diff.go:16
+ internal/ ━━━━━━┊───●────  cmd/ ───
       internal/vcs/diff.go  +9 -3 ──────────────────────────────────────────────
   14 ▎ func Parse(r io.Reader) ([]Hunk, error) {
   15 ▎     lines := split(r)
@@ -302,10 +302,20 @@ coverage report, a preview build, and an agent's summary all arrive. It reads th
 
 The header's first line is the change and what is left of it, and the PR title is the
 last thing it gives up. The second line is the strip: each file a segment sized by its
-changed lines, `━` read and `─` not, grouped by directory, with the current file named by
-its shortest unique tail. Comments and threads are cards. An agent's card is edged in
-mauve, and the card under the cursor in the accent. Below 40 columns a card draws as plain
-rows. How the order of a large change is planned, and the views built on that plan, are in
+changed lines, `━` read and `─` not, grouped by directory, with a `●` at how far through
+the current file the cursor stands. Comments and threads are cards, with a blank row
+between the last card on a line and the code under it. An agent's card is edged in mauve,
+and the card under the cursor in the accent. Below 40 columns a card draws as plain rows.
+
+A changed line carries its side's `▎` (its sign where the terminal draws no color), and one
+with no partner also tints its indent, so a run's first and last line read at the code rather
+than only in the gutter. A line that only moved to another indent, as a block does when an
+`if` opens around it, pairs with itself and is marked `⇥`, which leaves the `if` as the
+change. A hunk that changes nothing but whitespace is a formatter's and folds. A run of three
+or more lines taken from one place and put in another is marked `⇄`, with a note above each
+end naming the other, and `enter` on the note jumps there. A file the change creates or
+deletes says so on its heading, and its lines drop the mark every one of them would carry.
+How the order of a large change is planned, and the views built on that plan, are in
 [docs/reading-plan.md](docs/reading-plan.md).
 
 A change of up to 60 files opens as the tour: the plan's stops, then its chapters. From 160

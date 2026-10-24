@@ -1553,6 +1553,41 @@ func TestANewFileSaysSoOnceRatherThanOnEveryLine(t *testing.T) {
 	}
 }
 
+// A run the change takes from one file and puts in another says, at both ends,
+// where the other end is.
+func TestAMovedRunNamesItsOtherEnd(t *testing.T) {
+	t.Parallel()
+
+	const moved = "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -10,5 +10,1 @@\n x = 1\n" +
+		"-def helper(x):\n-    total = x * 2\n-    return total\n-\n" +
+		"diff --git a/util.py b/util.py\n--- a/util.py\n+++ b/util.py\n@@ -1,1 +1,4 @@\n import os\n" +
+		"+def helper(x):\n+    total = x * 2\n+    return total\n"
+
+	for _, size := range [][2]int{{80, 24}, {200, 60}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			t.Parallel()
+
+			m, _, _ := fixtureWith(t, moved)
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+
+			got := plain(m.Frame())
+			for _, want := range []string{"⇄ 3 lines moved to util.py:2", "⇄ 3 lines moved from app.py:11"} {
+				if !strings.Contains(got, want) {
+					t.Errorf("the frame does not say %q:\n%s", want, got)
+				}
+			}
+
+			onto(t, m, "moved to util.py")
+			press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+
+			if m.CursorFile() != "util.py" || !strings.Contains(m.CursorText(), "def helper") {
+				t.Errorf("enter on the note landed on %q in %s, want the run's other end",
+					m.CursorText(), m.CursorFile())
+			}
+		})
+	}
+}
+
 // readable is a screen that can record what has been read, which the plain
 // fixture cannot: without it space says there is nowhere to put an answer and
 // nothing about a read hunk can be asked.
