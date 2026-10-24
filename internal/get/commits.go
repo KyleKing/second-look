@@ -25,6 +25,10 @@ func Commits(ctx context.Context, t Target, head string, d *diff.Diff) ([]plan.C
 		return nil, "", err
 	}
 
+	if len(listed) == 0 {
+		return nil, "the pull request lists no commits", nil
+	}
+
 	missing, err := absent(ctx, t.Work, listed)
 	if err != nil {
 		return nil, "", err

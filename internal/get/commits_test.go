@@ -96,3 +96,15 @@ func TestCommitsMapsAPullRequestOnlyWhereTheCheckoutHoldsIt(t *testing.T) {
 		t.Errorf("a review with no checkout answered %q, %v", why, err)
 	}
 }
+
+// A pull request listing no commits says so rather than counting one missing.
+//
+//nolint:paralleltest // the stub gh is put on PATH for the whole process
+func TestCommitsSaysAPullRequestListsNone(t *testing.T) {
+	answerGH(t, `{"commits":[]}`)
+
+	_, why, err := get.Commits(t.Context(), get.Target{Number: 7, Work: t.TempDir()}, "", &diff.Diff{})
+	if err != nil || why != "the pull request lists no commits" {
+		t.Errorf("a pull request listing no commits answered %q, %v", why, err)
+	}
+}
