@@ -89,8 +89,8 @@ type folded struct {
 	files map[string]bool
 	gone  map[goneAt]bool
 	// threads is a whole conversation folded to its heading by hand. It is the
-	// one fold whose default depends on nothing: a thread is drawn in full
-	// until somebody puts it away.
+	// one fold whose default depends on nothing: a thread is drawn until
+	// somebody puts it away.
 	threads map[int]bool
 	// blocks default the same way turns do. A <details> is collapsed on the web
 	// and a screenful of tool output between two sentences is worse in a

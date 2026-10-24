@@ -66,8 +66,9 @@ func threadModel(t *testing.T, body string) *tui.Model {
 	return m
 }
 
-// A note longer than twenty rows draws its first twenty and holds the rest
-// behind za, so one long comment cannot bury the diff under it.
+// An unresolved thread draws three rows until za opens it, and then a note
+// longer than twenty rows draws its first twenty and holds the rest behind za,
+// so one long comment cannot bury the diff under it.
 func TestAThreadNoteHoldsItsTailBehindZa(t *testing.T) {
 	t.Parallel()
 
@@ -81,6 +82,15 @@ func TestAThreadNoteHoldsItsTailBehindZa(t *testing.T) {
 	onto(t, m, "step 01")
 
 	frame := plain(m.Frame())
+	if !strings.Contains(frame, "step 02") || strings.Contains(frame, "step 03") ||
+		!strings.Contains(frame, "23 more lines") {
+		t.Fatalf("the thread is not capped at three rows:\n%s", frame)
+	}
+
+	onto(t, m, "23 more lines")
+	go2(t, m, 'z', 'a')
+
+	frame = plain(m.Frame())
 	if !strings.Contains(frame, "step 20") || strings.Contains(frame, "step 21") {
 		t.Fatalf("the note is not held at twenty rows:\n%s", frame)
 	}

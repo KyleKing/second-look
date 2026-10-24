@@ -45,7 +45,11 @@ type blockAt struct {
 // folds nothing".
 const (
 	tailBlock   = -1
-	blockOffset = 2
+	blockOffset = 3
+	// An unresolved thread's cap holds back capBlock, keyed on its first comment.
+	capBlock = -2
+	// An unresolved thread draws capRows rows until za opens it.
+	capRows = 3
 )
 
 // noted parses every open thread's comments. A rebuild happens on every
@@ -78,26 +82,24 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 		path: path, comment: -1, thread: index, head: true, resolved: t.Resolved,
 	}
 
-	rows := make([]row, 0, len(t.Notes)*2+1)
-	rows = append(rows, head)
+	whole := s.whole(t)
+	rows := make([]row, 0, len(whole)+1)
 
-	for i := range t.Notes {
-		rows = append(rows, row{
-			kind: rowThread, text: "@" + t.Notes[i].Author, path: path, comment: -1, thread: index,
-		})
-		rows = append(rows, s.note(i)...)
-
-		if line := reactionLine(&t.Notes[i]); line != "" {
-			rows = append(rows, row{
-				kind: rowThread, text: line, path: path, comment: -1, thread: index,
-			})
+	if capped, ok := s.capped(t); ok {
+		// A capped thread draws no reaction rows, so the last comment's go on its heading.
+		if line := reactionLine(&t.Notes[len(t.Notes)-1]); line != "" {
+			head.text += " · " + line
 		}
+
+		rows = append(append(rows, head), capped...)
+	} else {
+		rows = append(append(rows, head), whole...)
 	}
 
 	// A folded conversation says so and says how much it is holding back, since
 	// a heading that looks the same either way is one nobody trusts.
 	if lay.fold.threads[index] {
-		head.text += " · " + plural(len(rows)-1, "line")
+		head.text += " · " + plural(len(whole), "line")
 		head.folded = true
 
 		return []row{closedRow(head, lay.width)}
@@ -140,6 +142,70 @@ type scribe struct {
 	next int
 }
 
+// whole is every comment of a thread, each under its author.
+func (s *scribe) whole(t *threads.Thread) []row {
+	var out []row
+
+	for i := range t.Notes {
+		s.on = i
+		out = append(out, s.row("@"+t.Notes[i].Author))
+		out = append(out, s.note(i)...)
+
+		if line := reactionLine(&t.Notes[i]); line != "" {
+			s.on = i
+			out = append(out, s.row(line))
+		}
+	}
+
+	return out
+}
+
+// capped is an unresolved thread in capRows rows: a lone comment's first two,
+// or the first comment's opening line, a count, and the last comment's. It
+// reports false where the thread is resolved, fits, or was opened.
+func (s *scribe) capped(t *threads.Thread) ([]row, bool) {
+	s.on = 0
+	if t.Resolved || len(t.Notes) == 0 || s.opened(capBlock) {
+		return nil, false
+	}
+
+	first := s.body(0)
+	s.on = 0
+
+	if len(t.Notes) == 1 {
+		if len(first) <= capRows {
+			return first, true
+		}
+
+		return append(first[:capRows-1:capRows-1], s.holding(capBlock, plural(len(first)-capRows+1, "more line"))), true
+	}
+
+	last := len(t.Notes) - 1
+	count := s.holding(capBlock, plural(len(t.Notes), "comment")+" in all")
+	s.on = last
+
+	end := s.body(last)
+	text := "@" + t.Notes[last].Author
+
+	if len(end) > 0 {
+		text += "  " + strings.TrimSpace(end[0].text)
+	}
+
+	return []row{s.lead(first), count, s.row(strings.Repeat(" ", bodyIndent) + cut(text, s.avail))}, true
+}
+
+// lead is a comment's first row with nothing folding under it, since the cap draws it alone.
+func (s *scribe) lead(rows []row) row {
+	if len(rows) == 0 {
+		return s.row("")
+	}
+
+	r := rows[0]
+	r.block, r.folded = 0, false
+
+	return r
+}
+
 // note is one comment: every block of it, then whatever the height cap held
 // back. The cap counts drawn rows rather than blocks, because one fence can be
 // longer than a whole comment of prose.
@@ -147,6 +213,17 @@ type scribe struct {
 // It starts the block count again, because a fold is keyed by the comment it is
 // in and the numbers only have to be unique inside one.
 func (s *scribe) note(i int) []row {
+	out := s.body(i)
+	if len(out) <= noteCap || s.opened(tailBlock) {
+		return out
+	}
+
+	return append(out[:noteCap:noteCap],
+		s.holding(tailBlock, plural(len(out)-noteCap, "more line")))
+}
+
+// body is every row of one comment, with nothing held back.
+func (s *scribe) body(i int) []row {
 	s.on, s.next = i, 0
 
 	blocks := s.lay.notes[noteAt{s.at, i}]
@@ -156,12 +233,7 @@ func (s *scribe) note(i int) []row {
 		out = append(out, s.block(&blocks[at])...)
 	}
 
-	if len(out) <= noteCap || s.opened(tailBlock) {
-		return out
-	}
-
-	return append(out[:noteCap:noteCap],
-		s.holding(tailBlock, plural(len(out)-noteCap, "more line")))
+	return out
 }
 
 func (s *scribe) block(b *ghmd.Block) []row {

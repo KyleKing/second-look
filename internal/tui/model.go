@@ -1533,6 +1533,10 @@ func (m *Model) foldHere(open bool) {
 		}
 
 		m.folded.blocks[at] = open
+		// Opening anything inside a capped thread asks for more of it than the cap draws.
+		if open {
+			m.folded.blocks[blockAt{noteAt{r.thread, 0}, capBlock}] = true
+		}
 	case r.skips.path != "":
 		m.folded.skips[r.skips] = open
 	case r.kind == rowFile && r.path != "":

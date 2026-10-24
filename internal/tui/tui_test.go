@@ -3478,6 +3478,13 @@ func TestFoldingAConversationSaysSo(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
 	go2(t, m, ']', 't')
+
+	// Unresolved, it draws the first comment's line, a count, and the last's.
+	if frame := plain(m.Frame()); !strings.Contains(frame, "2 comments in all") ||
+		!strings.Contains(frame, "@KyleKing  agreed") {
+		t.Fatalf("the thread is not capped to its first and last comments:\n%s", frame)
+	}
+
 	go2(t, m, 'z', 'a')
 
 	frame := plain(m.Frame())
