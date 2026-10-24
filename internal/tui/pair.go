@@ -15,6 +15,7 @@ import "github.com/kyleking/second-look/internal/diff"
 // has to know the screen is split.
 type pairer struct {
 	split bool
+	whole bool
 	// hang is the threads and comments sitting under one line, which follow the
 	// row the line was drawn on rather than the line itself.
 	hang func(diff.Line) []row
@@ -75,6 +76,7 @@ func (p *pairer) flush() {
 func (p *pairer) emit(line, mate diff.Line) {
 	*p.out = append(*p.out, row{
 		kind: rowCode, line: line, mate: mate, path: p.path, comment: noComment, hunk: p.hunk,
+		whole: p.whole,
 	})
 
 	if mate.Kind != 0 {

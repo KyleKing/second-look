@@ -277,6 +277,8 @@ func (m *Model) richGutter(r row) string {
 	switch {
 	case r.shared && m.rich.colored:
 		style, mark = side, m.styles.behind.Render(sharedGlyph)
+	case changed && r.whole:
+		style, mark = side, " "
 	case changed && m.rich.colored && m.reindented[refOf(r.path, l)]:
 		style, mark = side, side.Render(reindentGlyph)
 	case changed:
@@ -425,6 +427,7 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 	// A changed line with no partner carries its side's band under its indent,
 	// so where a run of them starts and ends reads at the code rather than only in the gutter.
 	lead, leads := m.rich.band[l.Kind]
+	leads = leads && !r.whole
 	indent := indentOf(l.Text)
 
 	var segs []string

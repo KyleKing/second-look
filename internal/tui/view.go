@@ -856,8 +856,12 @@ func (m *Model) codeRow(r row) (string, lipgloss.Style) {
 		style = m.styles.context
 	}
 
-	text := fmt.Sprintf("%*d %s %s", m.screen.numWidth, number,
-		sideGlyph(r.line.Kind, m.rich.colored), expand(r.line.Text))
+	glyph := sideGlyph(r.line.Kind, m.rich.colored)
+	if r.whole {
+		glyph = " "
+	}
+
+	text := fmt.Sprintf("%*d %s %s", m.screen.numWidth, number, glyph, expand(r.line.Text))
 
 	return text, style
 }

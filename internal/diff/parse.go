@@ -48,6 +48,12 @@ type File struct {
 	Lines []Line
 }
 
+// Created reports whether the change brings the file into being, so every line it carries is new.
+func (f *File) Created() bool { return f.OldPath == "" && f.NewPath != "" }
+
+// Deleted reports whether the change takes the whole file away.
+func (f *File) Deleted() bool { return f.NewPath == "" && f.OldPath != "" }
+
 // Diff is a parsed unified diff.
 type Diff struct {
 	Files []File

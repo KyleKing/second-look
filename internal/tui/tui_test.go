@@ -1526,6 +1526,33 @@ func TestAFoldedHeadingRecedes(t *testing.T) {
 	}
 }
 
+// A file the change creates says so once on its heading, and its lines drop the
+// sign every one of them would carry.
+func TestANewFileSaysSoOnceRatherThanOnEveryLine(t *testing.T) {
+	t.Parallel()
+
+	const created = "diff --git a/NEW.md b/NEW.md\nnew file mode 100644\nindex 0000000..1111111\n" +
+		"--- /dev/null\n+++ b/NEW.md\n@@ -0,0 +1,2 @@\n+line one\n+line two\n"
+
+	for _, size := range [][2]int{{80, 24}, {200, 60}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			t.Parallel()
+
+			m, _, _ := fixtureWith(t, created)
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+
+			got := plain(m.Frame())
+			if !strings.Contains(got, "NEW.md  ✚ new file  +2") {
+				t.Errorf("the heading does not say the file is new:\n%s", got)
+			}
+
+			if strings.Contains(got, "+ line one") {
+				t.Errorf("a new file's line carries its sign:\n%s", got)
+			}
+		})
+	}
+}
+
 // readable is a screen that can record what has been read, which the plain
 // fixture cannot: without it space says there is nowhere to put an answer and
 // nothing about a read hunk can be asked.

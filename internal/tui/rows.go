@@ -108,6 +108,9 @@ type row struct {
 	shared bool
 	// gap marks the blank closing what hangs off a line, which the cursor passes over.
 	gap bool
+	// whole marks a line of a file the change creates or deletes, whose heading
+	// already says every line is on one side.
+	whole bool
 	// current marks the row under the cursor, which the rich renderer lights.
 	current bool
 	// role is which part of a card the row draws, and zero outside any card.
@@ -228,7 +231,7 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 
 	hunk, folded := 0, 0
 	lines := &pairer{
-		split: c.lay.split, path: p, out: &rows,
+		split: c.lay.split, path: p, out: &rows, whole: f.Created() || f.Deleted(),
 		hang: s.hanger(p, c.r, c.ts, c.byLine, c.byThread, c.placed, c.lay),
 	}
 
@@ -474,6 +477,11 @@ func spanWord(span [2]int) string {
 
 // sizeWord is what a file asks somebody to read, drawn on its own heading so
 // the frame answers how much is left without the header saying it.
+const (
+	createdGlyph = "✚"
+	deletedGlyph = "✖"
+)
+
 func sizeWord(f *diff.File, wanted map[int]bool) string {
 	var added, removed int
 
@@ -490,8 +498,13 @@ func sizeWord(f *diff.File, wanted map[int]bool) string {
 		}
 	}
 
-	if added == 0 && removed == 0 {
+	switch {
+	case added == 0 && removed == 0:
 		return ""
+	case f.Created():
+		return "  " + createdGlyph + " new file  +" + humanize.Count(added)
+	case f.Deleted():
+		return "  " + deletedGlyph + " deleted  -" + humanize.Count(removed)
 	}
 
 	return "  +" + humanize.Count(added) + " -" + humanize.Count(removed)
