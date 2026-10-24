@@ -17,8 +17,11 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/blob"
+	"github.com/kyleking/second-look/internal/commits"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
+	"github.com/kyleking/second-look/internal/humanize"
+	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -33,6 +36,12 @@ const (
 	Worktree Mode = iota
 	// Branch is every commit since the branch left its base.
 	Branch
+	// Range is git's A..B, read as the commits B has and A does not; the base
+	// argument carries it.
+	Range
+	// Revset is the jj revisions a revset names, which must be contiguous; the
+	// base argument carries it.
+	Revset
 )
 
 // The default base a branch is read against on each backend: the remote's
@@ -44,9 +53,16 @@ const (
 	diffCmd = "diff"
 )
 
-// ErrNoChanges is a local review of nothing: a clean working copy, or a
-// branch that has not moved past its base.
-var ErrNoChanges = errors.New("nothing differs to review")
+// Reasons a local review is refused.
+var (
+	// ErrNoChanges is a local review of nothing: a clean working copy, or a
+	// branch that has not moved past its base.
+	ErrNoChanges = errors.New("nothing differs to review")
+	ErrRangeInJJ = errors.New("--range names a git range; under jj, name the change with -r <revset>")
+	ErrRevsetGit = errors.New("-r names a jj revset; under git, name the change with --range A..B")
+	ErrRange     = errors.New("a range is A..B")
+	ErrHeads     = errors.New("the revset has more than one head, so no one revision is the change's tip")
+)
 
 // Open reads the checkout's change into everything the review screen reads:
 // the diff, the artifact its notes live in, and the read marks already left.
@@ -73,6 +89,8 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 		return nil, err
 	}
 
+	listed, why := commitsOf(ctx, abs, jj, mode, base, tip, d)
+
 	seenPath := seen.LocalPath(abs)
 
 	read, err := seen.Load(seenPath)
@@ -83,13 +101,67 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 	return &get.Review{
 		Review: review, Diff: d,
 		About: threads.About{
-			Title: review.HeadRef,
+			Title: title(review, jj, mode, base, listed, why),
 			Body:  claimText(ctx, abs, jj, mode, base),
 		},
 		Read: read, SeenPath: seenPath,
 		Path: path, HeadSHA: tip,
 		Work: abs, OnHead: true,
+		Commits: listed, NoCommits: why,
 	}, nil
+}
+
+// commitsOf is each commit or revision the change spans with the hunks it wrote,
+// or why there are none. A working copy spans none.
+func commitsOf(ctx context.Context, root string, jj bool, mode Mode, base, tip string, d *diff.Diff,
+) ([]plan.Commit, string) {
+	var (
+		listed []plan.Commit
+		err    error
+	)
+
+	switch mode {
+	case Worktree:
+		return nil, ""
+	case Revset:
+		listed, err = commits.JJ(ctx, root, base, d)
+	case Branch, Range:
+		fork, ferr := forkOf(ctx, root, jj, mode, base)
+		if ferr != nil {
+			return nil, "finding where the change starts: " + ferr.Error()
+		}
+
+		if jj {
+			listed, err = commits.JJ(ctx, root, fork+"..@", d)
+		} else {
+			listed, err = commits.Git(ctx, root, fork, tip, d)
+		}
+	}
+
+	if err != nil {
+		return nil, "mapping hunks onto the commits: " + err.Error()
+	}
+
+	return listed, ""
+}
+
+// title names a range review by the range and what it spans, which is what a
+// pull request's title says in its place.
+func title(review *artifact.Review, jj bool, mode Mode, spec string, listed []plan.Commit, why string) string {
+	if mode != Range && mode != Revset {
+		return review.HeadRef
+	}
+
+	bin, unit := "git", "commit"
+	if jj {
+		bin, unit = "jj", "revision"
+	}
+
+	if why != "" {
+		return bin + " " + spec
+	}
+
+	return bin + " " + spec + " · " + humanize.Plural(len(listed), unit)
 }
 
 // claimText is what the change says it is for: the working-copy change's
@@ -113,6 +185,15 @@ func claimText(ctx context.Context, root string, jj bool, mode Mode, base string
 	switch {
 	case jj && mode == Worktree:
 		out, err = run(ctx, root, "jj", "log", "--no-graph", "--no-pager", "-r", "@", "-T", "description")
+	case mode == Revset:
+		out, err = run(ctx, root, "jj", "log", "--no-graph", "--no-pager", "-r", base, "-T", "description")
+	case mode == Range:
+		from, to, rerr := split(base)
+		if rerr != nil {
+			return ""
+		}
+
+		out, err = run(ctx, root, "git", "log", "--format=%B", from+".."+to)
 	case jj:
 		out, err = run(ctx, root, "jj", "log", "--no-graph", "--no-pager", "-r", base+"..@", "-T", "description")
 	case mode == Worktree:
@@ -150,7 +231,7 @@ func Patch(ctx context.Context, root string, mode Mode, base string) ([]byte, er
 // --to @ — the file off disk is the answer; a git branch's post-image is the
 // committed tip.
 func Reader(root string, mode Mode, tip string, jj bool) blob.Reader {
-	if mode == Worktree || jj {
+	if mode == Worktree || (jj && mode != Revset) {
 		return blob.Reader{Work: root}
 	}
 
@@ -160,6 +241,13 @@ func Reader(root string, mode Mode, tip string, jj bool) blob.Reader {
 // diffFor is the patch and the tip it was taken at. The tip is @ for jj —
 // the working-copy change is itself a commit — and HEAD for git.
 func diffFor(ctx context.Context, root string, jj bool, mode Mode, base string) ([]byte, string, error) {
+	switch {
+	case mode == Range && jj:
+		return nil, "", ErrRangeInJJ
+	case mode == Revset && !jj:
+		return nil, "", ErrRevsetGit
+	}
+
 	bin, at := "git", headRev
 	if jj {
 		bin, at = "jj", "@"
@@ -192,6 +280,8 @@ func diffFor(ctx context.Context, root string, jj bool, mode Mode, base string) 
 		} else {
 			args = []string{diffCmd, fork, headRev, "--no-color", "--no-ext-diff"}
 		}
+	case Range, Revset:
+		return spanDiff(ctx, root, mode, base)
 	}
 
 	out, err := run(ctx, root, bin, args...)
@@ -200,6 +290,89 @@ func diffFor(ctx context.Context, root string, jj bool, mode Mode, base string) 
 	}
 
 	return []byte(out), tip, nil
+}
+
+// spanDiff is the cumulative patch of a git range or a jj revset, and its tip.
+func spanDiff(ctx context.Context, root string, mode Mode, spec string) ([]byte, string, error) {
+	if mode == Revset {
+		heads, err := run(ctx, root, "jj", "log", "--no-graph", "--no-pager", "-r", "heads("+spec+")",
+			"-T", `commit_id ++ "\n"`)
+		if err != nil {
+			return nil, "", fmt.Errorf("resolving %s: %w", spec, err)
+		}
+
+		tips := strings.Fields(heads)
+		if len(tips) != 1 {
+			return nil, "", fmt.Errorf("%s: %w", spec, ErrHeads)
+		}
+
+		out, err := run(ctx, root, "jj", diffCmd, "--git", "--no-pager", "-r", spec)
+		if err != nil {
+			return nil, "", fmt.Errorf("reading the diff: %w", err)
+		}
+
+		return []byte(out), tips[0], nil
+	}
+
+	fork, err := forkOf(ctx, root, false, mode, spec)
+	if err != nil {
+		return nil, "", err
+	}
+
+	_, to, err := split(spec)
+	if err != nil {
+		return nil, "", err
+	}
+
+	tip, err := revision(ctx, root, false, to)
+	if err != nil {
+		return nil, "", err
+	}
+
+	out, err := run(ctx, root, "git", diffCmd, fork, tip, "--no-color", "--no-ext-diff")
+	if err != nil {
+		return nil, "", fmt.Errorf("reading the diff: %w", err)
+	}
+
+	return []byte(out), tip, nil
+}
+
+// forkOf is where a branch or a git range starts: the commit its two ends last
+// shared, which is the old side of every hunk.
+func forkOf(ctx context.Context, root string, jj bool, mode Mode, spec string) (string, error) {
+	if mode != Range {
+		return mergeBase(ctx, root, jj, spec)
+	}
+
+	from, to, err := split(spec)
+	if err != nil {
+		return "", err
+	}
+
+	out, err := run(ctx, root, "git", "merge-base", from, to)
+	if err != nil {
+		return "", fmt.Errorf("finding where %s starts: %w", spec, err)
+	}
+
+	return strings.TrimSpace(out), nil
+}
+
+// split reads A..B, an empty side standing for HEAD the way git's own does.
+func split(spec string) (string, string, error) {
+	from, to, ok := strings.Cut(spec, "..")
+	if !ok || strings.HasPrefix(to, ".") {
+		return "", "", fmt.Errorf("%w, not %q", ErrRange, spec)
+	}
+
+	if from == "" {
+		from = headRev
+	}
+
+	if to == "" {
+		to = headRev
+	}
+
+	return from, to, nil
 }
 
 // mergeBase is the commit the branch and its base last shared, asked of the
@@ -279,8 +452,13 @@ func refs(ctx context.Context, root string, mode Mode, base string, jj bool) (st
 	if jj {
 		work = "@"
 	}
-	if mode == Worktree {
+
+	switch mode {
+	case Worktree:
 		return work, ""
+	case Range, Revset:
+		return "", ""
+	case Branch:
 	}
 
 	head, err := vcs.GetOperations(root).GetCurrentBranch(ctx, root)
@@ -331,6 +509,10 @@ func prepare(root string) (string, error) {
 // empty is the nothing-to-review answer, which names what was asked rather
 // than just that it came back clean.
 func empty(mode Mode, base string, jj bool) error {
+	if mode == Range || mode == Revset {
+		return fmt.Errorf("%w: %s changes nothing", ErrNoChanges, base)
+	}
+
 	if mode != Branch {
 		return fmt.Errorf("%w: the working copy is clean", ErrNoChanges)
 	}

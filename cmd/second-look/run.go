@@ -64,7 +64,7 @@ var (
 	errUsageTodo      = errors.New("usage: second-look todo <pr>")
 	errUsageShow      = errors.New("usage: second-look show <pr> [--diff|--payload|--threads]")
 	errUsageSkill     = errors.New("usage: second-look skill")
-	errUsageLocal     = errors.New("usage: second-look local [--branch] [--base <ref>]")
+	errUsageLocal     = errors.New("usage: second-look local [--branch] [--base <ref>] | --range A..B | -r <revset>")
 	errUsageGC        = errors.New("usage: second-look gc [--dry-run] [--stale]")
 	errUsageStatus    = errors.New("usage: second-look status")
 	errUsageJournal   = errors.New("usage: second-look journal")
@@ -613,24 +613,37 @@ func localCmd(ctx context.Context, args []string, stdout io.Writer) error {
 }
 
 // --base names the other side of a branch review and so implies --branch: the
-// working copy's diff has no base to name.
+// working copy's diff has no base to name. --range and -r stand alone.
 func parseLocalFlags(args []string) (local.Mode, string, error) {
 	mode, base := local.Worktree, ""
 
 	for i := 0; i < len(args); i++ {
+		next := local.Branch
+
 		switch args[i] {
 		case "--branch":
-			mode = local.Branch
-		case "--base":
-			i++
-			if i >= len(args) || args[i] == "" {
+			if mode != local.Worktree && mode != local.Branch {
 				return 0, "", errUsageLocal
 			}
 
-			base, mode = args[i], local.Branch
+			mode = local.Branch
+
+			continue
+		case "--base":
+		case "--range":
+			next = local.Range
+		case "-r":
+			next = local.Revset
 		default:
 			return 0, "", errUsageLocal
 		}
+
+		i++
+		if i >= len(args) || args[i] == "" || base != "" || (mode != local.Worktree && mode != next) {
+			return 0, "", errUsageLocal
+		}
+
+		base, mode = args[i], next
 	}
 
 	return mode, base, nil

@@ -26,6 +26,8 @@ func TestLocalFlags(t *testing.T) {
 		{"--branch is the branch", []string{"--branch"}, local.Branch, ""},
 		{"--base implies the branch", []string{"--base", "main"}, local.Branch, "main"},
 		{"both spell it twice", []string{"--branch", "--base", "main"}, local.Branch, "main"},
+		{"--range is a git range", []string{"--range", "main..feat"}, local.Range, "main..feat"},
+		{"-r is a jj revset", []string{"-r", "trunk()..@"}, local.Revset, "trunk()..@"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -41,7 +43,13 @@ func TestLocalFlags(t *testing.T) {
 	}
 
 	for _, args := range [][]string{
-		{"--base"}, {"nonsense"}, {"--base", "main", "extra"},
+		{"--base"},
+		{"nonsense"},
+		{"--base", "main", "extra"},
+		{"--range"},
+		{"--range", "a..b", "-r", "@"},
+		{"--branch", "--range", "a..b"},
+		{"--range", "a..b", "--branch"},
 	} {
 		if _, _, err := main.LocalFlags(args); err == nil {
 			t.Errorf("%v should have been refused", args)

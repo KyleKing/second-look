@@ -17,6 +17,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -64,6 +65,10 @@ type Review struct {
 	// a warm open reads nothing but local files, and waiting on one API call
 	// was the whole of what it used to cost.
 	Unverified bool
+	// Commits is each commit of a local range with the hunks it wrote, and
+	// NoCommits why there are none where the range has commits.
+	Commits   []plan.Commit
+	NoCommits string
 }
 
 // Open reads a pull request into a review, creating the artifact and caching

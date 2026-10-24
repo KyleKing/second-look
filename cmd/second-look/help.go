@@ -17,6 +17,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look post <pr> --dry-run  print the request without sending it
   second-look post <pr> --only <id>  post one comment on its own, now
   second-look local [--branch|--base <ref>]  review this checkout's own diff
+  second-look local --range A..B | -r <revset>  review a git range or a jj revset
   second-look inbox                the review queue, in your own sections
   second-look threads              conversations that moved since you looked
   second-look reviews              what is staged locally, in the store
@@ -179,7 +180,11 @@ NAMING A PULL REQUEST
       is the working-copy change itself, so a file @ adds is in the diff
       without being staged. --branch reviews the branch against where it left
       its base, origin/HEAD in git and trunk() in jj, and --base names that
-      base instead. A pipe gets the patch and writes nothing.
+      base instead. --range A..B reviews a git range, the commits B has and A
+      does not, and -r reviews the revisions a jj revset names, which must be
+      contiguous with one head; each refuses the other backend. The header
+      names the range and how many commits it spans. A pipe gets the patch and
+      writes nothing.
 
       Comments written here are notes in .second-look/local.toml and go
       nowhere else: there is nothing to post to, so S says so rather than

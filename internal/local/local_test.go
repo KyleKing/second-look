@@ -183,10 +183,10 @@ func TestWorktreeJJ(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	run(t, dir, "jj", "git", "init", "--no-pager")
+	jj(t, dir, "git", "init", "--no-pager")
 	write(t, dir, "a.txt", "one\n")
-	run(t, dir, "jj", "describe", "-m", "base", "--no-pager")
-	run(t, dir, "jj", "new", "--no-pager")
+	jj(t, dir, "describe", "-m", "base", "--no-pager")
+	jj(t, dir, "new", "--no-pager")
 	write(t, dir, "b.txt", "brand new\n")
 
 	opened, err := local.Open(t.Context(), dir, local.Worktree, "")
@@ -202,15 +202,15 @@ func TestWorktreeJJ(t *testing.T) {
 	}
 }
 
-func run(t *testing.T, dir, bin string, args ...string) {
+func jj(t *testing.T, dir string, args ...string) {
 	t.Helper()
 
-	cmd := exec.CommandContext(t.Context(), bin, args...) // #nosec G204 -- a fixture's own constants
+	cmd := exec.CommandContext(t.Context(), "jj", args...) // #nosec G204 -- a fixture's own constants
 	cmd.Dir = dir
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("%s %v: %v\n%s", bin, args, err, out)
+		t.Fatalf("jj %v: %v\n%s", args, err, out)
 	}
 }
 
@@ -230,5 +230,81 @@ func TestPatch(t *testing.T) {
 
 	if _, err := os.Stat(artifact.LocalPath(dir)); err == nil {
 		t.Error("a patch read wrote a review; a pipe should touch nothing")
+	}
+}
+
+// A git range reads as the commits it spans: the header names the range and its
+// size in place of a pull request, and each commit owns the hunks it wrote.
+func TestRange(t *testing.T) {
+	t.Parallel()
+
+	dir := repo(t)
+
+	git(t, dir, "checkout", "--quiet", "-b", "feat")
+	write(t, dir, "b.txt", "new\n")
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "--quiet", "-m", "feat: add b")
+	write(t, dir, "c.txt", "newer\n")
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "--quiet", "-m", "feat: add c")
+
+	opened, err := local.Open(t.Context(), dir, local.Range, "main..feat")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if opened.About.Title != "git main..feat · 2 commits" || opened.Review.HeadRef != "" {
+		t.Errorf("the header reads %q over %q", opened.About.Title, opened.Review.HeadRef)
+	}
+
+	if len(opened.Commits) != 2 || opened.Commits[1].Subject != "feat: add c" ||
+		len(opened.Commits[1].Hunks) != 1 || opened.Commits[1].Hunks[0].Path != "c.txt" {
+		t.Errorf("the commits came back as %+v (%s)", opened.Commits, opened.NoCommits)
+	}
+
+	if _, err := local.Open(t.Context(), dir, local.Revset, "main..feat"); !errors.Is(err, local.ErrRevsetGit) {
+		t.Errorf("-r under git answered %v", err)
+	}
+
+	if _, err := local.Open(t.Context(), dir, local.Range, "main"); !errors.Is(err, local.ErrRange) {
+		t.Errorf("a range with no .. answered %v", err)
+	}
+}
+
+// A jj revset is the same review over revisions, and --range is git's alone.
+func TestRevsetJJ(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("jj"); err != nil {
+		t.Skip("jj is not installed")
+	}
+
+	dir := t.TempDir()
+	jj(t, dir, "git", "init", "--no-pager")
+	write(t, dir, "a.txt", "one\n")
+	jj(t, dir, "describe", "-m", "base", "--no-pager")
+	jj(t, dir, "bookmark", "create", "base", "-r", "@", "--no-pager")
+
+	for _, step := range []string{"b", "c"} {
+		jj(t, dir, "new", "--no-pager")
+		write(t, dir, step+".txt", step+"\n")
+		jj(t, dir, "describe", "-m", "feat: add "+step, "--no-pager")
+	}
+
+	opened, err := local.Open(t.Context(), dir, local.Revset, "base..@")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if opened.About.Title != "jj base..@ · 2 revisions" || len(opened.Diff.Files) != 2 {
+		t.Errorf("the header reads %q over %d file(s)", opened.About.Title, len(opened.Diff.Files))
+	}
+
+	if len(opened.Commits) != 2 || opened.Commits[0].Hunks[0].Path != "b.txt" {
+		t.Errorf("the revisions came back as %+v (%s)", opened.Commits, opened.NoCommits)
+	}
+
+	if _, err := local.Open(t.Context(), dir, local.Range, "base..@"); !errors.Is(err, local.ErrRangeInJJ) {
+		t.Errorf("--range under jj answered %v", err)
 	}
 }
