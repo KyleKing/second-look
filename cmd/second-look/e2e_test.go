@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -436,7 +437,8 @@ func reviewCassette(t *testing.T, sha string) string {
 		restamp(c, sha)
 
 		all := c.Interactions
-		c.Interactions = append(append(all[:reads:reads], threadInteraction(t)...), all...)
+		c.Interactions = slices.Concat(all[:reads], threadInteraction(t),
+			[]ghcassette.Interaction{commitsInteraction(nil, nil)}, all)
 	})
 }
 
@@ -455,6 +457,41 @@ func openCassette(t *testing.T, sha string) string {
 		restamp(c, sha)
 		c.Interactions = append(c.Interactions[:reads:reads], threadInteraction(t)...)
 	})
+}
+
+// withCommits adds the commit list a review screen asks for behind its first
+// frame. `get` never asks, so a cassette it shares with a screen test stays
+// without one and RequireAllPlayed holds it to that.
+func withCommits(t *testing.T, path string) string {
+	t.Helper()
+
+	c, err := ghcassette.Load(path)
+	if err != nil {
+		t.Fatalf("loading the cassette to add the commit list to: %v", err)
+	}
+
+	c.Interactions = append(c.Interactions, commitsInteraction(nil, nil))
+
+	out := filepath.Join(t.TempDir(), "with-commits.golden")
+	if err := ghcassette.Save(out, c); err != nil {
+		t.Fatalf("writing the cassette with the commit list: %v", err)
+	}
+
+	return out
+}
+
+// commitsInteraction answers the pull request's commit list with none, which
+// plans by symbol and directory the way an unlisted pull request always did.
+func commitsInteraction(ids, subjects []string) ghcassette.Interaction {
+	listed := make([]string, 0, len(ids))
+	for i, id := range ids {
+		listed = append(listed, fmt.Sprintf(`{"oid":%q,"messageHeadline":%q}`, id, subjects[i]))
+	}
+
+	return ghcassette.Interaction{
+		Args:   []string{"pr", "view", "2", "--json", "commits"},
+		Stdout: `{"commits":[` + strings.Join(listed, ",") + `]}`,
+	}
 }
 
 // addressed re-points a recorded interaction at another pull request, so one
@@ -517,7 +554,7 @@ func headCassette(t *testing.T) string {
 
 	return deriveFrom(t, "post-review", "head-only", func(c *ghcassette.Cassette) {
 		inCheckout(c)
-		c.Interactions = c.Interactions[:1]
+		c.Interactions = append(c.Interactions[:1], commitsInteraction(nil, nil))
 	})
 }
 

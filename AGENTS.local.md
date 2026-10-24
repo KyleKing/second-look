@@ -124,6 +124,16 @@ fixture's head moved would be a fixture problem, not a network one.
 The gif is committed, so regenerate it whenever the screen changes shape. Keep the tape's
 sleeps: a frame nobody can read is not a demo.
 
+## Commits behind the first frame
+
+`get.Commits` runs behind the first frame through `tui.WithCommitReader`, and a restage
+asks again for the new head. It lists commits with `gh pr view --json commits`, which is
+one more call every review-screen cassette must answer. `withCommits` in `e2e_test.go`
+adds an empty list to a cassette a screen test replays. `get` never makes the call, so
+the cassettes it shares stay without it and `RequireAllPlayed` holds them to that.
+`TestReviewScreenOrdersByThePullRequestsCommits` builds a real two-commit checkout and
+derives its cassette from `post-review`, so nothing is re-recorded.
+
 ## `internal/ghmd`
 
 Segmenting a GitHub comment body is not second-look's problem alone: gh-repo-dashboard and

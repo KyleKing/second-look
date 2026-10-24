@@ -503,7 +503,7 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 	reader := blob.Reader{Work: opened.Work, Repo: t.RepoID(), SHA: opened.Review.HeadSHA}
 	opts = append(opts,
 		tui.WithBlobs(reader.Read), tui.WithHeadSearch(reader.Grep), tui.WithRestage(restager(t)),
-		tui.WithRounds(rounds(t)))
+		tui.WithRounds(rounds(t)), tui.WithCommitReader(commitReader(t)))
 
 	// A checker runs in a checkout or not at all: a language server resolves
 	// what a file imports from the tree around it, and a review staged with
@@ -1900,6 +1900,14 @@ func rounds(t get.Target) tui.Rounds {
 		}
 
 		return diff.Parse(patch), nil
+	}
+}
+
+// commitReader reads the pull request's commits for the screen to order by. It
+// fetches nothing: commits the checkout does not hold are named as the reason.
+func commitReader(t get.Target) tui.CommitReader {
+	return func(ctx context.Context, head string, d *diff.Diff) ([]plan.Commit, string, error) {
+		return get.Commits(ctx, t, head, d)
 	}
 }
 

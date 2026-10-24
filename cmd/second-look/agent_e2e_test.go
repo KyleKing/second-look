@@ -35,7 +35,7 @@ func TestReviewScreenDispatchesToAnAgentPane(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openCassette(t, sha))
+	s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
 	seedReview(t, dir, sha)
 
 	// The config joins childEnv's own XDG root: a separate root moves the

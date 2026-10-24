@@ -276,7 +276,7 @@ func TestReviewScreenFetchesThreadsWithoutAGet(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openCassette(t, sha))
+	s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
 	seedReview(t, dir, sha)
 
 	sc := openReview(t, s, dir, "2")
@@ -334,7 +334,7 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openOnlyCassette(t, sha))
+	s := ghcassette.Replay(t, withCommits(t, openOnlyCassette(t, sha)))
 	seedReview(t, dir, sha)
 	seedThreads(t, dir, sha)
 
@@ -400,7 +400,7 @@ func TestReviewScreenMarksHunksRead(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openCassette(t, sha))
+	s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
 	seedReview(t, dir, sha)
 
 	sc := openReview(t, s, dir, "2")
@@ -442,7 +442,7 @@ func TestReviewScreenAttachesAShellTranscript(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openCassette(t, sha))
+	s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
 	seedReview(t, dir, sha)
 
 	shell := filepath.Join(t.TempDir(), "shell")
@@ -497,7 +497,7 @@ func TestReviewScreenEndsAWedgedPane(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openCassette(t, sha))
+	s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
 	seedReview(t, dir, sha)
 
 	shell := filepath.Join(t.TempDir(), "shell")
@@ -531,7 +531,7 @@ func TestReviewScreenRefusesWithoutATerminal(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, openCassette(t, sha))
+	s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
 	seedReview(t, dir, sha)
 
 	res := runCLI(t, s, dir, "2")
@@ -561,7 +561,7 @@ func TestReviewScreenQuitsWithoutPosting(t *testing.T) {
 			t.Parallel()
 
 			dir, sha := scratchRepo(t, headBranch)
-			s := ghcassette.Replay(t, openCassette(t, sha))
+			s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
 			seedReview(t, dir, sha)
 
 			sc := openReview(t, s, dir, "2")
@@ -583,4 +583,81 @@ func TestReviewScreenQuitsWithoutPosting(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A checkout holding the pull request's commits reads by them; one missing them
+// says so in the plan's basis rather than fetching.
+func TestReviewScreenOrdersByThePullRequestsCommits(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		held   bool
+		expect string
+	}{
+		{name: "held", held: true, expect: "by commit"},
+		{name: "absent", expect: "this checkout"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir, base := scratchRepo(t, headBranch)
+			names := []string{"x/a.txt", "y/b.txt"}
+			ids := commitFiles(t, dir, names...)
+			head := ids[len(ids)-1]
+
+			if !tc.held {
+				ids = []string{strings.Repeat("1", len(head)), strings.Repeat("2", len(head))}
+			}
+
+			patch := gitIn(t, dir, "diff", "--no-ext-diff", "--no-color", base, head) + "\n"
+			s := ghcassette.Replay(t, commitsCassette(t, head, patch, ids, names))
+
+			sc := openReview(t, s, dir, "2")
+			sc.await("y/b.txt")
+			sc.press("i")
+			sc.await(tc.expect)
+			sc.press("qq")
+
+			if code := sc.wait(); code != 0 {
+				t.Fatalf("the screen exited %d:\n%s", code, sc.text())
+			}
+
+			s.RequireAllPlayed(t)
+		})
+	}
+}
+
+// commitFiles adds one commit per file, each writing that file alone, and
+// answers the commits' ids oldest first.
+func commitFiles(t *testing.T, dir string, names ...string) []string {
+	t.Helper()
+
+	ids := make([]string, 0, len(names))
+
+	for _, name := range names {
+		write(t, filepath.Join(dir, name), []byte(name+"\n"))
+		gitIn(t, dir, "add", name)
+		gitIn(t, dir, "commit", "--quiet", "-m", "add "+name)
+
+		ids = append(ids, gitIn(t, dir, "rev-parse", "HEAD"))
+	}
+
+	return ids
+}
+
+// commitsCassette is the open recording standing on head with patch as the
+// pull request's diff, followed by gh's answer for the commits listed.
+func commitsCassette(t *testing.T, head, patch string, ids, names []string) string {
+	t.Helper()
+
+	return deriveFrom(t, "post-review", "commits", func(c *ghcassette.Cassette) {
+		inCheckout(c)
+		restamp(c, head)
+
+		c.Interactions[1].Stdout = patch
+
+		c.Interactions = append(append(c.Interactions[:reads:reads], threadInteraction(t)...),
+			commitsInteraction(ids, names))
+	})
 }

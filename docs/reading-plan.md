@@ -18,7 +18,10 @@ The layers apply cheapest first, and each may move what an earlier one placed:
 1. What the change says about itself: the PR body, the AI Summary's links into the code,
    and its commits. Commits that each touch their own hunks become the chapters, in commit
    order and named by subject. Fixups, "address review" commits, and one commit touching
-   everything send the plan back to the symbol and directory groups
+   everything send the plan back to the symbol and directory groups. A pull request's
+   commits are listed with `gh` behind the first frame, so the screen opens on the
+   symbol and directory groups and replans when they arrive. They are blamed in the
+   checkout and never fetched: where it lacks any of them, the plan's basis says so
 2. Rules you keep per repository in your own config: what to fold, what reads after what,
    and what never folds
 3. The code graph from the language server already running for the checker pass: who calls

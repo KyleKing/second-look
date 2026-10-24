@@ -192,6 +192,16 @@ func WithCommits(list []plan.Commit, why string) Option {
 	return func(m *Model) { m.commits, m.noCommits = list, why }
 }
 
+// CommitReader reads the commits behind the diff at head, with the hunks each
+// wrote and, where there are none to use, why. It runs behind the first frame.
+type CommitReader func(ctx context.Context, head string, d *diff.Diff) ([]plan.Commit, string, error)
+
+// WithCommitReader orders the review by its commits once they are read. Without
+// one the screen keeps what WithCommits gave it.
+func WithCommitReader(r CommitReader) Option {
+	return func(m *Model) { m.commitReader = r }
+}
+
 // WithPlanRules applies the reading rules kept for the repository under review.
 func WithPlanRules(r plan.Rules) Option {
 	return func(m *Model) { m.rules = r }

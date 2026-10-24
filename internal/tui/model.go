@@ -141,8 +141,10 @@ type Model struct {
 	merge   Merger
 	cleanup Cleanup
 	head    HeadCheck
-	browser Opener
-	tree    Tree
+	// commitReader reads the commits behind the diff once the frame is up.
+	commitReader CommitReader
+	browser      Opener
+	tree         Tree
 
 	screen   screen
 	cursor   int
@@ -394,7 +396,7 @@ func (m *Model) Init() tea.Cmd {
 	// redraw by the time anyone presses it.
 	m.wrote, _ = stampOf(m.path)
 
-	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe(), m.probeAgent(), m.askHead()}
+	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe(), m.probeAgent(), m.askHead(), m.readCommits()}
 	cmds = append(cmds, m.fetchVersions()...)
 
 	if structure.Available() {
@@ -402,6 +404,48 @@ func (m *Model) Init() tea.Cmd {
 	}
 
 	return tea.Batch(cmds...)
+}
+
+// commitsMsg is what reading the commits behind d answered.
+type commitsMsg struct {
+	list []plan.Commit
+	why  string
+	diff *diff.Diff
+	err  error
+}
+
+// readCommits reads the commits behind the diff, which for a pull request is an
+// API call and a blame per commit.
+func (m *Model) readCommits() tea.Cmd {
+	if m.commitReader == nil {
+		return nil
+	}
+
+	read, ctx, head, d := m.commitReader, m.ctx, m.review.HeadSHA, m.diff
+
+	return func() tea.Msg {
+		list, why, err := read(ctx, head, d)
+
+		return commitsMsg{list: list, why: why, diff: d, err: err}
+	}
+}
+
+// applyCommits replans from the commits read. An answer about a diff the screen
+// has since replaced is dropped, since a restage brings its own.
+func (m *Model) applyCommits(msg commitsMsg) {
+	if msg.diff != m.diff {
+		return
+	}
+
+	if msg.err != nil {
+		m.say("reading the commits: "+msg.err.Error(), true)
+
+		return
+	}
+
+	m.commits, m.noCommits = msg.list, msg.why
+	m.replan()
+	m.rebuild()
 }
 
 // checkHead asks what the head is now, behind the first frame. It is what makes
@@ -621,6 +665,10 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 		return tea.ClearScreen
 	case restagedMsg:
 		return m.applyRestaged(msg)
+	case commitsMsg:
+		m.applyCommits(msg)
+
+		return nil
 	case reloadMsg:
 		return m.reloaded(msg)
 	case mergedMsg:
