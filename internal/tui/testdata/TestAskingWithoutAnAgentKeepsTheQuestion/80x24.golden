@@ -1,5 +1,5 @@
-kyleking/jj-diff #42                                      2 files · +2 −1 ·  31%
-vcs ───────────────────●──────────────────────────┊─                  diff.go:16
+kyleking/jj-diff #42                                      2 files · +2 −1 ·  30%
+vcs ─────────────────●────────────────────────────┊─                  diff.go:16
  
      internal/vcs/diff.go  +2 -1 ───────────────────────────────────────────────
        func Parse(r io.Reader) ([]Hunk, error) {
@@ -13,6 +13,7 @@ vcs ───────────────────●─────�
        │                                                                      │
        │ no agent here to ask; second-look plan ask answers it                │
        ╰──────────────────────────────────────────────────────────────────────╯
+ 
   17       last := 4                                                            
      internal/vcs/git.go ───────────────────────────────────────────────────────
        func Head() string {
@@ -20,5 +21,4 @@ vcs ───────────────────●─────�
  
       ┃ REVIEW BODY  empty · e to write one
       ┃ REVIEW NOTE  empty · e to write one
-
 kept in [plan] for an agent to answer with second-look plan ask

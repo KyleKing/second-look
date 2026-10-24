@@ -9,16 +9,16 @@ vcs ─────────────────────────�
        │ Is first still 1 after│      gg/G  the ends                          │┃
        │ note  Unverified: I ha│         ]  go to…                            │┃
        ╰─ [e]dit · [r]eady · [d│         [  go back…                          │┃
-  15 -     lines := split(r)   │       n/N  the same, or back                 │┃
-  15 +     lines, err := split(│  ctrl+o/i  back and forward through jumps    │┃
-                               │            tab goes forward too once ctrl+o  │┃
-       ╭─ ● ready · major ─────│            has left a place ahead            │┃
-       │ split can fail now, so│         .  the last change                   │┃
-       ╰─ [e]dit · [r]eady · [d│       tab  what wants a decision             │┃
-  16 +     if err != nil {     │ shift+tab  and back                          │┃
-  17       last := 4           │         /  search                            ││
-     internal/vcs/git.go ──────│            tab in the prompt narrows a       ││
-       func Head() string {    │            search to hunks not yet read      ││
- 201       return head         │ what is shown                                ││
-                               ╰ · · ·────────────────────────────────────────╯│
+                               │       n/N  the same, or back                 │┃
+  15 -     lines := split(r)   │  ctrl+o/i  back and forward through jumps    │┃
+  15 +     lines, err := split(│            tab goes forward too once ctrl+o  │┃
+                               │            has left a place ahead            │┃
+       ╭─ ● ready · major ─────│         .  the last change                   │┃
+       │ split can fail now, so│       tab  what wants a decision             ││
+       ╰─ [e]dit · [r]eady · [d│ shift+tab  and back                          ││
+                               │         /  search                            ││
+  16 +     if err != nil {     │            tab in the prompt narrows a       ││
+  17       last := 4           │            search to hunks not yet read      ││
+     internal/vcs/git.go ──────│ what is shown                                ││
+       func Head() string {    ╰ · · ·────────────────────────────────────────╯│
  [j/k] line  ] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit

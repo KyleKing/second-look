@@ -9,16 +9,16 @@ vcs ─────────────────────────�
        │ Is first still 1 after the change?                                   │┃
        │ note  Unverified: I have not read the caller.                        │┃
        ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────╯┃
+                                                                               ┃
   15 -     lines := split(r)                                                   ┃
   15 +     lines, err := split(r)                                              ┃
                                                                                ┃
        ╭─ ● ready · major ─────────────────────────────────────── diff.go:15 ─╮┃
-       │ split can fail now, so this has to check err.                        │┃
-       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────╯┃
-  16 +     if err != nil {                                                     ┃
+       │ split can fail now, so this has to check err.                        ││
+       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────╯│
+                                                                               │
+  16 +     if err != nil {                                                     │
   17       last := 4                                                           │
      internal/vcs/git.go ──────────────────────────────────────────────────────│
        func Head() string {                                                    │
- 201       return head                                                         │
-                                                                               │
  [j/k] line  ] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit

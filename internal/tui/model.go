@@ -3262,7 +3262,7 @@ func (m *Model) moveBy(n int) {
 // or from itself when there is none.
 func (m *Model) stopFrom(from, step int) int {
 	for i := from + step; i >= 0 && i < len(m.screen.rows); i += step {
-		if m.screen.rows[i].role != roleFoot {
+		if !passed(m.screen.rows[i]) {
 			return i
 		}
 	}
@@ -3273,7 +3273,7 @@ func (m *Model) stopFrom(from, step int) int {
 // lastStop is the final row the cursor can rest on, so G does not land on a foot.
 func (m *Model) lastStop() int {
 	for i := len(m.screen.rows) - 1; i >= 0; i-- {
-		if m.screen.rows[i].role != roleFoot {
+		if !passed(m.screen.rows[i]) {
 			return i
 		}
 	}

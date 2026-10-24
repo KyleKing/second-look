@@ -279,7 +279,7 @@ func (s screen) hanging(p string, ln diff.Line, c codeCtx) []row {
 		rows = append(rows, askRows(ask, c.lay, s.numWidth)...)
 	}
 
-	return rows
+	return gapped(rows, p)
 }
 
 // codeHeader says where in the file that resulted the lines below it start, and

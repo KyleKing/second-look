@@ -63,6 +63,19 @@ const (
 	roleFold
 )
 
+// passed reports whether the cursor moves over a row rather than resting on it.
+func passed(r row) bool { return r.role == roleFoot || r.gap }
+
+// gapped closes a card hanging off a line with a blank, so the next line of
+// code does not read as part of it.
+func gapped(rows []row, path string) []row {
+	if len(rows) == 0 || rows[len(rows)-1].role != roleFoot {
+		return rows
+	}
+
+	return append(rows, row{kind: rowBlank, path: path, comment: noComment, gap: true})
+}
+
 // row is one rendered line of the review screen. Comments occupy rows of their
 // own so the cursor lands on prose the same way it lands on code.
 type row struct {
@@ -93,6 +106,8 @@ type row struct {
 	around bool
 	// shared marks a changed line of a shape's file that the shape itself makes.
 	shared bool
+	// gap marks the blank closing what hangs off a line, which the cursor passes over.
+	gap bool
 	// current marks the row under the cursor, which the rich renderer lights.
 	current bool
 	// role is which part of a card the row draws, and zero outside any card.
@@ -361,7 +376,7 @@ func (s screen) hanger(
 			}
 		}
 
-		return out
+		return gapped(out, p)
 	}
 }
 
