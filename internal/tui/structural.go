@@ -84,8 +84,12 @@ func (m *Model) replan() {
 		hunks = planHunks(nil, hunkRefs(m.diff), m.made)
 	}
 
+	was := m.selectedChapter()
+
 	m.plan = plan.Build(plan.Input{
 		Hunks: hunks, Commits: m.commits, NoCommits: m.noCommits,
 		Rules: m.rules, Overlay: m.review.Plan.Overlay(m.diff),
 	})
+
+	m.reselect(was)
 }

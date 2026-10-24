@@ -75,6 +75,7 @@ type keyMap struct {
 	Look         key.Binding
 	Order        key.Binding
 	Tour         key.Binding
+	Outline      key.Binding
 	Fold         key.Binding
 	Zed          key.Binding
 	Structure    key.Binding
@@ -156,6 +157,7 @@ func defaultKeyMap() keyMap {
 		Restage:      key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "restage")),
 		Order:        key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
 		Tour:         key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "tour")),
+		Outline:      key.NewBinding(key.WithKeys("I"), key.WithHelp("I", "outline")),
 		Fold:         key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
 		Zed:          key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
 		Structure:    key.NewBinding(key.WithKeys("W"), key.WithHelp("W", "no code changed")),
@@ -270,6 +272,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "f", What: "files matching a pattern"},
 		{What: "! drops its matches instead: *.go !*_test.go keeps the go that is not tests"},
 		{Key: "p", What: "the tour, or the plain screen"},
+		{Key: "I", What: "the outline of chapters, and back"},
 		{Key: "O", What: "the diff's own order"},
 		{Key: "w", What: "whitespace"},
 		{Key: "W", What: "no code changed"},

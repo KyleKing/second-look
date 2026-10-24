@@ -42,10 +42,14 @@ not honor, which the header counts. `O` still puts the diff's own order back.
 - **Tour.** The default up to 60 files, and `p` switches it off and on. The stops first,
   then the chapters. At 160 columns a rail of stops and chapters sits left and a margin of
   notes sits right. Below that the rail becomes a strip across the top and the notes move
-  inline. Above 60 files the screen opens plain until the outline exists
-- **Outline.** The default above about 60 files. A contents list of chapters on the left,
-  each row carrying its files, hunks, read progress, mode, and source. The selected chapter
-  shows its summary, files, stops, and what it shares with other chapters on the right
+  inline
+- **Outline.** The default above 60 files, and `I` opens it from the diff and goes back.
+  A list of chapters, each row carrying its source glyph, name, mode, files, and changed
+  lines, with a fold chapter counting its lines as folded and the list's head totalling
+  them. The selected chapter's why, files, and stops sit to its right from 160 columns and
+  under it below that, where the list keeps at most half the frame so the detail has room.
+  A file another chapter also reads names that chapter. `enter` opens the chapter at its
+  heading in the diff, and `ctrl-o` walks back to the row the diff was on
 - **Pattern.** A chapter mode, not a screen. When five or more files share one normalized
   edit, the edit is read once, then a table of what each file does beyond it, then the
   places at head that still carry the old shape and were not changed. A rule or the agent

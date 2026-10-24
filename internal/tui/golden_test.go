@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -94,9 +95,10 @@ func TestReviewProseFrames(t *testing.T) {
 	}
 }
 
-// The tour at the three sizes its layout changes across: rail and margin beside
-// the diff at 160 columns and past, and the strip with the stop's note inline
-// below that.
+// The plan's views at the three sizes their layout changes across: the tour's
+// rail and margin beside the diff at 160 columns and past, and the strip with
+// the stop's note inline below that; the outline's detail beside its list, and
+// under it.
 func TestTourFrames(t *testing.T) {
 	t.Parallel()
 
@@ -114,27 +116,46 @@ diff --git a/core/lock.go b/core/lock.go
  func save() {
 +	lock()
  	write()
+diff --git a/gen/client.go b/gen/client.go
+--- a/gen/client.go
++++ b/gen/client.go
+@@ -1,2 +1,3 @@
+ package gen
++var A = 1
++var B = 2
 `
 
+	frames := []struct {
+		name string
+		keys []rune
+	}{{"tour", []rune{'n'}}, {"outline", []rune{'I'}}}
+
 	for _, size := range [][2]int{{200, 60}, {140, 40}, {80, 24}} {
-		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
-			t.Parallel()
+		for _, frame := range frames {
+			t.Run(fmt.Sprintf("%s/%dx%d", frame.name, size[0], size[1]), func(t *testing.T) {
+				t.Parallel()
 
-			m, _, _ := modelFor(t, &artifact.Review{
-				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
-				HeadSHA: "a1b2c3d", Event: artifact.EventComment,
-				Plan: artifact.Plan{Stops: []artifact.PlanStop{{
-					ID: "lock", Role: "the core decision", Origin: "claude-code",
-					Span: artifact.Span{Path: "core/lock.go", Side: artifact.SideRight, Line: 5, Anchor: "\tlock()"},
-					What: "Every save takes the lock before it writes.",
-					Then: "The route waits on it, with no timeout.",
-				}}},
-			}, tour)
-			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
-			pressKey(t, m, 'n')
+				m, _, _ := modelFor(t, &artifact.Review{
+					Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+					HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+					Plan: artifact.Plan{Stops: []artifact.PlanStop{{
+						ID: "lock", Role: "the core decision", Origin: "claude-code",
+						Span: artifact.Span{
+							Path: "core/lock.go", Side: artifact.SideRight, Line: 5, Anchor: "\tlock()",
+						},
+						What: "Every save takes the lock before it writes.",
+						Then: "The route waits on it, with no timeout.",
+					}}},
+				}, tour, tui.WithPlanRules(plan.Rules{Repo: "kyleking/jj-diff", Fold: []string{"gen/**"}}))
+				m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 
-			golden.RequireEqual(t, []byte(plain(m.Frame())))
-		})
+				for _, k := range frame.keys {
+					pressKey(t, m, k)
+				}
+
+				golden.RequireEqual(t, []byte(plain(m.Frame())))
+			})
+		}
 	}
 }
 

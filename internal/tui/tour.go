@@ -239,6 +239,7 @@ func (m *Model) railLines(h int) []string {
 	}
 
 	line("p the plain screen", m.styles.note.Render)
+	line("I the outline", m.styles.note.Render)
 
 	return block(out, h, railCols)
 }

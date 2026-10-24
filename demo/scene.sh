@@ -62,6 +62,11 @@ if [ -d "$scene/diff" ]; then
   cp "$scene"/diff/*.patch "$work/.second-look/diff/"
 fi
 
+# A scene too big to check in writes its seed instead, into the cache directory.
+if [ -x "$scene/seed.sh" ]; then
+  "$scene/seed.sh" "$work/.second-look"
+fi
+
 if [ -f "$scene/no-review" ]; then
   rm -f "$work"/.second-look/pr-*.toml
 fi

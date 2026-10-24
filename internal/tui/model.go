@@ -247,7 +247,8 @@ type Model struct {
 	noCommits string
 	rules     plan.Rules
 	// tour walks the plan's stops and chapters, which p turns off and on.
-	tour bool
+	tour    bool
+	outline outline
 	// done is which hunks are already read, so a row can recede without hashing
 	// its hunk to find out.
 	done map[hunkAt]bool
@@ -368,6 +369,7 @@ func New(
 
 	m.replan()
 	m.tour = len(d.Files) <= tourFiles
+	m.outline.open = !m.tour && len(m.plan.Chapters) > 1
 
 	return m
 }
@@ -815,6 +817,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	if m.aboutOpen {
 		return m.readAbout(msg)
+	}
+
+	if m.outline.open {
+		return m.readOutline(msg)
 	}
 
 	// The hover answer changes nothing, so any key leaves it.
@@ -2208,6 +2214,8 @@ func (m *Model) reshapes(msg tea.KeyPressMsg) bool {
 		m.cycleOrder()
 	case key.Matches(msg, m.keys.Tour):
 		m.toggleTour()
+	case key.Matches(msg, m.keys.Outline):
+		m.openOutline()
 	case key.Matches(msg, m.keys.Fold):
 		m.setFold(foldWhitespace)
 	case key.Matches(msg, m.keys.OnlyNew):

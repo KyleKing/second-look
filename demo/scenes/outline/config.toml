@@ -1,0 +1,4 @@
+[[plan]]
+repo = "KyleKing/second-look"
+fold = ["gen/**"]
+mode = [{ glob = "locales/**", mode = "skim" }, { glob = "docs/**", mode = "skim" }]

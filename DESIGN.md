@@ -313,7 +313,9 @@ columns a rail lists them on the left and a margin on the right holds the curren
 what and then and its chapter's why. Below that the strip names the stops by number and the
 chapters by name, and a stop's note draws above its hunk. `n` walks the stops (the chapters
 where nothing named any) until another motion is named, and `p` gives the plain screen. A
-plan of one chapter has nothing to tour and draws the plain screen.
+plan of one chapter has nothing to tour and draws the plain screen. A bigger change opens
+on the outline, the plan's chapters as a list with the selected one in detail, and `I`
+moves between it and the diff.
 
 An unresolved thread caps at three rendered lines: two lines of the comment when it is
 alone, or one line of the first, a thread count, and one line of the last when it is not.
@@ -394,7 +396,7 @@ line drops the dim ones instead of truncating it.
 | Review | `space` seen, `c` comment, `a` then a severity writes one, `S` then `a`/`r`/`c` submit, `i` what the pull request says, `o` on GitHub, `u` unresolved only |
 | Fold | `z` then `a` here, `i` invert all, `R` open all, `M` to the file names |
 | Queue | `1`/`2`/`3` and `]`/`[` the tab, `tab` the next group, `f`/`F` focus one repository |
-| View | `p` the tour or the plain screen, `-` file overlay, `g` context pane, `s` split, `w` whitespace, `t` syntax-aware |
+| View | `p` the tour or the plain screen, `I` the outline, `-` file overlay, `g` context pane, `s` split, `w` whitespace, `t` syntax-aware |
 | Thread | `ctrl+j`/`ctrl+k` scroll, `tab` complete, `r` reply, `R` resolve, `,` then an emoji reacts, `z` then `a` folds the conversation |
 
 `space` marks the hunk under the cursor seen and advances, because marking and moving on

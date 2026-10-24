@@ -45,7 +45,13 @@ func (m *Model) render() string {
 		return fmt.Sprintf("second-look needs %dx%d, this is %dx%d", minWidth, minHeight, m.width, m.height)
 	}
 
-	body := m.bodyLines()
+	var body []string
+	if m.outline.open {
+		body = m.outlineLines()
+	} else {
+		body = m.bodyLines()
+	}
+
 	if m.waiting {
 		body = m.waitLines(body)
 	}
@@ -422,6 +428,10 @@ type hint struct {
 }
 
 func (m *Model) hints() []hint {
+	if m.outline.open {
+		return m.outlineHints()
+	}
+
 	view := hint{key: "c", what: m.view.next().String()}
 	if m.view.next() == viewDiff {
 		view.what = "the diff"

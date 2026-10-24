@@ -1,0 +1,60 @@
+kyleking/jj-diff #42                                                                                                                                                              3 files · +4 −1 ·   0%
+1 ────────────────────────────────────  api ───────────────────────────────────────────────────────────────────────  gen ──────────────────────────────────────────────────────────────────────  outline
+ CHAPTERS · 2 of 3 · 0 read · 2 of 5 lines folded                                          │  CHAPTER 2 OF 3 · read                                                                                     
+   ⇢ api                                                       read     1 file       +1 −1 │  ⇢ core                                                                                                    
+▌  ⇢ core                                                      read     1 file       +1 −0 │  placed by the code                                                                                        
+   § gen                                                       fold     1 file    2 folded │                                                                                                            
+                                                                                           │  FILES · 1                                                                                                 
+                                                                                           │    core/lock.go  1 hunk  +1 −0                                                                             
+                                                                                           │                                                                                                            
+                                                                                           │  STOPS · 1                                                                                                 
+                                                                                           │  1 the core decision · Every save takes the lock before it writes.                                         
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+                                                                                           │                                                                                                            
+ [j/k] chapter  [enter] open it  [esc] the diff  [i] context  [?] help  [q]uit
