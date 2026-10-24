@@ -34,7 +34,8 @@ func (m *Model) title(files []fileStat) string {
 		room := m.width - textWidth(m.name()) - textWidth(right) - indent - 1
 		want := min(textWidth(about), titleFloor)
 
-		if limit >= rankKept && room < want {
+		// A problem outranks the title, so the title gives way before a problem is dropped.
+		if limit > rankProblem && room < want {
 			continue
 		}
 

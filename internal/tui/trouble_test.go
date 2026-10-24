@@ -141,11 +141,15 @@ func TestNotesAreDrawnUnderTheirLine(t *testing.T) {
 }
 
 // X is the list read the other way round: what is wrong anywhere, for a reader
-// deciding what to open rather than reading the diff through.
+// deciding what to open rather than reading the diff through. Leaving it puts
+// the cursor back where it was.
 func TestTroubleListsEverythingFound(t *testing.T) {
 	t.Parallel()
 
 	m := checked(t, found())
+	go2(t, m, ']', 'h')
+	go2(t, m, ']', 'h')
+	before := cursorText(m)
 	press(t, m, tea.KeyPressMsg{Code: 'X', Text: "X"})
 
 	frame := plain(m.Frame())
@@ -163,6 +167,10 @@ func TestTroubleListsEverythingFound(t *testing.T) {
 
 	if strings.Contains(plain(m.Frame()), "line 14 · house rules") {
 		t.Error("a second X did not leave the list")
+	}
+
+	if got := cursorText(m); got != before {
+		t.Errorf("leaving the list moved the cursor from %q to %q", before, got)
 	}
 }
 

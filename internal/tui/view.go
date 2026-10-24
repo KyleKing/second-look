@@ -33,7 +33,7 @@ func (m *Model) View() tea.View {
 
 	// The mouse is captured only while an overlay can scroll, so drag-select
 	// keeps working the rest of the time.
-	if m.help || m.aboutOpen {
+	if m.help || m.aboutOpen || m.outline.open {
 		v.MouseMode = tea.MouseModeCellMotion
 	}
 

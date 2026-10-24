@@ -185,6 +185,17 @@ func (m *Model) readOutline(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// outlineStep moves the selection by step rows of whichever list is up.
+func (m *Model) outlineStep(step int) {
+	if m.outline.features {
+		m.outline.feature = clamp(m.outline.feature+step, len(m.plan.Features)-1)
+
+		return
+	}
+
+	m.outline.at = clamp(m.outline.at+step, len(m.plan.Chapters)-1)
+}
+
 // switchList moves between the chapters and the features, where there are any.
 func (m *Model) switchList() {
 	if len(m.plan.Features) == 0 {

@@ -32,6 +32,16 @@ func TestABigChangeOpensOnItsOutline(t *testing.T) {
 		t.Errorf("I did not come back to the chapter it left:\n%s", got)
 	}
 
+	if mode := m.View().MouseMode; mode != tea.MouseModeCellMotion {
+		t.Errorf("the outline did not capture the mouse: %v", mode)
+	}
+
+	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "CHAPTERS · 3 of 3") {
+		t.Errorf("the wheel did not move the selection:\n%s", got)
+	}
+
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if got := plain(m.Frame()); strings.Contains(got, "CHAPTERS ·") {

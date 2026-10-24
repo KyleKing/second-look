@@ -104,6 +104,8 @@ type Model struct {
 	agentSaw   bool
 	agentIn    textinput.Model
 	restage    Restager
+	// left is where the diff's cursor stood when a view off the cycle opened, which closing it returns to.
+	left where
 	// headSearch finds files at head carrying a line, and atHead is what each
 	// shape chapter's search found, keyed by the line.
 	headSearch HeadSearch
@@ -971,6 +973,8 @@ func (m *Model) wheel(msg tea.MouseWheelMsg) {
 		m.helpAt = max(0, m.helpAt+step)
 	case m.aboutOpen:
 		m.aboutAt = clamp(m.aboutAt+step, len(m.aboutText(m.width))-m.viewHeight())
+	case m.outline.open:
+		m.outlineStep(step / wheelStep)
 	}
 }
 
@@ -1901,17 +1905,18 @@ func (m *Model) showTrouble() {
 // toggleView opens one of the views that sit off the cycle, or leaves it for
 // the diff.
 func (m *Model) toggleView(v viewMode) {
-	was := m.view
+	was, at := m.view, m.here()
+	if was == viewDiff {
+		m.left = at
+	}
 
 	m.view = v
 	if was == v {
-		m.view = viewDiff
+		m.view, at = viewDiff, m.left
 	}
 
 	m.rebuild()
-
-	m.cursor = 0
-	m.reveal()
+	m.goTo(at)
 
 	if m.view == viewDiff {
 		m.say("the diff", false)

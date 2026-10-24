@@ -1413,7 +1413,8 @@ diff --git a/db/001.sql b/db/001.sql
 	}
 
 	m, _, _ := modelFor(t, r, patch,
-		tui.WithCommits(commits, ""), tui.WithPlanRules(plan.Rules{Repo: "kyleking/jj-diff", Fold: []string{"*.sql"}}))
+		tui.WithCommits(commits, ""), tui.WithPlanRules(plan.Rules{Repo: "kyleking/jj-diff", Fold: []string{"*.sql"}}),
+		tui.WithAbout(threads.About{Author: "crs48", Title: "feat(email): add a custom email domain before rollout"}))
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	frame := plain(m.Frame())
@@ -1433,6 +1434,13 @@ diff --git a/db/001.sql b/db/001.sql
 
 	if !strings.Contains(head[0], "1 plan problem") {
 		t.Errorf("the header does not count what the plan could not place:\n%s", frame)
+	}
+
+	// At the narrowest frame the title gives way before the problem does.
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	if got := plain(m.Frame()); !strings.Contains(strings.SplitN(got, "\n", 2)[0], "1 plan problem") {
+		t.Errorf("an 80-column header drops the plan's problem:\n%s", got)
 	}
 }
 
