@@ -1,5 +1,5 @@
 kyleking/jj-diff #42                                      3 files · +5 −1 ·   4%
-1 ●───  the lock's call… ───  api ──────  gen ──────                     lock.go
+1 ─●──────  the lock's call… ────────  api ───────────────  gen ──────────────  
                                                                                ┃
 ▌◆ stop 1 of 1 · the core decision                                             ┃
     Every save takes the lock before it writes.                                ┃

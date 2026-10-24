@@ -37,6 +37,9 @@ func (m *Model) CommentStatus(i int) string { return m.review.Comments[i].Status
 // landed rather than inferring it from the frame.
 func (m *Model) CursorRow() int { return m.cursor }
 
+// CursorFile is the file the row under the cursor belongs to.
+func (m *Model) CursorFile() string { return m.cursorPath() }
+
 // CursorText is what the row under the cursor says.
 func (m *Model) CursorText() string { return rowText(m.screen.rows[m.cursor]) }
 

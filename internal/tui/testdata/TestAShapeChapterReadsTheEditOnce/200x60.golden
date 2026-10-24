@@ -1,5 +1,5 @@
 kyleking/jj-diff #42                                                                                                                                          7 files · +9 −6 · read 0 of 7 hunks ·   2%
-the same edit i… ───●───────────────────────────────────────────────────────────────────────────────────────────────────  . ────────                                            the same edit in 6 files
+the same edit i… ────●───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  . ─────────────  
  CHAPTERS · 1 of 2           │                                                                                                                               │ CHAPTER 1 OF 2 · shape                   
  ▸ ⇢ the same edit i… shape  │▌⇢ the same edit in 6 files  6 files · 6 hunks · shape · one edit, read once                                                   │ the same edit in 6 files                 
    ⇢ .                 read  │     THE SHAPE · read once for 6 files · as cards/CardA.tsx                                                                    │ one edit, read once                      

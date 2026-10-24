@@ -2,7 +2,6 @@ package tui
 
 import (
 	"path"
-	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -11,10 +10,7 @@ import (
 	"github.com/kyleking/second-look/internal/seen"
 )
 
-const (
-	stripFiles = 120
-	labelShare = 3
-)
+const stripFiles = 120
 
 type fileStat struct {
 	path           string
@@ -42,32 +38,6 @@ func (m *Model) stats() []fileStat {
 	return out
 }
 
-func paths(files []fileStat) []string {
-	out := make([]string, len(files))
-	for i, f := range files {
-		out[i] = f.path
-	}
-
-	return out
-}
-
-// label is the one place a file gets its name in the header, which chapter names will replace.
-func label(file string, files []fileStat) string { return shortestTail(file, paths(files)) }
-
-func (m *Model) currentLabel(files []fileStat) string {
-	current := m.cursorPath()
-	if current == "" {
-		return ""
-	}
-
-	name := fitPath(label(current, files), max(1, m.width/labelShare))
-	if n := m.screen.rows[min(m.cursor, len(m.screen.rows)-1)].line.New; n > 0 && name != "" {
-		name += ":" + strconv.Itoa(n)
-	}
-
-	return name
-}
-
 type seg struct {
 	weight    int
 	read, lit bool
@@ -76,10 +46,10 @@ type seg struct {
 	marked bool
 }
 
-// inFile is the file the cursor is in and how far through it.
+// inFile is the file the cursor is in, how far through it, and how far through its directory.
 type inFile struct {
-	path string
-	at   float64
+	path      string
+	at, dirAt float64
 }
 
 type cluster struct {
@@ -113,7 +83,11 @@ func (m *Model) readFiles() map[string]bool {
 func (m *Model) strip(files []fileStat, room int) string {
 	read, current := m.readFiles(), m.cursorPath()
 	dirs := directories(files)
-	here := inFile{path: current, at: m.through(func(r row) bool { return r.path == current })}
+	here := inFile{
+		path:  current,
+		at:    m.through(func(r row) bool { return r.path == current }),
+		dirAt: m.through(func(r row) bool { return r.path != "" && path.Dir(r.path) == path.Dir(current) }),
+	}
 
 	attempts := []struct {
 		byFile, labels bool
@@ -183,7 +157,11 @@ func clusters(files []fileStat, names map[string]string, read map[string]bool, h
 		}
 
 		s := seg{weight: f.changed(), read: read[f.path], lit: f.path == here.path}
-		s.marked, s.at = byFile && s.lit, here.at
+		s.marked, s.at = s.lit, here.at
+
+		if !byFile {
+			s.at = here.dirAt
+		}
 
 		switch {
 		case byFile || len(out[at].segs) == 0:
@@ -193,6 +171,10 @@ func clusters(files []fileStat, names map[string]string, read map[string]bool, h
 			g.weight += s.weight
 			g.read = g.read && s.read
 			g.lit = g.lit || s.lit
+
+			if s.marked {
+				g.marked, g.at = true, s.at
+			}
 		}
 	}
 

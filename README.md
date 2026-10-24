@@ -321,9 +321,8 @@ advisory, deterministic, and decides nothing.
 Files are grouped by directory with file and hunk counts on each heading, and `]d` walks
 the groups. One directory over a review whose files each carry their whole path is the
 same words twice, so that heading appears once there is a second group to tell it from.
-The title names the file the cursor is in once that file's own heading has scrolled off
-the top, beside where the frame sits and which comment the cursor is on. A heading you can
-still see is not worth the width.
+The strip under the title marks the file the cursor is in with a `●` at how far through
+it the cursor stands, so where you are reads off the strip rather than off a name beside it.
 
 The rest of the frame is what somebody has to act on. A count of zero says nothing
 happened and is left out, and a working copy standing where the review was staged says

@@ -111,27 +111,6 @@ func (m *Model) name() string {
 	return name
 }
 
-// fitPath keeps the part of a path that says which file it is. Cutting a path
-// at either end loses that, so the base name stands in where the whole will not
-// fit, and where even the base name will not, the title says nothing rather
-// than something unreadable.
-func fitPath(path string, room int) string {
-	if path == "" || room < 1 {
-		return ""
-	}
-
-	if textWidth(path) <= room {
-		return path
-	}
-
-	base := path[strings.LastIndex(path, "/")+1:]
-	if textWidth(base) <= room {
-		return base
-	}
-
-	return ""
-}
-
 // shortestTail is the fewest trailing segments of a path that no other path in
 // all ends with, so two index.ts files read as auth/index.ts and ui/index.ts. A
 // path another one ends with has no shorter name than itself.
@@ -253,36 +232,6 @@ func (m *Model) counts() tally {
 	}
 
 	return out
-}
-
-// groupWord is the reading order's own group the cursor is in. A file's hunks
-// are gathered by what they declare and call rather than drawn in file order, so
-// which group a row belongs to is not readable off the file name the way a
-// directory is.
-func (m *Model) groupWord() string {
-	if name := m.headingAbove(min(m.cursor, len(m.screen.rows)-1), rowGroup); name != "" {
-		return "  " + name
-	}
-
-	return ""
-}
-
-// headingAbove is the nearest heading of one kind above a row, and nothing
-// where that heading is still on the screen.
-func (m *Model) headingAbove(at int, kind rowKind) string {
-	for i := at; i >= 0; i-- {
-		if m.screen.rows[i].kind != kind {
-			continue
-		}
-
-		if i >= m.offset {
-			return ""
-		}
-
-		return m.screen.rows[i].path
-	}
-
-	return ""
 }
 
 // elsewhere is where the file under the cursor keeps the hunks nobody has read,

@@ -144,17 +144,6 @@ func (m *Model) agentNotes() []string {
 
 func (m *Model) modes(files []fileStat) string {
 	sep := m.styles.hunk.Render(" · ")
-
-	var where []string
-
-	if label := m.currentLabel(files); label != "" {
-		where = append(where, m.styles.file.Render(label))
-	}
-
-	if w := strings.TrimSpace(m.groupWord()); w != "" {
-		where = append(where, m.styles.hunk.Render(w))
-	}
-
 	words := make([]string, 0, 6)
 
 	for _, w := range []string{
@@ -165,12 +154,8 @@ func (m *Model) modes(files []fileStat) string {
 		}
 	}
 
-	// What the cursor stands on gets a fixed slot, so the strip holds still as it moves.
-	slot := m.width / labelShare
-	words = append([]string{cut(strings.Join(where, sep), slot)}, words...)
-
-	right := strings.TrimPrefix(strings.Join(words, sep), sep)
-	room := m.width - slot - textWidth(right) + textWidth(words[0]) - indent
+	right := strings.Join(words, sep)
+	room := m.width - textWidth(right) - indent
 
 	if room < 1 {
 		return cut(right, m.width)

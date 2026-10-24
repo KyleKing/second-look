@@ -153,7 +153,7 @@ func TestPlainFromAStopHeadingKeepsTheCursorOnItsHunk(t *testing.T) {
 			for _, k := range []rune{'p', 'c'} {
 				pressKey(t, m, k)
 
-				if got := headerLine(m); m.CursorRow() == 0 || !strings.Contains(got, "lock.go") {
+				if got := m.CursorFile(); m.CursorRow() == 0 || !strings.HasSuffix(got, "lock.go") {
 					t.Errorf("%c from the stop's heading left the cursor on row %d of %q, want the stop's hunk",
 						k, m.CursorRow(), got)
 				}
@@ -362,7 +362,8 @@ func TestAShapeChapterReadsTheEditOnce(t *testing.T) {
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "RisksCard.tsx:4 · file · outside the diff") {
+	got := plain(m.Frame())
+	if m.CursorFile() != "cards/RisksCard.tsx" || !strings.Contains(got, "file · outside the diff") {
 		t.Errorf("enter on a file the edit missed did not open it:\n%s", got)
 	}
 }
