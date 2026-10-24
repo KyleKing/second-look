@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -95,12 +96,72 @@ func TestReviewProseFrames(t *testing.T) {
 	}
 }
 
-// The plan's views at the three sizes their layout changes across: the tour's
-// rail and margin beside the diff at 160 columns and past, and the strip with
-// the stop's note inline below that; the outline's detail beside its list, and
-// under it.
+// The plan's views at the sizes their layout changes across: beside the diff or
+// the list from 160 columns, and inline or stacked below that.
 func TestTourFrames(t *testing.T) {
 	t.Parallel()
+
+	outline := tea.KeyPressMsg{Code: 'I', Text: "I"}
+	frames := []struct {
+		name string
+		keys []tea.KeyPressMsg
+	}{
+		{"tour", []tea.KeyPressMsg{{Code: 'n', Text: "n"}}},
+		{"outline", []tea.KeyPressMsg{outline}},
+		{"features", []tea.KeyPressMsg{outline, {Code: tea.KeyTab}}},
+	}
+
+	for _, size := range [][2]int{{200, 60}, {140, 40}, {80, 24}} {
+		for _, frame := range frames {
+			t.Run(fmt.Sprintf("%s/%dx%d", frame.name, size[0], size[1]), func(t *testing.T) {
+				t.Parallel()
+
+				m := toured(t)
+				m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+
+				for _, k := range frame.keys {
+					press(t, m, k)
+				}
+
+				golden.RequireEqual(t, []byte(plain(m.Frame())))
+			})
+		}
+	}
+}
+
+// A stop's heading draws only on the tour, so p and then c from one land on its
+// hunk rather than at the top.
+func TestPlainFromAStopHeadingKeepsTheCursorOnItsHunk(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range [][2]int{{200, 60}, {80, 24}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			t.Parallel()
+
+			m := toured(t)
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			pressKey(t, m, 'n')
+
+			if got := m.CursorText(); !strings.Contains(got, "stop 1 of 1") {
+				t.Fatalf("n landed on %q, want the stop's heading", got)
+			}
+
+			for _, k := range []rune{'p', 'c'} {
+				pressKey(t, m, k)
+
+				if got := headerLine(m); m.CursorRow() == 0 || !strings.Contains(got, "lock.go") {
+					t.Errorf("%c from the stop's heading left the cursor on row %d of %q, want the stop's hunk",
+						k, m.CursorRow(), got)
+				}
+			}
+		})
+	}
+}
+
+// toured is a plan with a stop, a rule's fold, and two features sharing a file,
+// which is everything the tour, the outline, and the features draw.
+func toured(t *testing.T) *tui.Model {
+	t.Helper()
 
 	const tour = `diff --git a/api/route.go b/api/route.go
 --- a/api/route.go
@@ -129,52 +190,29 @@ diff --git a/gen/client.go b/gen/client.go
 +var B = 2
 `
 
-	outline := tea.KeyPressMsg{Code: 'I', Text: "I"}
-	frames := []struct {
-		name string
-		keys []tea.KeyPressMsg
-	}{
-		{"tour", []tea.KeyPressMsg{{Code: 'n', Text: "n"}}},
-		{"outline", []tea.KeyPressMsg{outline}},
-		{"features", []tea.KeyPressMsg{outline, {Code: tea.KeyTab}}},
-	}
+	m, _, _ := modelFor(t, &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+		Plan: artifact.Plan{Stops: []artifact.PlanStop{{
+			ID: "lock", Role: "the core decision", Origin: "claude-code",
+			Span: artifact.Span{
+				Path: "core/lock.go", Side: artifact.SideRight, Line: 5, Anchor: "\tlock()",
+			},
+			What: "Every save takes the lock before it writes.",
+			Then: "The route waits on it, with no timeout.",
+		}}, Chapters: []artifact.PlanChapter{
+			{Chapter: "api", Feature: "routing", Origin: "claude-code"},
+			{Chapter: "core", Feature: "locking", Origin: "claude-code"},
+			{
+				Chapter: "the lock's caller", Feature: "locking", Origin: "claude-code",
+				Hunks: []artifact.Span{{
+					Path: "api/route.go", Side: artifact.SideRight, Line: 11, Anchor: "\twaitLock()",
+				}},
+			},
+		}},
+	}, tour, tui.WithPlanRules(plan.Rules{Repo: "kyleking/jj-diff", Fold: []string{"gen/**"}}))
 
-	for _, size := range [][2]int{{200, 60}, {140, 40}, {80, 24}} {
-		for _, frame := range frames {
-			t.Run(fmt.Sprintf("%s/%dx%d", frame.name, size[0], size[1]), func(t *testing.T) {
-				t.Parallel()
-
-				m, _, _ := modelFor(t, &artifact.Review{
-					Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
-					HeadSHA: "a1b2c3d", Event: artifact.EventComment,
-					Plan: artifact.Plan{Stops: []artifact.PlanStop{{
-						ID: "lock", Role: "the core decision", Origin: "claude-code",
-						Span: artifact.Span{
-							Path: "core/lock.go", Side: artifact.SideRight, Line: 5, Anchor: "\tlock()",
-						},
-						What: "Every save takes the lock before it writes.",
-						Then: "The route waits on it, with no timeout.",
-					}}, Chapters: []artifact.PlanChapter{
-						{Chapter: "api", Feature: "routing", Origin: "claude-code"},
-						{Chapter: "core", Feature: "locking", Origin: "claude-code"},
-						{
-							Chapter: "the lock's caller", Feature: "locking", Origin: "claude-code",
-							Hunks: []artifact.Span{{
-								Path: "api/route.go", Side: artifact.SideRight, Line: 11, Anchor: "\twaitLock()",
-							}},
-						},
-					}},
-				}, tour, tui.WithPlanRules(plan.Rules{Repo: "kyleking/jj-diff", Fold: []string{"gen/**"}}))
-				m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
-
-				for _, k := range frame.keys {
-					press(t, m, k)
-				}
-
-				golden.RequireEqual(t, []byte(plain(m.Frame())))
-			})
-		}
-	}
+	return m
 }
 
 // triaged is a review in every state the screen can show: one comment ready to

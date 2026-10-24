@@ -312,7 +312,7 @@ A change of up to 60 files opens as the tour: the plan's stops, then its chapter
 columns a rail lists them on the left and a margin on the right holds the current stop's
 what and then and its chapter's why. Below that the strip names the stops by number and the
 chapters by name, and a stop's note draws above its hunk. `n` walks the stops (the chapters
-where nothing named any) until another motion is named, and `p` gives the plain screen. A
+where nothing named any) until another motion is named, and `p` gives the plain screen on the same hunk. A
 plan of one chapter has nothing to tour and draws the plain screen. A bigger change opens
 on the outline, the plan's chapters as a list with the selected one in detail, and `I`
 moves between it and the diff. `tab` there lists the features and the files they share.

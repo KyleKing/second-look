@@ -1827,12 +1827,11 @@ func (m *Model) toggleView(v viewMode) {
 // across the change. Losing your place is what makes another view a detour
 // rather than a shortcut.
 func (m *Model) cycleView() {
-	was := m.current()
+	was, at := m.current(), m.here()
 	m.view = m.view.next()
 	m.rebuild()
 
-	m.cursor = 0
-	m.reveal()
+	m.goTo(at)
 	m.say("", false)
 
 	if was < 0 {

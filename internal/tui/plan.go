@@ -268,9 +268,12 @@ func (m *Model) orderWord() string {
 
 // where names what the cursor is standing on in terms that survive a re-layout,
 // with nth counting which occurrence of it, since two rows can read alike.
+// The near hunk is the row's own, or a heading's first hunk below it, since a
+// heading one view draws is absent from another.
 type where struct {
 	comment int
 	at      hunkAt
+	near    hunkAt
 	kind    rowKind
 	line    diff.Line
 	thread  int
@@ -297,6 +300,14 @@ func (m *Model) here() where {
 		}
 	}
 
+	w.near = w.at
+
+	for i := m.cursor; w.near.hunk == 0 && i < len(m.screen.rows); i++ {
+		if below := &m.screen.rows[i]; below.hunk > 0 {
+			w.near = hunkAt{below.path, below.hunk}
+		}
+	}
+
 	return w
 }
 
@@ -314,14 +325,14 @@ func (m *Model) find(was where) int {
 	best := -1
 
 	for i := range m.screen.rows {
-		r := m.screen.rows[i]
+		r := &m.screen.rows[i]
 
 		switch {
 		case was.comment >= 0 && r.comment == was.comment:
 			return i
-		case same(r, was):
+		case same(*r, was):
 			return i
-		case best < 0 && r.path == was.at.path && r.hunk == was.at.hunk:
+		case best < 0 && r.hunk > 0 && hunkAt{r.path, r.hunk} == was.near:
 			best = i
 		}
 	}
