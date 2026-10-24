@@ -165,10 +165,12 @@ type Model struct {
 	// drawn is which renderer v is on, and refined and lexed are what the rich
 	// one reads: the runs of each changed line its partner does not carry, and
 	// the grammar's reading of each file, lexed the first time it is drawn.
-	drawn    look
-	refined  diff.Refined
-	hunkCols map[hunkRef]int
-	lexed    map[string]map[diff.LineRef][]highlight.Span
+	drawn   look
+	refined diff.Refined
+	// reindented is every changed line whose partner says the same thing at another indent.
+	reindented map[diff.LineRef]bool
+	hunkCols   map[hunkRef]int
+	lexed      map[string]map[diff.LineRef][]highlight.Span
 
 	// pending is the ] or [ waiting for the object that completes it.
 	pending rune
@@ -369,7 +371,7 @@ func New(
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
 		files: newFiles(),
 		width: minWidth, height: startHeight, folded: newFolded(),
-		refined: d.Refine(), lexed: map[string]map[diff.LineRef][]highlight.Span{},
+		refined: d.Refine(), reindented: d.Reindented(), lexed: map[string]map[diff.LineRef][]highlight.Span{},
 		lit:    map[string][][]highlight.Span{},
 		drawn:  opening,
 		built:  time.Now(),

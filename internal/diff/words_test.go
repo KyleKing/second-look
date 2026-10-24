@@ -107,6 +107,32 @@ func TestRefinePairsWithinAChangeBlock(t *testing.T) {
 	}
 }
 
+// A line pushed under a new block pairs with itself rather than with the line
+// that opened the block, so only its indent is marked.
+func TestRefinePairsALineAcrossANewIndent(t *testing.T) {
+	t.Parallel()
+
+	patch := "diff --git a/a.go b/a.go\n--- a/a.go\n+++ b/a.go\n@@ -1,2 +1,4 @@\n" +
+		"-\tfoo(a)\n-\tbar(b)\n+\tif ok {\n+\t\tfoo(a)\n+\t\tbar(b)\n+\t}\n"
+
+	r := diff.Parse([]byte(patch)).Refine()
+
+	if _, ok := r[diff.LineRef{Path: "a.go", Kind: diff.KindAdd, New: 1}]; ok {
+		t.Error("the line opening the block was paired")
+	}
+
+	came := r[diff.LineRef{Path: "a.go", Kind: diff.KindAdd, New: 2}]
+	if got := marked("\t\tfoo(a)", came); got != "\t[\t]foo(a)" {
+		t.Errorf("the re-indented line marked as %q", got)
+	}
+
+	moved := diff.Parse([]byte(patch)).Reindented()
+	if !moved[diff.LineRef{Path: "a.go", Kind: diff.KindRemove, Old: 1}] ||
+		moved[diff.LineRef{Path: "a.go", Kind: diff.KindAdd, New: 1}] {
+		t.Errorf("re-indented lines = %v, want foo and bar on both sides", moved)
+	}
+}
+
 func patchOf(before, after string) string {
 	return "diff --git a/a.go b/a.go\n--- a/a.go\n+++ b/a.go\n@@ -1,1 +1,1 @@\n" +
 		"-" + before + "\n+" + after + "\n"

@@ -277,6 +277,8 @@ func (m *Model) richGutter(r row) string {
 	switch {
 	case r.shared && m.rich.colored:
 		style, mark = side, m.styles.behind.Render(sharedGlyph)
+	case changed && m.rich.colored && m.reindented[refOf(r.path, l)]:
+		style, mark = side, side.Render(reindentGlyph)
 	case changed:
 		style = side
 		mark = side.Render(mark)
@@ -287,6 +289,12 @@ func (m *Model) richGutter(r row) string {
 
 // sharedGlyph marks a line a shape's file makes as the shape does.
 const sharedGlyph = "≈"
+
+// reindentGlyph marks a line that only moved to another indent, where its neighbors changed what it sits inside.
+const reindentGlyph = "⇥"
+
+// indentOf is how many bytes of leading whitespace a line carries.
+func indentOf(text string) int { return len(text) - len(strings.TrimLeft(text, " \t")) }
 
 // sideGlyph is the bar a changed line is marked with, or its sign where the terminal draws no color.
 func sideGlyph(kind byte, colored bool) string {
@@ -414,6 +422,11 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 	mark := m.rich.mark[l.Kind]
 	marked := m.refined[refOf(r.path, l)]
 
+	// A changed line with no partner carries its side's band under its indent,
+	// so where a run of them starts and ends reads at the code rather than only in the gutter.
+	lead, leads := m.rich.band[l.Kind]
+	indent := indentOf(l.Text)
+
 	var segs []string
 
 	var b strings.Builder
@@ -434,8 +447,12 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 		}
 
 		style := under(face, band, ok)
-		if ok && covered(marked, piece.from) {
+
+		switch {
+		case ok && covered(marked, piece.from):
 			style = under(face, mark, true)
+		case !ok && leads && piece.to <= indent:
+			style = under(face, lead, true)
 		}
 
 		text, spent := expandFrom(l.Text[piece.from:piece.to], cols)
@@ -535,6 +552,10 @@ func (m *Model) runs(r row, l diff.Line) []run {
 
 	for _, s := range m.refined[refOf(r.path, l)] {
 		cuts[min(s.From, len(text))], cuts[min(s.To, len(text))] = true, true
+	}
+
+	if l.Kind != diff.KindContext {
+		cuts[indentOf(text)] = true
 	}
 
 	at := make([]int, 0, len(cuts))

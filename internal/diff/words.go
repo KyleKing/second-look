@@ -1,5 +1,10 @@
 package diff
 
+import (
+	"strconv"
+	"strings"
+)
+
 // Span is a half-open byte range of a line's text.
 type Span struct {
 	From int
@@ -29,8 +34,19 @@ type Refined map[LineRef][]Span
 // followed by a run of additions: the first removal answers the first addition.
 // An unpaired line is left whole, and so is a pair with too little in common,
 // since marking most of a rewritten line is noise rather than information.
-func (d *Diff) Refine() Refined {
-	out := Refined{}
+func (d *Diff) Refine() Refined { return d.pair().marks }
+
+// Reindented is every changed line paired with one saying the same thing at
+// another indent, which is a block gaining or losing a level around it.
+func (d *Diff) Reindented() map[LineRef]bool { return d.pair().reindented }
+
+type pairing struct {
+	marks      Refined
+	reindented map[LineRef]bool
+}
+
+func (d *Diff) pair() pairing {
+	out := pairing{marks: Refined{}, reindented: map[LineRef]bool{}}
 
 	for i := range d.Files {
 		refineFile(out, pathOf(&d.Files[i]), d.Files[i].Lines)
@@ -39,10 +55,12 @@ func (d *Diff) Refine() Refined {
 	return out
 }
 
-func refineFile(out Refined, path string, lines []Line) {
+func refineFile(out pairing, path string, lines []Line) {
 	var gone, came []Line
 
 	flush := func() {
+		gone, came = refineMoved(out, path, gone, came)
+
 		for at := range min(len(gone), len(came)) {
 			refineOne(out, path, gone[at], came[at])
 		}
@@ -70,14 +88,94 @@ func refineFile(out Refined, path string, lines []Line) {
 	flush()
 }
 
-func refineOne(out Refined, path string, gone, came Line) {
+// refineMoved pairs a block's lines that say the same thing at another indent,
+// so a line pushed under a new `if` does not pair with the `if` by position.
+func refineMoved(out pairing, path string, gone, came []Line) ([]Line, []Line) {
+	if len(gone) == 0 || len(came) == 0 || len(gone)*len(came) > blockCap {
+		return gone, came
+	}
+
+	left, right := make([]string, len(gone)), make([]string, len(came))
+	for i, l := range gone {
+		left[i] = indentKey(l.Text, "-", i)
+	}
+
+	for i, l := range came {
+		right[i] = indentKey(l.Text, "+", i)
+	}
+
+	atLeft, atRight := common(left, right)
+	if len(atLeft) == 0 {
+		return gone, came
+	}
+
+	paired := map[int]bool{}
+
+	for k := range atLeft {
+		g, c := gone[atLeft[k]], came[atRight[k]]
+		refineOne(out, path, g, c)
+		paired[atLeft[k]] = true
+
+		if g.Text != c.Text {
+			out.reindented[refOf(path, g)], out.reindented[refOf(path, c)] = true, true
+		}
+	}
+
+	restGone := make([]Line, 0, len(gone)-len(atLeft))
+
+	for i, l := range gone {
+		if !paired[i] {
+			restGone = append(restGone, l)
+		}
+	}
+
+	clear(paired)
+
+	for _, at := range atRight {
+		paired[at] = true
+	}
+
+	restCame := make([]Line, 0, len(came)-len(atRight))
+
+	for i, l := range came {
+		if !paired[i] {
+			restCame = append(restCame, l)
+		}
+	}
+
+	return restGone, restCame
+}
+
+// blockCap bounds the line pairing, which is quadratic in a block's lines.
+const blockCap = 160_000
+
+// indentKey is a line's text without its indent, or a key nothing matches
+// where that text is too short to mean anything.
+func indentKey(text, side string, at int) string {
+	trimmed := strings.TrimLeft(text, " \t")
+	if len(strings.TrimSpace(trimmed)) < indentFloor {
+		return side + strconv.Itoa(at) + "\x00"
+	}
+
+	return trimmed
+}
+
+// indentFloor is the shortest text a re-indented line is matched on, so a lone
+// brace or `)` does not pair across a block.
+const indentFloor = 4
+
+func refineOne(out pairing, path string, gone, came Line) {
 	before, after, ok := mark(gone.Text, came.Text)
 	if !ok {
 		return
 	}
 
-	out[LineRef{Path: path, Kind: gone.Kind, Old: gone.Old, New: gone.New}] = before
-	out[LineRef{Path: path, Kind: came.Kind, Old: came.Old, New: came.New}] = after
+	out.marks[refOf(path, gone)] = before
+	out.marks[refOf(path, came)] = after
+}
+
+func refOf(path string, l Line) LineRef {
+	return LineRef{Path: path, Kind: l.Kind, Old: l.Old, New: l.New}
 }
 
 // tokenCap bounds the pairing, which is quadratic in the tokens of a line. Past
