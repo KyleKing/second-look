@@ -35,6 +35,7 @@ import (
 	"github.com/kyleking/second-look/internal/journal"
 	"github.com/kyleking/second-look/internal/lease"
 	"github.com/kyleking/second-look/internal/local"
+	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/prepared"
 	"github.com/kyleking/second-look/internal/prstate"
@@ -473,7 +474,8 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 		tui.WithMerger(merger(t)), tui.WithStore(t.Store), tui.WithOpener(opener(t)),
 		// A config that will not parse leaves the built-in patterns rather than
 		// stopping a review, the same as it leaves the built-in buckets.
-		tui.WithGenerated(generatedPatterns()),
+		tui.WithGenerated(generatedPatterns()), tui.WithPlanRules(planRules(opened.Review)),
+		tui.WithCommits(opened.Commits, opened.NoCommits),
 	}
 
 	if d := dispatcher(t.Dir()); d != nil {
@@ -666,7 +668,8 @@ func localScreen(ctx context.Context, root string, mode local.Mode, base string)
 		tui.WithTree(tui.TreeOnHead), tui.WithStore(opened.Work),
 		tui.WithWorkRoot(opened.Work),
 		tui.WithBlobs(reader.Read), tui.WithRestage(localRestager(root, mode, base)),
-		tui.WithGenerated(generatedPatterns()),
+		tui.WithGenerated(generatedPatterns()), tui.WithPlanRules(planRules(opened.Review)),
+		tui.WithCommits(opened.Commits, opened.NoCommits),
 		tui.WithAdvisor(advisory.Client{}), tui.WithVersions(versions.Client{}),
 	}
 
@@ -707,6 +710,7 @@ func localRestager(root string, mode local.Mode, base string) tui.Restager {
 
 		return &tui.Restaged{
 			Review: opened.Review, Diff: opened.Diff, Read: opened.Read,
+			Commits: opened.Commits, NoCommits: opened.NoCommits,
 			HeadSHA: opened.HeadSHA,
 			Blobs:   reader.Read, Prober: probeFor(ctx, opened.Work, opened.Diff, reader),
 		}, nil
@@ -1367,6 +1371,17 @@ func generatedPatterns() []string {
 	}
 
 	return cfg.Generated
+}
+
+// planRules are the reading rules kept for the review's repository, and none
+// where the config will not parse.
+func planRules(r *artifact.Review) plan.Rules {
+	cfg, err := loadConfig()
+	if err != nil {
+		return plan.Rules{}
+	}
+
+	return cfg.PlanRules(r.Owner + "/" + r.Repo)
 }
 
 func loadConfig() (*config.Config, error) {

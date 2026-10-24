@@ -46,7 +46,6 @@ const (
 	SourceAgent  Source = "agent"
 	SourceYou    Source = "you"
 	SourceCommit Source = "commit"
-	SourceForge  Source = "forge"
 )
 
 // Glyph is the mark a placement is drawn with.
@@ -62,8 +61,6 @@ func (s Source) Glyph() string {
 		return "✎"
 	case SourceCommit:
 		return "⊙"
-	case SourceForge:
-		return "⌂"
 	}
 
 	return "?"
@@ -85,9 +82,10 @@ type Plan struct {
 
 // Chapter is a run of hunks read together.
 type Chapter struct {
-	Name    string
-	Mode    Mode
-	Source  Source
+	Name   string
+	Mode   Mode
+	Source Source
+	// Why is empty where Name already says it, as for one directory's files.
 	Why     string
 	Hunks   []order.Ref
 	Feature string
@@ -180,7 +178,7 @@ func fromGroups(groups []order.Group) []Chapter {
 	out := make([]Chapter, 0, len(groups))
 
 	for _, g := range groups {
-		why := "the files in " + g.Name
+		var why string
 		if g.Symbol {
 			why = "gathered around " + g.Name
 		}

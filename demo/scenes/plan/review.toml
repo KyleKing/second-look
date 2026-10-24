@@ -1,0 +1,25 @@
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 2
+head_sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
+event = "COMMENT"
+body = ""
+
+[[plan.chapter]]
+chapter = "the migration"
+mode = "table"
+why = "the schema the new key reads"
+origin = "agent"
+
+[[plan.chapter.hunk]]
+path = "internal/store/migrations/002_key.sql"
+side = "RIGHT"
+line = 1
+anchor = "alter table diffs add column head text not null default '';"
+
+[[plan.chapter]]
+chapter = "the docs"
+why = "renamed by an agent that misread the plan"
+origin = "agent"

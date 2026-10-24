@@ -1,9 +1,12 @@
 package tui
 
 import (
+	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/order"
+	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/rate"
+	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/structure"
 )
 
@@ -16,12 +19,11 @@ import (
 type shape struct {
 	// touched is the symbols each hunk declared, changed, or removed.
 	touched map[hunkAt][]structure.Symbol
-	// plan is the order the review reads in, worked out from the same pass.
-	plan []order.Group
+	// hunks is every hunk as the reading plan reads it, nil until the pass answers.
+	hunks []order.Hunk
 }
 
-// readShape collects what each hunk did from the pass the rating already ran,
-// and works the reading order out of it.
+// readShape collects what each hunk did from the pass the rating already ran.
 func readShape(readings []structure.Reading, refs []hunkAt, made generated.Set) shape {
 	out := shape{touched: map[hunkAt][]structure.Symbol{}}
 
@@ -33,7 +35,7 @@ func readShape(readings []structure.Reading, refs []hunkAt, made generated.Set) 
 		out.touched[refs[i]] = r.Symbols
 	}
 
-	out.plan = order.Plan(planHunks(readings, refs, made))
+	out.hunks = planHunks(readings, refs, made)
 
 	return out
 }
@@ -61,4 +63,29 @@ func planHunks(readings []structure.Reading, refs []hunkAt, made generated.Set) 
 	}
 
 	return out
+}
+
+func hunkRefs(d *diff.Diff) []hunkAt {
+	refs := seen.Hunks(d)
+	out := make([]hunkAt, len(refs))
+
+	for i, r := range refs {
+		out[i] = hunkAt{r.Path, r.Hunk}
+	}
+
+	return out
+}
+
+// replan orders the review by the plan, from what the structural pass found
+// where it has answered and from the diff alone where it has not.
+func (m *Model) replan() {
+	hunks := m.shape.hunks
+	if hunks == nil {
+		hunks = planHunks(nil, hunkRefs(m.diff), m.made)
+	}
+
+	m.plan = plan.Build(plan.Input{
+		Hunks: hunks, Commits: m.commits, NoCommits: m.noCommits,
+		Rules: m.rules, Overlay: m.review.Plan.Overlay(m.diff),
+	})
 }

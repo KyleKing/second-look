@@ -9,6 +9,7 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
+	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -116,13 +117,15 @@ func WithHeadCheck(check HeadCheck) Option {
 // checkers at the new head; a restage that carries neither leaves the screen
 // without the old head's copies.
 type Restaged struct {
-	Review  *artifact.Review
-	Diff    *diff.Diff
-	Threads []threads.Thread
-	Read    *seen.Set
-	HeadSHA string
-	Blobs   Blobs
-	Prober  Prober
+	Review    *artifact.Review
+	Diff      *diff.Diff
+	Commits   []plan.Commit
+	NoCommits string
+	Threads   []threads.Thread
+	Read      *seen.Set
+	HeadSHA   string
+	Blobs     Blobs
+	Prober    Prober
 }
 
 // Restager prepares the review again against the current head. It moves no
@@ -180,6 +183,17 @@ func WithOpener(open Opener) Option {
 // than read, since what matters about one is that it moved and by how much.
 func WithGenerated(patterns []string) Option {
 	return func(m *Model) { m.made = generated.New(patterns) }
+}
+
+// WithCommits orders the review by its commits where they are clean, with why
+// there are none where the change has some.
+func WithCommits(list []plan.Commit, why string) Option {
+	return func(m *Model) { m.commits, m.noCommits = list, why }
+}
+
+// WithPlanRules applies the reading rules kept for the repository under review.
+func WithPlanRules(r plan.Rules) Option {
+	return func(m *Model) { m.rules = r }
 }
 
 // Blobs reads a file as it reads after the change, by path, so a hunk can be

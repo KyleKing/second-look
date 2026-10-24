@@ -143,8 +143,9 @@ would need a real parser is a rule not worth having here.
 `demo/scene.sh <name>` opens `demo/scenes/<name>/` as a live screen against seed data on
 disk, so what the app does in a situation is settled by looking at it. A scene names the
 argv in `scene.conf` and brings only what it changes about the shared fixture: a prepared
-review as `review.toml`, its conversations as `threads.json`, extra `gh` routes, and any
-seed those routes name. `demo/scene.sh` with no argument lists them.
+review as `review.toml`, its conversations as `threads.json`, reading rules as
+`config.toml`, extra `gh` routes, and any seed those routes name. `demo/scene.sh` with no
+argument lists them.
 
 `demo/forge/gh` is the forge every scene runs against. It reads a routing table, `routes`,
 whose rows are the tokens a call must carry and the seed file that answers it, and a token

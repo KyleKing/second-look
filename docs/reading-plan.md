@@ -10,7 +10,8 @@ A plan holds the change's claim, its features, the skeleton stops, and the chapt
 chapter has a mode: read, skim, shape, table, or fold. Every hunk lands in exactly one
 chapter, which is the invariant `internal/order` already keeps for its groups, and the plan
 grows out of those groups rather than beside them. Each placement records where it came
-from, drawn as a glyph: `§` a rule, `⇢` the code graph, `◆` the agent, and `✎` you.
+from, drawn as a glyph: `§` a rule, `⇢` the code graph, `⊙` a commit, `◆` the agent, and
+`✎` you.
 
 The layers apply cheapest first, and each may move what an earlier one placed:
 
@@ -30,6 +31,11 @@ Layers 1 through 3 are recomputed on every open. What the agent and you change i
 local `[plan]` table in the prepared review, anchored by path and line range so it survives
 a head that moved, and it never posts. Without an agent pass there are no stops, and the
 tour opens on the chapters.
+
+The review screen draws each chapter under a heading carrying its glyph, its mode, and its
+reason, and a file a fold chapter holds starts folded. `i` says what the chapters were cut
+from (the commits, or why they were passed over) and lists every placement the plan could
+not honor, which the header counts. `O` still puts the diff's own order back.
 
 ## Views
 

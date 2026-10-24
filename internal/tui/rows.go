@@ -143,7 +143,7 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 
 		if g.named(len(groups)) {
 			s.rows = append(s.rows,
-				row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
+				row{kind: rowGroup, text: g.heading(), path: g.name, comment: -1})
 		}
 
 		for _, at := range g.parts {

@@ -94,6 +94,10 @@ func (m *Model) facts(files []fileStat) []fact {
 		add(rankProblem, m.styles.warn.Render(word))
 	}
 
+	if n := len(m.plan.Problems); n > 0 {
+		add(rankProblem, m.styles.warn.Render(plural(n, "plan problem")+", i says"))
+	}
+
 	if m.cost.Rated() {
 		add(rankCost, fmt.Sprintf("cost %d", m.cost.Total))
 	}

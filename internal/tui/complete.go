@@ -141,12 +141,6 @@ func (m *Model) paths() []string {
 func (m *Model) symbols() []string {
 	var out []string
 
-	for _, g := range m.shape.plan {
-		if g.Symbol {
-			out = append(out, g.Name)
-		}
-	}
-
 	for _, syms := range m.shape.touched {
 		for i := range syms {
 			out = append(out, syms[i].Ident)

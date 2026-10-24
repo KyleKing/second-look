@@ -87,6 +87,8 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 
 	m.cosmetic, m.shape = nil, shape{}
 	m.cost, m.size = rate.Score{}, rate.Size{}
+	m.commits, m.noCommits = msg.fresh.Commits, msg.fresh.NoCommits
+	m.replan()
 	// A path the agent read out of the old diff no longer orders this one;
 	// the steered motion pointing at it is dropped with it.
 	m.route = nil

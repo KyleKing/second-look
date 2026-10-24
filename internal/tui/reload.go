@@ -97,6 +97,7 @@ func (m *Model) take(fresh *artifact.Review) {
 
 	if m.editing == nil {
 		m.review = fresh
+		m.replan()
 		m.rebuild()
 		m.say(said, false)
 
@@ -106,6 +107,7 @@ func (m *Model) take(fresh *artifact.Review) {
 	index := m.editing.msg.index
 	if index < 0 || index >= len(m.review.Comments) {
 		m.review = fresh
+		m.replan()
 		m.rebuild()
 		m.say(said, false)
 
@@ -114,6 +116,7 @@ func (m *Model) take(fresh *artifact.Review) {
 
 	was := m.review.Comments[index]
 	m.review = fresh
+	m.replan()
 
 	theirs := fresh.Find(was.ID)
 	if theirs == nil || theirs.Body == was.Body {

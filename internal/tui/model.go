@@ -24,6 +24,7 @@ import (
 	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/journal"
+	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/rate"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/shellrun"
@@ -239,6 +240,12 @@ type Model struct {
 	// asDiffed puts the forge's own order back, which is what to press when the
 	// gathering guessed wrong about what belongs together.
 	asDiffed bool
+	// plan is the order the review reads in, built from commits, rules, the
+	// prepared review's [plan], and whatever the structural pass found.
+	plan      plan.Plan
+	commits   []plan.Commit
+	noCommits string
+	rules     plan.Rules
 	// done is which hunks are already read, so a row can recede without hashing
 	// its hunk to find out.
 	done map[hunkAt]bool
@@ -357,6 +364,8 @@ func New(
 		opt(m)
 	}
 
+	m.replan()
+
 	return m
 }
 
@@ -426,6 +435,7 @@ func (m *Model) applyStructure(msg structureMsg) {
 
 	m.cosmetic, m.shape, m.cost, m.size = msg.cosmetic, msg.shape, msg.score, msg.size
 	m.keepScore()
+	m.replan()
 
 	if asked {
 		m.setFold(foldCosmetic)
@@ -3010,7 +3020,8 @@ func (m *Model) rebuild() {
 		versioned: m.versioned,
 	}
 	if !m.asDiffed {
-		lay.plan = m.shape.plan
+		lay.plan = m.plan.Chapters
+		lay.folds = foldedPaths(m.plan.Chapters)
 	}
 
 	lay.trouble = m.trouble

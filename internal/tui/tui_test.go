@@ -18,6 +18,8 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/order"
+	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/structure"
 	"github.com/kyleking/second-look/internal/threads"
@@ -72,7 +74,7 @@ func fixtureWith(t *testing.T, patch string, cs ...artifact.Comment) (*tui.Model
 	}, patch)
 }
 
-func modelFor(t *testing.T, r *artifact.Review, patch string) (*tui.Model, string, *counter) {
+func modelFor(t *testing.T, r *artifact.Review, patch string, opts ...tui.Option) (*tui.Model, string, *counter) {
 	t.Helper()
 
 	sub := &counter{}
@@ -82,7 +84,7 @@ func modelFor(t *testing.T, r *artifact.Review, patch string) (*tui.Model, strin
 		t.Fatal(err)
 	}
 
-	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, sub.post)
+	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, sub.post, opts...)
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
@@ -1368,6 +1370,68 @@ diff --git a/c/three.go b/c/three.go
 	// cannot answer: both pieces say two hunks, neither says one.
 	if got := strings.Count(frame, "0/2 read"); got != 2 {
 		t.Errorf("%d of the two pieces count the whole file:\n%s", got, frame)
+	}
+}
+
+// The screen reads in the plan's chapters: clean commits become them, a rule
+// folds what it names, and a placement the plan could not honor is counted in
+// the header rather than dropped.
+func TestTheScreenReadsInThePlansChapters(t *testing.T) {
+	t.Parallel()
+
+	patch := `diff --git a/a/a.go b/a/a.go
+--- a/a/a.go
++++ b/a/a.go
+@@ -1,1 +1,1 @@
+-const a = 1
++const a = 2
+diff --git a/b/b.go b/b/b.go
+--- a/b/b.go
++++ b/b/b.go
+@@ -1,1 +1,1 @@
+-const b = 1
++const b = 2
+diff --git a/db/001.sql b/db/001.sql
+--- a/db/001.sql
++++ b/db/001.sql
+@@ -1,1 +1,1 @@
+-create table t (a int);
++create table t (a bigint);
+`
+	commits := []plan.Commit{
+		{ID: "1111111aaa", Subject: "feat: add b", Hunks: []order.Ref{{Path: "b/b.go", Hunk: 2}}},
+		{ID: "2222222bbb", Subject: "feat: add a and its table", Hunks: []order.Ref{
+			{Path: "a/a.go", Hunk: 1}, {Path: "db/001.sql", Hunk: 3},
+		}},
+	}
+
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+		Plan: artifact.Plan{Chapters: []artifact.PlanChapter{{Chapter: "nowhere"}}},
+	}
+
+	m, _, _ := modelFor(t, r, patch,
+		tui.WithCommits(commits, ""), tui.WithPlanRules(plan.Rules{Repo: "kyleking/jj-diff", Fold: []string{"*.sql"}}))
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	frame := plain(m.Frame())
+	head := strings.SplitN(frame, "\n", 3)
+
+	if b, a := strings.Index(frame, "⊙ feat: add b"), strings.Index(frame, "a/a.go"); b < 0 || a < b {
+		t.Errorf("the first commit is not read first:\n%s", frame)
+	}
+
+	if !strings.Contains(head[1], "by commit") {
+		t.Errorf("the header does not say the order is by commit:\n%s", frame)
+	}
+
+	if strings.Contains(frame, "bigint") || !strings.Contains(frame, "§ feat: add a and its table · *.sql") {
+		t.Errorf("the rule did not fold the migration into a chapter of its own:\n%s", frame)
+	}
+
+	if !strings.Contains(head[0], "1 plan problem") {
+		t.Errorf("the header does not count what the plan could not place:\n%s", frame)
 	}
 }
 

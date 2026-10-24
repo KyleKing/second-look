@@ -1,0 +1,3 @@
+[[plan]]
+repo = "KyleKing/second-look"
+mode = [{ glob = "docs/**", mode = "skim" }]

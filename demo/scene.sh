@@ -88,6 +88,11 @@ command = ["second-look-no-such-language-server"]
 extensions = [".go", ".ts", ".py"]
 CONF
 
+# A scene that keeps reading rules brings them as config of its own.
+if [ -f "$scene/config.toml" ]; then
+  cat "$scene/config.toml" >> "$work/config/second-look/config.toml"
+fi
+
 # The scene's own seeds are searched before the shared ones, so overriding an
 # answer is dropping a file of the same name into the scene.
 # shellcheck disable=SC2086 # args is a command line, so it has to split

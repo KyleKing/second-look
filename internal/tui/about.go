@@ -77,10 +77,12 @@ func (m *Model) aboutText(width int) []string {
 	}
 
 	if m.about.Title == "" {
-		return append(out, "", m.styles.note.Render(
+		out = append(out, "", m.styles.note.Render(
 			"  nothing was cached about this pull request; run second-look get "+
 				strconv.Itoa(m.review.Number)+" to read it",
 		))
+
+		return append(out, m.planText(room)...)
 	}
 
 	out = append(out, " "+m.styles.file.Render(cut(m.about.Title, room)), " "+m.styles.note.Render(m.facts2()))
@@ -94,6 +96,29 @@ func (m *Model) aboutText(width int) []string {
 		c := &m.about.Comments[i]
 		out = append(out, "", " "+m.styles.head.Render("@"+c.Author))
 		out = append(out, m.mdLines(c.Body, room)...)
+	}
+
+	return append(out, m.planText(room)...)
+}
+
+// planText is what the reading order was cut from and every placement it
+// could not honor, which the header only counts.
+func (m *Model) planText(room int) []string {
+	out := []string{"", " " + m.styles.head.Render("reading plan")}
+
+	for _, line := range wrap(m.plan.Basis, room) {
+		out = append(out, "  "+m.styles.note.Render(line))
+	}
+
+	for _, p := range m.plan.Problems {
+		for i, line := range wrap(p, room-indent) {
+			lead := "  ⚠ "
+			if i > 0 {
+				lead = "    "
+			}
+
+			out = append(out, lead+m.styles.warn.Render(line))
+		}
 	}
 
 	return out

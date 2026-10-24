@@ -11,7 +11,7 @@ import (
 	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/highlight"
-	"github.com/kyleking/second-look/internal/order"
+	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/versions"
 )
 
@@ -146,10 +146,10 @@ type layout struct {
 	// made is what counts as written by a machine, which is grouped last and
 	// folded until somebody asks for it.
 	made generated.Set
-	// plan is the reading order the structural pass worked out, and nil where
-	// there is none: before the pass answers, where nothing parsed, and where
-	// the reader asked for the diff's own order back.
-	plan []order.Group
+	// plan is the chapters the review reads in, nil where the reader asked for
+	// the diff's own order back, and folds is each file only fold chapters hold.
+	plan  []plan.Chapter
+	folds map[string]bool
 	// progress is how many of a file's hunks have been read and how many it
 	// has, which is what a piece of a file cannot say about the whole of it.
 	progress func(path string) (int, int)
@@ -159,7 +159,12 @@ type layout struct {
 // machine wrote starts that way and z opens it, which inverts the default the
 // rest of the review has: everything else is open until it is folded by hand.
 func (l layout) shut(path string) bool {
-	if l.made.Match(path) {
+	folds, planned := l.folds[path]
+	if !planned {
+		folds = l.made.Match(path)
+	}
+
+	if folds {
 		return !l.fold.files[path]
 	}
 

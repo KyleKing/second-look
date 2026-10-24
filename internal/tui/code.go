@@ -85,7 +85,7 @@ func buildCode(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout
 
 	for _, g := range lay.groups(d) {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
-			row{kind: rowGroup, text: g.heading(), path: g.dir, comment: -1})
+			row{kind: rowGroup, text: g.heading(), path: g.name, comment: -1})
 
 		for _, at := range g.parts {
 			s.rows = append(s.rows, s.codeRows(&d.Files[at.file], at.hunks, ctx)...)
