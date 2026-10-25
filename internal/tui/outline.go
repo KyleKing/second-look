@@ -42,6 +42,14 @@ const (
 	modeCols = 6
 	fileCols = 9
 	lineCols = 12
+	// A chapter row's read strip is at most stripCols cells and gives way to
+	// the name column before the name falls under nameMin cells.
+	stripCols = 12
+	stripMin  = 4
+	nameMin   = 24
+	gutter    = "  "
+	hunkCols  = 8
+	deltaCols = 12
 )
 
 // sizes is the lines each hunk adds and removes.
@@ -324,14 +332,20 @@ func (m *Model) chapterPane(size sizes) listPane {
 	head := " " + m.styles.head.Render(countHead("chapters", at+1, len(cs)))
 	facts := fmt.Sprintf(" · %d read", read)
 
+	if n := m.toJudge(); n > 0 {
+		facts += " · " + judgeText(n)
+	}
+
 	if folded > 0 {
 		facts += fmt.Sprintf(" · %s of %s lines folded", humanize.Count(folded), humanize.Count(total))
 	}
 
+	jw := m.judgeWidth()
+
 	return listPane{
 		head: head + m.styles.note.Render(facts), n: len(cs), at: at,
-		row:    func(i, w int) string { return m.outlineRow(size, cs[i], w) },
-		detail: func(w int) []string { return m.chapterDetail(size, at, w) },
+		row:    func(i, w int) string { return m.outlineRow(size, cs[i], w, jw) },
+		detail: func(w int) []string { return m.chapterDetail(size, at, w, jw) },
 	}
 }
 
@@ -356,7 +370,7 @@ func (m *Model) listLines(p listPane, w, h int) []string {
 	return block(out, h, w)
 }
 
-func (m *Model) outlineRow(size sizes, c plan.Chapter, w int) string {
+func (m *Model) outlineRow(size sizes, c plan.Chapter, w, jw int) string {
 	added, removed := size.of(c.Hunks)
 	lines := "+" + humanize.Count(added) + " −" + humanize.Count(removed)
 
@@ -364,25 +378,113 @@ func (m *Model) outlineRow(size sizes, c plan.Chapter, w int) string {
 		lines = humanize.Count(added+removed) + " folded"
 	}
 
-	tail := pad(string(c.Mode), modeCols) + right(plural(len(refPaths(c.Hunks)), fileNoun), fileCols) +
+	facts := pad(string(c.Mode), modeCols) + right(plural(len(refPaths(c.Hunks)), fileNoun), fileCols) +
 		right(lines, lineCols)
 	read := m.readAll(c.Hunks)
-	name := cut(c.Source.Glyph()+" "+c.Name, w-indent-textWidth(tail)-1)
-	gap := strings.Repeat(" ", max(1, w-indent-textWidth(name)-textWidth(tail)))
+	sw := stripWidth(w, jw)
+
+	var progress string
+
+	if sw > 0 {
+		strip := strings.Repeat(" ", sw)
+		if c.Mode != plan.ModeFold {
+			strip = m.hunkStrip(c.Hunks, sw)
+		}
+
+		progress = strip + gutter
+	}
+
+	if jw > 0 {
+		progress += m.judgeCell(m.judgeIn(refPaths(c.Hunks)), jw) + gutter
+	}
+
+	tail := textWidth(progress) + textWidth(facts)
+	name := cut(c.Source.Glyph()+" "+c.Name, w-indent-tail-1)
+	gap := strings.Repeat(" ", max(1, w-indent-textWidth(name)-tail))
 	face := m.styles.body.Render
 
 	if read || c.Mode == plan.ModeFold {
 		face = m.styles.behind.Render
 	}
 
-	return m.railMark(false, read) + face(name) + gap + m.styles.note.Render(tail)
+	return m.railMark(false, read) + face(name) + gap + progress + m.styles.note.Render(facts)
+}
+
+// stripWidth is the read strip's cells in a row w wide holding a judge column
+// jw wide, 0 where the name column would fall under nameMin.
+func stripWidth(w, jw int) int {
+	room := w - indent - 1 - nameMin - modeCols - fileCols - lineCols - len(gutter)
+	if jw > 0 {
+		room -= jw + len(gutter)
+	}
+
+	if room < stripMin {
+		return 0
+	}
+
+	return min(stripCols, room)
+}
+
+// hunkStrip is one cell per hunk in the header strip's glyphs, folded down to
+// width cells where there are more hunks, a cell reading as read only when
+// every hunk it stands for is.
+func (m *Model) hunkStrip(refs []order.Ref, width int) string {
+	cells := min(len(refs), width)
+	state := make([]bool, cells)
+
+	for k := range cells {
+		state[k] = m.readAll(refs[k*len(refs)/cells : (k+1)*len(refs)/cells])
+	}
+
+	var b strings.Builder
+
+	for k := 0; k < cells; {
+		run := 1
+		for k+run < cells && state[k+run] == state[k] {
+			run++
+		}
+
+		b.WriteString(m.segment(seg{read: state[k]}, run))
+
+		k += run
+	}
+
+	return b.String() + strings.Repeat(" ", width-cells)
+}
+
+// judgeWidth is the width of the widest "N to judge" any row can show, 0 where
+// nothing awaits a verdict.
+func (m *Model) judgeWidth() int {
+	n := m.toJudge()
+	if n == 0 {
+		return 0
+	}
+
+	return textWidth(judgeText(n))
+}
+
+func judgeText(n int) string { return fmt.Sprintf("%d to judge", n) }
+
+// judgeCell is n right-aligned in width cells, blank where nothing awaits.
+func (m *Model) judgeCell(n, width int) string {
+	if n == 0 {
+		return strings.Repeat(" ", width)
+	}
+
+	text := judgeText(n)
+
+	return strings.Repeat(" ", max(0, width-textWidth(text))) + m.styles.agentEdge.Render(text)
+}
+
+func (m *Model) judgeIn(paths []string) int {
+	return m.toJudgeIn(func(p string) bool { return slices.Contains(paths, p) })
 }
 
 func right(s string, w int) string { return strings.Repeat(" ", max(0, w-textWidth(s))) + s }
 
 // chapterDetail is what the outline says about one chapter: why it is read
 // together, which files it holds and where else each one is read, and its stops.
-func (m *Model) chapterDetail(size sizes, at, w int) []string {
+func (m *Model) chapterDetail(size sizes, at, w, jw int) []string {
 	c := m.plan.Chapters[at]
 	room := w - indent
 
@@ -436,7 +538,7 @@ func (m *Model) chapterDetail(size sizes, at, w int) []string {
 	col = min(col, room/half)
 
 	for _, p := range files {
-		out = append(out, m.fileLine(size, c, p, at, col))
+		out = append(out, m.fileLine(size, c, p, at, col, jw))
 	}
 
 	if stops := m.stopsIn(c); len(stops) > 0 {
@@ -453,7 +555,7 @@ func (m *Model) chapterDetail(size sizes, at, w int) []string {
 
 // fileLine is one file of a chapter, its path in col cells: how much of it the
 // chapter holds, and the other chapters reading the rest of it.
-func (m *Model) fileLine(size sizes, c plan.Chapter, path string, at, col int) string {
+func (m *Model) fileLine(size sizes, c plan.Chapter, path string, at, col, jw int) string {
 	var mine []order.Ref
 
 	for _, r := range c.Hunks {
@@ -463,15 +565,21 @@ func (m *Model) fileLine(size sizes, c plan.Chapter, path string, at, col int) s
 	}
 
 	added, removed := size.of(mine)
-	facts := fmt.Sprintf("  %s  +%d −%d", plural(len(mine), "hunk"), added, removed)
+	facts := gutter + pad(plural(len(mine), "hunk"), hunkCols) + gutter +
+		pad(fmt.Sprintf("+%d −%d", added, removed), deltaCols)
 
 	if also := m.alsoIn(path, at); also != "" {
-		facts += "  also " + also
+		facts += gutter + "also " + also
 	}
 
 	name := pad(cutTail(path, col), col)
 
-	return " " + m.railMark(false, m.readAll(mine)) + m.styles.body.Render(name) + m.styles.note.Render(facts)
+	judge := ""
+	if jw > 0 {
+		judge = gutter + m.judgeCell(m.judgeIn([]string{path}), jw)
+	}
+
+	return " " + m.railMark(false, m.readAll(mine)) + m.styles.body.Render(name) + judge + m.styles.note.Render(facts)
 }
 
 // alsoIn names the other chapters that read some of a file, by number.

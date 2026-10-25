@@ -1,0 +1,41 @@
+[
+ {
+  "id": "PRRT_outline_1",
+  "path": "internal/domains/claim.go",
+  "side": "RIGHT",
+  "line": 11,
+  "notes": [
+   {
+    "id": 4200000001,
+    "author": "watch-doggo",
+    "body": "**major** · The claim is checked after the row is written, so a failed check leaves a claimed domain behind."
+   }
+  ]
+ },
+ {
+  "id": "PRRT_outline_2",
+  "path": "internal/domains/verify.go",
+  "side": "RIGHT",
+  "line": 11,
+  "notes": [
+   {
+    "id": 4200000002,
+    "author": "watch-doggo",
+    "body": "**minor** · The wrapped error drops the host, so a log line cannot say which domain failed."
+   }
+  ]
+ },
+ {
+  "id": "PRRT_outline_3",
+  "path": "internal/api/routes/router.go",
+  "side": "RIGHT",
+  "line": 12,
+  "notes": [
+   {
+    "id": 4200000003,
+    "author": "watch-doggo",
+    "body": "**blocker** · DELETE /domains/{id} is mounted before the auth middleware."
+   }
+  ]
+ }
+]

@@ -12,8 +12,10 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/blob"
+	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/seen"
+	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -194,6 +196,15 @@ diff --git a/gen/client.go b/gen/client.go
 +var B = 2
 `
 
+	at := filepath.Join(t.TempDir(), "seen.toml")
+	marks := seen.New()
+	marks.Mark(true, seen.Hunk(diff.Parse([]byte(tour)), "core/lock.go", 3))
+
+	finding := threads.Thread{
+		ID: "PRRT_route", Path: "api/route.go", Side: artifact.SideRight, Line: 11,
+		Notes: []threads.Note{{ID: 1100, Author: "watch-doggo", Body: "waitLock has no timeout."}},
+	}
+
 	m, _, _ := modelFor(t, &artifact.Review{
 		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
 		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
@@ -214,7 +225,8 @@ diff --git a/gen/client.go b/gen/client.go
 				}},
 			},
 		}},
-	}, tour, tui.WithPlanRules(plan.Rules{Repo: "kyleking/jj-diff", Fold: []string{"gen/**"}}))
+	}, tour, tui.WithPlanRules(plan.Rules{Repo: "kyleking/jj-diff", Fold: []string{"gen/**"}}),
+		tui.WithSeen(marks, at), tui.WithThreads([]threads.Thread{finding}))
 
 	return m
 }

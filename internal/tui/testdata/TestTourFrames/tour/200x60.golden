@@ -1,8 +1,8 @@
-kyleking/jj-diff #42                                                                                                                                                              3 files · +5 −1 ·   4%
-1 ─────●──────────────────────  the lock's call… ────────────────────────────  api ───────────────────────────────────────────────────────  gen ──────────────────────────────────────────────────────  
+kyleking/jj-diff #42                                                                                                                           3 files · +5 −1 · read 1 of 4 hunks · ◆ 1 to judge ·   3%
+1 ━━━━━●━━━━━━━━━━━━━━━━━━━━━━  the lock's call… ────────────────────────────  api ───────────────────────────────────────────────────────  gen ──────────────────────────────────────────────────────  
  STOPS · 1 of 1              │                                                                                                                               │ STOP 1 OF 1 · THE CORE DECISION          
  ▸ 1 Every save takes the l… │▌◆ stop 1 of 1 · the core decision                                                                                             │ Every save takes the lock before it      
-                             │     core/lock.go  +1 -0 ───────────────────────────────────────────────────────────────────────────────────────────────────── │ writes.                                  
+                             │   ✓ core/lock.go  +1 -0 ───────────────────────────────────────────────────────────────────────────────────────────────────── │ writes.                                  
  CHAPTERS · 4                │   4   func save() {                                                                                                           │                                          
    ◆ the lock's caller read  │   5 +     lock()                                                                                                              │ → The route waits on it, with no         
    ◆ api               read  │   6       write()                                                                                                             │ timeout.                                 
@@ -11,10 +11,14 @@ kyleking/jj-diff #42                                                            
                              │     api/route.go  part of this file · 1 piece elsewhere · 0/2 read · ]f walks to it  +1 -0 ────────────────────────────────── │                                          
  by symbol and directory: no │  10   func call() {                                                                                                           │ CHAPTER 3 OF 4 · read                    
  commits to read by          │  11 +     waitLock()                                                                                                          │ core                                     
- p the plain screen          │  12       done()                                                                                                              │ ◆ placed by the agent                    
- I the outline               │                                                                                                                               │ part of locking                          
+ p the plain screen          │       ╭─ ⤷ @watch-doggo · unresolved · 1 comment ────────────────────────────────── route.go:11 ─╮                            │ ◆ placed by the agent                    
+ I the outline               │       │   waitLock has no timeout.                                                               │                            │ part of locking                          
+                             │       ╰─ r[e]ply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ──────────────╯                            │                                          
+                             │                                                                                                                               │ next: the lock's caller                  
+                             │  12       done()                                                                                                              │                                          
+                             │                                                                                                                               │                                          
                              │ ◆ api  1 file · 1 hunk                                                                                                        │                                          
-                             │     api/route.go  part of this file · 1 piece elsewhere · 0/2 read · ]f walks to it  +1 -1 ────────────────────────────────── │ next: the lock's caller                  
+                             │     api/route.go  part of this file · 1 piece elsewhere · 0/2 read · ]f walks to it  +1 -1 ────────────────────────────────── │                                          
                              │   1   func route() {                                                                                                          │                                          
                              │   2 -     serve(1)                                                                                                            │                                          
                              │   2 +     serve(2)                                                                                                            │                                          
@@ -24,10 +28,6 @@ kyleking/jj-diff #42                                                            
                              │                                                                                                                               │                                          
                              │      ┃ REVIEW BODY  empty · e to write one                                                                                    │                                          
                              │      ┃ REVIEW NOTE  empty · e to write one                                                                                    │                                          
-                             │                                                                                                                               │                                          
-                             │                                                                                                                               │                                          
-                             │                                                                                                                               │                                          
-                             │                                                                                                                               │                                          
                              │                                                                                                                               │                                          
                              │                                                                                                                               │                                          
                              │                                                                                                                               │                                          

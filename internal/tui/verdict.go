@@ -85,10 +85,15 @@ func (m *Model) verdictOfThread(t int) verdict {
 // toJudge counts the open threads nobody has ruled on. The pull request's own
 // author is the one answering findings, so a thread they opened is not one.
 func (m *Model) toJudge() int {
+	return m.toJudgeIn(func(string) bool { return true })
+}
+
+// toJudgeIn is toJudge restricted to the threads on files keep accepts.
+func (m *Model) toJudgeIn(keep func(path string) bool) int {
 	n := 0
 
 	for i := range m.threads {
-		if m.isFinding(&m.threads[i]) && m.verdictOfThread(i) == vNone {
+		if keep(m.threads[i].Path) && m.isFinding(&m.threads[i]) && m.verdictOfThread(i) == vNone {
 			n++
 		}
 	}
@@ -297,7 +302,7 @@ func (m *Model) judgeWord() string {
 		return ""
 	}
 
-	return m.styles.priority.Render(fmt.Sprintf("%s %d to judge", agentGlyph, n))
+	return m.styles.priority.Render(agentGlyph + " " + judgeText(n))
 }
 
 // verdictWords says how each open finding stands, for the rule a folded thread

@@ -17,6 +17,8 @@ func TestABigChangeOpensOnItsOutline(t *testing.T) {
 
 	if got := plain(m.Frame()); !strings.Contains(got, "CHAPTERS · 1 of 3") {
 		t.Fatalf("seventy files did not open on the outline:\n%s", got)
+	} else if !strings.Contains(got, "⇢ alpha  ") || !strings.Contains(got, " "+strings.Repeat("─", 12)+" ") {
+		t.Errorf("twenty-four hunks are not folded into a twelve cell strip beside the name:\n%s", got)
 	}
 
 	pressKey(t, m, 'j')
