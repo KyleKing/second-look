@@ -114,6 +114,14 @@ type Comment struct {
 	// replies endpoint rather than inside the review payload.
 	InReplyTo int64 `json:"in_reply_to,omitempty" toml:"in_reply_to,omitempty"`
 
+	// Resolve asks posting to resolve ThreadID once this reply is sent. It is
+	// local: GitHub learns of it through the resolve call, not the payload.
+	Resolve bool `json:"resolve,omitempty" toml:"resolve,omitempty"`
+
+	// ThreadID is the GraphQL node id of the thread a reply answers, kept so a
+	// resolve needs no second read of the pull request.
+	ThreadID string `json:"thread_id,omitempty" toml:"thread_id,omitempty"`
+
 	// Note is why this comment exists: the evidence, the command that proved it,
 	// the doubt. Shown beside the comment in the TUI, never posted.
 	Note string `json:"note" toml:"note"`
@@ -226,6 +234,14 @@ func (r *Review) validateHeader() []error {
 	return errs
 }
 
+func (c *Comment) validateResolve(where string) []error {
+	if c.Resolve && (c.InReplyTo == 0 || c.ThreadID == "" || c.Status != StatusReady) {
+		return []error{fmt.Errorf("%s: %w", where, ErrResolve)}
+	}
+
+	return nil
+}
+
 func (c *Comment) validateTurns(where string) []error {
 	var errs []error
 
@@ -243,7 +259,7 @@ func (c *Comment) validateTurns(where string) []error {
 func (c *Comment) validate(where string) []error {
 	var errs []error
 
-	if c.Body == "" && c.Status != StatusSkip {
+	if c.Body == "" && c.Status != StatusSkip && c.InReplyTo == 0 {
 		errs = append(errs, fmt.Errorf("%s: %w", where, ErrNoBody))
 	}
 	if !validStatus[c.Status] {
@@ -257,6 +273,7 @@ func (c *Comment) validate(where string) []error {
 	}
 
 	errs = append(errs, c.validateTurns(where)...)
+	errs = append(errs, c.validateResolve(where)...)
 
 	// A reply carries no anchor of its own: it lands under the comment it answers.
 	if c.InReplyTo != 0 {

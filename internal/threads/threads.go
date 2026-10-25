@@ -61,6 +61,9 @@ type About struct {
 // what became of it since it was opened, so a reviewer can confirm it was
 // addressed rather than have it vanish once it stops being current.
 type Thread struct {
+	// ID is the GraphQL node id resolveReviewThread takes. A cache written before
+	// it was read leaves it empty.
+	ID   string `json:"id,omitempty"`
 	Path string `json:"path"`
 	Side string `json:"side"`
 	Line int    `json:"line"`
@@ -120,6 +123,7 @@ const query = `query($owner:String!,$repo:String!,$number:Int!){
       }}
       reviewThreads(first:100){
         nodes{
+          id
           isResolved
           isOutdated
           path

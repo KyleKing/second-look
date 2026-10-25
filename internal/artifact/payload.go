@@ -30,6 +30,17 @@ type commentPayload struct {
 type ReplyPayload struct {
 	Body      string `json:"body"`
 	InReplyTo int64  `json:"-"`
+	// ThreadID is set only for a reply that resolves its thread once sent.
+	ThreadID string `json:"-"`
+}
+
+func replyOf(c *Comment) ReplyPayload {
+	out := ReplyPayload{InReplyTo: c.InReplyTo, Body: c.Body}
+	if c.Resolve {
+		out.ThreadID = c.ThreadID
+	}
+
+	return out
 }
 
 // DraftError reports comments that are not ready. Posting stops rather than
@@ -98,7 +109,11 @@ func (r *Review) OnePayload(id string) (any, *Comment, error) {
 		}
 
 		if c.InReplyTo != 0 {
-			return ReplyPayload{Body: c.Body}, c, nil
+			if c.Body == "" {
+				return nil, nil, fmt.Errorf("%s: %w", id, ErrNoReplyText)
+			}
+
+			return replyOf(c), c, nil
 		}
 
 		return commentPayload{
@@ -167,7 +182,11 @@ func (r *Review) Payload() (any, []ReplyPayload, error) {
 			continue
 		}
 		if c.InReplyTo != 0 {
-			replies = append(replies, ReplyPayload{InReplyTo: c.InReplyTo, Body: c.Body})
+			if c.Body == "" {
+				return nil, nil, fmt.Errorf("%s: %w", c.ID, ErrNoReplyText)
+			}
+
+			replies = append(replies, replyOf(c))
 
 			continue
 		}

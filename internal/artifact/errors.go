@@ -15,11 +15,13 @@ var (
 	ErrNoBody             = errors.New("body is required unless status is skip")
 	ErrNoHeadSHA          = errors.New("the review has no head commit; run second-look get first")
 	ErrNoPath             = errors.New("path is required")
+	ErrNoReplyText        = errors.New("a reply with no text cannot post; write one or skip it")
 	ErrNoSkipReason       = errors.New("a skip records why")
 	ErrNotACumulativeDiff = errors.New("the diff carries a file more than once, so it is a patch series" +
 		" rather than the pull request diff; re-run second-look get")
 	ErrNotARepoName   = errors.New("not an owner/name a directory can be named for")
 	ErrNotASHA        = errors.New("not a commit sha")
+	ErrResolve        = errors.New("resolve belongs to a ready reply that carries its thread_id")
 	ErrSeverity       = errors.New("severity is not one of blocker, major, minor, nit, question")
 	ErrSide           = errors.New("side is not RIGHT or LEFT")
 	ErrSpansHunks     = errors.New("a comment cannot span two hunks; GitHub refuses it")

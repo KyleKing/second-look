@@ -6,6 +6,8 @@ import (
 
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/kyleking/aragonite/ghcassette"
+
+	"github.com/kyleking/second-look/internal/resolve"
 )
 
 // TestPostReply replays the review that answers a thread the earlier recording
@@ -54,4 +56,33 @@ func TestPostReportsAReplyThatFailedAfterTheReview(t *testing.T) {
 	if !strings.Contains(res.stdout, "posted /repos/KyleKing/second-look/pulls/2/reviews") {
 		t.Errorf("want the review that did post reported, got %q", res.stdout)
 	}
+}
+
+// A won't-fix verdict posts its reply and then resolves the thread, in that
+// order: the recorded reply is followed by the one call a resolve adds.
+func TestPostResolvesTheThreadItAnswered(t *testing.T) {
+	t.Parallel()
+
+	const thread = "PRRT_kwDOT-RSFs6BudgetThread"
+
+	cassette := deriveFrom(t, "post-reply", "reply-resolve", func(c *ghcassette.Cassette) {
+		c.Interactions = append(c.Interactions, ghcassette.Interaction{
+			Args:   resolve.ThreadArgs(thread),
+			Stdout: `{"data":{"resolveReviewThread":{"thread":{"isResolved":true}}}}`,
+		})
+	})
+
+	s := ghcassette.Replay(t, cassette)
+	dir := workspace(t, "reply-resolve.toml")
+
+	res := runCLI(t, s, dir, "post", "2")
+	if res.code != 0 {
+		t.Fatalf("post failed: %s%s", res.stdout, res.stderr)
+	}
+
+	if !strings.Contains(res.stdout, "resolved thread "+thread) {
+		t.Errorf("the thread was not reported resolved:\n%s", res.stdout)
+	}
+
+	s.RequireAllPlayed(t)
 }

@@ -32,6 +32,20 @@ const thumbsUp = `mutation($id:ID!){
   addReaction(input:{subjectId:$id,content:THUMBS_UP}){reaction{content}}
 }`
 
+// ThreadArgs is the gh call that resolves one review thread.
+func ThreadArgs(threadID string) []string {
+	return []string{"api", "graphql", "-F", "id=" + threadID, "-f", "query=" + resolveThread}
+}
+
+// Thread resolves one review thread and nothing else.
+func Thread(ctx context.Context, r ghrun.Runner, root, threadID string) error {
+	if err := r.Run(ctx, root, ThreadArgs(threadID)...); err != nil {
+		return fmt.Errorf("resolving thread %s: %w", threadID, err)
+	}
+
+	return nil
+}
+
 // Run marks the conversation dealt with and reports what it did.
 //
 // The thread resolves first, because that is the half a reader is watching for
@@ -42,8 +56,8 @@ func Run(ctx context.Context, r ghrun.Runner, root string, c *conversations.Conv
 	where := c.Where() + " " + c.Anchor()
 
 	if c.ThreadID != "" {
-		if err := r.Run(ctx, root, "api", "graphql", "-F", "id="+c.ThreadID, "-f", "query="+resolveThread); err != nil {
-			return "", fmt.Errorf("resolving the thread on %s: %w", c.Where(), err)
+		if err := Thread(ctx, r, root, c.ThreadID); err != nil {
+			return "", fmt.Errorf("on %s: %w", c.Where(), err)
 		}
 
 		if c.Handled {

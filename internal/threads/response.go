@@ -74,6 +74,7 @@ func (c *comment) note() Note {
 
 //nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 type node struct {
+	ID           string `json:"id"`
 	IsResolved   bool   `json:"isResolved"`
 	IsOutdated   bool   `json:"isOutdated"`
 	Path         string `json:"path"`
@@ -134,7 +135,9 @@ func (r *response) threads() []Thread {
 			continue
 		}
 
-		t := Thread{Path: n.Path, Side: n.DiffSide, Line: line, Resolved: n.IsResolved, Outdated: n.IsOutdated}
+		t := Thread{
+			ID: n.ID, Path: n.Path, Side: n.DiffSide, Line: line, Resolved: n.IsResolved, Outdated: n.IsOutdated,
+		}
 		for _, c := range n.Comments.Nodes {
 			t.Notes = append(t.Notes, c.note())
 		}

@@ -21,6 +21,16 @@ type fakePoster struct {
 	failOn    int
 }
 
+func (f *fakePoster) Resolve(_ context.Context, threadID string) error {
+	f.endpoints = append(f.endpoints, "resolve "+threadID)
+
+	if f.failOn > 0 && len(f.endpoints) == f.failOn {
+		return errBoom
+	}
+
+	return nil
+}
+
 func (f *fakePoster) Post(_ context.Context, endpoint string, body []byte) error {
 	f.endpoints = append(f.endpoints, endpoint)
 	f.bodies = append(f.bodies, body)
@@ -65,6 +75,10 @@ func TestRun(t *testing.T) {
 
 	reply := artifact.Comment{ID: "2", InReplyTo: 99, Body: "thanks", Status: artifact.StatusReady}
 
+	wontFix := artifact.Comment{
+		ID: "3", InReplyTo: 77, Body: "won't fix", Status: artifact.StatusReady, Resolve: true, ThreadID: "PRRT_9",
+	}
+
 	tests := []struct {
 		name          string
 		review        *artifact.Review
@@ -91,6 +105,33 @@ func TestRun(t *testing.T) {
 				"/repos/kyleking/second-look/pulls/42/reviews",
 				"/repos/kyleking/second-look/pulls/42/comments/99/replies",
 			},
+		},
+		{
+			name:   "a resolving reply resolves its thread after the reply and not before",
+			review: review(reply, wontFix),
+			wantEndpoints: []string{
+				"/repos/kyleking/second-look/pulls/42/reviews",
+				"/repos/kyleking/second-look/pulls/42/comments/99/replies",
+				"/repos/kyleking/second-look/pulls/42/comments/77/replies",
+				"resolve PRRT_9",
+			},
+			wantFileGone: true,
+		},
+		{
+			name:    "a thread that will not resolve keeps the artifact and says the reply posted",
+			review:  review(wontFix),
+			failOn:  3,
+			wantErr: "the reply posted but its thread did not resolve",
+			wantEndpoints: []string{
+				"/repos/kyleking/second-look/pulls/42/reviews",
+				"/repos/kyleking/second-look/pulls/42/comments/77/replies",
+				"resolve PRRT_9",
+			},
+		},
+		{
+			name:    "a reply with no text blocks the post and nothing is sent",
+			review:  review(artifact.Comment{ID: "4", InReplyTo: 5, Status: artifact.StatusReady}),
+			wantErr: "a reply with no text",
 		},
 		{
 			name:    "a draft comment blocks the post and nothing is sent",

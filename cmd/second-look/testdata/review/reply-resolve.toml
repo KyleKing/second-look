@@ -1,0 +1,22 @@
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 2
+head_sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
+event = "COMMENT"
+body = "Declining the thread on the budget reader."
+note = "The reply fixture, with the resolve a won't-fix verdict adds."
+
+[[comment]]
+id = "wont-fix-unwrapped-read-error"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+body = "Won't fix: the caller already names the path when it reports this, so wrapping here would say it twice."
+in_reply_to = 3900038873
+thread_id = "PRRT_kwDOT-RSFs6BudgetThread"
+resolve = true
+note = "The thread this answers is the one the review recording created."
+severity = "minor"
+status = "ready"

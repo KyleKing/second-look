@@ -17,7 +17,9 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/prepared"
+	"github.com/kyleking/second-look/internal/resolve"
 )
 
 // rootOf is the checkout or state directory a prepared review is staged under.
@@ -27,10 +29,11 @@ func rootOf(path string) string { return filepath.Dir(filepath.Dir(path)) }
 // was prepared.
 var ErrHeadMoved = errors.New("the pull request has new commits")
 
-// Poster sends one request. The gh CLI is the only implementation that ships;
-// a test supplies its own.
+// Poster sends one request and resolves threads. The gh CLI is the only
+// implementation that ships; a test supplies its own.
 type Poster interface {
 	Post(ctx context.Context, endpoint string, body []byte) error
+	Resolve(ctx context.Context, threadID string) error
 }
 
 type ghPoster struct{}
@@ -51,6 +54,11 @@ func (ghPoster) Post(ctx context.Context, endpoint string, body []byte) error {
 	}
 
 	return nil
+}
+
+func (ghPoster) Resolve(ctx context.Context, threadID string) error {
+	//nolint:wrapcheck // resolve.Thread names the thread in its own message
+	return resolve.Thread(ctx, ghrun.GH(), "", threadID)
 }
 
 // Guard compares every comment against the pull request's current diff before
@@ -114,7 +122,7 @@ func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.
 		return err
 	}
 
-	if err := postReplies(ctx, p, r, replies); err != nil {
+	if err := postReplies(ctx, p, r, replies, out); err != nil {
 		return err
 	}
 
@@ -172,6 +180,12 @@ func One(ctx context.Context, p Poster, path string, r *artifact.Review, id stri
 		return err
 	}
 
+	if c.Resolve {
+		if err := resolveAfter(ctx, p, c.ThreadID, out); err != nil {
+			return err
+		}
+	}
+
 	r.Remove(id)
 
 	if err := artifact.Save(path, r); err != nil {
@@ -217,6 +231,10 @@ func DryRun(out io.Writer, r *artifact.Review) error {
 
 	for _, reply := range replies {
 		line := fmt.Sprintf("POST %s\n", replyEndpoint(r, reply.InReplyTo))
+		if reply.ThreadID != "" {
+			line += "RESOLVE thread " + reply.ThreadID + "\n"
+		}
+
 		if err := write(out, line); err != nil {
 			return err
 		}
@@ -225,9 +243,22 @@ func DryRun(out io.Writer, r *artifact.Review) error {
 	return nil
 }
 
+// resolveAfter closes the thread a posted reply answered. The reply is already
+// on GitHub, so a failure here says that rather than suggesting a retry would
+// be clean.
+func resolveAfter(ctx context.Context, p Poster, threadID string, out io.Writer) error {
+	if err := p.Resolve(ctx, threadID); err != nil {
+		return fmt.Errorf("the reply posted but its thread did not resolve: %w", err)
+	}
+
+	return write(out, "resolved thread "+threadID+"\n")
+}
+
 // postReplies runs after the review is already posted, which is why a failure
 // here is reported with that fact rather than retried.
-func postReplies(ctx context.Context, p Poster, r *artifact.Review, replies []artifact.ReplyPayload) error {
+func postReplies(
+	ctx context.Context, p Poster, r *artifact.Review, replies []artifact.ReplyPayload, out io.Writer,
+) error {
 	for _, reply := range replies {
 		rb, err := json.Marshal(reply)
 		if err != nil {
@@ -237,6 +268,13 @@ func postReplies(ctx context.Context, p Poster, r *artifact.Review, replies []ar
 		if err := p.Post(ctx, replyEndpoint(r, reply.InReplyTo), rb); err != nil {
 			return fmt.Errorf("the review posted but a reply did not, and the prepared review is"+
 				" still on disk; posting it again would post the review twice: %w", err)
+		}
+
+		if reply.ThreadID != "" {
+			if err := resolveAfter(ctx, p, reply.ThreadID, out); err != nil {
+				return fmt.Errorf("%w; the prepared review is still on disk and posting it again"+
+					" would post the review twice", err)
+			}
 		}
 	}
 

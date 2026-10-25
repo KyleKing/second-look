@@ -234,13 +234,16 @@ func TestLoadOrNew_KeepsAnUnparsableReview(t *testing.T) {
 func TestValidateReportsEveryProblemAtOnce(t *testing.T) {
 	t.Parallel()
 
-	r := review(artifact.Comment{ID: "c1", Body: "x", Status: "whenever", Severity: "extreme"})
+	r := review(
+		artifact.Comment{ID: "c1", Body: "x", Status: "whenever", Severity: "extreme"},
+		artifact.Comment{ID: "c2", InReplyTo: 5, Resolve: true, Status: artifact.StatusReady},
+	)
 
 	err := r.Validate()
 	if err == nil {
 		t.Fatal("want an error")
 	}
-	for _, want := range []string{"status", "severity", "path", "line", "side"} {
+	for _, want := range []string{"status", "severity", "path", "line", "side", "thread_id"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("err is missing %q: %v", want, err)
 		}
