@@ -127,7 +127,9 @@ type Feature struct {
 type Commit struct {
 	ID      string
 	Subject string
-	Hunks   []order.Ref
+	// Author is who wrote the commit, as the source of the list names them.
+	Author string
+	Hunks  []order.Ref
 }
 
 // Input is everything a plan is built from.

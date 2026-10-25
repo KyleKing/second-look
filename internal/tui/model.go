@@ -132,6 +132,12 @@ type Model struct {
 	since    *seen.Set
 	sinceSHA string
 	rounds   Rounds
+	// roundDiffs is the diff each earlier round carried, once read, and
+	// roundAsked is the reads still on their way. rereview is how each todo
+	// thread stands against the round being compared, by thread index.
+	roundDiffs map[string]*diff.Diff
+	roundAsked map[string]bool
+	rereview   map[int]answer
 	// ticks counts the watcher's beats, which is what paces the head check at a
 	// different cadence from the reload.
 	ticks int
@@ -382,6 +388,7 @@ func New(
 		built:  time.Now(),
 		made:   generated.New(nil),
 		around: map[hunkAt]int{}, blobs: map[string][]string{},
+		roundDiffs: map[string]*diff.Diff{}, roundAsked: map[string]bool{},
 		atHead: map[string]headHits{}, inFlight: map[string]string{}, failedAsks: map[string]string{},
 	}
 
@@ -1102,9 +1109,7 @@ func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	case key.Matches(msg, m.keys.Restage):
 		return m.askRestage(), true
 	case key.Matches(msg, m.keys.Round):
-		m.askRound()
-
-		return nil, true
+		return m.askRound(), true
 	case key.Matches(msg, m.keys.Suggest):
 		return m.suggest(), true
 	case key.Matches(msg, m.keys.Range):
@@ -3186,6 +3191,8 @@ func (m *Model) rebuild() {
 
 	m.hunkCols = hunkWidths(m.diff)
 
+	m.rereview = m.rereviewed()
+
 	lay := layout{
 		width: m.diffWidth(), hide: m.skipper(), fold: m.folded, notes: m.notes, lit: m.lit,
 		split: m.sideBySide(), made: m.made,
@@ -3199,6 +3206,7 @@ func (m *Model) rebuild() {
 		searches: m.headSearch != nil,
 		asks:     askCards(m.plan.Asks), inFlight: m.inFlight, failedAsks: m.failedAsks,
 		verdicts:  m.verdictWords(),
+		answers:   m.rereview,
 		known:     m.advisories,
 		answered:  m.advised,
 		cards:     m.cards,

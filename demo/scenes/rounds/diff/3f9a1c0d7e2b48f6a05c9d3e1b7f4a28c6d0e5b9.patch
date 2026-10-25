@@ -47,7 +47,7 @@ index 0000000..2007e8b
 +	out := []string{}
 +	start := 0
 +
-+	for i := 0; i < len(s); i++ {
++	for i := range s {
 +		if s[i] == '\n' {
 +			out = append(out, s[start:i])
 +			start = i + 1

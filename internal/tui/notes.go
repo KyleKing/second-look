@@ -82,6 +82,10 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 		path: path, comment: -1, thread: index, head: true, resolved: t.Resolved,
 	}
 
+	if a, ok := lay.answers[index]; ok {
+		head.answer, head.answered = a.word(), a.ok
+	}
+
 	whole := s.whole(t)
 	rows := make([]row, 0, len(whole)+1)
 
@@ -101,6 +105,10 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 	if lay.fold.threads[index] {
 		if word := lay.verdicts[index]; word != "" {
 			head.text += " · " + word
+		}
+
+		if head.answer != "" {
+			head.text += " · " + head.answer
 		}
 
 		head.text += " · " + plural(len(whole), "line")

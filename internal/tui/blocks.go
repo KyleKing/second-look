@@ -173,6 +173,8 @@ type layout struct {
 	failedAsks map[string]string
 	// verdicts is how each open finding stands, by thread index.
 	verdicts map[int]string
+	// answers is how each todo thread stands against the round being compared.
+	answers map[int]answer
 }
 
 // shut reports whether a file is drawn as one row rather than in full. What a

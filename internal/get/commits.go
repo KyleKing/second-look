@@ -64,8 +64,9 @@ func listCommits(ctx context.Context, t Target) ([]plan.Commit, error) {
 	//nolint:tagliatelle // gh answers in camelCase and these names are its own
 	var answer struct {
 		Commits []struct {
-			OID      string `json:"oid"`
-			Headline string `json:"messageHeadline"`
+			OID      string     `json:"oid"`
+			Headline string     `json:"messageHeadline"`
+			Authors  []ghAuthor `json:"authors"`
 		} `json:"commits"`
 	}
 
@@ -75,10 +76,28 @@ func listCommits(ctx context.Context, t Target) ([]plan.Commit, error) {
 
 	list := make([]plan.Commit, 0, len(answer.Commits))
 	for _, c := range answer.Commits {
-		list = append(list, plan.Commit{ID: c.OID, Subject: c.Headline})
+		list = append(list, plan.Commit{ID: c.OID, Subject: c.Headline, Author: authorOf(c.Authors)})
 	}
 
 	return list, nil
+}
+
+type ghAuthor struct {
+	Login string `json:"login"`
+	Name  string `json:"name"`
+}
+
+// authorOf is the first author's login, or their name where gh has no account for the address.
+func authorOf(list []ghAuthor) string {
+	if len(list) == 0 {
+		return ""
+	}
+
+	if list[0].Login != "" {
+		return list[0].Login
+	}
+
+	return list[0].Name
 }
 
 // absent is how many of the commits the checkout does not hold.

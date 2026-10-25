@@ -113,8 +113,14 @@ func (m *Model) cardLine(r row, width int) string {
 
 func (m *Model) topEdge(r row, edge lipgloss.Style, width int) string {
 	room := width - cornerCells
-	title := cut(r.text, room)
-	used := textWidth(title)
+
+	state := ""
+	if r.answer != "" {
+		state = " · " + r.answer
+	}
+
+	title := cut(r.text, room-textWidth(state))
+	used := textWidth(title) + textWidth(state)
 
 	aside := ""
 	if r.aside != "" && used+textWidth(r.aside)+cardBorder <= room {
@@ -127,14 +133,27 @@ func (m *Model) topEdge(r row, edge lipgloss.Style, width int) string {
 	}
 
 	edge = m.on(edge)
-	out := edge.Render("╭─") + m.filler(1) + m.on(m.cardTitle(r)).Render(title) + m.filler(1) +
-		edge.Render(strings.Repeat("─", rule))
+	out := edge.Render("╭─") + m.filler(1) + m.on(m.cardTitle(r)).Render(title) + m.answerWord(r, state) +
+		m.filler(1) + edge.Render(strings.Repeat("─", rule))
 
 	if aside != "" {
 		out += m.filler(1) + m.on(m.styles.hunk).Render(aside)
 	}
 
 	return out + m.filler(1) + edge.Render("─╮")
+}
+
+func (m *Model) answerWord(r row, state string) string {
+	if state == "" {
+		return ""
+	}
+
+	face := m.styles.priority
+	if r.answered {
+		face = m.styles.ok
+	}
+
+	return m.on(m.cardTitle(r)).Render(" · ") + m.on(face).Render(r.answer)
 }
 
 func (m *Model) footEdge(r row, edge lipgloss.Style, width int) string {

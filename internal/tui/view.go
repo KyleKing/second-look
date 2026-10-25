@@ -471,7 +471,7 @@ func (m *Model) onCode() bool {
 // helpTree is the legend with the H chord's page filled in from the rounds
 // this review was read at, which is the one page a static tree cannot write.
 func (m *Model) helpTree() []keyhint.Hint {
-	return helpTree(roundHints(m.earlier(), time.Now()))
+	return helpTree(m.roundPage(time.Now()))
 }
 
 // helpPage is the page the path into the legend reaches, falling back to the
@@ -503,12 +503,25 @@ func (m *Model) helpWidth() int {
 	return min(boxW, m.width-boxMargin)
 }
 
+// roundBoxWidth is the room the H chord's page asks for, since a round's line
+// carries who pushed it and how the todos stand.
+const roundBoxWidth = 76
+
+// pageWidth is the inner width of the box a page of the legend is drawn in.
+func (m *Model) pageWidth(path []string) int {
+	if len(path) > 0 && path[0] == "H" {
+		return min(roundBoxWidth, m.width-boxMargin)
+	}
+
+	return m.helpWidth()
+}
+
 // helpBox floats the legend's open page over the diff's bottom corner, the
 // same window a waiting chord draws so a key means one thing in both places.
 // The page is one column inside, since a narrow box has no room to spread,
 // and it scrolls because the root is longer than any frame.
 func (m *Model) helpBox(body []string) []string {
-	rows := keyhint.Column(legendStyles(m.styles), m.helpPage(), m.helpWidth())
+	rows := keyhint.Column(legendStyles(m.styles), m.helpPage(), m.pageWidth(m.helpPath))
 
 	h := m.viewHeight()
 	inner := max(1, min(len(rows), h-boxBorder))
@@ -536,7 +549,7 @@ func (m *Model) waitLines(body []string) []string {
 		return body
 	}
 
-	rows := keyhint.Column(legendStyles(m.styles), page, m.helpWidth())
+	rows := keyhint.Column(legendStyles(m.styles), page, m.pageWidth([]string{string(m.pending)}))
 	box := overlay.Box(boxStyles(m.styles), string(m.pending)+" then", rows, len(rows), 0)
 
 	return overlay.Blit(body, box, m.width-textWidth(box[0])-1, len(body)-len(box))

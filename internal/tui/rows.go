@@ -119,6 +119,10 @@ type row struct {
 	role cardRole
 	// aside is what a card's top edge says at its right end.
 	aside string
+	// answer is the word a thread's top edge carries after its title, and
+	// answered says whether the face is the good one.
+	answer   string
+	answered bool
 	// hunk numbers the @@ block a row belongs to, across the whole diff, and is
 	// zero for a row that belongs to none.
 	hunk int

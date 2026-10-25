@@ -213,3 +213,7 @@ func (m *Model) SearchHead() {
 		}
 	}
 }
+
+// StartRoundReads is the reads the H chord starts behind the frame, which a test runs
+// itself because the key's own command is batched with a timer.
+func (m *Model) StartRoundReads() tea.Cmd { return m.readRounds(m.earlier()) }

@@ -1,0 +1,59 @@
+[
+ {
+  "id": "PRRT_demo_wrap",
+  "path": "testdata/fixture/sample.go",
+  "side": "RIGHT",
+  "line": 19,
+  "notes": [
+   {
+    "id": 4100000001,
+    "author": "watch-doggo",
+    "body": "**blocker** \u00b7 ReadBudget returns the os.ReadFile error untouched, so a caller reading three budgets cannot tell which one is missing. Wrap it with the path."
+   }
+  ]
+ },
+ {
+  "id": "PRRT_demo_skip",
+  "path": "testdata/fixture/sample.go",
+  "side": "RIGHT",
+  "line": 28,
+  "notes": [
+   {
+    "id": 4100000002,
+    "author": "watch-doggo",
+    "body": "**major** \u00b7 A line that fails Atoi is skipped, so a typo in the budget file reads as a smaller total. Return the failure."
+   },
+   {
+    "id": 4100000012,
+    "author": "watch-doggo",
+    "body": "Fixed in 9b8e7d6."
+   }
+  ]
+ },
+ {
+  "id": "PRRT_demo_split",
+  "path": "testdata/fixture/sample.go",
+  "side": "RIGHT",
+  "line": 44,
+  "notes": [
+   {
+    "id": 4100000003,
+    "author": "watch-doggo",
+    "body": "**nit** \u00b7 splitLines hand-rolls what strings.Split does."
+   }
+  ]
+ },
+ {
+  "id": "PRRT_demo_units",
+  "path": "testdata/fixture/sample.go",
+  "side": "RIGHT",
+  "line": 56,
+  "notes": [
+   {
+    "id": 4100000004,
+    "author": "jdoe",
+    "body": "Should this say units or hours? The budget file never says."
+   }
+  ]
+ }
+]

@@ -25,10 +25,12 @@ import (
 
 const field = "\x1f"
 
+const gitFields = 3
+
 // Git lists the commits in from..to, oldest first, and maps d's hunks onto them.
 func Git(ctx context.Context, root, from, to string, d *diff.Diff) ([]plan.Commit, error) {
 	out, err := run(ctx, root, "git", "log", "--reverse", "--topo-order", "--no-merges",
-		"--format=%H"+field+"%s", from+".."+to)
+		"--format=%H"+field+"%an"+field+"%s", from+".."+to)
 	if err != nil {
 		return nil, err
 	}
@@ -36,8 +38,12 @@ func Git(ctx context.Context, root, from, to string, d *diff.Diff) ([]plan.Commi
 	var list []plan.Commit
 
 	for line := range strings.Lines(out) {
-		id, subject, _ := strings.Cut(strings.TrimRight(line, "\n"), field)
-		list = append(list, plan.Commit{ID: id, Subject: subject})
+		parts := strings.SplitN(strings.TrimRight(line, "\n"), field, gitFields)
+		if len(parts) != gitFields {
+			continue
+		}
+
+		list = append(list, plan.Commit{ID: parts[0], Author: parts[1], Subject: parts[2]})
 	}
 
 	return Blame(ctx, root, to, list, d)
@@ -215,7 +221,8 @@ func lastTouching(ctx context.Context, root string, revs []string, f *diff.File)
 // and maps d's hunks onto them through each revision's own diff.
 func JJ(ctx context.Context, root, revset string, d *diff.Diff) ([]plan.Commit, error) {
 	out, err := run(ctx, root, "jj", "log", "--no-graph", "--no-pager", "--reversed", "-r", revset,
-		"-T", `commit_id ++ "`+field+`" ++ if(empty, "empty") ++ "`+field+`" ++ description.first_line() ++ "\n"`)
+		"-T", strings.Join([]string{"commit_id", `if(empty, "empty")`, "author.name()", "description.first_line()"},
+			` ++ "`+field+`" ++ `)+` ++ "\n"`)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +233,7 @@ func JJ(ctx context.Context, root, revset string, d *diff.Diff) ([]plan.Commit, 
 	)
 
 	for line := range strings.Lines(out) {
-		const fields = 3
+		const fields = 4
 
 		parts := strings.SplitN(strings.TrimRight(line, "\n"), field, fields)
 		if len(parts) != fields || parts[1] == "empty" {
@@ -238,7 +245,7 @@ func JJ(ctx context.Context, root, revset string, d *diff.Diff) ([]plan.Commit, 
 			return nil, err
 		}
 
-		list = append(list, plan.Commit{ID: parts[0], Subject: parts[2]})
+		list = append(list, plan.Commit{ID: parts[0], Author: parts[2], Subject: parts[3]})
 		diffs = append(diffs, diff.Parse([]byte(patch)))
 	}
 
