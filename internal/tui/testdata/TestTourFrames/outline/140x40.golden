@@ -8,7 +8,7 @@ kyleking/jj-diff #42                                                            
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  CHAPTER 3 OF 4 · read                                                                                                                      
  ◆ core                                                                                                                                     
- placed by the agent · part of locking                                                                                                      
+ ◆ agent · part of locking                                                                                                                  
                                                                                                                                             
  FILES · 1                                                                                                                                  
  ✓ core/lock.go              1 hunk    +1 −0                                                                                                

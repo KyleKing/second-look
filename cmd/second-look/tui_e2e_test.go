@@ -418,7 +418,7 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 	sc.press("e")
 	sc.await("ctrl+s save")
 	sc.press("\x05")
-	sc.await("the pane has the keyboard")
+	sc.await("keys go to it")
 	sc.press("Answered from the review screen.")
 	sc.press("\r")
 	sc.await("staged, ready to post")
@@ -573,7 +573,7 @@ func TestReviewScreenEndsAWedgedPane(t *testing.T) {
 
 	sc.press("]c")
 	sc.press("!")
-	sc.await("the pane has the keyboard")
+	sc.await("keys go to it")
 	sc.press("\x1c")
 	sc.await("signal: killed")
 	sc.press("q")

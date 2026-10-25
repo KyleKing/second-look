@@ -503,7 +503,7 @@ func (m *Model) chapterDetail(size sizes, at, w, jw int) []string {
 		add(c.Why, m.styles.body.Render)
 	}
 
-	placed := "placed by " + sourceWord(c.Source)
+	placed := c.Source.Glyph() + " " + sourceWord(c.Source)
 	if c.Feature != "" {
 		placed += " · part of " + c.Feature
 	}

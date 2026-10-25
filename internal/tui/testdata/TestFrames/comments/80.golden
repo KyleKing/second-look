@@ -13,9 +13,9 @@ vcs ─────────────────────────�
        ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────╯
  
      internal/vcs/git.go  1 skipped ────────────────────────────────────────────
- 
-      ┃ REVIEW BODY  empty · e to write one
-      ┃ REVIEW NOTE  empty · e to write one
+
+
+
 
 
 

@@ -55,6 +55,10 @@ func (m *Model) beginEdit(title, start string, msg editedMsg) tea.Cmd {
 	m.editing = &editor{area: area, title: title, msg: msg, key: m.draftKey(msg), start: start}
 	m.say("", false)
 
+	if msg.index == reviewBody {
+		m.rebuild()
+	}
+
 	if body, at, ok := m.recall(); ok && body != start {
 		area.SetValue(body)
 		area.MoveToEnd()
@@ -100,6 +104,7 @@ func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case escKey:
 		done := m.editing
 		m.editing = nil
+		m.rebuild()
 
 		if done.area.Value() == done.start {
 			m.drop(done.key)
@@ -307,13 +312,13 @@ func (m *Model) editorLines() []string {
 		out = append(out, frame.Render(gutter+"┃ ")+cut(line, m.diffWidth()))
 	}
 
-	keys := "┗ ctrl+s save · esc keeps it · ctrl+e $EDITOR · ctrl+n complete"
+	keys := "┗ ctrl+s save · esc keep · ctrl+e $EDITOR · ctrl+n complete"
 	if m.editing.restored {
-		keys += " · ctrl+r drops what was restored"
+		keys += " · ctrl+r drop restored"
 	}
 
 	if m.editing.theirs != "" {
-		keys += " · ctrl+t swaps the version from disk"
+		keys += " · ctrl+t disk version"
 	}
 
 	return append(out, frame.Render(cut(gutter+keys, m.diffWidth())))

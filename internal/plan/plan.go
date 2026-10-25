@@ -89,6 +89,9 @@ type Chapter struct {
 	Why     string
 	Hunks   []order.Ref
 	Feature string
+	// Symbol says Name is a declared symbol the hunks were gathered around, where
+	// a directory's name would repeat the paths under it.
+	Symbol bool
 	// Pattern is the repeated edit a shape chapter reads once, nil in every other mode.
 	Pattern *Pattern
 }
@@ -189,14 +192,8 @@ func fromGroups(groups []order.Group) []Chapter {
 	out := make([]Chapter, 0, len(groups))
 
 	for _, g := range groups {
-		var why string
-		if g.Symbol {
-			why = "gathered around " + g.Name
-		}
-
 		out = append(out, Chapter{
-			Name: g.Name, Mode: ModeRead, Source: SourceGraph, Why: why,
-			Hunks: slices.Clone(g.Hunks),
+			Name: g.Name, Mode: ModeRead, Source: SourceGraph, Symbol: g.Symbol, Hunks: slices.Clone(g.Hunks),
 		})
 	}
 
@@ -250,7 +247,7 @@ func settle(chapters []Chapter, hunks []order.Hunk) ([]Chapter, []string) {
 
 	if len(lost) > 0 {
 		out = append(out, Chapter{
-			Name: unplaced, Mode: ModeRead, Source: SourceGraph, Why: "no layer placed these", Hunks: lost,
+			Name: unplaced, Mode: ModeRead, Source: SourceGraph, Hunks: lost,
 		})
 		problems = append(problems, fmt.Sprintf("%d hunk(s) no layer placed are in %s", len(lost), unplaced))
 	}

@@ -80,7 +80,7 @@ func (m *Model) render() string {
 // rows it returns are fixed-height: the emulator's screen is exactly the pane
 // even where the program has drawn nothing yet.
 func (m *Model) paneLines() []string {
-	head := " " + m.paneTitle + " — the pane has the keyboard; leave it to come back, ctrl+\\ ends it"
+	head := " " + m.paneTitle + "  keys go to it · ctrl+\\ ends it"
 
 	rest := m.width - textWidth(head) - 1
 	if rest >= ruleFloor {
@@ -364,7 +364,7 @@ func (m *Model) prompt() string {
 	}
 
 	head := m.styles.key.Render("/") + m.styles.footer.Render(scope+" ")
-	tail := m.styles.footer.Render("  tab: scope")
+	tail := m.styles.footer.Render("  [tab] scope")
 
 	return cut(head+m.search.input.View()+tail, m.width)
 }
@@ -661,6 +661,10 @@ func (m *Model) rowBodies(r row, width int) []string {
 		style = m.styles.behind
 	}
 
+	if len(r.spans) > 0 {
+		return []string{m.spanLine(r, strings.TrimSuffix(text, r.text), style, width, closed(r))}
+	}
+
 	// A hunk with nothing named on it is still a boundary and still carries the
 	// read mark, so it draws as a rule rather than as a blank row.
 	if r.kind == rowFile || (r.kind == rowHunk && r.hunk > 0 && r.text == "") {
@@ -770,14 +774,7 @@ func closed(r row) bool { return r.folded && (r.kind == rowFile || r.kind == row
 
 // ruledFile is a heading with a rule out to the frame's edge.
 func (m *Model) ruledFile(text string, width int, style lipgloss.Style) string {
-	head := style.Render(cut(text, width))
-
-	rest := width - textWidth(text) - 1
-	if rest < ruleFloor {
-		return head
-	}
-
-	return head + m.styles.hunk.Render(" "+strings.Repeat("\u2500", rest))
+	return style.Render(cut(text, width)) + m.rule(textWidth(text), width)
 }
 
 func (m *Model) rowContent(r row) (string, lipgloss.Style) {

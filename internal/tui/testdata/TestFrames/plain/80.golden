@@ -14,8 +14,8 @@ vcs ─────────────────────────�
   15 +     lines, err := split(r)                                              ┃
                                                                                ┃
        ╭─ ● ready · major ─────────────────────────────────────── diff.go:15 ─╮┃
-       │ split can fail now, so this has to check err.                        ││
-       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────╯│
+       │ split can fail now, so this has to check err.                        │┃
+       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────╯┃
                                                                                │
   16 +     if err != nil {                                                     │
   17       last := 4                                                           │

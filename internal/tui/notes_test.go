@@ -95,7 +95,7 @@ func TestAThreadNoteHoldsItsTailBehindZa(t *testing.T) {
 		t.Fatalf("the note is not held at twenty rows:\n%s", frame)
 	}
 
-	if !strings.Contains(frame, "5 more lines · za to read") {
+	if !strings.Contains(frame, "5 more lines  [za] read") {
 		t.Fatalf("the held rows are not counted:\n%s", frame)
 	}
 

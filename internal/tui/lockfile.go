@@ -6,25 +6,39 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/kyleking/second-look/internal/advisory"
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/meta"
 )
+
+// shutHead is a folded file's heading: what it holds, whatever can be asked of
+// it, and the key that shows its lines.
+func shutHead(head row, words []string, r *artifact.Review, hints ...chunk) row {
+	if n := staged(r, head.path); n != "" {
+		words = append(words, n)
+	}
+
+	head = spanned(head, headed(chunk{text: head.path}, words, append(hints, rawHint)...)...)
+	head.folded = true
+
+	return head
+}
 
 // foldedFile is a file drawn as one row, plus whatever it can say without being
 // opened: the dependencies a lockfile changed where the format is readable, and
 // a hunk count where it is not.
 func foldedFile(f *diff.File, head row, c fileCtx) []row {
 	word, deps := lockRows(f, head.path, c.lay)
-	if word == "" {
-		word = plural(hunkCount(f), "hunk") + " folded"
-	} else {
-		word += askedWord(f, c.lay.answered[head.path])
-		word += versionedWord(c.lay.versioned[head.path])
-	}
 
-	head.text = head.path + "  " + word + staged(c.r, head.path) + " · za to open"
-	head.folded = true
+	if word == "" {
+		head = shutHead(head, []string{plural(hunkCount(f), "hunk")}, c.r)
+	} else {
+		asking, ask := askedWords(f, c.lay.answered[head.path])
+		words := append([]string{word}, asking...)
+		words = append(words, versionedWords(c.lay.versioned[head.path])...)
+		head = shutHead(head, words, c.r, ask...)
+	}
 
 	for _, ln := range f.Lines {
 		claim(c.byLine, c.placed, head.path, ln)
@@ -54,10 +68,11 @@ func lockRows(f *diff.File, path string, lay layout) (string, []row) {
 
 	for _, d := range deps {
 		card, has := lay.cards[advisory.Package{Ecosystem: eco, Name: d.Name, Version: d.To}]
-		out = append(out, row{
-			kind: rowHunk, path: path, comment: noComment,
-			text: fmt.Sprintf("%-*s  %s", width, d.Name, versionWord(d)+cardWord(card, has, eco)),
-		})
+		out = append(out, spanned(row{kind: rowHunk, path: path, comment: noComment},
+			chunk{text: fmt.Sprintf("%-*s", width, d.Name), face: faceBold},
+			chunk{text: "  " + versionWord(d), face: faceBody},
+			muted(cardWord(card, has, eco)),
+		))
 
 		if detail := cardDetail(card); has && detail != "" {
 			out = append(out, row{
@@ -77,24 +92,24 @@ func lockRows(f *diff.File, path string, lay layout) (string, []row) {
 	return humanize.Plural(len(deps), "dependency", "dependencies"), out
 }
 
-// askedWord is what the lockfile's own row says about the advisories, because
+// askedWords is what the lockfile's own row says about the advisories, because
 // a question still out, a question refused, and an answer of nothing all draw
-// the same rows and mean different things.
-func askedWord(f *diff.File, state asked) string {
+// the same rows and mean different things. Before any asking it is the key.
+func askedWords(f *diff.File, state asked) ([]string, []chunk) {
 	switch {
 	case state.out:
-		return " · asking osv.dev…"
+		return []string{"asking osv.dev…"}, nil
 	case state.failed != "":
-		return " · osv.dev: " + state.failed
+		return []string{"osv.dev: " + state.failed}, nil
 	case state.settled && state.found > 0:
-		return " · " + plural(state.found, "package") + " with something known against it"
+		return []string{plural(state.found, "package") + " with advisories"}, nil
 	case state.settled:
-		return " · nothing known against it"
+		return []string{"no advisories"}, nil
 	case meta.Ecosystem(f) == "":
-		return ""
+		return nil, nil
 	}
 
-	return " · L to ask osv.dev"
+	return nil, []chunk{hintSpan("L", "advisories")}
 }
 
 func versionWord(d meta.Row) string {

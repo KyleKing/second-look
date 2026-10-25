@@ -91,18 +91,18 @@ func (m *Model) markVersioned(path string, state asked) {
 	m.versioned[path] = state
 }
 
-// versionedWord is what the lockfile's own row says about the asking: a fetch
+// versionedWords is what the lockfile's own row says about the asking: a fetch
 // still out and a registry that refused read differently from an answer of
 // rows, which says nothing more.
-func versionedWord(state asked) string {
+func versionedWords(state asked) []string {
 	switch {
 	case state.out:
-		return " · asking registries…"
+		return []string{"asking registries…"}
 	case state.failed != "":
-		return " · " + state.failed
+		return []string{state.failed}
 	}
 
-	return ""
+	return nil
 }
 
 // cardWord is what a registry said about the version a dependency moved to,

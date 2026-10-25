@@ -355,8 +355,8 @@ func (l layout) unwrittenWord(c *artifact.Comment) string {
 	case waiting:
 		return "drafting…"
 	case l.failedAsks[id] != "":
-		return l.failedAsks[id] + "; [e]dit to write one"
+		return l.failedAsks[id]
 	}
 
-	return "no reply text, [e]dit to write one"
+	return "no reply text"
 }

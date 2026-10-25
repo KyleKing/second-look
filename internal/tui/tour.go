@@ -119,14 +119,6 @@ func (l layout) stopGroups(at map[string]int, drawn []bool) ([]planGroup, map[or
 	return out, taken
 }
 
-func (g planGroup) headRow() row {
-	if g.stop > 0 {
-		return row{kind: rowStop, text: g.heading(), path: g.parts[0].path, comment: -1}
-	}
-
-	return row{kind: rowGroup, text: g.heading(), path: g.name, comment: -1}
-}
-
 func (l layout) stopNotes(g planGroup) []row {
 	if g.stop == 0 {
 		return nil
@@ -250,8 +242,7 @@ func (m *Model) railLines(h int) []string {
 		line("⚠ "+plural(n, "plan problem")+" · i", m.styles.warn.Render)
 	}
 
-	line("p the plain screen", m.styles.note.Render)
-	line("I the outline", m.styles.note.Render)
+	line("[p] plain  [I] outline", m.styles.note.Render)
 
 	return m.divided(block(out, h, w+1), true)
 }
@@ -325,7 +316,7 @@ func (m *Model) marginLines(h int) []string {
 		}
 
 		out = append(out, "")
-		add(s.Source.Glyph()+" placed by "+sourceWord(s.Source), m.styles.note.Render)
+		add(s.Source.Glyph()+" "+sourceWord(s.Source), m.styles.note.Render)
 
 		if at := m.chapterOf(g); at >= 0 {
 			out = append(out, "")
@@ -352,7 +343,7 @@ func (m *Model) chapterNote(at int, add func(string, func(...string) string)) {
 		add(c.Why, m.styles.body.Render)
 	}
 
-	add(c.Source.Glyph()+" placed by "+sourceWord(c.Source), m.styles.note.Render)
+	add(c.Source.Glyph()+" "+sourceWord(c.Source), m.styles.note.Render)
 
 	if c.Feature != "" {
 		add("part of "+c.Feature, m.styles.note.Render)
@@ -387,15 +378,15 @@ func (m *Model) chapterOf(g planGroup) int {
 func sourceWord(s plan.Source) string {
 	switch s {
 	case plan.SourceRule:
-		return "a rule"
+		return "rule"
 	case plan.SourceGraph:
-		return "the code"
+		return "code"
 	case plan.SourceAgent:
-		return "the agent"
+		return "agent"
 	case plan.SourceYou:
 		return "you"
 	case plan.SourceCommit:
-		return "a commit"
+		return "commit"
 	}
 
 	return string(s)

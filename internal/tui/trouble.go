@@ -307,7 +307,7 @@ func emptyTroubleWord(probing bool, failed error) string {
 		return "nothing ran: " + failed.Error()
 	}
 
-	return "nothing to report on the lines this change wrote"
+	return "no problems on the lines this change wrote"
 }
 
 // onLines is every note anchored to a changed line of one file, each under the
@@ -470,5 +470,5 @@ func (m *Model) answerLines() []string {
 		}
 	}
 
-	return append(out, "", m.styles.footer.Render("  any key to go back"))
+	return append(out, "", m.styles.footer.Render("  [any key] back"))
 }

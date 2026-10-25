@@ -79,7 +79,7 @@ func (m *Model) questionPrompt() string {
 	s := m.drafting.span
 	where := rangeWord(s.Path, firstOf(s.StartLine, s.Line), s.Line)
 	head := m.styles.key.Render("A") + m.styles.footer.Render(" "+where+" › ")
-	tail := m.styles.footer.Render("  enter asks · esc drops it")
+	tail := m.styles.footer.Render("  [enter] ask  [esc] drop")
 
 	return cut(head+m.drafting.input.View()+tail, m.width)
 }
@@ -115,7 +115,7 @@ func (m *Model) ask(span artifact.Span, outside bool, text string) tea.Cmd {
 		return cmd
 	}
 
-	m.save("kept in [plan] for an agent to answer with second-look plan ask")
+	m.save("kept in [plan]; second-look plan ask answers it")
 
 	return nil
 }
@@ -286,10 +286,10 @@ func (l layout) answerWord(a *plan.Ask) string {
 	case waiting:
 		return "asking " + who + "…"
 	case l.failedAsks[a.ID] != "":
-		return l.failedAsks[a.ID] + "; second-look plan ask can answer it"
+		return l.failedAsks[a.ID] + "; second-look plan ask answers it"
 	}
 
-	return "no agent here to ask; second-look plan ask answers it"
+	return "no agent here; second-look plan ask answers it"
 }
 
 func (m *Model) askRow(r row) (string, lipgloss.Style) {

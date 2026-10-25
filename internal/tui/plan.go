@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
@@ -37,36 +36,72 @@ type planGroup struct {
 
 // named reports whether the heading says anything the file paths under it do
 // not. One directory over a review whose files each carry their whole path is
-// the same words twice; a chapter with a reason or a mode of its own is not.
-func (g planGroup) named(groups int) bool {
-	return groups > 1 || g.mode != plan.ModeRead || g.why != "" || g.stop > 0
+// the same words twice; a chapter with a reason, a mode, or a symbol of its own is not.
+func (l layout) named(g planGroup, groups int) bool {
+	symbol := g.chapter > 0 && l.plan[g.chapter-1].Symbol
+
+	return groups > 1 || g.mode != plan.ModeRead || g.why != "" || symbol || g.stop > 0
 }
 
-func (g planGroup) heading() string {
-	if g.stop > 0 {
-		return g.source.Glyph() + " " + g.name
-	}
-
+// words are the counts and tags a chapter's heading carries after its name. A
+// fold's mode is left out because the summary key already says it is folded.
+func (g planGroup) words() []string {
 	words := []string{fmt.Sprintf("%s · %s", plural(g.files, "file"), plural(g.hunks, "hunk"))}
 
-	switch g.mode {
-	case plan.ModeRead:
-	case plan.ModeFold:
-		words = append(words, "counted, not read")
-	default:
+	if g.mode != plan.ModeRead && g.mode != plan.ModeFold {
 		words = append(words, string(g.mode))
 	}
 
-	if g.why != "" {
+	if g.why != "" && g.why != g.name {
 		words = append(words, g.why)
 	}
 
-	head := g.name
+	return words
+}
+
+func (g planGroup) headRow(lay layout) row {
+	name := g.name
 	if g.source != "" {
-		head = g.source.Glyph() + " " + head
+		name = g.source.Glyph() + " " + name
 	}
 
-	return head + "  " + strings.Join(words, " · ")
+	if g.stop > 0 {
+		return row{kind: rowStop, text: name, path: g.parts[0].path, comment: -1}
+	}
+
+	summary := lay.summarized(g)
+
+	var hints []chunk
+	if summary {
+		hints = append(hints, rawHint)
+	}
+
+	head := spanned(row{kind: rowGroup, path: g.name, comment: -1}, headed(chunk{text: name}, g.words(), hints...)...)
+	head.folded = summary
+
+	return head
+}
+
+// rawHint is the key that turns a summary into the hunks it stands for.
+var rawHint = hintSpan("za", "raw")
+
+// digested reports whether a file is drawn as a digest in place of its hunks: a
+// folded file, which is a lockfile's dependencies where the format is readable
+// and a hunk count where it is not, or a shape's member standing as one row.
+// Every summary reads it, so za means the same thing on all of them.
+func (l layout) digested(g planGroup, path string) bool {
+	if p := l.patternOf(g); p != nil {
+		return slices.ContainsFunc(p.Members, func(m plan.Member) bool {
+			return m.Path == path && m.Exact() && !l.fold.members[path]
+		})
+	}
+
+	return l.shut(path)
+}
+
+// summarized reports whether any file of a chapter is drawn as a digest.
+func (l layout) summarized(g planGroup) bool {
+	return slices.ContainsFunc(g.parts, func(p part) bool { return l.digested(g, p.path) })
 }
 
 // groups is the plan's chapters, or the diff's own directories once O asks for
@@ -203,9 +238,8 @@ func splitFiles(groups []planGroup) map[string]int {
 	return seen
 }
 
-// partWord says a file is showing only some of itself. A reader who does not
-// know they are looking at half a file draws the wrong conclusion from it, and
-// `]f` walks to the rest.
+// partWord says a file is showing only some of itself, since a reader who does
+// not know draws the wrong conclusion from half a file.
 //
 // The count is of the whole file rather than of this piece, because how much of
 // a file is left is the question a piece of it cannot answer.
@@ -216,8 +250,7 @@ func (l layout) partWord(path string, elsewhere int) string {
 
 	read, total := l.progress(path)
 
-	return fmt.Sprintf("  part of this file · %s elsewhere · %d/%d read · ]f walks to it",
-		plural(elsewhere, "piece"), read, total)
+	return fmt.Sprintf("  %s · %d/%d read", plural(elsewhere, "more part"), read, total)
 }
 
 func fileIndex(d *diff.Diff) map[string]int {

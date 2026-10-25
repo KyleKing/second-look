@@ -456,7 +456,7 @@ func unique(name string, names map[string]bool) string {
 func shapeChapter(cl cluster) Chapter {
 	c := Chapter{
 		Name: fmt.Sprintf("the same edit in %d files", len(cl.members)),
-		Mode: ModeShape, Source: SourceGraph, Why: "one edit, read once",
+		Mode: ModeShape, Source: SourceGraph,
 	}
 
 	for _, f := range cl.members {

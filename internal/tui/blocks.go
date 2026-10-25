@@ -13,6 +13,7 @@ import (
 	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/plan"
+	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/versions"
 )
 
@@ -89,9 +90,9 @@ type folded struct {
 	skips map[anchor]bool
 	files map[string]bool
 	gone  map[goneAt]bool
-	// threads is a whole conversation folded to its heading by hand. It is the
-	// one fold whose default depends on nothing: a thread is drawn until
-	// somebody puts it away.
+	// threads is a whole conversation folded to its heading. A thread is drawn
+	// until somebody puts it away, except one GitHub marks resolved, which starts
+	// folded.
 	threads map[int]bool
 	// blocks default the same way turns do. A <details> is collapsed on the web
 	// and a screenful of tool output between two sentences is worse in a
@@ -107,6 +108,15 @@ func newFolded() folded {
 		skips: map[anchor]bool{}, files: map[string]bool{},
 		gone: map[goneAt]bool{}, blocks: map[blockAt]bool{},
 		threads: map[int]bool{}, members: map[string]bool{},
+	}
+}
+
+// foldResolved starts every conversation GitHub marks resolved folded to its heading.
+func (f folded) foldResolved(ts []threads.Thread) {
+	for i := range ts {
+		if ts[i].Resolved {
+			f.threads[i] = true
+		}
 	}
 }
 
@@ -126,6 +136,9 @@ type layout struct {
 	// grown is the file's own lines either side of a hunk, where a reader asked
 	// for more than the patch carried. It is nil for every view but the diff.
 	grown func(path string, hunk int, span [2]int) ([]row, []row)
+	// writing is the review's own body being written, which draws its block
+	// while both are empty so the editor has a place to stand.
+	writing bool
 	// trouble is what the checkers found, placed against this diff. Its zero
 	// value draws no notes, which is every review before the pass answers.
 	trouble diag.Placed
@@ -181,16 +194,15 @@ type layout struct {
 // machine wrote starts that way and z opens it, which inverts the default the
 // rest of the review has: everything else is open until it is folded by hand.
 func (l layout) shut(path string) bool {
-	folds, planned := l.folds[path]
-	if !planned {
-		folds = l.made.Match(path)
+	return l.shutByDefault(path) != l.fold.files[path]
+}
+
+func (l layout) shutByDefault(path string) bool {
+	if folds, planned := l.folds[path]; planned {
+		return folds
 	}
 
-	if folds {
-		return !l.fold.files[path]
-	}
-
-	return l.fold.files[path]
+	return l.made.Match(path)
 }
 
 // taggedLit is a fenced block's grammar, read from the cache once a fence with
@@ -217,11 +229,15 @@ func (l layout) taggedLit(lang string, lines []string) [][]highlight.Span {
 // where the reading ends rather than above the thing they are a verdict on, and
 // tab reaches them last for the same reason.
 //
-// Both are drawn whether or not anything is written in them, because a field
-// that appears only once it is filled in is one nobody knows to fill in. The
-// body is open, since it is what posts; the note is folded, since it is the run
-// log and its evidence is for later.
+// Neither is drawn while both are empty, since writ[e] in the footer already
+// offers the body. Once either holds text both are, so the other is there to
+// fill. The body is open, since it is what posts; the note is folded, since it
+// is the run log and its evidence is for later.
 func signature(r *artifact.Review, lay layout, numWidth int) []row {
+	if r.Body == "" && r.Note == "" && !lay.writing {
+		return nil
+	}
+
 	avail := cardCols(lay.width, numWidth)
 
 	body := prose(reviewBody, "REVIEW BODY", r.Body, rowComment, avail, lay)
@@ -245,7 +261,7 @@ func prose(index int, title, text string, kind rowKind, avail int, lay layout) [
 	head := row{kind: rowComment, text: title, comment: index, head: true}
 
 	if text == "" {
-		head.text = title + "  empty · e to write one"
+		head.text = title + "  empty"
 
 		return []row{head}
 	}
@@ -255,7 +271,7 @@ func prose(index int, title, text string, kind rowKind, avail int, lay layout) [
 	// starts closed, the way a comment's note does not.
 	lines := wrap(text, avail)
 	if !lay.fold.notes.shownFrom(index, index == reviewBody) {
-		head.text = fmt.Sprintf("%s  %s · za to read", title, plural(len(lines), "line"))
+		head.text = fmt.Sprintf("%s  %s  [za] read", title, plural(len(lines), "line"))
 		head.folded = true
 
 		return []row{head}
@@ -323,14 +339,14 @@ func skipRows(r *artifact.Review, on []int, a anchor, path string, lay layout, n
 	if !lay.fold.skips[a] {
 		return []row{head, {
 			kind: rowComment, path: path, comment: on[0], head: true, folded: true, skips: a,
-			text: plural(len(on), "comment") + " skipped here · za to read",
+			text: plural(len(on), "comment") + " skipped here  [za] read",
 			role: foldRole(lay.width),
 		}}
 	}
 
 	rows := []row{head, {
 		kind: rowComment, path: path, comment: on[0], head: true, skips: a,
-		text: plural(len(on), "comment") + " skipped here · za to fold",
+		text: plural(len(on), "comment") + " skipped here  [za] fold",
 	}}
 
 	for _, c := range on {
@@ -455,7 +471,7 @@ func agentOrigin(origin string) bool { return origin != "" && origin != artifact
 // too late to do anything about, so it is asked here as well.
 func driftWord(drifted bool) string {
 	if drifted {
-		return " · ⚠ the line under it changed"
+		return " · ⚠ line changed"
 	}
 
 	return ""
@@ -470,7 +486,7 @@ func noteRows(note string, index int, path string, avail int, lay layout) []row 
 	if !lay.fold.notes.shown(index) {
 		return []row{{
 			kind: rowNote, path: path, comment: index, folded: true,
-			text: noteLabel + plural(len(lines), "line") + " · za to read",
+			text: noteLabel + plural(len(lines), "line") + "  [za] read",
 		}}
 	}
 
@@ -522,7 +538,7 @@ func turnRows(c *artifact.Comment, index int, path string, avail int, lay layout
 	if lay.fold.turns[index] {
 		rows := []row{{
 			kind: rowTurn, path: path, comment: index,
-			text: turnLabel + plural(len(c.Turns), "turn") + " · za to fold",
+			text: turnLabel + plural(len(c.Turns), "turn") + "  [za] fold",
 		}}
 
 		for i := range c.Turns {
@@ -549,10 +565,10 @@ func turnHead(c *artifact.Comment) string {
 	const drawn = 2
 
 	if n := len(c.Turns) - drawn; n > 0 {
-		return fmt.Sprintf("%s · %s earlier · za to read", plural(len(c.Turns), "turn"), plural(n, "turn"))
+		return fmt.Sprintf("%s · %s earlier  [za] read", plural(len(c.Turns), "turn"), plural(n, "turn"))
 	}
 
-	return plural(len(c.Turns), "turn") + " · za to read"
+	return plural(len(c.Turns), "turn") + "  [za] read"
 }
 
 // turnLines is one turn under its author, trimmed to at most keep lines, where

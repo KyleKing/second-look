@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/golden"
@@ -131,6 +132,32 @@ func TestTourFrames(t *testing.T) {
 
 				golden.RequireEqual(t, []byte(plain(m.Frame())))
 			})
+		}
+	}
+}
+
+// A frame laid out for one width and drawn at another is how a row outruns the
+// terminal: the rail and margin appear at tourWidth and the diff narrows under
+// them. Every row must stay inside the frame the terminal reported, on the
+// first frame at the assumed size and after a resize across that width.
+func TestResizeAcrossTheTourWidthKeepsEveryRowInsideTheFrame(t *testing.T) {
+	t.Parallel()
+
+	m := toured(t)
+	sizes := [][2]int{{100, 30}, {175, 52}, {120, 40}, {160, 24}, {159, 24}, {175, 52}}
+
+	for _, size := range sizes {
+		m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+
+		lines := strings.Split(plain(m.Frame()), "\n")
+		if len(lines) != size[1] {
+			t.Fatalf("%dx%d drew %d rows", size[0], size[1], len(lines))
+		}
+
+		for i, l := range lines {
+			if n := utf8.RuneCountInString(l); n > size[0] {
+				t.Fatalf("%dx%d row %d is %d cells wide: %q", size[0], size[1], i, n, l)
+			}
 		}
 	}
 }
@@ -347,7 +374,7 @@ func TestAShapeChapterReadsTheEditOnce(t *testing.T) {
 	}
 
 	for range 10 {
-		if strings.Contains(cursorText(m), "THE FILES") {
+		if strings.Contains(cursorText(m), "FILES · ") {
 			break
 		}
 

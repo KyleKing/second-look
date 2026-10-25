@@ -75,6 +75,7 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 	m.newHead = ""
 	m.fold = foldNone
 	m.folded = newFolded()
+	m.folded.foldResolved(m.threads)
 	m.notes = nil
 	m.around = map[hunkAt]int{}
 	m.blobs = map[string][]string{}

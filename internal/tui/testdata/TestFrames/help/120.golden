@@ -14,8 +14,8 @@ vcs ─────────────────────────�
   15 +     lines, err := split(r)                                      │            tab goes forward too once ctrl+o  │┃
                                                                        │            has left a place ahead            │┃
        ╭─ ● ready · major ─────────────────────────────────────────────│         .  the last change                   │┃
-       │ split can fail now, so this has to check err.                 │       tab  what wants a decision             ││
-       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ──│ shift+tab  and back                          ││
+       │ split can fail now, so this has to check err.                 │       tab  what wants a decision             │┃
+       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ──│ shift+tab  and back                          │┃
                                                                        │         /  search                            ││
   16 +     if err != nil {                                             │            tab in the prompt narrows a       ││
   17       last := 4                                                   │            search to hunks not yet read      ││

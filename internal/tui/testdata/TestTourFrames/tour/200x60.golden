@@ -1,4 +1,4 @@
-kyleking/jj-diff #42                                                                                                                           3 files · +5 −1 · read 1 of 4 hunks · ◆ 1 to judge ·   3%
+kyleking/jj-diff #42                                                                                                                           3 files · +5 −1 · read 1 of 4 hunks · ◆ 1 to judge ·   4%
 1 ━━━━━●━━━━━━━━━━━━━━━━━━━━━━  the lock's call… ────────────────────────────  api ───────────────────────────────────────────────────────  gen ──────────────────────────────────────────────────────  
  STOPS · 1 of 1              │                                                                                                                               │ STOP 1 OF 1 · THE CORE DECISION          
  ▸ 1 Every save takes the l… │▌◆ stop 1 of 1 · the core decision                                                                                             │ Every save takes the lock before it      
@@ -7,27 +7,27 @@ kyleking/jj-diff #42                                                            
    ◆ the lock's caller read  │   5 +     lock()                                                                                                              │ → The route waits on it, with no         
    ◆ api               read  │   6       write()                                                                                                             │ timeout.                                 
  ▸ ◆ core              read  │                                                                                                                               │                                          
-   § gen               fold  │ ◆ the lock's caller  1 file · 1 hunk                                                                                          │ ◆ placed by the agent                    
-                             │     api/route.go  part of this file · 1 piece elsewhere · 0/2 read · ]f walks to it  +1 -0 ────────────────────────────────── │                                          
+   § gen               fold  │ ◆ the lock's caller  1 file · 1 hunk                                                                                          │ ◆ agent                                  
+                             │     api/route.go  1 more part · 0/2 read  +1 -0 ───────────────────────────────────────────────────────────────────────────── │                                          
  by symbol and directory: no │  10   func call() {                                                                                                           │ CHAPTER 3 OF 4 · read                    
  commits to read by          │  11 +     waitLock()                                                                                                          │ core                                     
- p the plain screen          │       ╭─ ⤷ @watch-doggo · unresolved · 1 comment ────────────────────────────────── route.go:11 ─╮                            │ ◆ placed by the agent                    
- I the outline               │       │   waitLock has no timeout.                                                               │                            │ part of locking                          
+ [p] plain  [I] outline      │       ╭─ ⤷ @watch-doggo · unresolved · 1 comment ────────────────────────────────── route.go:11 ─╮                            │ ◆ agent                                  
+                             │       │   waitLock has no timeout.                                                               │                            │ part of locking                          
                              │       ╰─ r[e]ply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ──────────────╯                            │                                          
                              │                                                                                                                               │ next: the lock's caller                  
                              │  12       done()                                                                                                              │                                          
                              │                                                                                                                               │                                          
                              │ ◆ api  1 file · 1 hunk                                                                                                        │                                          
-                             │     api/route.go  part of this file · 1 piece elsewhere · 0/2 read · ]f walks to it  +1 -1 ────────────────────────────────── │                                          
+                             │     api/route.go  1 more part · 0/2 read  +1 -1 ───────────────────────────────────────────────────────────────────────────── │                                          
                              │   1   func route() {                                                                                                          │                                          
                              │   2 -     serve(1)                                                                                                            │                                          
                              │   2 +     serve(2)                                                                                                            │                                          
                              │                                                                                                                               │                                          
-                             │ § gen  1 file · 1 hunk · counted, not read · gen/** reads as fold                                                             │                                          
-                             │     gen/client.go  1 hunk folded · za to open ─────────────────────────────────────────────────────────────────────────────── │                                          
+                             │ § gen  1 file · 1 hunk  [za] raw                                                                                              │                                          
+                             │     gen/client.go  1 hunk  [za] raw ───────────────────────────────────────────────────────────────────────────────────────── │                                          
                              │                                                                                                                               │                                          
-                             │      ┃ REVIEW BODY  empty · e to write one                                                                                    │                                          
-                             │      ┃ REVIEW NOTE  empty · e to write one                                                                                    │                                          
+                             │                                                                                                                               │                                          
+                             │                                                                                                                               │                                          
                              │                                                                                                                               │                                          
                              │                                                                                                                               │                                          
                              │                                                                                                                               │                                          

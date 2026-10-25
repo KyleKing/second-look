@@ -235,7 +235,7 @@ func (s screen) shapeRows(p *plan.Pattern, c fileCtx) []row {
 	at := fileIndex(c.d)
 	label := func(text string) row { return row{kind: rowShape, head: true, text: text, comment: noComment} }
 
-	rows := []row{label(fmt.Sprintf("THE SHAPE · read once for %s · as %s", plural(len(p.Members), fileNoun),
+	rows := []row{label(fmt.Sprintf("SHAPE · %s · %s", plural(len(p.Members), fileNoun),
 		p.Representative))}
 
 	var rep plan.Member
@@ -255,7 +255,7 @@ func (s screen) shapeRows(p *plan.Pattern, c fileCtx) []row {
 		in = " in " + dir
 	}
 
-	files := label(fmt.Sprintf("THE FILES · %d%s · %d exactly the shape, %d do more",
+	files := label(fmt.Sprintf("FILES · %d%s · %d exact, %d more",
 		len(p.Members), in, p.Exactly(), len(p.Members)-p.Exactly()))
 	files.refs = exactRefs(p)
 	rows = append(rows, row{kind: rowBlank, comment: noComment}, files)
@@ -395,15 +395,15 @@ func memberRow(d *diff.Diff, mem plan.Member, dir string, col int) row {
 		added, removed = added+a, removed+rm
 	}
 
-	what := "exactly the shape"
+	what := "exact"
 	if len(mem.Beyond) > 0 {
 		first := mem.Beyond[0]
-		what = fmt.Sprintf("%s beyond it: %s %s",
+		what = fmt.Sprintf("%s beyond: %s %s",
 			plural(len(mem.Beyond), "line"), first[:1], strings.TrimSpace(first[1:]))
 	}
 
 	if mem.Missing > 0 {
-		what = strings.TrimPrefix(what+fmt.Sprintf(" · %d of the shape not made", mem.Missing), "exactly the shape · ")
+		what = strings.TrimPrefix(what+fmt.Sprintf(" · %d missing", mem.Missing), "exact · ")
 	}
 
 	text := fmt.Sprintf("%s  %s  +%d −%d  %s", pad(cutTail(strings.TrimPrefix(mem.Path, dir), col), col),
@@ -445,19 +445,19 @@ func headRows(p *plan.Pattern, lay layout, label func(string) row) []row {
 	looks := lookups(p)
 
 	if len(looks) == 0 {
-		return []row{label(notChanged + " · the files share no line or name to search for")}
+		return []row{label(notChanged + " · nothing to search for")}
 	}
 
 	if !lay.searches {
-		return []row{label(notChanged + " · no checkout holds head, so nothing was searched")}
+		return []row{label(notChanged + " · no checkout")}
 	}
 
 	for _, l := range looks {
 		switch found, asked := lay.atHead[l.key]; {
 		case !asked || !found.done:
-			return []row{label(notChanged + " · searching the head…")}
+			return []row{label(notChanged + " · searching…")}
 		case found.err != nil:
-			return []row{label(notChanged + " · the search failed: " + found.err.Error())}
+			return []row{label(notChanged + " · search failed: " + found.err.Error())}
 		}
 	}
 
@@ -488,10 +488,10 @@ func hitRows(p *plan.Pattern, looks []lookup, found map[string]headHits, label f
 	}
 
 	if len(hits) == 0 {
-		return []row{label(notChanged + " · nothing else at head looks like these files")}
+		return []row{label(notChanged + " · nothing like these")}
 	}
 
-	rows := []row{label(fmt.Sprintf("%s · %s like these the edit did not touch", notChanged,
+	rows := []row{label(fmt.Sprintf("%s · %s like these", notChanged,
 		plural(len(hits), fileNoun)))}
 
 	for _, h := range hits[:min(len(hits), headHitsShown)] {
@@ -516,7 +516,7 @@ func hitRows(p *plan.Pattern, looks []lookup, found map[string]headHits, label f
 func (m *Model) shapeRow(r row) (string, lipgloss.Style) {
 	switch {
 	case r.head && len(r.refs) > 0:
-		return "    " + r.text + " · space reads them", m.styles.head
+		return "    " + r.text + "  [space] read", m.styles.head
 	case r.head:
 		return "    " + r.text, m.styles.head
 	case len(r.refs) > 0:
@@ -545,7 +545,7 @@ func (m *Model) shapeWords(p *plan.Pattern) []string {
 	rows := headRows(p, layout{atHead: m.atHead, searches: m.headSearch != nil}, label)
 
 	out := make([]string, 0, len(rows)+1)
-	out = append(out, fmt.Sprintf("%d exactly the shape, %d do more", p.Exactly(), len(p.Members)-p.Exactly()))
+	out = append(out, fmt.Sprintf("%d exact, %d more", p.Exactly(), len(p.Members)-p.Exactly()))
 
 	for i := range rows {
 		out = append(out, rows[i].text)

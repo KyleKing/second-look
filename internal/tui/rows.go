@@ -99,6 +99,9 @@ type row struct {
 	// folds inside that comment, offset so zero means it folds nothing.
 	note  int
 	block int
+	// spans draws the row in pieces where its text is read end to end across
+	// them, and is nil for a row drawn in one face.
+	spans []chunk
 	// lit is the grammar's reading of a line of fenced code inside a comment,
 	// and nil on every row that is not one.
 	lit []highlight.Span
@@ -187,8 +190,8 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 		s.heads = append(s.heads, len(s.rows))
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1})
 
-		if g.named(len(groups)) {
-			s.rows = append(s.rows, g.headRow())
+		if lay.named(g, len(groups)) {
+			s.rows = append(s.rows, g.headRow(lay))
 		}
 
 		if lay.inline {
@@ -224,10 +227,8 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 	span := bounds(f)
 
 	merged := mergedHunk(f, at, c, span)
-	rows := []row{{
-		kind: rowFile, path: p, comment: noComment, hunk: merged,
-		text: p + c.lay.partWord(p, c.split[at.path]) + sizeWord(f, at.hunks),
-	}}
+	rows := []row{spanned(row{kind: rowFile, path: p, comment: noComment, hunk: merged},
+		chunk{text: p}, muted(c.lay.partWord(p, c.split[at.path])+sizeWord(f, at.hunks)))}
 
 	if c.lay.shut(p) {
 		return foldedFile(f, rows[0], c)
@@ -457,7 +458,7 @@ func hunkRow(d *diff.Diff, lay layout, at hunkAt, span [2]int) (*row, bool) {
 
 	if lay.fold.hunks[at] {
 		return &row{
-			kind: rowHunk, text: spanWord(span) + "folded · za to open",
+			kind: rowHunk, text: spanWord(span) + "[za] open",
 			path: at.path, comment: noComment, hunk: at.hunk, folded: true,
 		}, true
 	}
@@ -588,7 +589,7 @@ func claim(byLine map[anchor][]int, placed []bool, p string, l diff.Line) {
 func staged(r *artifact.Review, path string) string {
 	c := countFor(r, path)
 	if n := c.ready + c.draft + c.todo; n > 0 {
-		return " · " + plural(n, "comment")
+		return plural(n, "comment")
 	}
 
 	return ""
@@ -744,6 +745,8 @@ func indexThreads(ts []threads.Thread) map[anchor][]int {
 	return out
 }
 
+const rootDir = "(root)"
+
 // dirOf is the directory part of a diff path. A diff always spells paths with
 // forward slashes whatever the platform, so this does not go through path/filepath.
 func dirOf(p string) string {
@@ -751,7 +754,7 @@ func dirOf(p string) string {
 		return p[:at]
 	}
 
-	return "."
+	return rootDir
 }
 
 func hunkCount(f *diff.File) int {

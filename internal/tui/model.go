@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -397,6 +398,7 @@ func New(
 		opt(m)
 	}
 
+	m.folded.foldResolved(m.threads)
 	m.replan()
 	m.tour = len(d.Files) <= tourFiles
 	m.outline.open = !m.tour && len(m.plan.Chapters) > 1
@@ -1578,8 +1580,12 @@ func (m *Model) foldHere(open bool) {
 		}
 	case r.skips.path != "":
 		m.folded.skips[r.skips] = open
+	case r.kind == rowGroup:
+		if !m.foldChapter(r, open) {
+			return
+		}
 	case r.kind == rowFile && r.path != "":
-		m.folded.files[r.path] = !open
+		m.openFile(r.path, open)
 	case r.gone > 0:
 		m.folded.gone[goneAt{r.path, r.gone}] = open
 	case r.hunk > 0:
@@ -1592,6 +1598,54 @@ func (m *Model) foldHere(open bool) {
 
 	m.rebuild()
 	m.say("", false)
+}
+
+// foldChapter makes a chapter draw its hunks or its summary. A shape's summary
+// is its exact members as rows, and anything else's is its folded files.
+func (m *Model) foldChapter(r row, open bool) bool {
+	i := slices.IndexFunc(m.screen.groups, func(g planGroup) bool { return g.stop == 0 && g.name == r.path })
+	if i < 0 {
+		return false
+	}
+
+	g := m.screen.groups[i]
+
+	if p := m.patternOf(g); p != nil {
+		for _, mem := range p.Members {
+			if mem.Exact() {
+				m.folded.members[mem.Path] = open
+			}
+		}
+
+		return true
+	}
+
+	for _, p := range g.parts {
+		m.openFile(p.path, open)
+	}
+
+	return true
+}
+
+// fileLayout is the part of the layout that decides whether a file is shut.
+func (m *Model) fileLayout() layout {
+	lay := layout{fold: m.folded, made: m.made}
+	if !m.asDiffed {
+		lay.folds = foldedPaths(m.plan.Chapters)
+	}
+
+	return lay
+}
+
+// openFile draws a file's hunks or its summary. What a machine wrote starts as
+// the summary and everything else as the hunks, so the stored bit is whether
+// the file is away from where it started.
+func (m *Model) openFile(path string, open bool) {
+	m.folded.files[path] = open == m.fileLayout().shutByDefault(path)
+}
+
+func (m *Model) patternOf(g planGroup) *plan.Pattern {
+	return layout{plan: m.plan.Chapters}.patternOf(g)
 }
 
 // foldInside folds a block of a thread or a shape's file, and reports whether
@@ -1643,8 +1697,10 @@ func (m *Model) openHere() bool {
 		return m.folded.members[r.path]
 	case r.skips.path != "":
 		return m.folded.skips[r.skips]
+	case r.kind == rowGroup:
+		return !r.folded
 	case r.kind == rowFile:
-		return !m.folded.files[r.path]
+		return !m.fileLayout().shut(r.path)
 	case r.gone > 0:
 		return m.folded.gone[goneAt{r.path, r.gone}]
 	case r.hunk > 0:
@@ -1703,11 +1759,11 @@ func (m *Model) foldAll(open bool) {
 		}
 	}
 
-	if !open {
-		for i := range m.diff.Files {
-			m.folded.files[filePath(&m.diff.Files[i])] = true
-		}
+	for i := range m.diff.Files {
+		m.openFile(filePath(&m.diff.Files[i]), open)
+	}
 
+	if !open {
 		for i := range m.threads {
 			m.folded.threads[i] = true
 		}
@@ -1799,9 +1855,23 @@ func (m *Model) toNote(step int) bool {
 
 // chord is what the second key can be, shown while the first is waiting. The
 // brackets are unstyled because the footer renders the status as one span, and
-// a color opened inside it would close the span around it.
+// a color opened inside it would close the span around it. Every key is
+// bracketed, the repeated bracket of ] and [ included, since the footer has no
+// face to set it apart.
 func (*Model) chord(prefix string, hints [][2]string) string {
-	return prefix + keyhint.Gap + hintLine(hints)
+	out := make([]string, 0, len(hints))
+
+	for _, h := range asHints(hints) {
+		if h.Key == "[" || h.Key == "]" {
+			out = append(out, "["+h.Key+"] "+h.What)
+
+			continue
+		}
+
+		out = append(out, keyhint.One(keyhint.Styles{}, h))
+	}
+
+	return prefix + keyhint.Gap + strings.Join(out, keyhint.Gap)
 }
 
 // moved handles every key that only changes where the cursor is, so the action
@@ -2047,7 +2117,7 @@ func (m *Model) markRead() {
 
 		name := r.path
 		if name == "" {
-			name = "the files exactly the shape"
+			name = "the exact files"
 		}
 
 		m.read.Mark(read, ids...)
@@ -2452,6 +2522,11 @@ func (m *Model) edit() tea.Cmd {
 		return m.beginEdit("editing the review note, which stays local", m.review.Note,
 			editedMsg{index: reviewNote, replyTo: -1, field: fieldNote})
 	case noComment:
+		if m.review.Body == "" && m.review.Note == "" {
+			return m.beginEdit("editing the review body", "",
+				editedMsg{index: reviewBody, replyTo: -1, field: fieldBody})
+		}
+
 		m.say("no comment here", false)
 
 		return nil
@@ -3260,6 +3335,7 @@ func (m *Model) rebuild() {
 	}
 
 	lay.trouble = m.trouble
+	lay.writing = m.editing != nil && m.editing.msg.index == reviewBody
 
 	switch m.view {
 	case viewTrouble:

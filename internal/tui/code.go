@@ -83,9 +83,11 @@ func buildCode(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout
 		placed: placed, lay: lay,
 	}
 
-	for _, g := range lay.groups(d) {
+	s.groups = lay.groups(d)
+
+	for _, g := range s.groups {
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1},
-			row{kind: rowGroup, text: g.heading(), path: g.name, comment: -1})
+			g.headRow(lay))
 
 		for _, at := range g.parts {
 			s.rows = append(s.rows, s.codeRows(&d.Files[at.file], at.hunks, ctx)...)
@@ -116,8 +118,7 @@ func (s screen) codeRows(f *diff.File, want map[int]bool, c codeCtx) []row {
 	rows := []row{{kind: rowFile, text: p, path: p, comment: -1}}
 
 	if c.lay.shut(p) {
-		rows[0].text = p + "  " + plural(hunkCount(f), "hunk") + " folded" + staged(c.r, p) + " · za to open"
-		rows[0].folded = true
+		rows[0] = shutHead(rows[0], []string{plural(hunkCount(f), "hunk")}, c.r)
 
 		for _, ln := range f.Lines {
 			claim(c.byLine, c.placed, p, ln)
@@ -147,7 +148,7 @@ func (s screen) codeRows(f *diff.File, want map[int]bool, c codeCtx) []row {
 				folded++
 			case shut:
 				rows = append(rows, row{
-					kind: rowHunk, text: codeHeader(c.d, hunk) + "  folded · za to open",
+					kind: rowHunk, text: codeHeader(c.d, hunk) + "  [za] open",
 					path: p, comment: -1, hunk: hunk, folded: true,
 				})
 			default:
@@ -216,7 +217,7 @@ func (s screen) removed(run []diff.Line, p string, hunk int, c codeCtx) []row {
 			claim(c.byLine, c.placed, p, ln)
 		}
 
-		head.text += " · za to read"
+		head.text += "  [za] read"
 		head.folded = true
 
 		return []row{head}

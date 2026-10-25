@@ -159,7 +159,7 @@ func TestAVerdictWithNoAgentLeavesTheReplyToWrite(t *testing.T) {
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 	press(t, m, key('R'))
 
-	if got := plain(m.Frame()); !strings.Contains(got, "no reply text, [e]dit to write one") {
+	if got := plain(m.Frame()); !strings.Contains(got, "no reply text") {
 		t.Errorf("the card does not say the reply is unwritten:\n%s", got)
 	}
 

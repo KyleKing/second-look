@@ -1201,7 +1201,7 @@ diff --git a/internal/rate/rate.go b/internal/rate/rate.go
 		t.Errorf("the lockfile is drawn before the code:\n%s", frame)
 	}
 
-	if !strings.Contains(frame, "counted, not read") {
+	if !strings.Contains(frame, "generated  1 file · 1 hunk  [za] raw") {
 		t.Errorf("the generated group does not say what it is:\n%s", frame)
 	}
 
@@ -1209,7 +1209,7 @@ diff --git a/internal/rate/rate.go b/internal/rate/rate.go
 		t.Errorf("the lockfile is drawn in full rather than folded:\n%s", frame)
 	}
 
-	if !strings.Contains(frame, "za to open") {
+	if !strings.Contains(frame, "uv.lock  1 hunk  [za] raw") {
 		t.Errorf("nothing says the lockfile can be opened:\n%s", frame)
 	}
 }
@@ -1237,6 +1237,73 @@ func TestZaOpensAGeneratedFile(t *testing.T) {
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, `version = "1.6.0"`) {
 		t.Errorf("za did not open the lockfile:\n%s", frame)
+	}
+}
+
+// A lockfile card, a folded generated chapter, and a shape each stand in for
+// hunks, and every one says so on its heading: za there shows the lines and,
+// pressed again, puts the summary back.
+func TestZaOnASummaryTogglesItsRawHunks(t *testing.T) {
+	t.Parallel()
+
+	const generated = `diff --git a/uv.lock b/uv.lock
+--- a/uv.lock
++++ b/uv.lock
+@@ -1,2 +1,2 @@
+-version = "1.4.2"
++version = "1.6.0"
+diff --git a/internal/rate/rate.go b/internal/rate/rate.go
+--- a/internal/rate/rate.go
++++ b/internal/rate/rate.go
+@@ -1,2 +1,2 @@
+-const ceiling = 99
++const ceiling = 400
+`
+
+	cases := []struct {
+		name, heading, raw string
+		model              func(*testing.T) *tui.Model
+	}{
+		{"lockfile card", "go.sum  3 dependencies", "h1:iiiiiiii=", func(t *testing.T) *tui.Model {
+			t.Helper()
+
+			return lockfileWith(t, nil)
+		}},
+		{"generated chapter", "generated  1 file", `version = "1.6.0"`, func(t *testing.T) *tui.Model {
+			t.Helper()
+
+			m, _, _ := fixtureWith(t, generated)
+			m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+			return m
+		}},
+		{"shape", "the same edit in 6 files", "cards/CardB.tsx  +1 -1", shaped},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := tc.model(t)
+			m.Update(tea.WindowSizeMsg{Width: 140, Height: 60})
+			onto(t, m, tc.heading)
+
+			if frame := plain(m.Frame()); !strings.Contains(frame, "[za] raw") || strings.Contains(frame, tc.raw) {
+				t.Fatalf("the summary does not say how to see the lines:\n%s", frame)
+			}
+
+			go2(t, m, 'z', 'a')
+
+			if frame := plain(m.Frame()); !strings.Contains(frame, tc.raw) {
+				t.Fatalf("za did not show the raw hunks:\n%s", frame)
+			}
+
+			go2(t, m, 'z', 'a')
+
+			if frame := plain(m.Frame()); strings.Contains(frame, tc.raw) {
+				t.Errorf("za did not put the summary back:\n%s", frame)
+			}
+		})
 	}
 }
 
@@ -1279,7 +1346,7 @@ diff --git a/cmd/app/main.go b/cmd/app/main.go
 	m := gathered(t, patch)
 	frame := plain(m.Frame())
 
-	if !strings.Contains(frame, "ReadBudget  2 files · 2 hunks · gathered") {
+	if !strings.Contains(frame, "ReadBudget  2 files · 2 hunks") {
 		t.Fatalf("nothing was gathered:\n%s", frame)
 	}
 
@@ -1359,12 +1426,8 @@ diff --git a/c/three.go b/c/three.go
 		t.Fatalf("the file is drawn %d times, want twice:\n%s", got, frame)
 	}
 
-	if !strings.Contains(frame, "part of this file") {
+	if !strings.Contains(frame, "1 more part") {
 		t.Errorf("a split file does not say so:\n%s", frame)
-	}
-
-	if !strings.Contains(frame, "]f walks to it") {
-		t.Errorf("nothing says how to reach the rest of it:\n%s", frame)
 	}
 
 	// The count is of the whole file, which is the question a piece of it
@@ -1517,7 +1580,7 @@ func TestAFoldedHeadingRecedes(t *testing.T) {
 
 	after := ansi.FindAllString(styledLine(t, m, parsed), -1)
 
-	if !strings.Contains(plain(styledLine(t, m, parsed)), "folded") {
+	if !strings.Contains(plain(styledLine(t, m, parsed)), "[za] raw") {
 		t.Fatalf("zM did not fold the file:\n%s", plain(m.Frame()))
 	}
 
@@ -2325,7 +2388,7 @@ func askedWithoutAnAgent(t *testing.T, width, height int) {
 	frame := plain(m.Frame())
 	golden.RequireEqual(t, []byte(frame))
 
-	for _, want := range []string{"✎ you asked", "why can split fail?", "no agent here to ask", "diff.go:15-16"} {
+	for _, want := range []string{"✎ you asked", "why can split fail?", "no agent here", "diff.go:15-16"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the card is missing %q:\n%s", want, frame)
 		}
@@ -2470,17 +2533,9 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 		t.Errorf("body = %q", got)
 	}
 
-	// The review's own body had nowhere to be written from: its rows carried no
-	// comment, so tab walked past them and e said there was no comment here. It
-	// is drawn after the last hunk, with the note under it, so G lands on the
-	// note and one row back is the body.
+	// An empty review draws no body, so e writes it from wherever the cursor
+	// stands on code.
 	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
-	pressKey(t, m, 'k')
-
-	if got := m.CursorText(); !strings.Contains(got, "REVIEW BODY") {
-		t.Fatalf("the row above the note is not the body: %q", got)
-	}
-
 	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 	typeIn(t, m, "Read it twice.")
 	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
@@ -2695,8 +2750,9 @@ func TestReplyingToAnOpenThread(t *testing.T) {
 	t.Errorf("no reply was staged: %+v", saved.Comments)
 }
 
-// A resolved thread has nothing left to ask, so tab -- which walks whatever
-// still wants a decision -- skips it and stops on an open one only.
+// A resolved thread has nothing left to ask, so it starts folded, does not
+// count toward what is left to judge, and tab -- which walks whatever still
+// wants a decision -- skips it and stops on an open one only.
 func TestTabSkipsAResolvedThread(t *testing.T) {
 	t.Parallel()
 
@@ -2715,6 +2771,11 @@ func TestTabSkipsAResolvedThread(t *testing.T) {
 		tui.WithThreads([]threads.Thread{resolved, open}))
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	if got := plain(m.Frame()); strings.Contains(got, "fixed in the next commit") ||
+		!strings.Contains(got, "resolved") || !strings.Contains(got, "1 to judge") {
+		t.Fatalf("the resolved thread is open or counted:\n%s", got)
+	}
 
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
 
@@ -2812,7 +2873,7 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 
 	go2(t, m, 'z', 'a')
 
-	if got := plain(m.Frame()); !strings.Contains(got, "note  4 lines · za to read") {
+	if got := plain(m.Frame()); !strings.Contains(got, "note  4 lines  [za] read") {
 		t.Fatalf("za did not fold the note:\n%s", got)
 	}
 
@@ -2824,7 +2885,7 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 
 	go2(t, m, 'z', 'i')
 
-	if got := plain(m.Frame()); !strings.Contains(got, "1 hunk folded") {
+	if got := plain(m.Frame()); !strings.Contains(got, "1 hunk  [za] raw") {
 		t.Fatalf("zi did not fold it all again:\n%s", got)
 	}
 
@@ -2835,7 +2896,7 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 	go2(t, m, 'z', 'a')
 
 	frame := plain(m.Frame())
-	if !strings.Contains(frame, "1 hunk folded") || strings.Contains(frame, "lines, err := split(r)") {
+	if !strings.Contains(frame, "1 hunk · 1 comment  [za] raw") || strings.Contains(frame, "lines, err := split(r)") {
 		t.Fatalf("za on the file name did not fold it:\n%s", frame)
 	}
 
@@ -2844,14 +2905,14 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 	go2(t, m, 'z', 'a')
 
 	frame = plain(m.Frame())
-	if !strings.Contains(frame, "folded · za to open") || strings.Contains(frame, "lines, err := split(r)") {
+	if !strings.Contains(frame, "[za] open") || strings.Contains(frame, "lines, err := split(r)") {
 		t.Fatalf("za on the hunk heading did not fold it:\n%s", frame)
 	}
 
 	go2(t, m, 'z', 'M')
 
 	frame = plain(m.Frame())
-	if !strings.Contains(frame, "internal/vcs/git.go  1 hunk folded") {
+	if !strings.Contains(frame, "internal/vcs/git.go  1 hunk  [za] raw") {
 		t.Fatalf("zM did not fold every file:\n%s", frame)
 	}
 
@@ -2869,7 +2930,7 @@ func TestZFoldsAFileAHunkANoteAndTheWholeReview(t *testing.T) {
 	go2(t, m, ']', 'f')
 	press(t, m, tea.KeyPressMsg{Code: '.', Text: "."})
 
-	if frame = plain(m.Frame()); strings.Count(frame, "hunk folded") != 2 {
+	if frame = plain(m.Frame()); strings.Count(frame, "[za] raw") != 2 {
 		t.Errorf(". did not repeat the fold on the next file:\n%s", frame)
 	}
 }
@@ -3169,7 +3230,7 @@ func TestTheReviewsOwnProseStartsFolded(t *testing.T) {
 		Number: 42, HeadSHA: "a1b2c3d", Event: artifact.EventComment, Note: note,
 	}, patch)
 
-	if got := plain(m.Frame()); !strings.Contains(got, "REVIEW NOTE  2 lines · za to read") {
+	if got := plain(m.Frame()); !strings.Contains(got, "REVIEW NOTE  2 lines  [za] read") {
 		t.Fatalf("the review's note is not folded:\n%s", got)
 	}
 

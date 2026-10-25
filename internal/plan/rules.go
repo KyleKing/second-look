@@ -152,10 +152,10 @@ type verdict struct {
 
 func (v verdict) why() string {
 	if v.source == SourceRule {
-		return fmt.Sprintf("%s reads as %s", v.label, v.mode)
+		return ""
 	}
 
-	return "written by a machine"
+	return "generated"
 }
 
 func (r *Rules) judge(h order.Hunk) (verdict, bool) {
@@ -280,7 +280,7 @@ func readAfter(chapters []Chapter, a After) []Chapter {
 
 	for i, c := range chapters {
 		if i < last && reads(c) {
-			c.Why = strings.TrimPrefix(c.Why+"; read after "+a.After, "; ")
+			c.Why = strings.TrimPrefix(c.Why+"; after "+a.After, "; ")
 			moved = append(moved, c)
 
 			continue

@@ -68,7 +68,7 @@ func TestFoldedGeneratedFiles(t *testing.T) {
 		{
 			name:   "a format nothing here reads keeps counting hunks",
 			patch:  minifiedPatch,
-			want:   []string{"1 hunk folded"},
+			want:   []string{"1 hunk  [za] raw"},
 			unwant: []string{"var a=1"},
 		},
 	}
@@ -150,7 +150,7 @@ func TestAdvisoriesAreNotAskedUntilTheReaderSaysTwice(t *testing.T) {
 
 	m := lockfileWith(t, a)
 
-	if !strings.Contains(plain(m.Frame()), "L to ask osv.dev") {
+	if !strings.Contains(plain(m.Frame()), "[L] advisories") {
 		t.Errorf("the lockfile does not offer the question:\n%s", plain(m.Frame()))
 	}
 
@@ -182,7 +182,7 @@ func TestAdvisoriesAreNotAskedUntilTheReaderSaysTwice(t *testing.T) {
 	// The file's own row has to count what was found: an answer of nothing and
 	// an answer of six read the same otherwise, and the row is what a reader
 	// sees once the file is folded again.
-	if !strings.Contains(fileRow(t, frame, "go.sum"), "1 package with something known against it") {
+	if !strings.Contains(fileRow(t, frame, "go.sum"), "1 package with advisories") {
 		t.Errorf("the lockfile row does not count what was found:\n%s", frame)
 	}
 }

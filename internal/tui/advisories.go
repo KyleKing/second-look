@@ -139,10 +139,10 @@ func (m *Model) mark(path string, state asked) {
 
 func advisedWord(n int) string {
 	if n == 0 {
-		return "osv.dev knows nothing against what this moved to"
+		return "no advisories"
 	}
 
-	return plural(n, "package") + " with something known against it"
+	return plural(n, "package") + " with advisories"
 }
 
 // lockedAt is the lockfile under the cursor and the packages it moved to, which

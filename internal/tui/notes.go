@@ -373,7 +373,7 @@ func (s *scribe) heading(block int, open bool, text string) row {
 // holding is the row standing in for what was held back, which za opens the
 // same way the heading does.
 func (s *scribe) holding(block int, what string) row {
-	r := s.row(strings.Repeat(" ", holdIndent) + "… " + what + " · za to read")
+	r := s.row(strings.Repeat(" ", holdIndent) + "… " + what + "  [za] read")
 	r.block = block + blockOffset
 	r.folded = true
 
