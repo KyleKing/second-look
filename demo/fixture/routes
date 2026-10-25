@@ -4,6 +4,7 @@
 # match --review-requested.
 #
 # The first matching route wins, so a narrower one goes above a wider one.
+label list                           labels.json
 repo-dashboard --cli                 repo-dashboard.json
 pr view                              pr-view.json
 pr diff                              pr-diff.patch
@@ -15,4 +16,6 @@ search prs --reviewed-by             search-open.json
 api graphql ids[]=                   facts.json
 api graphql -F pr=                   pr-state.json
 api graphql -F q=                    conversations.json
+api graphql name= number=            people-involved.json
+api graphql name=                    people-recent.json
 api graphql -F owner=                threads.json

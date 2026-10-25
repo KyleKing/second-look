@@ -1,0 +1,22 @@
+[
+ {
+  "name": "bug",
+  "color": "d73a4a",
+  "description": "something is broken"
+ },
+ {
+  "name": "needs-fix",
+  "color": "5319e7",
+  "description": "a bot picks this up and pushes the fix"
+ },
+ {
+  "name": "needs-review",
+  "color": "d4c5f9",
+  "description": ""
+ },
+ {
+  "name": "performance",
+  "color": "fbca04",
+  "description": "speed or memory"
+ }
+]

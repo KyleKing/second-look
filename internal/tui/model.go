@@ -215,7 +215,6 @@ type Model struct {
 	rostered      bool
 	fixEvent      string
 	fixOne        string
-	fixes         Fixes
 	searching     bool
 	view          viewMode
 	// editing is the in-place editor, nil when nothing is being written.

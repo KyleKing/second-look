@@ -1,0 +1,24 @@
+{
+ "data": {
+  "repository": {
+   "pullRequest": {
+    "author": {
+     "login": "hubot"
+    },
+    "participants": {
+     "nodes": [
+      {
+       "login": "hubot"
+      },
+      {
+       "login": "jdoe"
+      }
+     ]
+    },
+    "reviewRequests": {
+     "nodes": []
+    }
+   }
+  }
+ }
+}

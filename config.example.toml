@@ -15,12 +15,6 @@ generated = ["api/schema/", ".gen.ts"]
 # 0 turns it off.
 prefetch = 3
 
-# Who fixes a reply marked todo when you press enter at the submit step. Owners
-# listed here get the label, which Watch Doggo picks up. Everyone else goes to
-# the local agent that dispatch names.
-fix_label = "watch-doggo-fix"
-fix_owners = ["acme"]
-
 # The command that gets todo findings, with the file holding them as its last
 # argument. Unset, second-look writes the file and tells you where.
 dispatch = ["claude", "-p"]

@@ -4,7 +4,7 @@ This file explains why second-look is shaped the way it is and how the pieces fi
 
 ## The problem
 
-Most of the code I ship is now written by an agent and reviewed first by a bot. An agent opens a pull request, a bot such as Watch Doggo reviews it, another agent drafts replies, and a third pushes fixes. Every step in that loop is automated except the one that matters most, which is a person reading the diff and deciding whether the change is right. On github.com that read is shallow, because the viewed checkbox is per file and resets on every push, a moved function shows up as a delete and an unrelated insert, and files arrive in alphabetical order. I ended up skimming, and the review I posted said LGTM whether or not I had really looked.
+Most of the code I ship is now written by an agent and reviewed first by a bot. An agent opens a pull request, a review bot reviews it, another agent drafts replies, and a third pushes fixes. Every step in that loop is automated except the one that matters most, which is a person reading the diff and deciding whether the change is right. On github.com that read is shallow, because the viewed checkbox is per file and resets on every push, a moved function shows up as a delete and an unrelated insert, and files arrive in alphabetical order. I ended up skimming, and the review I posted said LGTM whether or not I had really looked.
 
 Two smaller problems sit under that one. Working through the queue of waiting pull requests meant opening a browser tab per repository, each with its own conventions. The comments I staged with an agent also lived in a markdown file with no schema, so nothing checked that a comment still pointed at the line it cited, and posting meant a series of `gh` calls that I had to supervise.
 
@@ -40,7 +40,7 @@ A flat list of pull requests says nothing about what to do next, so the queue ha
 
 Judging a bot finding is the most common action, so it gets one key. The verdict is the state of the staged reply to that finding's thread, and there are four. Discuss posts a reply and leaves the thread open. Todo posts a reply and sends the finding to a fixer. Won't fix posts a reply and then resolves the thread. Skip posts nothing. A blank reply is drafted by the agent to fit the verdict. Keeping the verdict and the reply as one object means there is no second list to drift out of step with the first.
 
-On submit, todo replies go to a fixer, which is either a label that Watch Doggo picks up or a local agent run over ACP. When the fixer pushes, the pull request returns to the back-to-you lane, and `H` shows which todos the new commits answered.
+On submit, todo replies go to a local agent run over ACP, or to nobody. A bot that fixes on a label or a mention is reached with the general keys: `l` sets a label from the repository's own list, and `@` completes a login. When the fixer pushes, the pull request returns to the back-to-you lane, and `H` shows which todos the new commits answered.
 
 ### Reviewing needs no checkout
 

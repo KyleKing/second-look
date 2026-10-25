@@ -473,7 +473,6 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 		tui.WithSender(sender(t, opened.Path, log)), tui.WithTree(tree(opened)),
 		tui.WithReactor(reactor(t)),
 		tui.WithMerger(merger(t)), tui.WithStore(t.Store), tui.WithOpener(opener(t)),
-		tui.WithFixes(fixes(t, opened.Review.Owner)),
 		// A config that will not parse leaves the built-in patterns rather than
 		// stopping a review, the same as it leaves the built-in buckets.
 		tui.WithGenerated(generatedPatterns()), tui.WithPlanRules(planRules(opened.Review)),
@@ -566,27 +565,6 @@ func submitter(t get.Target, path string, log io.Writer) tui.Submitter {
 		}
 
 		return post.Summary(r), nil
-	}
-}
-
-// labeler is the one gh call that hands a pull request's todo replies to Watch
-// Doggo.
-func labeler(t get.Target) tui.Labeler {
-	return func(ctx context.Context, r *artifact.Review, label string) error {
-		return post.Label(ctx, ghrun.GH(), t.Dir(), r, label)
-	}
-}
-
-// fixes reads where todo replies go from the config: the label that hands them
-// to Watch Doggo, and whether enter sends a repository's replies there.
-func fixes(t get.Target, owner string) tui.Fixes {
-	cfg, err := loadConfig()
-	if err != nil {
-		cfg = &config.Config{}
-	}
-
-	return tui.Fixes{
-		Add: labeler(t), Label: cfg.FixLabelName(), ToWatchDoggo: cfg.FixesToWatchDoggo(owner),
 	}
 }
 
@@ -1223,7 +1201,7 @@ func postHandOff(
 		}
 	}
 
-	d := tui.Delivery{Fixes: fixes(t, r.Owner), Store: t.Store, Run: dispatcher(t.Dir())}
+	d := tui.Delivery{Store: t.Store, Run: dispatcher(t.Dir())}
 
 	return tui.HandOff(ctx, hand, d, posting, open), nil
 }

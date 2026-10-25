@@ -1,0 +1,60 @@
+{
+ "data": {
+  "repository": {
+   "pullRequests": {
+    "nodes": [
+     {
+      "author": {
+       "login": "hubot"
+      },
+      "comments": {
+       "nodes": [
+        {
+         "author": {
+          "login": "github-actions"
+         }
+        },
+        {
+         "author": {
+          "login": "watch-doggo"
+         }
+        }
+       ]
+      },
+      "reviews": {
+       "nodes": [
+        {
+         "author": {
+          "login": "watch-doggo"
+         }
+        },
+        {
+         "author": {
+          "login": "octocat"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "author": {
+       "login": "jdoe"
+      },
+      "comments": {
+       "nodes": []
+      },
+      "reviews": {
+       "nodes": [
+        {
+         "author": {
+          "login": "watch-doggo"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   }
+  }
+ }
+}

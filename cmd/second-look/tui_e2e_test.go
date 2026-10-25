@@ -17,7 +17,6 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
-	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/seen"
 )
 
@@ -289,12 +288,11 @@ func TestReviewScreenSubmits(t *testing.T) {
 }
 
 // A todo reply posts like any reply, and the extra step names who gets the fix:
-// w posts it and then labels the pull request, which is the one added call.
-func TestReviewScreenHandsATodoReplyToWatchDoggo(t *testing.T) {
+// n posts it and hands it to nobody, which adds no call.
+func TestReviewScreenAsksWhoGetsATodoReplyFix(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	label := post.LabelArgs(&artifact.Review{Owner: "KyleKing", Repo: "second-look", Number: 2}, "watch-doggo-fix")
 
 	s := ghcassette.Replay(t, deriveFrom(t, "post-reply", "todo-reply", func(c *ghcassette.Cassette) {
 		inCheckout(c)
@@ -302,8 +300,7 @@ func TestReviewScreenHandsATodoReplyToWatchDoggo(t *testing.T) {
 
 		all := c.Interactions
 		c.Interactions = slices.Concat(all[:reads], threadInteraction(t),
-			[]ghcassette.Interaction{commitsInteraction(nil, nil)}, all,
-			[]ghcassette.Interaction{{Args: label, Stdout: "[]"}})
+			[]ghcassette.Interaction{commitsInteraction(nil, nil)}, all)
 	}))
 
 	raw, err := os.ReadFile(filepath.Join("testdata", "review", "reply.toml"))
@@ -318,9 +315,9 @@ func TestReviewScreenHandsATodoReplyToWatchDoggo(t *testing.T) {
 	sc.await("testdata/fixture/sample.go")
 	sc.press("S")
 	sc.press("c")
-	sc.await("fixes go to")
-	sc.press("w")
-	sc.await("posted 1 reply · watch-doggo-fix added")
+	sc.await("fixes go to  [l]ocal agent  [n]obody")
+	sc.press("n")
+	sc.await("posted 1 reply")
 	sc.press("q")
 
 	if code := sc.wait(); code != 0 {

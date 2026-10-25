@@ -16,7 +16,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look post <pr>            post the review
   second-look post <pr> --dry-run  print the request without sending it
   second-look post <pr> --only <id>  post one comment on its own, now
-  second-look post <pr> --fixes <to>  hand todo replies to watch-doggo, local, or nobody
+  second-look post <pr> --fixes <to>  hand todo replies to local or nobody
   second-look local [--branch|--base <ref>]  review this checkout's own diff
   second-look local --range A..B | -r <revset>  review a git range or a jj revset
   second-look inbox                the review queue, in your own sections
@@ -90,6 +90,12 @@ NAMING A PULL REQUEST
       M squash-merges the pull request and deletes its head branch, M again to
       confirm. It refuses while anything is still staged, since a review left
       behind by a merge is work nobody will post.
+
+      l picks labels for the pull request from the repository's own, which are
+      read once a day, and enter adds or removes the one under the cursor. In
+      the queue it does the same for the row. While writing, ctrl+n completes an
+      @ from the people on the pull request, then from whoever has commented on
+      or reviewed the repository's recent ones, bots among them.
 
       P posts the comment under the cursor on its own, now, and takes it off
       the review. It asks nothing first: a single comment is small enough to
@@ -270,8 +276,8 @@ NAMING A PULL REQUEST
       comment is still a draft. On success the prepared review is removed:
       GitHub is the source of truth from that point and re-running post would
       publish a second copy. A todo reply posts like any reply, and --fixes names
-      who gets its fix afterwards (watch-doggo, local, or nobody, the default),
-      the same choice S asks for on the screen.
+      who gets its fix afterwards (local or nobody, the default), the same
+      choice S asks for on the screen.
 
   second-look post <pr> --only <id>
       Post one comment on its own, outside any review, for the finding worth
@@ -482,15 +488,7 @@ CONFIG
       and in second-look status; a session absent from it ended. Unset,
       nothing probes.
 
-  fix_label = "watch-doggo-fix"
-      The label S adds to the pull request when todo replies go to Watch Doggo.
-      Unset, it is watch-doggo-fix.
-
-  fix_owners = ["coverbase"]
-      Repository owners whose todo replies go to Watch Doggo when the submit
-      step is answered with enter. Unset, enter hands them to the local agent.
-
-  limit, prefetch, generated, dispatch, resume, agents, fix_label, and fix_owners are top-level keys, so they
+  limit, prefetch, generated, dispatch, resume, and agents are top-level keys, so they
   belong above the first [[section]]: TOML reads a bare key after a table header
   as part of that table, where it is refused as a key the schema does not know.
 

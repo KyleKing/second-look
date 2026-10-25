@@ -2,7 +2,7 @@
 
 A terminal code review tool optimized for the modern rate of code generation, is local-first and AI-friendly, and encourages us to actually read and understand the code as everything else changes. While this is currently personalized for my own use cases and workflows, it should be straightforward to generalize and I'm open to input and making changes because I would be happy to see others find value in this. Feel free to open a GitHub issue and let me know what you think!
 
-![Working the queue: open a pull request, judge Watch Doggo's findings, and hand the fixes off on submit](demo/triage.gif)
+![Working the queue: open a pull request, judge a bot's findings, label it, and hand the fixes off on submit](demo/triage.gif)
 
 ## How a review moves
 
@@ -13,7 +13,7 @@ flowchart LR
     A[Your agent<br/>stages comments] --> R
     R -->|judge, edit| R
     R -->|S| P[One review posted]
-    P -->|todo replies| F[Fixer<br/>bot label or local agent]
+    P -->|todo replies| F[Fixer<br/>local agent, or a bot you label or @-mention]
     F -->|pushes| Q
     Q -->|back to you, H| R
 ```
@@ -23,11 +23,11 @@ The inbox is ordered to keep the amount of work in progress small. Your own pull
 | Key | Verdict | What posts |
 | --- | ------- | ---------- |
 | `r` | discuss | your reply, thread stays open |
-| `t` | todo | your reply, and the finding goes to a fixer |
+| `t` | todo | your reply, and the finding goes to your local agent |
 | `R` | won't fix | your reply, then the thread is resolved |
 | `x` | skip | nothing |
 
-If you don't write a reply, your agent drafts one that fits the verdict, and you can edit it before anything is posted. Once the fixes are pushed, the pull request moves back into your inbox and `H` shows which of the todos the new commits addressed.
+If you don't write a reply, your agent drafts one that fits the verdict, and you can edit it before anything is posted. A bot that fixes on a label or a mention needs no setting here: `l` labels the pull request from the repository's own labels, and `@` in a reply completes the bots and people seen on its recent pull requests. Once the fixes are pushed, the pull request moves back into your inbox and `H` shows which of the todos the new commits addressed.
 
 ## Reading a big change
 

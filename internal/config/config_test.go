@@ -260,28 +260,3 @@ command = ["npx", "-y", "@zed-industries/claude-code-acp"]
 		t.Errorf("a name nothing knows picked %+v", got)
 	}
 }
-
-func TestFixesDefaultToLocalUnlessTheOwnerIsListed(t *testing.T) {
-	t.Parallel()
-
-	cfg, err := config.Load(write(t, `
-fix_label = "doggo-fix"
-fix_owners = ["Coverbase"]
-`))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if got := cfg.FixLabelName(); got != "doggo-fix" {
-		t.Errorf("the label is %q", got)
-	}
-
-	if !cfg.FixesToWatchDoggo("coverbase") || cfg.FixesToWatchDoggo("kyleking") {
-		t.Error("the default did not follow the listed owners")
-	}
-
-	empty := &config.Config{}
-	if empty.FixLabelName() != config.DefaultFixLabel || empty.FixesToWatchDoggo("coverbase") {
-		t.Error("an unset config did not default to the built-in label and the local agent")
-	}
-}

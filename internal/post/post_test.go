@@ -232,9 +232,4 @@ func TestSummaryAndLabelNameWhatWasSent(t *testing.T) {
 	if got := post.Summary(review()); got != "posted the review" {
 		t.Errorf("an empty review summarized as %q", got)
 	}
-
-	want := "api --method POST /repos/kyleking/second-look/issues/42/labels -f labels[]=watch-doggo-fix"
-	if got := strings.Join(post.LabelArgs(r, "watch-doggo-fix"), " "); got != want {
-		t.Errorf("label call = %q, want %q", got, want)
-	}
 }

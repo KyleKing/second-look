@@ -1,5 +1,5 @@
 # The README's triage recording: the queue in lanes, then judging a bot's
-# findings and handing the fixes off on submit. `mise run demo` builds
+# findings, labeling the pull request for the bot that fixes them, and posting. `mise run demo` builds
 # ./second-look and runs this. It drives demo/scene.sh, which seeds a stand-in gh,
 # so recording needs no network, no auth, and touches no real review.
 
@@ -61,13 +61,24 @@ Sleep 600ms
 Type "r"
 Sleep 1200ms
 
+# Label the pull request from the repository's own labels, so a bot that
+# fixes on a label picks the todos up.
+Type "l"
+Sleep 1s
+Type "fix"
+Sleep 800ms
+Enter
+Sleep 1200ms
+Escape
+Sleep 400ms
+
 # Submit: request changes, and say who gets the fixes.
 Type "S"
-Sleep 1200ms
+Sleep 800ms
 Type "r"
-Sleep 2s
-Type "w"
-Sleep 2500ms
+Sleep 1400ms
+Type "n"
+Sleep 1600ms
 
 Type "q"
 Sleep 500ms

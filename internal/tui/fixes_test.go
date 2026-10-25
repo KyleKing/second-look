@@ -2,7 +2,6 @@ package tui_test
 
 import (
 	"context"
-	"errors"
 	"os"
 	"strings"
 	"sync"
@@ -15,25 +14,9 @@ import (
 	"github.com/kyleking/second-look/internal/tui"
 )
 
-var errLabel = errors.New("label refused")
-
 type handoffs struct {
-	mu     sync.Mutex
-	labels []string
-	sets   []string
-}
-
-func (h *handoffs) label(_ context.Context, _ *artifact.Review, label string) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	h.labels = append(h.labels, label)
-
-	if label == "refused" {
-		return errLabel
-	}
-
-	return nil
+	mu   sync.Mutex
+	sets []string
 }
 
 func (h *handoffs) dispatch(_ context.Context, set, _ string) (string, error) {
@@ -45,7 +28,7 @@ func (h *handoffs) dispatch(_ context.Context, set, _ string) (string, error) {
 	return "", nil
 }
 
-func todoModel(t *testing.T, h *handoffs, fixes tui.Fixes) (*tui.Model, *counter) {
+func todoModel(t *testing.T, h *handoffs, dispatch bool) (*tui.Model, *counter) {
 	t.Helper()
 
 	reply := artifact.Comment{
@@ -53,12 +36,19 @@ func todoModel(t *testing.T, h *handoffs, fixes tui.Fixes) (*tui.Model, *counter
 		ThreadID: "PRRT_a", Body: "will fix: wrap it", Status: artifact.StatusTodo,
 	}
 
+	opts := []tui.Option{
+		tui.WithThreads([]threads.Thread{finding("a", 15, "doggo", "wrap the error with the path")}),
+		tui.WithStore(t.TempDir()),
+	}
+
+	if dispatch {
+		opts = append(opts, tui.WithDispatcher(h.dispatch))
+	}
+
 	m, _, sub := modelFor(t, &artifact.Review{
 		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
 		HeadSHA: "a1b2c3d", Event: artifact.EventComment, Comments: []artifact.Comment{reply},
-	}, patch,
-		tui.WithThreads([]threads.Thread{finding("a", 15, "doggo", "wrap the error with the path")}),
-		tui.WithStore(t.TempDir()), tui.WithDispatcher(h.dispatch), tui.WithFixes(fixes))
+	}, patch, opts...)
 	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
 
 	return m, sub
@@ -69,44 +59,34 @@ func todoModel(t *testing.T, h *handoffs, fixes tui.Fixes) (*tui.Model, *counter
 func TestSubmitAsksWhoGetsTheFixes(t *testing.T) {
 	t.Parallel()
 
-	prefix := "S r  1 todo  fixes go to  [w]atch-doggo  [l]ocal claude  [n]obody  [enter] "
+	prefix := "S r  1 todo  fixes go to  [l]ocal agent  [n]obody  [enter] "
 
 	tests := []struct {
-		name   string
-		keys   []tea.KeyPressMsg
-		label  string
-		cloud  bool
-		posts  int
-		labels []string
-		sets   int
-		footer string
+		name    string
+		keys    []tea.KeyPressMsg
+		noAgent bool
+		posts   int
+		sets    int
+		footer  string
 	}{
-		{name: "asks", posts: 0, footer: prefix + "local claude"},
-		{name: "asks with the owner's default", cloud: true, posts: 0, footer: prefix + "watch-doggo"},
-		{
-			name: "watch-doggo labels the pull request", keys: []tea.KeyPressMsg{key('w')},
-			posts: 1, labels: []string{"watch-doggo-fix"}, footer: "posted 3 comments · watch-doggo-fix added",
-		},
+		{name: "asks", posts: 0, footer: prefix + "local agent"},
+		{name: "asks with no agent configured", noAgent: true, posts: 0, footer: prefix + "nobody"},
 		{
 			name: "local hands the findings to the agent", keys: []tea.KeyPressMsg{key('l')},
 			posts: 1, sets: 1, footer: "posted 3 comments · handed 1 todo to the local agent",
 		},
 		{name: "nobody only posts", keys: []tea.KeyPressMsg{key('n')}, posts: 1, footer: "posted 3 comments"},
 		{
-			name: "enter takes the local default", keys: []tea.KeyPressMsg{{Code: tea.KeyEnter}},
+			name: "enter takes the local agent", keys: []tea.KeyPressMsg{{Code: tea.KeyEnter}},
 			posts: 1, sets: 1, footer: "handed 1 todo to the local agent",
 		},
 		{
-			name: "enter takes the owner's default", cloud: true, keys: []tea.KeyPressMsg{{Code: tea.KeyEnter}},
-			posts: 1, labels: []string{"watch-doggo-fix"}, footer: "watch-doggo-fix added",
+			name: "enter with no agent configured posts and hands nothing on", noAgent: true,
+			keys: []tea.KeyPressMsg{{Code: tea.KeyEnter}}, posts: 1, footer: "posted 3 comments",
 		},
 		{
 			name: "esc backs out", keys: []tea.KeyPressMsg{{Code: tea.KeyEscape}},
 			posts: 0, footer: "canceled, nothing was posted",
-		},
-		{
-			name: "a failed label is said after the post", keys: []tea.KeyPressMsg{key('w')}, label: "refused",
-			posts: 1, labels: []string{"refused"}, footer: "posted 3 comments · hand-off failed: label refused",
 		},
 	}
 
@@ -115,13 +95,7 @@ func TestSubmitAsksWhoGetsTheFixes(t *testing.T) {
 			t.Parallel()
 
 			h := &handoffs{}
-
-			label := tc.label
-			if label == "" {
-				label = "watch-doggo-fix"
-			}
-
-			m, sub := todoModel(t, h, tui.Fixes{Add: h.label, Label: label, ToWatchDoggo: tc.cloud})
+			m, sub := todoModel(t, h, !tc.noAgent)
 
 			press(t, m, key('S'))
 			press(t, m, key('r'))
@@ -130,9 +104,8 @@ func TestSubmitAsksWhoGetsTheFixes(t *testing.T) {
 				press(t, m, k)
 			}
 
-			if sub.n != tc.posts || len(h.labels) != len(tc.labels) || len(h.sets) != tc.sets {
-				t.Errorf("posts=%d labels=%v sets=%d, want posts=%d labels=%v sets=%d",
-					sub.n, h.labels, len(h.sets), tc.posts, tc.labels, tc.sets)
+			if sub.n != tc.posts || len(h.sets) != tc.sets {
+				t.Errorf("posts=%d sets=%d, want posts=%d sets=%d", sub.n, len(h.sets), tc.posts, tc.sets)
 			}
 
 			if got := plain(m.Frame()); !strings.Contains(got, tc.footer) {
@@ -164,15 +137,10 @@ func TestPostingOneTodoReplyAsksWhoGetsTheFix(t *testing.T) {
 		name   string
 		keys   []tea.KeyPressMsg
 		sent   int
-		labels []string
 		sets   int
 		footer string
 	}{
-		{name: "asks", sent: 0, footer: "P  1 todo  fixes go to  [w]atch-doggo  [l]ocal claude  [n]obody"},
-		{
-			name: "watch-doggo labels the pull request", keys: []tea.KeyPressMsg{key('w')},
-			sent: 1, labels: []string{"watch-doggo-fix"}, footer: "posted reply-1500 · watch-doggo-fix added",
-		},
+		{name: "asks", sent: 0, footer: "P  1 todo  fixes go to  [l]ocal agent  [n]obody"},
 		{
 			name: "local hands the finding to the agent", keys: []tea.KeyPressMsg{key('l')},
 			sent: 1, sets: 1, footer: "posted reply-1500 · handed 1 todo to the local agent",
@@ -186,7 +154,7 @@ func TestPostingOneTodoReplyAsksWhoGetsTheFix(t *testing.T) {
 			t.Parallel()
 
 			h := &handoffs{}
-			m, _ := todoModel(t, h, tui.Fixes{Add: h.label, Label: "watch-doggo-fix"})
+			m, _ := todoModel(t, h, true)
 
 			var sent []string
 
@@ -203,9 +171,8 @@ func TestPostingOneTodoReplyAsksWhoGetsTheFix(t *testing.T) {
 				press(t, m, k)
 			}
 
-			if len(sent) != tc.sent || len(h.labels) != len(tc.labels) || len(h.sets) != tc.sets {
-				t.Errorf("sent=%v labels=%v sets=%d, want sent=%d labels=%v sets=%d",
-					sent, h.labels, len(h.sets), tc.sent, tc.labels, tc.sets)
+			if len(sent) != tc.sent || len(h.sets) != tc.sets {
+				t.Errorf("sent=%v sets=%d, want sent=%d sets=%d", sent, len(h.sets), tc.sent, tc.sets)
 			}
 
 			if got := plain(m.Frame()); !strings.Contains(got, tc.footer) {
