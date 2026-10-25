@@ -47,6 +47,10 @@ func (l *List) render() string {
 		frame = l.helpOver(frame)
 	}
 
+	if l.labeler != nil {
+		frame = l.labelOver(frame)
+	}
+
 	return frame
 }
 
@@ -345,6 +349,10 @@ func signed(count, sign string, width int) string {
 }
 
 func (l *List) footer() string {
+	if l.labeler != nil {
+		return l.labeler.prompt(l.styles, l.width)
+	}
+
 	if l.filter.typing {
 		return l.prompt()
 	}

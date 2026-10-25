@@ -7,6 +7,8 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/table"
+
+	"github.com/kyleking/second-look/internal/labels"
 )
 
 // Row is one line of a list screen. The columns are laid out by the screen
@@ -245,6 +247,11 @@ type List struct {
 	// claimed for it can be handed back.
 	onFocusChange func(from, to string) tea.Cmd
 	loader        Loader
+	labeling      Labeling
+	labeler       *labelPicker
+	labelRow      string
+	labeled       func(r *Row) (labels.Target, []string, bool)
+	relabel       func(row, name string, on bool)
 	// onRest is called with the row the cursor has stopped on, and moves counts
 	// the moves so far, so an answer about a row already left is dropped.
 	onRest func(row string) tea.Cmd
@@ -313,6 +320,13 @@ func (l *List) WithHelp(hints [][2]string) *List {
 // reply does not promise one.
 func (l *List) WithHints(hints [][2]string) *List {
 	l.hints = hints
+
+	return l
+}
+
+// WithLabeling lets l pick labels for the rows whose tab says what they carry.
+func (l *List) WithLabeling(lb Labeling) *List {
+	l.labeling = lb
 
 	return l
 }
@@ -424,6 +438,14 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := l.settled(msg.at)
 
 		return l, cmd
+	case labelsReadMsg:
+		l.labeler.hear(msg)
+
+		return l, nil
+	case labelSetMsg:
+		l.applyLabelSet(msg)
+
+		return l, nil
 	case FocusNote:
 		if msg.Repo == l.focused {
 			l.focusNote = msg.Note
@@ -520,6 +542,10 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return l, nil
 	}
 
+	if l.labeler != nil {
+		return l.pickLabel(msg)
+	}
+
 	if l.filter.typing {
 		return l.typeFilter(msg)
 	}
@@ -571,6 +597,12 @@ func (l *List) perform(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	row := l.current()
 	if row == nil {
 		return l, nil
+	}
+
+	if key.Matches(msg, l.keys.Label) {
+		cmd := l.openLabels(row)
+
+		return l, cmd
 	}
 
 	// Expanding is the screen's own, since reading a conversation is not an

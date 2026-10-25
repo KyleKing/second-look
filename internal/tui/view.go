@@ -63,6 +63,8 @@ func (m *Model) render() string {
 		body = m.aboutLines()
 	case m.showing != nil:
 		body = m.answerLines()
+	case m.labeler != nil:
+		body = m.labeler.box(m.styles, body, m.width)
 	}
 
 	files := m.stats()
@@ -302,6 +304,10 @@ func (m *Model) footerLines() []string {
 
 	if m.drafting != nil {
 		return []string{m.questionPrompt()}
+	}
+
+	if m.labeler != nil {
+		return []string{m.labeler.prompt(m.styles, m.width)}
 	}
 
 	if m.helpNote != nil {

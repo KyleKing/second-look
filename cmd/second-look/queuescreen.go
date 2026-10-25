@@ -102,6 +102,7 @@ func queueOnce(
 			Note: rv.note,
 		},
 	}, at).
+		WithLabeling(labeling(".")).
 		WithFocusNote(func(repo string) tea.Cmd { return cloneNote(ctx, repo) }).
 		WithFocusChange(func(from, _ string) tea.Cmd { return releaseClaim(from) })
 	list.Restore(where)

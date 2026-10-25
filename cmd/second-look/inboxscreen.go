@@ -23,6 +23,7 @@ import (
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/labels"
 	"github.com/kyleking/second-look/internal/lease"
 	"github.com/kyleking/second-look/internal/structure"
 	"github.com/kyleking/second-look/internal/tui"
@@ -148,6 +149,7 @@ var inboxHints = [][2]string{
 	{"m", "comment"},
 	{"A", "approve"},
 	{"M", "merge"},
+	{"l", "labels"},
 	{"o", "GitHub"},
 	{"s", "sort"},
 	{"?", helpArg},
@@ -159,6 +161,7 @@ var inboxHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	{"m", "comment on the pull request itself, in $EDITOR"},
 	{"A", "approve it, A again to confirm"},
 	{"M", "merge it when it is ready to merge, M again to confirm"},
+	{"l", "pick labels for it from the repository's, enter adds or removes one"},
 	{"z", "show or hide the merged lane"},
 	{"o", "open it on GitHub"},
 	{"s", "cycle to the next row order"},
@@ -179,7 +182,7 @@ func (s *inboxScreen) tab() tui.Tab {
 		Name: "inbox", Title: "second-look inbox",
 		Sections: s.sections, Act: s.act, Subtitle: s.counts,
 		Hints: inboxHints, Inert: s.inert, Help: inboxHelp, Loader: s, Rest: s.restedOn,
-		Note: s.note,
+		Note: s.note, Labeled: s.labeled, Relabel: s.relabel,
 	}
 }
 
@@ -988,7 +991,7 @@ func (s *inboxScreen) rows(items []inbox.PullRequest, dim bool, now time.Time) [
 			Removed: removed(k),
 			Who:     k.Who,
 			Why:     k.Why,
-			Tail:    holding(k) + waiting(p),
+			Tail:    holding(k) + tagged(p) + waiting(p),
 			Under:   p.Title,
 			Urgent:  k.Priority,
 			Dim:     dim,
@@ -1063,6 +1066,40 @@ func holding(k inbox.Known) string {
 	}
 
 	return "● " + strings.Join(parts, " ") + "  "
+}
+
+func tagged(p *inbox.PullRequest) string {
+	if len(p.Labels) == 0 {
+		return ""
+	}
+
+	return labels.Tags(p.Labels) + "  "
+}
+
+func (s *inboxScreen) labeled(r *tui.Row) (labels.Target, []string, bool) {
+	at, err := parseRef(r.Key)
+	if err != nil {
+		return labels.Target{}, nil, false
+	}
+
+	p, ok := s.rowFor(r.Key)
+
+	return labels.Target{Repo: at.owner + "/" + at.repo, Number: at.number}, p.Labels, ok
+}
+
+// relabel records a label on the row's pull request wherever the searches hold
+// it, and regroups because a priority label moves a row.
+func (s *inboxScreen) relabel(key, name string, on bool) {
+	for i := range s.buckets {
+		items := s.buckets[i].Items
+		for j := range items {
+			if keyOf(&items[j]) == key {
+				items[j].Labels = labels.With(items[j].Labels, name, on)
+			}
+		}
+	}
+
+	s.regroup()
 }
 
 // waiting is what the row says past the columns, which is whether it is a draft.

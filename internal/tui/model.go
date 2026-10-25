@@ -206,6 +206,8 @@ type Model struct {
 	branchDeleted bool
 	deleting      bool
 	asking        confirmKind
+	labeling      Labeling
+	labeler       *labelPicker
 	fixEvent      string
 	fixOne        string
 	fixes         Fixes
@@ -721,6 +723,10 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 		return cmd
 	}
 
+	if m.absorbForge(msg) {
+		return nil
+	}
+
 	m.absorb(msg)
 
 	return nil
@@ -790,6 +796,19 @@ func (m *Model) absorb(msg tea.Msg) {
 	}
 }
 
+func (m *Model) absorbForge(msg tea.Msg) bool {
+	switch msg := msg.(type) {
+	case labelsReadMsg:
+		m.labeler.hear(msg)
+	case labelSetMsg:
+		m.applyLabelSet(msg)
+	default:
+		return false
+	}
+
+	return true
+}
+
 // absorbAgent is absorb's share of a session's own messages.
 func (m *Model) absorbAgent(msg tea.Msg) bool {
 	switch msg := msg.(type) {
@@ -848,8 +867,8 @@ func (m *Model) keyOwner() (func(tea.KeyPressMsg) (tea.Model, tea.Cmd), bool) {
 // commands — the in-place editor, the search, or a child's own program — which
 // is what the journal must never record.
 func (m *Model) writing() bool {
-	return m.editing != nil || m.searching || m.files.typing || m.pane != nil || m.drafting != nil ||
-		(m.agentOpen && m.agent != nil)
+	return m.editing != nil || m.labeler != nil || m.searching || m.files.typing || m.pane != nil ||
+		m.drafting != nil || (m.agentOpen && m.agent != nil)
 }
 
 // promptKey routes a key while something owns the keyboard, reporting whether
@@ -862,6 +881,10 @@ func (m *Model) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 		return mod, cmd, true
 	case m.asking != askNothing:
 		mod, cmd := m.answer(msg)
+
+		return mod, cmd, true
+	case m.labeler != nil:
+		mod, cmd := m.labelKey(msg)
 
 		return mod, cmd, true
 	case m.drafting != nil:
@@ -1122,6 +1145,8 @@ func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.askRound(), true
 	case key.Matches(msg, m.keys.Suggest):
 		return m.suggest(), true
+	case key.Matches(msg, m.keys.Label):
+		return m.openLabels(), true
 	case key.Matches(msg, m.keys.Range):
 		m.askRange()
 

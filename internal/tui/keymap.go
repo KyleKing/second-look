@@ -72,6 +72,7 @@ type keyMap struct {
 	Trouble      key.Binding
 	Advisories   key.Binding
 	Hover        key.Binding
+	Label        key.Binding
 	Restage      key.Binding
 	Seen         key.Binding
 	Search       key.Binding
@@ -163,6 +164,7 @@ func defaultKeyMap() keyMap {
 		Trouble:      key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "trouble")),
 		Advisories:   key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "ask about a lockfile")),
 		Hover:        key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "what is this")),
+		Label:        key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "labels")),
 		Restage:      key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "restage")),
 		Order:        key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
 		Tour:         key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "tour")),
@@ -324,6 +326,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "P", What: "post one"},
 		{Key: "S", What: "submit", Kids: asHints(events())},
 		{Key: "i", What: "what it says about itself"},
+		{Key: "l", What: "labels, picked from the repository's"},
 		{Key: "o", What: "on GitHub"},
 		{Key: "M", What: "merge"},
 		{Key: "D", What: "delete the branch"},

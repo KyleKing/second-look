@@ -33,19 +33,27 @@ func GH() Runner { return ghRunner{} }
 // writing to the terminal draws over the frame and the reason belongs in the
 // footer instead.
 func (ghRunner) Run(ctx context.Context, root string, args ...string) error {
+	_, err := Output(ctx, root, args...)
+
+	return err
+}
+
+// Output is Run for a call whose answer is wanted, which is every read.
+func Output(ctx context.Context, root string, args ...string) ([]byte, error) {
 	//nolint:gosec // every argument is a constant or a value read off the pull request
 	cmd := exec.CommandContext(ctx, "gh", args...)
 	cmd.Dir = root
 
-	if _, err := cmd.Output(); err != nil {
+	out, err := cmd.Output()
+	if err != nil {
 		// The first two arguments name the call ("api graphql"); the rest is a
 		// whole mutation and belongs nowhere near a one-line failure.
 		const named = 2
 
-		return fmt.Errorf("gh %s: %w", strings.Join(args[:min(named, len(args))], " "), reason(err))
+		return nil, fmt.Errorf("gh %s: %w", strings.Join(args[:min(named, len(args))], " "), reason(err))
 	}
 
-	return nil
+	return out, nil
 }
 
 // reason unwraps gh's stderr, since (*exec.ExitError).Error() reports the exit

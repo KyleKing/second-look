@@ -14,6 +14,7 @@ import (
 	main "github.com/kyleking/second-look/cmd/second-look"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/labels"
 )
 
 // The inbox is four gh searches and the one batched read that sorts their rows
@@ -516,4 +517,54 @@ func TestTheQueueSaysWhatAStagedReviewHolds(t *testing.T) {
 			}
 		})
 	}
+}
+
+// l on a row picks labels from the repository's, one `gh label list` for the
+// repository, and enter sets or clears the one under the cursor through the
+// issues endpoint. The row says so before the forge answers, and the cassette
+// holds the three calls that prove which ones went out.
+func TestInboxScreenLabelsAPullRequest(t *testing.T) {
+	t.Parallel()
+
+	at := labels.Target{Repo: "kyleking/aragonite", Number: 100}
+
+	c := onScreen(t)
+	c.Interactions = append(c.Interactions,
+		ghcassette.Interaction{
+			Args: labels.ListArgs(at.Repo),
+			Stdout: `[{"color":"5319e7","description":"hand the fixes to the bot","name":"watch-doggo-fix"},` +
+				`{"color":"d4c5f9","description":"","name":"needs-review"}]`,
+		},
+		ghcassette.Interaction{Args: labels.SetArgs(at, "watch-doggo-fix", true), Stdout: "[]"},
+		ghcassette.Interaction{Args: labels.SetArgs(at, "needs-review", false), Stdout: "[]"},
+	)
+
+	path := filepath.Join(t.TempDir(), "inbox-labels.golden")
+	if err := ghcassette.Save(path, c); err != nil {
+		t.Fatalf("writing the derived cassette: %v", err)
+	}
+
+	s := ghcassette.Replay(t, path)
+	home := quietHome(t)
+
+	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
+	sc.await("aragonite#100")
+	sc.press("/aragonite#100")
+	sc.press("\r")
+
+	sc.press("l")
+	sc.await("hand the fixes to the bot")
+	sc.press("doggo")
+	sc.press("\r")
+	sc.await("[watch-doggo-fix]")
+
+	sc.press("\x7f\x7f\x7f\x7f\x7f")
+	sc.press("needs")
+	sc.press("\r")
+	sc.await("removed needs-review")
+	sc.press("\x1b")
+	sc.press("q")
+	sc.wait()
+
+	s.RequireAllPlayed(t)
 }

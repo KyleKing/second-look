@@ -3,6 +3,8 @@ package tui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/kyleking/second-look/internal/labels"
 )
 
 const headerRows = 2
@@ -74,6 +76,7 @@ func (m *Model) facts(files []fileStat) []fact {
 	}
 
 	add(rankAuthor, m.authorWord(files))
+	add(rankRead, labels.Tags(m.about.Labels))
 	add(rankCounts, strings.Join(append(m.counts().words(), m.agentNotes()...), " · "))
 	add(rankRead, m.readCount())
 
