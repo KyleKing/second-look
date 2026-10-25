@@ -1,0 +1,41 @@
+[
+  {
+    "id": "2001",
+    "unread": true,
+    "reason": "review_requested",
+    "updated_at": "2026-10-20T12:00:00Z",
+    "subject": {
+      "title": "feat(vcs): read the head through the operations log",
+      "url": "https://api.github.com/repos/kyleking/aragonite/pulls/105",
+      "type": "PullRequest",
+      "latest_comment_url": null
+    },
+    "repository": { "full_name": "kyleking/aragonite" }
+  },
+  {
+    "id": "2002",
+    "unread": true,
+    "reason": "mention",
+    "updated_at": "2026-10-20T09:30:00Z",
+    "subject": {
+      "title": "anchor guard rejects a reply on a moved line",
+      "url": "https://api.github.com/repos/kyleking/second-look/issues/131",
+      "type": "Issue",
+      "latest_comment_url": "https://api.github.com/repos/kyleking/second-look/issues/comments/9001"
+    },
+    "repository": { "full_name": "kyleking/second-look" }
+  },
+  {
+    "id": "2003",
+    "unread": false,
+    "reason": "ci_activity",
+    "updated_at": "2026-10-19T18:00:00Z",
+    "subject": {
+      "title": "checks failed on main",
+      "url": "https://api.github.com/repos/kyleking/gh-sweep/check-suites/4242",
+      "type": "CheckSuite",
+      "latest_comment_url": null
+    },
+    "repository": { "full_name": "kyleking/gh-sweep" }
+  }
+]
