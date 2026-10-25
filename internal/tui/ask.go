@@ -102,28 +102,39 @@ func (m *Model) ask(span artifact.Span, outside bool, text string) tea.Cmd {
 	prompt := m.askPrompt(span, text)
 
 	switch {
-	case m.agent != nil && m.agentDead == nil && !m.agent.Busy():
+	case m.agentFree():
 		m.inFlight[id] = m.agent.Name()
 		m.save("asked " + m.agent.Name() + "; the answer lands on the card")
 		m.openAgent()
 
 		return tea.Batch(m.agentIn.Focus(), askSession(m, m.agent, id, prompt))
 	case m.asker != nil:
-		m.inFlight[id] = "the agent"
+		cmd := m.askOneShot(id, prompt)
 		m.save("asked the agent; the answer lands on the card")
 
-		ask, ctx := m.asker, m.ctx
-
-		return func() tea.Msg {
-			answer, err := ask(ctx, prompt)
-
-			return askAnsweredMsg{id: id, text: answer, err: err}
-		}
+		return cmd
 	}
 
 	m.save("kept in [plan] for an agent to answer with second-look plan ask")
 
 	return nil
+}
+
+// agentFree is whether the live session can take a question now.
+func (m *Model) agentFree() bool { return m.agent != nil && m.agentDead == nil && !m.agent.Busy() }
+
+// askOneShot puts the question to the configured asker and answers with an
+// askAnsweredMsg under id.
+func (m *Model) askOneShot(id, prompt string) tea.Cmd {
+	m.inFlight[id] = "the agent"
+
+	ask, ctx := m.asker, m.ctx
+
+	return func() tea.Msg {
+		answer, err := ask(ctx, prompt)
+
+		return askAnsweredMsg{id: id, text: answer, err: err}
+	}
 }
 
 // askSession prompts the live session and reads back what the agent said in
@@ -154,7 +165,14 @@ func askSession(m *Model, s *acp.Session, id, prompt string) tea.Cmd {
 // applyAnswered writes the answer into the ask, wherever the review has moved
 // since it was asked. One the review no longer carries is said to and dropped.
 func (m *Model) applyAnswered(msg askAnsweredMsg) {
+	who := m.inFlight[msg.id]
 	delete(m.inFlight, msg.id)
+
+	if strings.HasPrefix(msg.id, replyPrefix) {
+		m.applyDrafted(msg, who)
+
+		return
+	}
 
 	at := slices.IndexFunc(m.review.Plan.Asks, func(a artifact.PlanAsk) bool { return a.ID == msg.id })
 

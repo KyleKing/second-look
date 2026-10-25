@@ -411,7 +411,7 @@ line drops the dim ones instead of truncating it.
 | Fold | `z` then `a` here, `i` invert all, `R` open all, `M` to the file names |
 | Queue | `1`/`2`/`3` and `]`/`[` the tab, `tab` the next group, `f`/`F` focus one repository |
 | View | `p` the tour or the plain screen, `I` the outline, `-` file overlay, `g` context pane, `s` split, `w` whitespace, `t` syntax-aware |
-| Thread | `ctrl+j`/`ctrl+k` scroll, `tab` complete, `r` reply, `R` resolve, `,` then an emoji reacts, `z` then `a` folds the conversation |
+| Thread | `ctrl+j`/`ctrl+k` scroll, `tab` complete, `e` reply, `r` ready, `t` todo, `x` skip, `R` resolve (each is a verdict, the state of the staged reply, and an agent drafts the text where none is typed), `,` then an emoji reacts, `z` then `a` folds the conversation |
 
 `space` marks the hunk under the cursor seen and advances, because marking and moving on
 are one motion in practice.

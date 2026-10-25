@@ -89,6 +89,7 @@ func (m *Model) facts(files []fileStat) []fact {
 		add(rankProblem, m.styles.note.Render("checking head…"))
 	}
 
+	add(rankAgent, m.judgeWord())
 	add(rankAgent, m.agentWord())
 
 	if word := m.troubleWord(); word != "" {

@@ -155,7 +155,7 @@ func (m *Model) draftKey(msg editedMsg) string {
 
 		return fmt.Sprintf("new-%s-%s-%d", f.path, f.side, f.line)
 	case msg.replyTo >= 0 && msg.replyTo < len(m.threads):
-		return fmt.Sprintf("reply-%d", m.threads[msg.replyTo].ReplyTo())
+		return replyID(m.threads[msg.replyTo].ReplyTo())
 	case msg.index == reviewBody:
 		return "review-body"
 	case msg.index == reviewNote:

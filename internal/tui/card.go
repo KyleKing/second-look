@@ -5,6 +5,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
+
+	"github.com/kyleking/second-look/internal/artifact"
 )
 
 const (
@@ -13,14 +15,74 @@ const (
 	asideGaps   = 2
 )
 
-// commentKeys and threadKeys are the keys a card's foot offers, most useful
-// first, since a narrow card drops them from the end.
+// commentKeys is what a plain comment card's foot offers.
 func commentKeys() [][2]string {
-	return append(append([][2]string{{"e", "edit"}}, states()...), [2]string{"za", foldVerb})
+	return append(append([][2]string{{"e", editWord}}, states()...), [2]string{"za", foldVerb})
 }
 
-func threadKeys() [][2]string {
-	return [][2]string{{"e", replyWord}, {",", "react"}, {"za", foldVerb}}
+// verdictKeys are the keys that rule on a finding, in the order a foot lists them.
+var verdictKeys = []struct {
+	key, what string
+	v         verdict
+}{
+	{"r", artifact.StatusReady, vReady},
+	{"t", artifact.StatusTodo, vTodo},
+	{"x", artifact.StatusSkip, vSkip},
+	{"R", "resolve", vResolve},
+}
+
+// footKey is one key a card's foot offers: dim where it does nothing at the
+// cursor, and lit where it is the ruling already made.
+type footKey struct {
+	hint keyhint.Hint
+	lit  bool
+}
+
+func pairKeys(pairs [][2]string) []footKey {
+	out := make([]footKey, 0, len(pairs))
+	for _, p := range pairs {
+		out = append(out, footKey{hint: keyhint.Hint{Key: p[0], What: p[1]}})
+	}
+
+	return out
+}
+
+// rulingKeys is the foot of a card a verdict can be given on: reply and react
+// bracket the four verdict keys, with the one standing lit.
+func rulingKeys(lead [][2]string, standing verdict, off func(verdict) bool, tail [][2]string) []footKey {
+	out := pairKeys(lead)
+
+	for _, k := range verdictKeys {
+		out = append(out, footKey{
+			hint: keyhint.Hint{Key: k.key, What: k.what, Off: off(k.v)}, lit: standing == k.v,
+		})
+	}
+
+	return append(out, pairKeys(tail)...)
+}
+
+// footKeys are the keys a card's foot offers, most useful first, since a narrow
+// card drops them from the end.
+func (m *Model) footKeys(r row) []footKey {
+	switch {
+	case r.kind == rowThread && r.thread < len(m.threads):
+		th := &m.threads[r.thread]
+
+		return rulingKeys([][2]string{{"e", replyWord}}, m.verdictOfThread(r.thread),
+			func(v verdict) bool { return th.Resolved || (v == vResolve && th.ID == "") },
+			[][2]string{{",", "react"}, {"za", foldVerb}})
+	case r.kind == rowThread:
+		return nil
+	case r.kind == rowPeek:
+		return pairKeys(peekKeys())
+	case r.kind == rowAsk:
+		return nil
+	case r.comment >= 0 && r.comment < len(m.review.Comments) && m.review.Comments[r.comment].InReplyTo != 0:
+		return rulingKeys([][2]string{{"e", editWord}}, verdictOf(&m.review.Comments[r.comment]),
+			func(verdict) bool { return false }, [][2]string{{"za", foldVerb}})
+	}
+
+	return pairKeys(commentKeys())
 }
 
 func (m *Model) cardLine(r row, width int) string {
@@ -76,30 +138,23 @@ func (m *Model) topEdge(r row, edge lipgloss.Style, width int) string {
 }
 
 func (m *Model) footEdge(r row, edge lipgloss.Style, width int) string {
-	keys := commentKeys()
-
-	if r.kind == rowThread {
-		keys = threadKeys()
+	face := keyhint.Styles{
+		Key: m.on(m.styles.key), Text: m.on(m.styles.footer), Off: m.on(m.styles.behind),
 	}
-
-	if r.kind == rowPeek {
-		keys = peekKeys()
-	}
-
-	if r.kind == rowAsk {
-		keys = nil
-	}
-
-	face := keyhint.Styles{Key: m.on(m.styles.key), Text: m.on(m.styles.footer)}
+	lit := keyhint.Styles{Key: m.on(m.styles.selected), Text: m.on(m.styles.selected)}
 	sep := m.on(edge).Render(" · ")
 	room := width - cornerCells
 
 	var line string
 
-	for i, k := range keys {
-		next := face.Key.Render("[" + k[0] + "]")
-		if k[1] != "" {
-			next = keyhint.One(face, keyhint.Hint{Key: k[0], What: k[1]})
+	for i, k := range m.footKeys(r) {
+		next := keyhint.One(face, k.hint)
+
+		switch {
+		case k.hint.What == "":
+			next = face.Key.Render("[" + k.hint.Key + "]")
+		case k.lit:
+			next = keyhint.One(lit, k.hint)
 		}
 
 		if i > 0 {

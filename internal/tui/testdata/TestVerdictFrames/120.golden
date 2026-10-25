@@ -1,0 +1,40 @@
+kyleking/jj-diff #42                                          2 files · +2 −1 · 1 todo · ◆ 1 agent · ◆ 1 to judge ·  72%
+vcs ───────────────────────────────────────────────────────────────────────────────────────────────────────────────●┊─  
+ 
+     internal/vcs/diff.go  +2 -1 ───────────────────────────────────────────────────────────────────────────────────────
+       func Parse(r io.Reader) ([]Hunk, error) {
+  14       first := 1                                                                                                   
+  15 -     lines := split(r)                                                                                            
+  15 +     lines, err := split(r)                                                                                       
+       ╭─ ⤷ @bot-a · unresolved · 1 comment ───────────────────────────────────────── diff.go:15 ─╮
+       │   wrap the error with the path                                                           │
+       ╰─ r[e]ply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ──────────────╯
+ 
+       ╭─ ◆ the agent · ◑ todo · question · reply to 1500 ─────────────────────────── diff.go:15 ─╮
+       │ will fix: wrap it with the path.                                                         │
+       ╰─ [e]dit · [r]eady · [t]odo · [x] skip · [R]esolve · [za] fold ───────────────────────────╯
+ 
+  16 +     if err != nil {                                                                                              
+  17       last := 4                                                                                                    
+▌      ╶─ ⤷ @bot-b · unresolved · 1 comment · no verdict · 2 lines ─╴
+     internal/vcs/git.go ───────────────────────────────────────────────────────────────────────────────────────────────
+       func Head() string {
+ 201       return head                                                                                                  
+ 
+      ┃ REVIEW BODY  empty · e to write one
+      ┃ REVIEW NOTE  empty · e to write one
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ [j/k] line  ] go to  [c]ode  [m]ark  r[e]ply  [a]dd  [i] context  [S]ubmit  [?] help  [q]uit

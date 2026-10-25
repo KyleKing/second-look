@@ -22,6 +22,7 @@ const (
 	foldVerb    = "fold"
 	quitWord    = "quit"
 	replyWord   = "reply"
+	editWord    = "edit"
 	commentWord = "comment"
 	refreshKey  = "ctrl+r"
 	spaceKey    = "space"
@@ -62,6 +63,7 @@ type keyMap struct {
 	Draft        key.Binding
 	Skip         key.Binding
 	Todo         key.Binding
+	Resolve      key.Binding
 	Dispatch     key.Binding
 	Threads      key.Binding
 	Trouble      key.Binding
@@ -144,6 +146,7 @@ func defaultKeyMap() keyMap {
 		Draft:        key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
 		Skip:         key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
 		Todo:         key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "hand back")),
+		Resolve:      key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "resolve")),
 		Dispatch:     key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "dispatch todo")),
 		Seen:         key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
 		Search:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
@@ -303,6 +306,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "T", What: "todos to an agent"},
 		{What: "while writing: ctrl+t swaps in what an agent wrote, ctrl+n completes a word"},
 		{What: "conversations", Head: true},
+		{Key: "r/t/x/R", What: "a verdict on a thread: ready, todo, skip, resolve"},
 		{Key: ",", What: "a reaction", Kids: asHints(reactObjects())},
 		{What: "the same key takes a reaction back; z then a folds a thread"},
 		{What: "the request", Head: true},

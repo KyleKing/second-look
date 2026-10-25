@@ -99,6 +99,10 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 	// A folded conversation says so and says how much it is holding back, since
 	// a heading that looks the same either way is one nobody trusts.
 	if lay.fold.threads[index] {
+		if word := lay.verdicts[index]; word != "" {
+			head.text += " · " + word
+		}
+
 		head.text += " · " + plural(len(whole), "line")
 		head.folded = true
 

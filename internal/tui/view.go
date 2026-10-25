@@ -417,7 +417,7 @@ func (m *Model) writeWord() string {
 	case m.currentThread() >= 0:
 		return replyWord
 	case m.current() >= 0:
-		return "edit"
+		return editWord
 	}
 
 	return "write"

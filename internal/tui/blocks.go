@@ -171,6 +171,8 @@ type layout struct {
 	asks       map[anchor][]askCard
 	inFlight   map[string]string
 	failedAsks map[string]string
+	// verdicts is how each open finding stands, by thread index.
+	verdicts map[int]string
 }
 
 // shut reports whether a file is drawn as one row rather than in full. What a
@@ -341,7 +343,11 @@ func skipRows(r *artifact.Review, on []int, a anchor, path string, lay layout, n
 // the code it is about and the local note under it.
 func commentRows(c *artifact.Comment, index int, path string, lay layout, numWidth int, run inRun) []row {
 	avail := cardCols(lay.width, numWidth)
-	body := wrap(c.Body, avail)
+
+	var body []string
+	if c.Body != "" {
+		body = wrap(c.Body, avail)
+	}
 
 	rows := make([]row, 0, len(body)+4)
 
@@ -359,6 +365,10 @@ func commentRows(c *artifact.Comment, index int, path string, lay layout, numWid
 
 	for _, line := range body {
 		rows = append(rows, row{kind: rowComment, text: line, path: path, comment: index})
+	}
+
+	if c.Body == "" && c.InReplyTo != 0 && c.Status != artifact.StatusSkip {
+		rows = append(rows, row{kind: rowNote, text: lay.unwrittenWord(c), path: path, comment: index})
 	}
 
 	rows = append(rows, turnRows(c, index, path, avail, lay)...)
@@ -410,6 +420,10 @@ func commentTitle(c *artifact.Comment) string {
 
 	if c.InReplyTo != 0 {
 		parts = append(parts, fmt.Sprintf("reply to %d", c.InReplyTo))
+	}
+
+	if c.Resolve {
+		parts = append(parts, "won't fix · resolves")
 	}
 
 	if c.Status == artifact.StatusSkip && c.SkipReason != "" {

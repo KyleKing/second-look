@@ -904,6 +904,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if cmd, ok := m.judgeKey(msg); ok {
+		return m, cmd
+	}
+
 	if handled, model, cmd := m.mode(msg); handled {
 		return model, cmd
 	}
@@ -1467,7 +1471,7 @@ func (m *Model) write(msg tea.KeyPressMsg) tea.Cmd {
 func (m *Model) stateKey(msg tea.KeyPressMsg) bool {
 	_, ok := m.stateOf(msg)
 
-	return ok
+	return ok || key.Matches(msg, m.keys.Resolve)
 }
 
 // stateOf is the status a key names, and false for a key that names none.
@@ -2208,6 +2212,10 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if cmd, ok := m.judgeKey(msg); ok {
+		return m, cmd
+	}
+
 	if status, ok := m.stateOf(msg); ok {
 		m.setStatus(status)
 
@@ -2287,6 +2295,7 @@ func (m *Model) changes(msg tea.KeyPressMsg) bool {
 		key.Matches(msg, m.keys.Draft) ||
 		key.Matches(msg, m.keys.Skip) ||
 		key.Matches(msg, m.keys.Todo) ||
+		key.Matches(msg, m.keys.Resolve) ||
 		key.Matches(msg, m.keys.Edit) ||
 		key.Matches(msg, m.keys.Write)
 }
@@ -2309,18 +2318,24 @@ func (m *Model) setStatus(status string) {
 	}
 
 	c := &m.review.Comments[i]
+	c.Resolve = false
+	setState(c, status)
+
+	m.save(fmt.Sprintf("%s is %s", c.ID, status))
+}
+
+// setState sets a status. Validation requires a reason for a skip, and refusing
+// the keystroke over a sentence nobody has written yet would be worse than a
+// plain default.
+func setState(c *artifact.Comment, status string) {
 	c.Status = status
 
-	// Validation requires a reason for a skip, and refusing the keystroke over
-	// a sentence nobody has written yet would be worse than a plain default.
 	switch {
 	case status != artifact.StatusSkip:
 		c.SkipReason = ""
 	case c.SkipReason == "":
 		c.SkipReason = "declined during review"
 	}
-
-	m.save(fmt.Sprintf("%s is %s", c.ID, status))
 }
 
 // reshapes answers the keys that change what the frame shows rather than what
@@ -2752,7 +2767,7 @@ func (m *Model) stageReply(msg editedMsg) {
 
 	t := &m.threads[msg.replyTo]
 
-	id := fmt.Sprintf("reply-%d", t.ReplyTo())
+	id := replyID(t.ReplyTo())
 	for i := range m.review.Comments {
 		if m.review.Comments[i].ID == id && m.review.Comments[i].Body == msg.body {
 			m.say("unchanged", false)
@@ -2763,7 +2778,7 @@ func (m *Model) stageReply(msg editedMsg) {
 
 	m.review.Upsert(artifact.Comment{
 		ID: id, Path: t.Path, Side: t.Side, Line: t.Line,
-		InReplyTo: t.ReplyTo(), Body: msg.body, Severity: question, Status: artifact.StatusReady,
+		InReplyTo: t.ReplyTo(), ThreadID: t.ID, Body: msg.body, Severity: question, Status: artifact.StatusReady,
 	})
 
 	m.save(fmt.Sprintf("reply to %d staged, ready to post", t.ReplyTo()))
@@ -3160,6 +3175,7 @@ func (m *Model) rebuild() {
 		atHead:   m.atHead,
 		searches: m.headSearch != nil,
 		asks:     askCards(m.plan.Asks), inFlight: m.inFlight, failedAsks: m.failedAsks,
+		verdicts:  m.verdictWords(),
 		known:     m.advisories,
 		answered:  m.advised,
 		cards:     m.cards,
