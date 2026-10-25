@@ -17,10 +17,9 @@ const (
 	markAndGap        = 2
 	graphNameMax      = 22
 	graphCenter       = 26
-	graphWhereMax     = 34
 	graphWhereMin     = 12
 	graphNameMin      = 6
-	graphChrome       = 28
+	graphChrome       = 29
 	graphCenterChrome = 11
 	noCallers         = "no callers"
 	noCallees         = "no callees"
@@ -82,7 +81,7 @@ func (c graphCols) total() int {
 // down however many nodes a side has.
 func layoutGraph(v graphView, width int) ([]graphLine, int) {
 	left, right := foldSide(v.callers), foldSide(v.callees)
-	mid := max(len(left), len(right)) / graphHalves
+	mid := max(trunkRow(len(left)), trunkRow(len(right)))
 	g := grid{
 		center: v.center, mid: mid, left: newGridSide(left, mid), right: newGridSide(right, mid),
 		cols: fitColumns(graphColumns(v.center, left, right), width),
@@ -98,51 +97,43 @@ func layoutGraph(v graphView, width int) ([]graphLine, int) {
 		selected = g.right.rowOf(v.at)
 	}
 
-	out := make([]graphLine, 0, graphHalves*mid+1)
+	rows := max(mid, g.left.hi, g.right.hi) + 1
+	out := make([]graphLine, 0, rows)
 
-	for row := range graphHalves*mid + 1 {
+	for row := range rows {
 		out = append(out, g.draw(row))
 	}
 
 	return out, selected
 }
 
-// gridSide places one side's nodes on the grid's rows: half above the center's
-// row, one on it where the count is odd, and half below.
+// trunkRow is how far down a side of k nodes the center's row falls: the middle
+// node, the upper of the two where k is even.
+func trunkRow(k int) int { return max(0, (k-1)/graphHalves) }
+
+// gridSide places one side's nodes on consecutive rows, positioned so the
+// center's row is one of them.
 type gridSide struct {
 	nodes  []graphNode
-	mid    int
 	byRow  map[int]int
 	lo, hi int
 }
 
 func newGridSide(nodes []graphNode, mid int) gridSide {
-	s := gridSide{nodes: nodes, mid: mid, byRow: map[int]int{}, lo: mid, hi: mid}
+	s := gridSide{nodes: nodes, byRow: map[int]int{}, lo: mid - trunkRow(len(nodes))}
+	s.hi = s.lo + len(nodes) - 1
 
 	for i := range nodes {
-		r := s.rowOf(i)
-		s.byRow[r] = i
-		s.lo, s.hi = min(s.lo, r), max(s.hi, r)
+		s.byRow[s.lo+i] = i
 	}
 
 	return s
 }
 
-func (s gridSide) rowOf(i int) int {
-	above := len(s.nodes) / graphHalves
+func (s gridSide) rowOf(i int) int { return s.lo + i }
 
-	switch {
-	case i < above:
-		return s.mid - above + i
-	case i == above && len(s.nodes)%2 == 1:
-		return s.mid
-	}
-
-	return s.mid + 1 + i - above - len(s.nodes)%2
-}
-
-// bracket is the vertical rule joining a side's nodes to the center, drawn
-// from the first node's row to the last and through the center's own.
+// bracket is the vertical rule joining a side's nodes to the center, drawn from
+// the first node's row to the last, which the center's row is always among.
 func (s gridSide) bracket(row int, toward, away bool) string {
 	if len(s.nodes) == 0 || row < s.lo || row > s.hi {
 		return " "
@@ -184,7 +175,7 @@ func (g grid) draw(row int) graphLine {
 		b.add(strings.Repeat(" ", g.cols.center+graphCenterChrome), highlight.Plain)
 	}
 
-	b.add(g.right.bracket(row, onMid, hasR)+arm(hasR), highlight.Plain)
+	b.add(g.right.bracket(row, onMid, hasR)+arm(hasR)+" ", highlight.Plain)
 
 	switch {
 	case hasR:
@@ -225,7 +216,6 @@ func graphColumns(center graphNode, left, right []graphNode) graphCols {
 	}
 
 	c.left, c.right = min(c.left, graphNameMax), min(c.right, graphNameMax)
-	c.where = min(c.where, graphWhereMax)
 
 	if len(left) == 0 {
 		c.left = len(noCallers)
@@ -375,7 +365,7 @@ func (l *lineBuilder) where(n graphNode, width int) {
 	}
 
 	l.add(" ", highlight.Plain)
-	l.add(cut(n.where, width), class)
+	l.add(cutPath(n.where, width), class)
 }
 
 func (l *lineBuilder) line() graphLine {
@@ -392,4 +382,19 @@ func (l *lineBuilder) line() graphLine {
 	}
 
 	return graphLine{text: trimmed, spans: spans}
+}
+
+// cutPath cuts a location to width, dropping leading directories before it
+// touches the file name and line.
+func cutPath(s string, width int) string {
+	for textWidth(s) > width {
+		i := strings.Index(strings.TrimPrefix(s, "…/"), "/")
+		if i < 0 {
+			return cutTail(s, width)
+		}
+
+		s = "…/" + strings.TrimPrefix(s, "…/")[i+1:]
+	}
+
+	return s
 }

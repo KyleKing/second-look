@@ -38,8 +38,12 @@ Type "j"
 Sleep 800ms
 Enter
 Sleep 1800ms
+Type " "
+Sleep 1200ms
 Type "]u"
 Sleep 1500ms
+Type " "
+Sleep 1200ms
 Type "]u"
 Sleep 1500ms
 Type "]u"

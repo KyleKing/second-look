@@ -1,4 +1,4 @@
-kyleking/jj-diff #42                                                   2 files · +2 −1 · ◆ 1 to judge · checking… ·  26%
+kyleking/jj-diff #42                                                   2 files · +2 −1 · ◆ 1 to judge · checking… ·  28%
 vcs ●───────────────────────────────────────────────────────────────────────────────────────────────────────────────┊─  
  
      internal/vcs/diff.go  +2 -1 ───────────────────────────────────────────────────────────────────────────────────────
@@ -7,13 +7,12 @@ vcs ●────────────────────────�
   15 -     lines := split(r)                                                                                            
   15 +     lines, err := split(r)                                                                                       
        ╭─ ⇢ calls · Parse · internal/vcs/diff.go:12 ────────────────────── 2 callers · 7 callees ─╮
-▌      │                                ┌──›split       internal/vcs/diff.go:40                   │
-       │                                ├── Join ×2     strings                                   │
-       │  Load       ──┐                ├── backoff     internal/vcs/diff.go:60                   │
-       │               ├──▶ Parse ✎ ◆ ──┤                                                         │
-       │  Run ×3     ──┘                ├── fetch       internal/vcs/diff.go:70                   │
-       │                                ├── pages       internal/vcs/diff.go:80                   │
-       │                                └── +2          warn, inc                                 │
+▌      │                                ┌── ›split       internal/vcs/diff.go:40                  │
+       │                                ├──  Join ×2     strings                                  │
+       │  Load       ──┬──▶ Parse ✎ ◆ ──┼──  backoff     internal/vcs/diff.go:60                  │
+       │  Run ×3     ──┘                ├──  fetch       internal/vcs/diff.go:70                  │
+       │                                ├──  pages       internal/vcs/diff.go:80                  │
+       │                                └──  +2          warn, inc                                │
        ╰─ [j/k] node · [h/l] side · [za] call sites · [enter] open · [gc] center · [ctrl+o] back ─╯
        ╭─ ⤷ @doggo · unresolved · 1 comment ───────────────────────────────────────── diff.go:15 ─╮
        │   wrap the error                                                                         │
@@ -27,6 +26,7 @@ vcs ●────────────────────────�
  
       ┃ REVIEW BODY  empty · e to write one
       ┃ REVIEW NOTE  empty · e to write one
+
 
 
 
