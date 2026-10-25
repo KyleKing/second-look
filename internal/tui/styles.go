@@ -49,6 +49,7 @@ type styles struct {
 	fail      lipgloss.Style
 	ok        lipgloss.Style
 	merged    lipgloss.Style
+	priority  lipgloss.Style
 	// Card faces, until aragonite's skin.Edge and skin.Card carry this contrast.
 	edge      lipgloss.Style
 	agentEdge lipgloss.Style
@@ -102,6 +103,7 @@ func newStyles() styles {
 		fail:      sk.Error,
 		ok:        sk.Success,
 		merged:    base.Foreground(p.Mauve),
+		priority:  base.Foreground(p.Peach).Bold(true),
 		edge:      base.Foreground(p.Overlay2),
 		agentEdge: base.Foreground(p.Mauve),
 		fill:      p.Surface0,

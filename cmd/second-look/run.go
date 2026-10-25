@@ -737,13 +737,8 @@ var errLocalPost = errors.New(
 // review is read, and it refuses while anything is still staged.
 func merger(t get.Target) tui.Merger {
 	return func(ctx context.Context, r *artifact.Review) (string, error) {
-		args := []string{"pr", "merge", strconv.Itoa(r.Number), "--squash", "--delete-branch"}
-		if t.Remote() != "" {
-			args = append(args, "--repo", t.Remote())
-		}
-
-		if err := ghrun.GH().Run(ctx, t.Dir(), args...); err != nil {
-			return "", fmt.Errorf("merging #%d: %w", r.Number, err)
+		if err := mergePullRequest(ctx, t.Dir(), t.Remote(), r.Number); err != nil {
+			return "", err
 		}
 
 		// A merged pull request cannot be reviewed again, so what is staged for
@@ -754,6 +749,22 @@ func merger(t get.Target) tui.Merger {
 
 		return fmt.Sprintf("merged %s/%s #%d", r.Owner, r.Repo, r.Number), nil
 	}
+}
+
+// mergePullRequest squash-merges and deletes the branch, the one way a merge
+// is made from the review screen and from the queue. An empty remote leaves the
+// repository to gh.
+func mergePullRequest(ctx context.Context, dir, remote string, number int) error {
+	args := []string{"pr", "merge", strconv.Itoa(number), "--squash", "--delete-branch"}
+	if remote != "" {
+		args = append(args, "--repo", remote)
+	}
+
+	if err := ghrun.GH().Run(ctx, dir, args...); err != nil {
+		return fmt.Errorf("merging #%d: %w", number, err)
+	}
+
+	return nil
 }
 
 func short(sha string) string {
@@ -1158,19 +1169,46 @@ func postFlags(args []string) (bool, string, error) {
 // search costs the same either way.
 const inboxLimit = 30
 
-// queue is the review queue: the sections the config names, or the three
-// built-in buckets when it names none.
+// queue is the review queue: the sections the config names, or the default
+// lanes when it names none, with what this laptop holds for each row.
 //
-// A config that cannot be read is reported and the built-in buckets are used, so
+// A config that cannot be read is reported and the default lanes are used, so
 // a typo in a file leaves a working queue rather than no queue. Every other
 // failure here belongs to one bucket and is printed in it.
-func queue(ctx context.Context, out io.Writer) []inbox.Bucket {
+func queue(ctx context.Context, out io.Writer) ([]inbox.Bucket, map[string]inbox.Known, error) {
 	cfg, err := configured(out)
 	if err != nil {
-		return nil
+		return nil, nil, err
 	}
 
-	return runQueue(ctx, cfg)
+	known := localKnowledge()
+
+	if len(cfg.Sections) > 0 {
+		return inbox.Configured(ctx, ".", configSections(cfg), queueLimit(cfg)), known, nil
+	}
+
+	lanes, err := defaultLanes(ctx, cfg, out, known)
+
+	return lanes, known, err
+}
+
+// defaultLanes reads the searches and then the facts that sort them. Facts that
+// cannot be read leave the lanes provisional, said once on out.
+func defaultLanes(
+	ctx context.Context, cfg *config.Config, out io.Writer, known map[string]inbox.Known,
+) ([]inbox.Bucket, error) {
+	searched := inbox.Searches(ctx, ".", queueLimit(cfg))
+
+	fetched, err := inbox.Fetch(ctx, ".", inbox.Rows(searched))
+	if err != nil {
+		if err := write(out, "lanes are provisional: "+humanize.FirstLine(err.Error())+"\n"); err != nil {
+			return nil, err
+		}
+	}
+
+	c := inbox.Context{Viewer: fetched.Viewer, Priority: cfg.PriorityLabels(), Area: inbox.LoadArea()}
+
+	return inbox.Lanes(searched, fetched.Facts, c, known, inbox.Rank), nil
 }
 
 // configured reads the config, reporting a file that cannot be read and falling
@@ -1194,16 +1232,9 @@ func configured(out io.Writer) (*config.Config, error) {
 	return &config.Config{}, nil
 }
 
-func runQueue(ctx context.Context, cfg *config.Config) []inbox.Bucket {
-	if len(cfg.Sections) == 0 {
-		return inbox.Buckets(ctx, ".", queueLimit(cfg))
-	}
-
-	return inbox.Configured(ctx, ".", configSections(cfg), queueLimit(cfg))
-}
-
 // planQueue is the same queue as a plan the screen runs itself, one search at a
-// time, so it can draw each as it lands.
+// time, so it can draw each as it lands. Without sections its buckets are the
+// searches the lanes are made from.
 func planQueue(cfg *config.Config) []inbox.Bucket {
 	if len(cfg.Sections) == 0 {
 		return inbox.Plan(queueLimit(cfg))
@@ -1787,8 +1818,12 @@ func inboxCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 		return openQueue(ctx, tabInbox, stdin, stdout)
 	}
 
-	buckets := queue(ctx, os.Stderr)
-	inbox.Attach(buckets, artifact.LoadRatings(), localKnowledge())
+	buckets, known, err := queue(ctx, os.Stderr)
+	if err != nil {
+		return err
+	}
+
+	inbox.Attach(buckets, artifact.LoadRatings(), known)
 
 	if asJSON == jsonArg {
 		return writeJSON(stdout, buckets)

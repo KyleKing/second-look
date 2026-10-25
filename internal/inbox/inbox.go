@@ -1,9 +1,9 @@
-// Package inbox is the review queue: what is waiting on you, what you have
-// already answered and is still open, and what has since merged.
+// Package inbox is the review queue, in lanes ordered by how much of the work is
+// yours to do now: what you can merge, what came back to you, what is new, what
+// waits on others, and what has merged.
 //
-// The buckets are the whole point. A flat list of pull requests says nothing
-// about what to do next, and the three states a reviewer actually distinguishes
-// are "nobody has looked", "I looked and it is still moving", and "it landed".
+// A flat list of pull requests says nothing about what to do next. The lanes
+// keep the work in flight small by finishing before beginning.
 package inbox
 
 import (
@@ -39,6 +39,7 @@ type Bucket struct {
 	// screen filling in as it goes apart from one that came back empty.
 	done  bool
 	query []string
+	via   Source
 }
 
 // Pending reports a bucket whose search is still out.
@@ -46,6 +47,9 @@ func (b Bucket) Pending() bool { return !b.done }
 
 // PullRequest is what triage needs without opening the pull request.
 type PullRequest struct {
+	// ID is the GraphQL node id, which is how Fetch asks for many at once.
+	ID         string    `json:"-"`
+	Created    time.Time `json:"created"`
 	Repository string    `json:"repository"`
 	Number     int       `json:"number"`
 	Title      string    `json:"title"`
@@ -62,22 +66,22 @@ type PullRequest struct {
 }
 
 // fields is what gh search answers with, kept to what a triage line shows.
-const fields = "repository,number,title,author,isDraft,commentsCount,labels,updatedAt,url"
+const fields = "id,repository,number,title,author,isDraft,commentsCount,labels,createdAt,updatedAt,url"
 
-// Buckets is the queue, in order: what is waiting on you first, because that is
-// the only bucket with anything to do in it.
-func Buckets(ctx context.Context, root string, limit int) []Bucket {
+// Searches runs the default plan's searches at once and leaves them unsorted.
+func Searches(ctx context.Context, root string, limit int) []Bucket {
 	return runAll(ctx, root, Plan(limit))
 }
 
-// Plan is the searches a queue will make, in the order they are shown. Building
-// it reaches nothing, so a screen draws its headings and says what it is waiting
-// for before any of them answer.
+// Plan is the searches the default queue makes. Building it reaches nothing, so
+// a screen can say what it is waiting for before any of them answer. The lanes
+// are made from their answers by Lanes.
 func Plan(limit int) []Bucket {
 	return []Bucket{
-		{Name: "pending your review", query: built(limit, "--review-requested=@me", "--state=open")},
-		{Name: "reviewed, still open", query: built(limit, "--reviewed-by=@me", "--state=open")},
-		{Name: "reviewed, merged", query: built(limit, "--reviewed-by=@me", "--merged")},
+		{Name: "review requested", via: Requested, query: built(limit, "--review-requested=@me", "--state=open")},
+		{Name: "reviewed, open", via: Reviewed, query: built(limit, "--reviewed-by=@me", "--state=open")},
+		{Name: "authored, open", via: Authored, query: built(limit, "--author=@me", "--state=open")},
+		{Name: "reviewed, merged", via: Merged, query: built(limit, "--reviewed-by=@me", "--merged")},
 	}
 }
 

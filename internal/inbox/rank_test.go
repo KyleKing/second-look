@@ -9,9 +9,10 @@ import (
 	"github.com/kyleking/second-look/internal/inbox"
 )
 
-// Recency is right for thirteen rows and arbitrary for eighty, so the order is
-// what triage actually wants: what you have started, then what is small, then
-// what has waited longest, with drafts under all of it.
+// The order is what triage wants: drafts under everything, then what you have
+// started, then a priority label, a review only you were asked for, and the
+// area of the pull request opened last, and finally whichever has waited
+// longest. The rating orders nothing.
 func TestRank(t *testing.T) {
 	t.Parallel()
 
@@ -20,21 +21,27 @@ func TestRank(t *testing.T) {
 	}
 
 	items := []inbox.PullRequest{
-		{Repository: "o/fresh", Number: 1, Updated: at(1)},
-		{Repository: "o/stale", Number: 2, Updated: at(9)},
-		{Repository: "o/draft", Number: 3, Updated: at(30), Draft: true},
-		{Repository: "o/big", Number: 4, Updated: at(2)},
-		{Repository: "o/small", Number: 5, Updated: at(3)},
+		{Repository: "o/fresh", Number: 1, Created: at(1)},
+		{Repository: "o/stale", Number: 2, Created: at(9)},
+		{Repository: "o/draft", Number: 3, Created: at(30), Draft: true},
+		{Repository: "o/started", Number: 4, Created: at(2)},
+		{Repository: "o/area", Number: 5, Created: at(3)},
+		{Repository: "o/alone", Number: 6, Created: at(4)},
+		{Repository: "o/urgent", Number: 7, Created: at(1)},
+		{Repository: "o/dear", Number: 8, Created: at(8)},
 	}
 
 	known := map[int]inbox.Known{
-		4: {Reviewed: true, Cost: 70, Rated: true},
-		5: {Reviewed: true, Cost: 9, Rated: true},
+		4: {Reviewed: true},
+		5: {Judgement: inbox.Judgement{Area: true}},
+		6: {Judgement: inbox.Judgement{Alone: true}},
+		7: {Judgement: inbox.Judgement{Priority: true}},
+		8: {Cost: 99, Rated: true},
 	}
 
 	inbox.Rank(items, func(p *inbox.PullRequest) inbox.Known { return known[p.Number] })
 
-	want := []string{"o/small", "o/big", "o/stale", "o/fresh", "o/draft"}
+	want := []string{"o/started", "o/urgent", "o/alone", "o/area", "o/stale", "o/dear", "o/fresh", "o/draft"}
 
 	for i, name := range want {
 		if items[i].Repository != name {

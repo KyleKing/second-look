@@ -276,9 +276,9 @@ NAMING A PULL REQUEST
       because GitHub owns it from that moment.
 
   second-look inbox [--json]
-      The review queue, as the sections your config names or the three built-in
-      buckets when it names none: pending your review, reviewed and still open,
-      then reviewed and merged. Each line carries the repository, the author,
+      The review queue, as the sections your config names or five built-in lanes
+      when it names none: ready to merge, back to you, new for you, waiting on
+      others, and merged. Each line carries the repository, the author,
       how stale it is, and the title, which is enough to triage without opening
       anything. A terminal gets the screen and a pipe or --json gets the text.
 
@@ -437,9 +437,10 @@ CONFIG
   directory, because a person writes it by hand and keeps it in their dotfiles.
   Everything second-look writes for itself stays in the platform directory.
 
-  Optional. Without it the inbox shows the three built-in buckets.
+  Optional. Without it the inbox shows the five built-in lanes.
 
     limit = 25                        # rows per section, 30 by default
+    priority = ["priority", "urgent"] # labels that lead "new for you"
 
     [[section]]
     name = "needs my review"

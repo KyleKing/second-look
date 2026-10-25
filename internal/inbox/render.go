@@ -99,8 +99,10 @@ func line(p *PullRequest, now time.Time, nameWidth, authorWidth int) string {
 		b.WriteString("  draft")
 	}
 
-	if len(p.Labels) > 0 {
-		b.WriteString("  [" + strings.Join(p.Labels, " ") + "]")
+	for _, word := range []string{p.Who, p.Why} {
+		if word != "" {
+			b.WriteString("  " + word)
+		}
 	}
 
 	b.WriteString("  " + p.Title)

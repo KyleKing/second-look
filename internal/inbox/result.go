@@ -6,6 +6,7 @@ import "time"
 //
 //nolint:tagliatelle // gh answers in camelCase and these names are its own
 type result struct {
+	ID         string `json:"id"`
 	Repository struct {
 		NameWithOwner string `json:"nameWithOwner"`
 	} `json:"repository"`
@@ -19,6 +20,7 @@ type result struct {
 	Labels        []struct {
 		Name string `json:"name"`
 	} `json:"labels"`
+	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	URL       string    `json:"url"`
 }
@@ -30,6 +32,8 @@ func (r *result) pullRequest() PullRequest {
 	}
 
 	return PullRequest{
+		ID:         r.ID,
+		Created:    r.CreatedAt,
 		Repository: r.Repository.NameWithOwner,
 		Number:     r.Number,
 		Title:      r.Title,

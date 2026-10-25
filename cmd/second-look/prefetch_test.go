@@ -30,10 +30,11 @@ func TestWhatIsStagedAhead(t *testing.T) {
 	t.Parallel()
 
 	s := &inboxScreen{
-		ahead:   2,
-		fetched: map[string]bool{},
-		local:   map[string]inbox.Known{keyOf(&inbox.PullRequest{Repository: "acme/a", Number: 1}): {}},
-		buckets: []inbox.Bucket{queued("acme/a", 1, 2, 3), queued("acme/b", 9)},
+		ahead:      2,
+		fetched:    map[string]bool{},
+		local:      map[string]inbox.Known{keyOf(&inbox.PullRequest{Repository: "acme/a", Number: 1}): {}},
+		lanes:      []inbox.Bucket{queued("acme/a", 1, 2, 3), queued("acme/b", 9)},
+		configured: true,
 	}
 
 	got := s.upcoming()

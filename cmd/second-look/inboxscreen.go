@@ -100,6 +100,20 @@ type inboxScreen struct {
 	unread int
 	// order is which of inbox.Orders the queue is arranged by, cycled by s.
 	order int
+	// lanes is what the screen draws: the default lanes made from the
+	// searches, or the configured sections as they answered. It is rebuilt by
+	// regroup whenever a search, the facts, or a rating lands.
+	lanes []inbox.Bucket
+	// facts are what the one batched read answered, and viewer the login it was
+	// read as. factsOut marks the read in flight, and factsErr says why the
+	// lanes are still provisional.
+	facts     map[string]inbox.Facts
+	viewer    string
+	factsOut  bool
+	factsErr  string
+	priority  []string
+	area      map[string]bool
+	showMerge bool
 }
 
 // howManyAtOnce bounds the diffs the rating pool fetches. It is small because
@@ -133,6 +147,7 @@ var inboxHints = [][2]string{
 	{"C", "check out"},
 	{"m", "comment"},
 	{"A", "approve"},
+	{"M", "merge"},
 	{"o", "GitHub"},
 	{"s", "sort"},
 	{"?", helpArg},
@@ -143,17 +158,30 @@ var inboxHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	{"C", "move a checkout onto it, asking before it stashes"},
 	{"m", "comment on the pull request itself, in $EDITOR"},
 	{"A", "approve it, A again to confirm"},
+	{"M", "merge it when it is ready to merge, M again to confirm"},
+	{"z", "show or hide the merged lane"},
 	{"o", "open it on GitHub"},
 	{"s", "cycle to the next row order"},
 	{refreshKey, "run the searches again"},
 }, helpLeave(), prose(
-	"The buckets are the sections your config names, or the three built-in ones:",
-	"waiting on you, then what you answered and is still open, then what merged.",
+	"The lanes are the sections your config names, or the built-in five: ready to",
+	"merge, back to you, new for you, waiting on others, and merged. They are",
+	"ordered so that finishing comes before beginning. Rows draw in a provisional",
+	"lane from the searches and move once the one batched read of reviews lands.",
 	"Opening one needs no checkout, and C is what gets one when this laptop has a",
-	"clone. Merging is not here: it is M in the review screen, after reading it.",
-	"They run at once and each is drawn as it lands, and a search that failed says",
-	"so and leaves the others alone.",
+	"clone. M merges only a pull request of yours that is approved with checks",
+	"passing. The searches run at once and a search that failed says so and leaves",
+	"the others alone.",
 ))
+
+func (s *inboxScreen) tab() tui.Tab {
+	return tui.Tab{
+		Name: "inbox", Title: "second-look inbox",
+		Sections: s.sections, Act: s.act, Subtitle: s.counts,
+		Hints: inboxHints, Inert: s.inert, Help: inboxHelp, Loader: s, Rest: s.restedOn,
+		Note: s.note,
+	}
+}
 
 // perform runs what the screen closed for. A failure is reported and the queue
 // comes back, because a checkout that could not move or an editor that was
@@ -167,7 +195,7 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer)
 	case tui.ActComment:
 		err = commentOn(ctx, h.at, stdout)
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActSort:
+		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActSort, tui.ActMerge, tui.ActFold:
 		return nil
 	}
 
@@ -400,6 +428,9 @@ func (s *inboxScreen) Start() tea.Cmd {
 	s.asked = map[string]bool{}
 	s.buckets = s.plan()
 	s.waiting = len(s.buckets)
+	s.facts, s.viewer, s.factsOut, s.factsErr = map[string]inbox.Facts{}, "", false, ""
+	s.area = inbox.LoadArea()
+	s.regroup()
 	s.armed = ""
 	s.pending, s.listening, s.unread = 0, false, 0
 	s.budget, s.queued, s.spent, s.short = nil, nil, 0, false
@@ -446,6 +477,8 @@ func (s *inboxScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
 		s.absorbPrefetch(answered)
 
 		return nil, true
+	case factsMsg:
+		return s.absorbFacts(answered), true
 	}
 
 	return nil, false
@@ -460,23 +493,84 @@ func (s *inboxScreen) absorbBucket(answered bucketMsg) tea.Cmd {
 		s.asked[key] = true
 	}
 
-	s.arrange(answered.bucket.Items)
-
 	s.buckets[answered.at] = answered.bucket
 	s.waiting--
+	s.regroup()
 
 	rate := s.rate(answered.bucket.Items)
 
-	// The queue is prepared once every search has answered, so what is staged
-	// ahead is the order the queue is actually read in rather than whichever
-	// search came back first.
 	if s.waiting > 0 {
 		return rate
 	}
 
+	return tea.Batch(rate, s.readFacts())
+}
+
+// factsMsg is the one batched read of reviews, checks, and changed paths.
+type factsMsg struct {
+	fetched inbox.Fetched
+	err     error
+}
+
+// readFacts asks once for every row the searches found. The queue is prepared
+// when it answers, so what is staged ahead follows the lanes rather than
+// whichever search came back first.
+func (s *inboxScreen) readFacts() tea.Cmd {
+	var rows []inbox.PullRequest
+
+	if s.configured {
+		for i := range s.buckets {
+			rows = append(rows, s.buckets[i].Items...)
+		}
+	} else {
+		rows = inbox.Rows(s.buckets)
+	}
+
+	s.factsOut = true
+
+	return func() tea.Msg {
+		fetched, err := inbox.Fetch(s.ctx, ".", rows)
+
+		return factsMsg{fetched: fetched, err: err}
+	}
+}
+
+func (s *inboxScreen) absorbFacts(answered factsMsg) tea.Cmd {
+	s.factsOut = false
+
+	var say tea.Cmd
+
+	if answered.err != nil {
+		s.factsErr = humanize.FirstLine(answered.err.Error())
+		text := "lanes are provisional: " + s.factsErr
+		say = func() tea.Msg { return tui.StatusMsg{Text: text, Failed: true} }
+	}
+
+	s.facts, s.viewer = answered.fetched.Facts, answered.fetched.Viewer
+	s.regroup()
 	s.prunePrefetched()
 
-	return tea.Batch(rate, s.prefetch())
+	return tea.Batch(say, s.prefetch())
+}
+
+// regroup rebuilds what is drawn from the searches, the facts, and the ratings
+// held so far. The list keeps the cursor on the row it was on, so a row moving
+// lane under a reader who has started reading does not move the reader.
+func (s *inboxScreen) regroup() {
+	c := inbox.Context{Viewer: s.viewer, Priority: s.priority, Area: s.area}
+
+	if s.configured {
+		for i := range s.buckets {
+			inbox.Annotate(s.buckets[i].Items, s.facts, c, s.local)
+			s.arrange(s.buckets[i].Items)
+		}
+
+		s.lanes = s.buckets
+
+		return
+	}
+
+	s.lanes = inbox.Lanes(s.buckets, s.facts, c, s.local, inbox.Orders[s.order].Order)
 }
 
 // absorbCost records one rating and puts the queue back in order around it. The
@@ -514,9 +608,7 @@ func (s *inboxScreen) absorbCost(answered costMsg) tea.Cmd {
 	}
 
 	if answered.rated {
-		for i := range s.buckets {
-			s.arrange(s.buckets[i].Items)
-		}
+		s.regroup()
 	}
 
 	if s.pending > 0 {
@@ -767,35 +859,54 @@ func (s *inboxScreen) counts() string {
 		return humanize.Plural(s.unread, "row") + " could not be rated" + s.readyWord()
 	}
 
-	rows, failed := 0, 0
-
-	for i := range s.buckets {
-		if s.buckets[i].Err != "" {
-			failed++
-
-			continue
-		}
-
-		if !s.configured && i > 0 {
-			continue
-		}
-
-		rows += len(s.buckets[i].Items)
-	}
-
-	out := fmt.Sprintf("%d waiting on you", rows)
+	out := fmt.Sprintf("%d waiting on you", s.yours())
 	if s.configured {
-		out = fmt.Sprintf("%d in %s", rows, humanize.Plural(len(s.buckets), "section"))
+		out = fmt.Sprintf("%d in %s", s.yours(), humanize.Plural(len(s.buckets), "section"))
 	}
 
 	out += s.readyWord()
 	out += " · sorted by " + inbox.Orders[s.order].Name
 
-	if failed == 0 {
-		return out
+	if s.factsOut {
+		out += " · reading reviews"
 	}
 
-	return out + " · " + humanize.Plural(failed, "search", "searches") + " failed"
+	if s.factsErr != "" {
+		out += " · lanes provisional"
+	}
+
+	if failed := s.failedSearches(); failed > 0 {
+		out += " · " + humanize.Plural(failed, "search", "searches") + " failed"
+	}
+
+	return out
+}
+
+// yours is how many rows are waiting on you: the lanes before waiting on
+// others for the default queue, and every row of a configured one, where
+// calling the first section what is waiting on you would be a guess.
+func (s *inboxScreen) yours() int {
+	rows := 0
+
+	for i := range s.lanes {
+		if s.configured || i <= int(inbox.LaneNew) {
+			rows += len(s.lanes[i].Items)
+		}
+	}
+
+	return rows
+}
+
+func (s *inboxScreen) failedSearches() int {
+	failed := 0
+
+	for i := range s.buckets {
+		if s.buckets[i].Err != "" {
+			failed++
+		}
+	}
+
+	return failed
 }
 
 // note is what the tab strip says: how much is waiting on you, once the
@@ -806,19 +917,7 @@ func (s *inboxScreen) note() string {
 		return ""
 	}
 
-	rows := 0
-	for i := range s.buckets {
-		if s.buckets[i].Err != "" {
-			continue
-		}
-
-		if !s.configured && i > 0 {
-			continue
-		}
-
-		rows += len(s.buckets[i].Items)
-	}
-
+	rows := s.yours()
 	if rows == 0 {
 		return ""
 	}
@@ -844,18 +943,12 @@ func (s *inboxScreen) budgetWord() string {
 func (s *inboxScreen) sections() []tui.Section {
 	now := time.Now()
 
-	out := make([]tui.Section, 0, len(s.buckets))
+	out := make([]tui.Section, 0, len(s.lanes))
 
-	for i := range s.buckets {
-		b := &s.buckets[i]
+	for i := range s.lanes {
+		b := &s.lanes[i]
 
-		if b.Pending() {
-			out = append(out, tui.Section{Name: b.Name, Note: "searching…"})
-
-			continue
-		}
-
-		if b.Err != "" {
+		if b.Err != "" && len(b.Items) == 0 {
 			out = append(out, tui.Section{Name: b.Name, Rows: []tui.Row{{
 				Left: "could not be read", Tail: humanize.FirstLine(b.Err),
 			}}})
@@ -863,29 +956,46 @@ func (s *inboxScreen) sections() []tui.Section {
 			continue
 		}
 
-		rows := make([]tui.Row, 0, len(b.Items))
+		lane := tui.Section{Name: b.Name, Rows: s.rows(b.Items, !s.configured && i == int(inbox.LaneWaiting), now)}
+		lane.Fold = !s.configured && i == int(inbox.LaneMerged) && !s.showMerge
 
-		for j := range b.Items {
-			p := &b.Items[j]
-			key := fmt.Sprintf("%s#%d", p.Repository, p.Number)
-			rows = append(rows, tui.Row{
-				Key:     key,
-				Left:    key,
-				Repo:    p.Repository,
-				Mid:     humanize.Clip(p.Author, authorCap),
-				Age:     humanize.Ago(p.Updated, now),
-				Cost:    rated(s.local[key]),
-				Added:   added(s.local[key]),
-				Removed: removed(s.local[key]),
-				Tail:    holding(s.local[key]) + waiting(p),
-				Under:   p.Title,
-			})
+		if b.Pending() {
+			lane.Note = "searching…"
 		}
 
-		out = append(out, tui.Section{Name: b.Name, Rows: rows})
+		out = append(out, lane)
 	}
 
 	return out
+}
+
+func (s *inboxScreen) rows(items []inbox.PullRequest, dim bool, now time.Time) []tui.Row {
+	rows := make([]tui.Row, 0, len(items))
+
+	for j := range items {
+		p := &items[j]
+		key := keyOf(p)
+		k := s.local[key]
+
+		rows = append(rows, tui.Row{
+			Key:     key,
+			Left:    key,
+			Repo:    p.Repository,
+			Mid:     humanize.Clip(p.Author, authorCap),
+			Age:     humanize.Ago(p.Updated, now),
+			Cost:    rated(k),
+			Added:   added(k),
+			Removed: removed(k),
+			Who:     k.Who,
+			Why:     k.Why,
+			Tail:    holding(k) + waiting(p),
+			Under:   p.Title,
+			Urgent:  k.Priority,
+			Dim:     dim,
+		})
+	}
+
+	return rows
 }
 
 const authorCap = 14
@@ -955,20 +1065,13 @@ func holding(k inbox.Known) string {
 	return "● " + strings.Join(parts, " ") + "  "
 }
 
-// waiting is what the row says past the columns: whether it is a draft and
-// its labels. The title is the row's own line instead.
+// waiting is what the row says past the columns, which is whether it is a draft.
 func waiting(p *inbox.PullRequest) string {
-	var b strings.Builder
-
 	if p.Draft {
-		b.WriteString("draft  ")
+		return "draft"
 	}
 
-	if len(p.Labels) > 0 {
-		b.WriteString("[" + strings.Join(p.Labels, " ") + "]  ")
-	}
-
-	return strings.TrimRight(b.String(), " ")
+	return ""
 }
 
 func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
@@ -976,6 +1079,12 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 	// bucket that failed still has one to cycle through.
 	if a == tui.ActSort {
 		return s.sort(), false, nil
+	}
+
+	if a == tui.ActFold {
+		s.showMerge = !s.showMerge
+
+		return "", false, nil
 	}
 
 	// A bucket that failed carries one row standing for the failure, which has
@@ -991,11 +1100,19 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 
 	switch a {
 	case tui.ActChoose, tui.ActCheckout, tui.ActComment:
+		if a == tui.ActChoose {
+			if err := s.remember(row.Key); err != nil {
+				return "", false, err
+			}
+		}
+
 		s.next = &handoff{act: a, at: at}
 
 		return leaving(a) + " " + row.Key, true, nil
 	case tui.ActApprove:
 		return s.approve(row.Key, at)
+	case tui.ActMerge:
+		return s.merge(row.Key, at)
 	case tui.ActBrowse:
 		if err := ghrun.GH().Run(s.ctx, ".",
 			"browse", "--repo", at.owner+"/"+at.repo, strconv.Itoa(at.number)); err != nil {
@@ -1007,8 +1124,8 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return "", false, nil
 	case tui.ActMark, tui.ActReply, tui.ActResolve, tui.ActDiscard:
 		return "", false, errNotInInbox
-	case tui.ActSort:
-		// ActSort needs no row, so it returns before this switch is reached.
+	case tui.ActSort, tui.ActFold:
+		// Neither needs a row, so they return before this switch is reached.
 	}
 
 	return "", false, nil
@@ -1025,10 +1142,7 @@ func (s *inboxScreen) arrange(items []inbox.PullRequest) {
 // so s cycles the whole queue rather than one section at a time.
 func (s *inboxScreen) sort() string {
 	s.order = (s.order + 1) % len(inbox.Orders)
-
-	for i := range s.buckets {
-		s.arrange(s.buckets[i].Items)
-	}
+	s.regroup()
 
 	return "sorted by " + inbox.Orders[s.order].Name
 }
@@ -1042,7 +1156,7 @@ func leaving(a tui.Action) string {
 	case tui.ActComment:
 		return "commenting on"
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActSort:
+		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActSort, tui.ActMerge, tui.ActFold:
 	}
 
 	return "opening"
@@ -1052,8 +1166,8 @@ func leaving(a tui.Action) string {
 // that cannot be undone by deleting something, and it is a claim about a diff
 // that a queue row does not show.
 func (s *inboxScreen) approve(key string, at ref) (string, bool, error) {
-	if s.armed != key {
-		s.armed = key
+	if s.armed != "A "+key {
+		s.armed = "A " + key
 
 		return "A again to approve " + key, false, nil
 	}
@@ -1068,3 +1182,61 @@ func (s *inboxScreen) approve(key string, at ref) (string, bool, error) {
 
 	return "approved " + key, false, nil
 }
+
+// merge takes the key twice, like approve. Only a pull request of yours in the
+// ready lane merges, and one with a review still staged here is refused because
+// the merge would strand it.
+func (s *inboxScreen) merge(key string, at ref) (string, bool, error) {
+	k := s.local[key]
+
+	switch {
+	case !k.Mergeable():
+		return "", false, fmt.Errorf("%w: %s", errNotReady, key)
+	case k.Ready+k.Draft+k.Replies > 0:
+		return "", false, fmt.Errorf("%w: %s", errStaged, key)
+	case s.armed != "M "+key:
+		s.armed = "M " + key
+
+		return "M again to squash-merge " + key + " and delete its branch", false, nil
+	}
+
+	s.armed = ""
+
+	if err := mergePullRequest(s.ctx, ".", at.owner+"/"+at.repo, at.number); err != nil {
+		return "", false, err
+	}
+
+	inbox.MarkMerged(s.buckets, key)
+	s.regroup()
+
+	return "merged " + key, false, nil
+}
+
+// inert is the hinted keys that do nothing at a row.
+func (s *inboxScreen) inert(r *tui.Row) []string {
+	if r != nil && s.local[r.Key].Mergeable() {
+		return nil
+	}
+
+	return []string{"M"}
+}
+
+// remember keeps the opened pull request's directories, which "same area" is
+// compared against the next time the queue opens.
+func (s *inboxScreen) remember(key string) error {
+	dirs := s.facts[key].Dirs
+	if len(dirs) == 0 {
+		return nil
+	}
+
+	if err := inbox.SaveArea(key, dirs); err != nil {
+		return fmt.Errorf("remembering %s: %w", key, err)
+	}
+
+	return nil
+}
+
+var (
+	errNotReady = errors.New("only an approved pull request of yours with passing checks merges from here")
+	errStaged   = errors.New("a review is still staged for it; post or discard it first")
+)

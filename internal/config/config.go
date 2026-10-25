@@ -97,6 +97,9 @@ type Config struct {
 	// Limit is how many pull requests each section asks for. A queue longer
 	// than this is not a queue, and the search costs the same either way.
 	Limit int `toml:"limit,omitempty"`
+	// Priority are the label names that put a pull request waiting on your
+	// review first. Unset, the built-in short list applies.
+	Priority []string `toml:"priority,omitempty"`
 	// Sections replace the built-in buckets outright when the file names any.
 	// Merging the two would put rows in front of you that no query asked for.
 	Sections []Section `toml:"section"`
@@ -145,6 +148,15 @@ type Config struct {
 	// Plans are the reading rules each repository keeps: what folds, what
 	// never does, what reads after what, and what reads in which mode.
 	Plans []plan.Rules `toml:"plan,omitempty"`
+}
+
+// PriorityLabels is the labels that put a row first.
+func (c *Config) PriorityLabels() []string {
+	if len(c.Priority) == 0 {
+		return []string{"priority", "urgent", "hotfix"}
+	}
+
+	return c.Priority
 }
 
 // Path is where the config lives.

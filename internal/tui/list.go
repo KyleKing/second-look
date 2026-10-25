@@ -35,7 +35,15 @@ type Row struct {
 	// after it, so the signs line up down the list and the digits do too.
 	Added   string
 	Removed string
-	Tail    string
+	// Who and Why are two columns of their own: who a review is waiting on,
+	// and in a few words why the row sits where it does.
+	Who  string
+	Why  string
+	Tail string
+	// Urgent draws a mark before the title, and Dim draws the whole row
+	// receded, for work that is waiting on somebody else.
+	Urgent bool
+	Dim    bool
 	// Under is the row's title: the line a queue is scanned by, drawn first
 	// and left-aligned, with the columns indented below it. A row carrying
 	// none draws its columns as its own line instead.
@@ -92,6 +100,8 @@ type Section struct {
 	// reading as a queue with nothing in it.
 	Note string
 	Rows []Row
+	// Fold draws the heading and its note and none of the rows.
+	Fold bool
 }
 
 // Action is what was pressed on a row.
@@ -127,6 +137,11 @@ const (
 	// ActSort is s: advance to the next row order. The screen decides what
 	// orders exist and which is next; this list only asks for the change.
 	ActSort
+	// ActMerge is M: merge the row's pull request. The caller decides what
+	// ceremony that takes.
+	ActMerge
+	// ActFold is z: show or hide the section the caller keeps folded.
+	ActFold
 )
 
 // Act performs an action on a row. What it returns is the one line the footer
@@ -149,6 +164,7 @@ type listKeys struct {
 	Approve  key.Binding
 	Discard  key.Binding
 	Sort     key.Binding
+	Fold     key.Binding
 	Focus    key.Binding
 	Unfocus  key.Binding
 	Unread   key.Binding
@@ -170,6 +186,7 @@ func defaultListKeys() listKeys {
 		Approve:  key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "approve")),
 		Discard:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "discard")),
 		Sort:     key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "sort")),
+		Fold:     key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "merged")),
 		Focus:    key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "focus")),
 		Unfocus:  key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "every repository")),
 		Unread:   key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "next unread")),
@@ -242,6 +259,7 @@ type List struct {
 	styles styles
 
 	hints     [][2]string
+	inert     func(r *Row) []string
 	helpLines [][2]string
 
 	// tabs is the other queues this screen holds, empty for a screen that is
@@ -583,6 +601,8 @@ func (l *List) perform(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		{l.list.Approve, ActApprove},
 		{l.list.Discard, ActDiscard},
 		{l.list.Sort, ActSort},
+		{l.list.Fold, ActFold},
+		{l.keys.Merge, ActMerge},
 	} {
 		if key.Matches(msg, m.binding) {
 			return l.run(m.action, row)
@@ -797,7 +817,10 @@ type natural struct {
 	cost    int
 	added   int
 	removed int
+	who     int
+	why     int
 	tail    int
+	urgent  bool
 	remote  int
 	agent   int
 }
@@ -811,6 +834,7 @@ const (
 	leftNarrow = 34
 	midNarrow  = 48
 	tailFloor  = 10
+	whyFloor   = 12
 	ageWidth   = 5
 )
 
@@ -826,6 +850,9 @@ func (l *List) natural() natural {
 			out.cost = max(out.cost, textWidth(r.Cost))
 			out.added = max(out.added, textWidth(r.Added))
 			out.removed = max(out.removed, textWidth(r.Removed))
+			out.urgent = out.urgent || r.Urgent
+			out.who = max(out.who, textWidth(r.Who))
+			out.why = max(out.why, textWidth(r.Why))
 			out.tail = max(out.tail, textWidth(r.Tail))
 			out.remote = max(out.remote, textWidth(r.Remote))
 			out.agent = max(out.agent, textWidth(r.Agent))
@@ -850,6 +877,8 @@ const (
 	colCost   = "cost"
 	colAdd    = "add"
 	colDel    = "del"
+	colWho    = "who"
+	colWhy    = "why"
 	colTail   = "tail"
 	colRemote = "remote"
 	colAgent  = "agent"
@@ -857,6 +886,11 @@ const (
 	tailPriority   = 1
 	remotePriority = 2
 	agentPriority  = 3
+	delPriority    = 2
+	addPriority    = 3
+	costPriority   = 4
+	whoPriority    = 6
+	whyPriority    = 5
 
 	// LeftGrow is the left column's share of a frame's slack over the mid
 	// column's: the repository and number are what identify a row.
@@ -876,13 +910,23 @@ func metaLayout(nat natural, width int) table.Layout {
 	}
 
 	if nat.cost > 0 {
-		cols = append(cols, table.Column{Key: colCost, Min: nat.cost, Align: table.AlignRight})
+		cols = append(cols, table.Column{Key: colCost, Min: nat.cost, Align: table.AlignRight, Priority: costPriority})
 	}
 
 	if nat.added > 0 || nat.removed > 0 {
 		cols = append(cols,
-			table.Column{Key: colAdd, Min: nat.added + 1},
-			table.Column{Key: colDel, Min: nat.removed + 1})
+			table.Column{Key: colAdd, Min: nat.added + 1, Priority: addPriority},
+			table.Column{Key: colDel, Min: nat.removed + 1, Priority: delPriority})
+	}
+
+	if nat.who > 0 {
+		cols = append(cols, table.Column{Key: colWho, Min: nat.who, Priority: whoPriority})
+	}
+
+	if nat.why > 0 {
+		cols = append(cols, table.Column{
+			Key: colWhy, Priority: whyPriority, Weight: 1, Min: min(nat.why, whyFloor), Max: nat.why,
+		})
 	}
 
 	if nat.tail > 0 {
@@ -916,6 +960,10 @@ func (l *List) rebuild() {
 		s := &l.shown[i]
 
 		l.lines = append(l.lines, listLine{heading: heading(s)})
+
+		if s.Fold {
+			continue
+		}
 
 		for i := range s.Rows {
 			row := &s.Rows[i]
@@ -1003,6 +1051,10 @@ func (l *List) leave(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func heading(s *Section) string {
+	if s.Fold {
+		return s.Name + " (" + strconv.Itoa(len(s.Rows)) + ", z shows them)"
+	}
+
 	if s.Note != "" {
 		return s.Name + " (" + s.Note + ")"
 	}

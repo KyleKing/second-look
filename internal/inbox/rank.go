@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"math"
 	"slices"
+	"time"
 
 	"github.com/kyleking/second-look/internal/artifact"
 )
@@ -12,6 +13,7 @@ import (
 // GitHub anything: whether there is a review of it here, and what the diff it
 // cached was rated. Both come off disk, so ordering eighty rows costs nothing.
 type Known struct {
+	Judgement
 	// Reviewed is a prepared review for it under .second-look or the user
 	// config directory, which is the closest thing to "you have started this"
 	// that a search result can be matched against.
@@ -77,19 +79,15 @@ func Recall(items []PullRequest, ratings artifact.Ratings, known map[string]Know
 	return asked
 }
 
-// Rank orders a bucket the way triage goes rather than the way a feed does.
-// Recency is right for thirteen rows and arbitrary for eighty.
+// Rank orders a lane the way triage goes rather than the way a feed does.
 //
-// What you have already started comes first, because finishing a review costs
-// less than beginning one. Then the smallest of what has been rated, since a
-// cheap review done now is one fewer thing waiting. Then the oldest, because a
-// pull request that has waited a week has waited longer than one from this
-// morning. A draft sinks whatever else it is: nobody is waiting on it.
-//
-// Size is deliberately not in the order. It is drawn beside the rating so a
-// reader can check one against the other, and sorting on it would be the line
-// count the rating exists to replace. Whether you are the only human asked is
-// the signal still missing, and it costs an API call per row.
+// A draft sinks whatever else it is, since nobody is waiting on it. What you
+// have already started comes next, because finishing a review costs less than
+// beginning one. Then a priority label, then a row you are the only human asked
+// to review, then one touching the area of the pull request you opened last,
+// and last the oldest, since a pull request that has waited a week has waited
+// longer than one from this morning. The rating and the line count order
+// nothing: they are drawn beside the row for a reader to weigh.
 func Rank(items []PullRequest, known func(*PullRequest) Known) {
 	slices.SortStableFunc(items, func(a, b PullRequest) int {
 		ka, kb := known(&a), known(&b)
@@ -97,10 +95,29 @@ func Rank(items []PullRequest, known func(*PullRequest) Known) {
 		return cmp.Or(
 			cmp.Compare(sinks(&a), sinks(&b)),
 			cmp.Compare(started(ka), started(kb)),
-			cmp.Compare(dearness(ka), dearness(kb)),
-			a.Updated.Compare(b.Updated),
+			cmp.Compare(first(ka.Priority), first(kb.Priority)),
+			cmp.Compare(first(ka.Alone), first(kb.Alone)),
+			cmp.Compare(first(ka.Area), first(kb.Area)),
+			opened(&a).Compare(opened(&b)),
 		)
 	})
+}
+
+// first is 0 for a signal that is set, so it sorts ahead.
+func first(set bool) int {
+	if set {
+		return 0
+	}
+
+	return 1
+}
+
+func opened(p *PullRequest) time.Time {
+	if p.Created.IsZero() {
+		return p.Updated
+	}
+
+	return p.Created
 }
 
 // sinks is 1 for a draft, which is not waiting on anybody.

@@ -8,15 +8,10 @@
       "url": "https://github.com/hubot"
     },
     "commentsCount": 0,
+    "createdAt": "2026-08-25T08:00:00Z",
+    "id": "PR_kwDO0110",
     "isDraft": false,
-    "labels": [
-      {
-        "color": "d4c5f9",
-        "description": "",
-        "id": "LA_1",
-        "name": "needs-review"
-      }
-    ],
+    "labels": [],
     "number": 110,
     "repository": {
       "description": "",
@@ -39,6 +34,8 @@
       "url": "https://github.com/dependabot"
     },
     "commentsCount": 1,
+    "createdAt": "2026-08-20T09:00:00Z",
+    "id": "PR_kwDO0111",
     "isDraft": true,
     "labels": [],
     "number": 111,
@@ -58,11 +55,13 @@
     "author": {
       "id": "MDQ6VXNlcjE=",
       "is_bot": false,
-      "login": "kyleking",
+      "login": "octocat",
       "type": "User",
-      "url": "https://github.com/kyleking"
+      "url": "https://github.com/octocat"
     },
     "commentsCount": 2,
+    "createdAt": "2026-07-10T09:00:00Z",
+    "id": "PR_kwDO0112",
     "isDraft": false,
     "labels": [],
     "number": 112,

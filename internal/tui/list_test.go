@@ -1014,3 +1014,55 @@ func TestTheFilterKeepsOneKindOfRow(t *testing.T) {
 	typeList(l, "/kind:review pool")
 	shows(t, l, []string{"kyleking/wavez#7", "showing 1 of 3"}, []string{"kyleking/tlr#118"})
 }
+
+// lanes carries every state the lane columns draw: the priority mark, who a
+// review waits on, why a row sits where it does, a dim lane, and a folded one.
+func lanes() []tui.Section {
+	return []tui.Section{
+		{Name: "ready to merge", Rows: []tui.Row{{
+			Key: "o/a#1", Left: "o/a#1", Mid: "kyleking", Age: "2d", Why: "approved, checks passing",
+			Under: "feat(inbox): order the queue by lane",
+		}}},
+		{Name: "new for you", Rows: []tui.Row{
+			{
+				Key: "o/b#2", Left: "o/b#2", Mid: "maria", Age: "9d", Who: "+ 2", Why: "priority", Urgent: true,
+				Under: "fix: a hotfix for the lease",
+			},
+			{Key: "o/c#3", Left: "o/c#3", Mid: "sam", Age: "4d", Who: "only you", Under: "chore: bump"},
+		}},
+		{Name: "waiting on others", Rows: []tui.Row{{
+			Key: "o/d#4", Left: "o/d#4", Mid: "kyleking", Age: "1d", Who: "maria +1", Why: "awaiting review",
+			Under: "docs: say why", Dim: true,
+		}}},
+		{Name: "merged", Fold: true, Rows: []tui.Row{{Key: "o/e#5", Left: "o/e#5"}}},
+	}
+}
+
+func TestLaneFrames(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{80, 120, 200} {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
+			l := tui.NewTabs([]tui.Tab{
+				{
+					Name: "inbox", Title: "second-look inbox", Sections: lanes,
+					Hints: [][2]string{{"enter", "review"}, {"M", "merge"}},
+					Inert: func(r *tui.Row) []string {
+						if r != nil && r.Key == "o/a#1" {
+							return nil
+						}
+
+						return []string{"M"}
+					},
+				},
+				{Name: "other", Title: "other", Sections: queue},
+			}, 0)
+			l.Update(tea.WindowSizeMsg{Width: width, Height: 20})
+			l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+
+			golden.RequireEqual(t, []byte(plain(l.ListFrame())))
+		})
+	}
+}

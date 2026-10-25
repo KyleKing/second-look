@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -12,10 +13,12 @@ import (
 
 	main "github.com/kyleking/second-look/cmd/second-look"
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/inbox"
 )
 
-// The inbox is three gh searches and nothing local, so this is the one test in
-// this package that runs outside a checkout.
+// The inbox is four gh searches and the one batched read that sorts their rows
+// into lanes, and nothing local, so this is the one test in this package that
+// runs outside a checkout.
 //
 // Its cassette is the only one here that is written rather than recorded. A
 // real recording of these searches carries private repository names, the
@@ -29,14 +32,17 @@ func TestInbox(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	s := ghcassette.Replay(t, cassettePath(t, "inbox"))
+	s := ghcassette.Replay(t, inboxCassettePath(t))
 
 	res := runCLI(t, s, dir, "inbox")
 	if res.code != 0 {
 		t.Fatalf("inbox failed: %s%s", res.stdout, res.stderr)
 	}
 
-	for _, want := range []string{"pending your review", "reviewed, still open", "reviewed, merged"} {
+	for _, want := range []string{
+		"ready to merge", "back to you", "new for you", "waiting on others", "merged",
+		"only you", "+ 2", "approved, checks passing", "2 new comments", "pushed since your review",
+	} {
 		if !strings.Contains(res.stdout, want) {
 			t.Errorf("the %q bucket is missing:\n%s", want, res.stdout)
 		}
@@ -51,7 +57,7 @@ func TestInboxJSON(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	s := ghcassette.Replay(t, cassettePath(t, "inbox"))
+	s := ghcassette.Replay(t, inboxCassettePath(t))
 
 	res := runCLI(t, s, dir, "inbox", "--json")
 	if res.code != 0 {
@@ -77,10 +83,11 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	s := ghcassette.Replay(t, cassettePath(t, "inbox"))
+	s := ghcassette.Replay(t, inboxCassettePath(t))
 
-	// The third row of the pending bucket, staged and rated here already, which
-	// is what puts it first: finishing a review costs less than beginning one.
+	// The row of the new lane that was staged and rated here already, which is
+	// what puts it ahead of the one carrying a priority label: finishing a
+	// review costs less than beginning one.
 	const (
 		sha  = "aa11bb22cc33dd44ee55ff6677889900aabbccdd"
 		cost = 37
@@ -109,6 +116,7 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 			Repository string `json:"repository"`
 			Number     int    `json:"number"`
 			Reviewed   bool   `json:"reviewed"`
+			Who        string `json:"who"`
 			Cost       int    `json:"cost"`
 			Rated      bool   `json:"rated"`
 			Added      int    `json:"added"`
@@ -120,14 +128,26 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 		t.Fatalf("reading the queue: %v\n%s", err, res.stdout)
 	}
 
-	if len(buckets) == 0 || len(buckets[0].Items) == 0 {
-		t.Fatalf("the queue is empty, so nothing here is exercised:\n%s", res.stdout)
+	var lane int
+
+	for i := range buckets {
+		if buckets[i].Bucket == "new for you" {
+			lane = i
+		}
 	}
 
-	first := buckets[0].Items[0]
+	if len(buckets[lane].Items) == 0 {
+		t.Fatalf("the lane is empty, so nothing here is exercised:\n%s", res.stdout)
+	}
+
+	first := buckets[lane].Items[0]
 	if first.Repository != "kyleking/gh-sweep" || first.Number != 102 {
 		t.Errorf("the bucket leads with %s#%d, want the review already staged here",
 			first.Repository, first.Number)
+	}
+
+	if first.Who != "only you" {
+		t.Errorf("the row says %q is waiting on it, want the one human asked", first.Who)
 	}
 
 	if !first.Reviewed || !first.Rated || first.Cost != cost || first.Added != 12 {
@@ -152,7 +172,7 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	s := ghcassette.Replay(t, inboxThenReview(t))
 
 	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
-	sc.await("pending your review")
+	sc.await("new for you")
 	sc.await("aragonite#100")
 
 	// The queue is ordered for triage rather than by the order the searches
@@ -183,13 +203,63 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	s.RequireAllPlayed(t)
 }
 
+// inboxCassette is the written searches plus the batched read of reviews. Its
+// arguments come from inbox.FactsArgs and the ids the searches carry, so the
+// call it answers is the call the queue makes, and the reply is the one fixture
+// of that shape.
+func inboxCassette(t *testing.T) *ghcassette.Cassette {
+	t.Helper()
+
+	c := load(t, "inbox")
+
+	var ids []string
+
+	for _, in := range c.Interactions {
+		if slices.Contains(in.Args, "--merged") {
+			continue
+		}
+
+		var rows []struct {
+			ID string `json:"id"`
+		}
+
+		if err := json.Unmarshal([]byte(in.Stdout), &rows); err != nil {
+			t.Fatalf("reading a search answer: %v", err)
+		}
+
+		for _, r := range rows {
+			ids = append(ids, r.ID)
+		}
+	}
+
+	body, err := os.ReadFile(filepath.Join("..", "..", "internal", "inbox", "testdata", "facts.json"))
+	if err != nil {
+		t.Fatalf("reading the facts fixture: %v", err)
+	}
+
+	c.Interactions = append(c.Interactions, ghcassette.Interaction{Args: inbox.FactsArgs(ids), Stdout: string(body)})
+
+	return c
+}
+
+func inboxCassettePath(t *testing.T) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "inbox.golden")
+	if err := ghcassette.Save(path, inboxCassette(t)); err != nil {
+		t.Fatalf("writing the derived cassette: %v", err)
+	}
+
+	return path
+}
+
 // onScreen is the inbox recording plus the one call the screen makes and the
 // listing does not: before rating anything the queue reads what is left of the
 // hourly allowance, and that read is free.
 func onScreen(t *testing.T) *ghcassette.Cassette {
 	t.Helper()
 
-	c := load(t, "inbox")
+	c := inboxCassette(t)
 	c.Interactions = append(c.Interactions, ghcassette.Interaction{
 		Args: []string{"api", "rate_limit"},
 		Stdout: `{"resources":{"core":{"limit":5000,"remaining":4900,"reset":1788400000},` +
@@ -270,6 +340,42 @@ func withApprove(t *testing.T) string {
 	}
 
 	return path
+}
+
+// M merges a pull request that is approved with passing checks, on the second
+// press, with the squash the review screen's M makes. On any other row it does
+// nothing and says why, which the cassette proves by holding no merge for it.
+func TestInboxScreenMergesOnTheSecondPress(t *testing.T) {
+	t.Parallel()
+
+	c := onScreen(t)
+	c.Interactions = append(c.Interactions, ghcassette.Interaction{
+		Args: []string{"pr", "merge", "130", "--squash", "--delete-branch", "--repo", "kyleking/aragonite"},
+	})
+
+	path := filepath.Join(t.TempDir(), "inbox-merge.golden")
+	if err := ghcassette.Save(path, c); err != nil {
+		t.Fatalf("writing the derived cassette: %v", err)
+	}
+
+	s := ghcassette.Replay(t, path)
+	home := quietHome(t)
+
+	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
+	sc.await("approved,")
+
+	sc.press("/aragonite#130")
+	sc.press("\r")
+	sc.press("M")
+	sc.await("M again to squash-merge")
+
+	sc.press("M")
+	sc.await("merged kyleking/aragonite#130")
+
+	sc.press("q")
+	sc.wait()
+
+	s.RequireAllPlayed(t)
 }
 
 // TestInboxScreenCommentsThroughTheEditor is the one verb that leaves the screen
@@ -357,7 +463,7 @@ func TestInboxWithABrokenConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s := ghcassette.Replay(t, cassettePath(t, "inbox"))
+	s := ghcassette.Replay(t, inboxCassettePath(t))
 
 	res := runCLIEnv(t, s, t.TempDir(), homeEnv(home), "inbox", "--json")
 	if res.code != 0 {
@@ -373,7 +479,7 @@ func TestInboxWithABrokenConfig(t *testing.T) {
 	}
 
 	// The built-in buckets are what a broken config falls back to.
-	if !strings.Contains(res.stdout, "pending your review") {
+	if !strings.Contains(res.stdout, "new for you") {
 		t.Errorf("the queue is empty rather than built-in:\n%s", res.stdout)
 	}
 

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"image/color"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -135,12 +136,13 @@ func (l *List) bodyView() string {
 
 	bar := scrollbar(rows, len(l.lines), l.offset)
 	width := bodyWidth(l.width, bar)
-	lay := metaLayout(l.natural(), width)
+	nat := l.natural()
+	lay := metaLayout(nat, width)
 
 	out := make([]string, 0, rows)
 
 	for i := l.offset; i < len(l.lines) && len(out) < rows; i++ {
-		text := l.line(i, lay, width)
+		text := l.line(i, lay, width, nat.urgent)
 		if l.lit(i) {
 			text = lightLine(text, l.width-1, l.styles.selection.GetBackground())
 		}
@@ -155,7 +157,7 @@ func (l *List) bodyView() string {
 	return strings.Join(alongside(out, bar, l.styles, l.width), "\n")
 }
 
-func (l *List) line(i int, lay table.Layout, width int) string {
+func (l *List) line(i int, lay table.Layout, width int, urgent bool) string {
 	line := l.lines[i]
 
 	switch {
@@ -167,23 +169,40 @@ func (l *List) line(i int, lay table.Layout, width int) string {
 		// The columns ride under the title as the row's meta line, indented to
 		// one depth so it always starts in the same column: the title is what
 		// a row is for, and the numbers are read after it or not at all.
-		return " " + l.styles.subtitle.Render(cut("      "+l.row(line.row, lay), width))
+		face := l.styles.subtitle
+		if line.row.Dim {
+			face = l.styles.behind
+		}
+
+		return " " + face.Render(cut("      "+l.row(line.row, lay), width))
 	}
 
 	// A row whose Under carries a title reads title-first: the one line a
 	// queue is scanned by, cut at a fixed cap so the scan holds at any width.
 	var text string
 	if line.row.Under != "" {
-		text = cut(line.row.Under, min(titleCap, width-markRoom))
+		text = cut(line.row.Under, min(titleCap, width-markRoom-bool2int(urgent)))
 	} else {
 		text = cut(l.row(line.row, lay), width)
 	}
 
-	if i == l.cursor {
-		return l.styles.cursor.Render(cursorBar) + text
+	var mark string
+
+	switch {
+	case line.row.Urgent:
+		mark = l.styles.priority.Render("!")
+	case urgent:
+		mark = " "
 	}
 
-	return " " + text
+	switch {
+	case i == l.cursor:
+		return l.styles.cursor.Render(cursorBar) + mark + text
+	case line.row.Dim:
+		return " " + mark + l.styles.behind.Render(text)
+	}
+
+	return " " + mark + text
 }
 
 // lit reports whether line i belongs to the row under the cursor: its title and
@@ -245,34 +264,7 @@ func (l *List) row(r *Row, lay table.Layout) string {
 	for _, c := range lay.Columns {
 		w := lay.Width(c.Key)
 
-		switch c.Key {
-		case colLeft:
-			cells = append(cells, pad(cutTail(r.Left, w), w))
-		case colMid:
-			mid := pad(cut(r.Mid, w), w)
-			if r.Tone != ToneOrdinary {
-				mid = l.toneFace(r.Tone).Render(mid)
-			}
-
-			cells = append(cells, mid)
-		case colAge:
-			cells = append(cells, pad(r.Age, w))
-		case colCost:
-			// The rating is right-aligned so the digits line up, and it keeps
-			// its width on a row that has none: a queue re-sorting as ratings
-			// land would otherwise slide every title sideways on each answer.
-			cells = append(cells, lpad(r.Cost, w))
-		case colAdd:
-			cells = append(cells, signed(r.Added, "+", w-1))
-		case colDel:
-			cells = append(cells, signed(r.Removed, "-", w-1))
-		case colTail:
-			cells = append(cells, pad(cut(r.Tail, w), w))
-		case colRemote:
-			cells = append(cells, pad(l.toneFace(r.RemoteTone).Render(cut(r.Remote, w)), w))
-		case colAgent:
-			cells = append(cells, pad(l.toneFace(r.AgentTone).Render(cut(r.Agent, w)), w))
-		}
+		cells = append(cells, l.cell(r, c.Key, w))
 	}
 
 	if marker := lay.Marker(); marker != "" {
@@ -282,6 +274,44 @@ func (l *List) row(r *Row, lay table.Layout) string {
 	b.WriteString(table.Join(cells))
 
 	return strings.TrimRight(b.String(), " ")
+}
+
+// cell is one column of a row's meta line, padded to the width it was given.
+func (l *List) cell(r *Row, key string, w int) string {
+	switch key {
+	case colLeft:
+		return pad(cutTail(r.Left, w), w)
+	case colMid:
+		mid := pad(cut(r.Mid, w), w)
+		if r.Tone != ToneOrdinary {
+			mid = l.toneFace(r.Tone).Render(mid)
+		}
+
+		return mid
+	case colAge:
+		return pad(r.Age, w)
+	case colCost:
+		// The rating is right-aligned so the digits line up, and it keeps
+		// its width on a row that has none: a queue re-sorting as ratings
+		// land would otherwise slide every title sideways on each answer.
+		return lpad(r.Cost, w)
+	case colAdd:
+		return signed(r.Added, "+", w-1)
+	case colDel:
+		return signed(r.Removed, "-", w-1)
+	case colWho:
+		return pad(cut(r.Who, w), w)
+	case colWhy:
+		return pad(cut(r.Why, w), w)
+	case colTail:
+		return pad(cut(r.Tail, w), w)
+	case colRemote:
+		return pad(l.toneFace(r.RemoteTone).Render(cut(r.Remote, w)), w)
+	case colAgent:
+		return pad(l.toneFace(r.AgentTone).Render(cut(r.Agent, w)), w)
+	}
+
+	return ""
 }
 
 // toneFace is the face a word is drawn at, with the ordinary tone taking the
@@ -343,9 +373,14 @@ func (l *List) footer() string {
 		}
 	}
 
+	var idle []string
+	if l.inert != nil {
+		idle = l.inert(l.current())
+	}
+
 	hints := make([]hint, len(pairs))
 	for i, p := range pairs {
-		hints[i] = hint{key: p[0], what: p[1]}
+		hints[i] = hint{key: p[0], what: p[1], off: slices.Contains(idle, p[0])}
 	}
 
 	return cut(" "+dimLine(l.styles, hints, l.width), l.width)
@@ -394,4 +429,12 @@ func defaultListHelp() [][2]string {
 		{},
 		{"", "● marks a conversation that moved since you last read it."},
 	}
+}
+
+func bool2int(b bool) int {
+	if b {
+		return 1
+	}
+
+	return 0
 }

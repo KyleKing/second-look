@@ -8,6 +8,8 @@
       "url": "https://github.com/dependabot"
     },
     "commentsCount": 0,
+    "createdAt": "2026-08-20T09:00:00Z",
+    "id": "PR_kwDO0120",
     "isDraft": false,
     "labels": [
       {
@@ -39,6 +41,8 @@
       "url": "https://github.com/kyleking"
     },
     "commentsCount": 1,
+    "createdAt": "2026-07-10T09:00:00Z",
+    "id": "PR_kwDO0121",
     "isDraft": true,
     "labels": [],
     "number": 121,
@@ -63,6 +67,8 @@
       "url": "https://github.com/octocat"
     },
     "commentsCount": 2,
+    "createdAt": "2026-05-01T09:00:00Z",
+    "id": "PR_kwDO0122",
     "isDraft": false,
     "labels": [],
     "number": 122,
@@ -87,6 +93,8 @@
       "url": "https://github.com/hubot"
     },
     "commentsCount": 3,
+    "createdAt": "2026-08-30T09:00:00Z",
+    "id": "PR_kwDO0123",
     "isDraft": false,
     "labels": [
       {
@@ -118,6 +126,8 @@
       "url": "https://github.com/dependabot"
     },
     "commentsCount": 4,
+    "createdAt": "2026-08-29T09:00:00Z",
+    "id": "PR_kwDO0124",
     "isDraft": false,
     "labels": [],
     "number": 124,

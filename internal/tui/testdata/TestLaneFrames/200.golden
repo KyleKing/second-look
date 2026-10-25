@@ -1,0 +1,19 @@
+second-look inbox
+ [1] inbox   [2] other 
+  ready to merge (1)
+  feat(inbox): order the queue by lane
+          o/a#1  kyleking  2d               approved, checks passing
+  new for you (2)
+▌!fix: a hotfix for the lease                                                                                                                                                                          
+          o/b#2  maria     9d     + 2       priority                                                                                                                                                   
+  chore: bump
+          o/c#3  sam       4d     only you
+  waiting on others (1)
+  docs: say why
+          o/d#4  kyleking  1d     maria +1  awaiting review
+  merged (1, z shows them)
+
+
+
+
+ [enter] review  [M]erge

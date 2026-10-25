@@ -85,8 +85,12 @@ func (s *inboxScreen) canAfford() bool {
 func (s *inboxScreen) upcoming() []inbox.PullRequest {
 	var out []inbox.PullRequest
 
-	for i := range s.buckets {
-		items := s.buckets[i].Items
+	for i := range s.lanes {
+		if !s.configured && i != int(inbox.LaneBack) && i != int(inbox.LaneNew) {
+			continue
+		}
+
+		items := s.lanes[i].Items
 
 		for j := range items {
 			if len(out) == s.ahead {

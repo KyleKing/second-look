@@ -65,6 +65,7 @@ func queueOnce(
 		ctx:        ctx,
 		configured: len(cfg.Sections) > 0,
 		ahead:      keepAhead(cfg),
+		priority:   cfg.PriorityLabels(),
 		plan:       func() []inbox.Bucket { return planQueue(cfg) },
 	}
 
@@ -87,12 +88,7 @@ func queueOnce(
 	}
 
 	list := tui.NewTabs([]tui.Tab{
-		{
-			Name: "inbox", Title: "second-look inbox",
-			Sections: in.sections, Act: in.act, Subtitle: in.counts,
-			Hints: inboxHints, Help: inboxHelp, Loader: in, Rest: in.restedOn,
-			Note: in.note,
-		},
+		in.tab(),
 		{
 			Name: "conversations", Title: "second-look conversations",
 			Sections: th.sections, Act: th.act, Subtitle: th.counts,

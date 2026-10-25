@@ -24,7 +24,10 @@ type Tab struct {
 	Act      Act
 	Subtitle func() string
 	Hints    [][2]string
-	Help     [][2]string
+	// Inert names the hinted keys that do nothing at a row, which the footer
+	// draws dim. The row is nil where the cursor is on no row.
+	Inert func(r *Row) []string
+	Help  [][2]string
 	// Note is a short count drawn beside the tab's name in the strip, so a
 	// queue says how much it holds without being switched to. Empty draws
 	// nothing, which is what an unstarted or empty queue says.
@@ -86,7 +89,7 @@ func (l *List) adopt() {
 
 	t := &l.tabs[l.at]
 	l.title, l.sections, l.act = t.Title, t.Sections, t.Act
-	l.subtitle, l.hints, l.helpLines = t.Subtitle, t.Hints, t.Help
+	l.subtitle, l.hints, l.helpLines, l.inert = t.Subtitle, t.Hints, t.Help, t.Inert
 	l.loader, l.onRest = t.Loader, t.Rest
 
 	v := &l.views[l.at]
