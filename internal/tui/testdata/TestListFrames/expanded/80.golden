@@ -1,7 +1,7 @@
  second-look conversations                                     sorted by triage 
 ────────────────────────────────────────────────────────────────────────────────
   new since you looked  2
-▌good catch, pushed a defer                                                    
+ good catch, pushed a defer                                                     
         ● kyleking/tlr#118                    internal/pool/pool.go:42   2h    …
          you:
            does this leak on cancel?

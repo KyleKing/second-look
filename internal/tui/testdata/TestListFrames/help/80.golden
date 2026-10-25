@@ -1,7 +1,7 @@
  second-look co╭─ keys ───────────────────────────────────────────────────────╮ 
 ───────────────│ j/k, ctrl+u/d, g/G  move, half page, top and bottom          │─
   new since you│      ctrl+e/ctrl+y  scroll without moving the cursor         │
-▌good catch, pu│       1/2/3, ] / [  the queue to read                        │
+ good catch, pu│       1/2/3, ] / [  the queue to read                        │ 
         ● kylek│                tab  the next group                           │…
  two questions │                  /  narrow to the rows carrying a word; esc  │
         ● …g/a-│                     puts them back                           │…

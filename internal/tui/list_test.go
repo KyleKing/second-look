@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/kyleking/aragonite/tui/table"
@@ -116,6 +117,55 @@ func TestTheCursorRowIsLit(t *testing.T) {
 				if lit[i] != want[i] {
 					t.Errorf("line %d lit = %v, want %v", i, lit[i], want[i])
 				}
+			}
+		})
+	}
+}
+
+// A terminal with no color has no band to paint, so the row under the cursor is
+// reversed across its width instead, and it is the only row that is.
+func TestTheCursorRowIsReversedWhereThereIsNoColor(t *testing.T) {
+	t.Parallel()
+
+	const width = 120
+
+	for _, tc := range []struct {
+		name    string
+		profile colorprofile.Profile
+		mark    string
+		absent  string
+		height  int
+	}{
+		{"ascii", colorprofile.ASCII, "\x1b[7m", "\x1b[48;", 34},
+		{"ascii beside a scrollbar", colorprofile.ASCII, "\x1b[7m", "\x1b[48;", 12},
+		{"truecolor", colorprofile.TrueColor, "\x1b[48;", "\x1b[7m", 34},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l := tui.NewTabs([]tui.Tab{{Name: "inbox", Sections: lanes, Columns: laneColumns}}, 0)
+			l.Update(tea.ColorProfileMsg{Profile: tc.profile})
+			l.Update(tea.WindowSizeMsg{Width: width, Height: tc.height})
+			l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+
+			var marked []string
+
+			for _, line := range strings.Split(l.ListFrame(), "\n") {
+				if strings.Contains(line, tc.absent) {
+					t.Errorf("a line carries %q: %q", tc.absent, line)
+				}
+
+				if strings.Contains(line, tc.mark) {
+					marked = append(marked, line)
+				}
+			}
+
+			if len(marked) != 1 {
+				t.Fatalf("%d rows carry %q, want exactly one", len(marked), tc.mark)
+			}
+
+			if got := xansi.StringWidth(marked[0]); got != width {
+				t.Errorf("the marked row is %d cells wide, want %d", got, width)
 			}
 		})
 	}
@@ -1146,8 +1196,8 @@ func TestLaneFrames(t *testing.T) {
 	}
 }
 
-// The cursor takes the margin's second cell and a background, and nothing else
-// on the row moves: every column sits where it did with the cursor elsewhere.
+// The cursor takes a background and nothing else on the row moves: every column
+// sits where it did with the cursor elsewhere.
 func TestTheCursorLeavesTheGridWhereItWas(t *testing.T) {
 	t.Parallel()
 
@@ -1163,7 +1213,7 @@ func TestTheCursorLeavesTheGridWhereItWas(t *testing.T) {
 					l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
 				}
 
-				return strings.Split(strings.ReplaceAll(plain(l.ListFrame()), "▌", " "), "\n")
+				return strings.Split(plain(l.ListFrame()), "\n")
 			}
 
 			lit := tui.NewTabs([]tui.Tab{{Name: "inbox", Sections: lanes, Columns: laneColumns}}, 0)
@@ -1176,7 +1226,7 @@ func TestTheCursorLeavesTheGridWhereItWas(t *testing.T) {
 
 			first, second := frame(0), frame(2)
 			for i := range first {
-				if first[i] != second[i] {
+				if strings.TrimRight(first[i], " ") != strings.TrimRight(second[i], " ") {
 					t.Errorf("line %d moved with the cursor:\n%q\n%q", i, first[i], second[i])
 				}
 			}

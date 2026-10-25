@@ -193,18 +193,24 @@ func (l *List) bodyView() string {
 		grid = table.FitCompact(l.gridColumns(), width-gridMargin)
 	}
 
+	// The band runs to the last cell the scrollbar leaves.
+	reach := l.width
+	if bar != nil {
+		reach -= trackWidth
+	}
+
 	out := make([]string, 0, rows)
 
 	for i := l.offset; i < len(l.lines) && len(out) < rows; i++ {
 		if row := l.lines[i].row; row != nil && row.Cells != nil && l.columns != nil && !l.lines[i].under {
-			out = append(out, l.gridLine(i, grid))
+			out = append(out, l.gridLine(i, grid, reach))
 
 			continue
 		}
 
 		text := l.line(i, lay, width, nat.urgent)
 		if l.lit(i) {
-			text = lightLine(text, l.width-1, l.styles.selection.GetBackground())
+			text = litLine(text, reach, l.bandFace(true))
 		}
 
 		out = append(out, text)
@@ -264,7 +270,7 @@ func (l *List) line(i int, lay table.Layout, width int, urgent bool) string {
 
 	switch {
 	case i == l.cursor:
-		return l.styles.cursor.Render(cursorBar) + mark + l.styles.subtitle.Render(branch) + text
+		return " " + mark + l.styles.rungs.mark.lit.Render(branch) + l.styles.rungs.title.lit.Render(text)
 	case line.row.Dim:
 		return " " + mark + l.styles.behind.Render(branch+text)
 	}
@@ -310,11 +316,15 @@ func (l *List) lit(i int) bool {
 	return line.under && i > 0 && l.lines[i-1].row == line.row && i-1 == l.cursor
 }
 
-// lightLine paints text's background to width cells. A face inside text ends
-// with a reset that would drop the background, so each reset restores it.
+// lightLine paints text's background to width cells.
 func lightLine(text string, width int, bg color.Color) string {
-	face := lipgloss.NewStyle().Background(bg).Render("x")
-	on, _, _ := strings.Cut(face, "x")
+	return litLine(text, width, lipgloss.NewStyle().Background(bg))
+}
+
+// litLine draws text to width cells in face. A face inside text ends with a
+// reset that would drop it, so each reset restores it.
+func litLine(text string, width int, face lipgloss.Style) string {
+	on, _, _ := strings.Cut(face.Render("x"), "x")
 
 	if over := width - textWidth(text); over > 0 {
 		text += strings.Repeat(" ", over)
@@ -329,7 +339,7 @@ func lightLine(text string, width int, bg color.Color) string {
 
 // titleCap is how far right a row's title may run before it is cut: one line,
 // a fixed end to scan down, and the rest of it a keystroke away. MarkRoom is
-// the cell the cursor bar (or its absence) spends ahead of it.
+// the margin and the mark cell ahead of it.
 const (
 	titleCap = 80
 	markRoom = 2

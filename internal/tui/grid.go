@@ -62,40 +62,54 @@ const (
 
 // role is the face a span draws in. A row that is waiting on somebody else
 // recedes: its text steps down a rung and its sizes lose their colors.
-func (s styles) role(r Role, waiting bool) lipgloss.Style {
+//
+// The row under the cursor is lit: every face steps to its brighter rung, which
+// is what keeps it readable on the band.
+func (s styles) role(r Role, waiting, lit bool) lipgloss.Style {
+	if r == RolePending {
+		return s.placeholder
+	}
+
+	pick := s.rungOf(r, waiting)
+	if lit {
+		return pick.lit
+	}
+
+	return pick.dim
+}
+
+func (s styles) rungOf(r Role, waiting bool) rung {
 	rungs := &s.rungs
 
 	switch r {
 	case RoleText:
-		return rungIf(waiting, rungs.waiting, rungs.title).dim
+		return rungIf(waiting, rungs.waiting, rungs.title)
 	case RoleQuiet:
-		return rungs.mark.dim
+		return rungs.mark
 	case RoleAge:
-		return rungs.age.dim
+		return rungs.age
 	case RolePriority:
-		return rungs.priority.dim
+		return rungs.priority
 	case RoleAdd:
-		return rungIf(waiting, rungs.age, rungs.add).dim
+		return rungIf(waiting, rungs.age, rungs.add)
 	case RoleRemove:
-		return rungIf(waiting, rungs.age, rungs.remove).dim
-	case RolePending:
-		return s.placeholder
+		return rungIf(waiting, rungs.age, rungs.remove)
 	case RoleGood:
-		return rungs.good.dim
+		return rungs.good
 	case RoleNew:
-		return rungs.fresh.dim
+		return rungs.fresh
 	case RoleWarn:
-		return rungs.warn.dim
+		return rungs.warn
 	case RoleBad:
-		return rungs.bad.dim
+		return rungs.bad
 	case RoleMuted:
-		return rungs.muted.dim
+		return rungs.muted
 	case RoleMerged:
-		return rungs.merged.dim
-	case RoleCell:
+		return rungs.merged
+	case RoleCell, RolePending:
 	}
 
-	return rungIf(waiting, rungs.waiting, rungs.cell).dim
+	return rungIf(waiting, rungs.waiting, rungs.cell)
 }
 
 func rungIf(first bool, a, b rung) rung {
@@ -126,22 +140,16 @@ func (l *List) gridColumns() []table.Column {
 }
 
 // gridLine draws row i on the grid: the margin, then each column's cell at the
-// width the layout gave it. A row under the cursor carries its background in
-// every cell and gutter, so no reset inside the line ends the band early.
-func (l *List) gridLine(i int, lay table.Layout) string {
+// width the layout gave it. A row under the cursor carries the band in every
+// cell and gutter up to reach, so no reset inside the line ends it early.
+func (l *List) gridLine(i int, lay table.Layout, reach int) string {
 	row := l.lines[i].row
-	face := lipgloss.NewStyle()
-	margin := strings.Repeat(" ", gridMargin)
-
 	lit := i == l.cursor
-	if lit {
-		face = face.Background(l.styles.selection.GetBackground())
-		margin = l.styles.cursor.Render(cursorBar) + face.Render(" ")
-	}
+	face := l.bandFace(lit)
 
 	var b strings.Builder
 
-	b.WriteString(margin)
+	b.WriteString(face.Render(strings.Repeat(" ", gridMargin)))
 
 	gutter := face.Render(strings.Repeat(" ", table.Gutter))
 
@@ -158,10 +166,10 @@ func (l *List) gridLine(i int, lay table.Layout) string {
 			spans = cell.Long
 		}
 
-		b.WriteString(l.fit(spans, c, w, row.Dim, face))
+		b.WriteString(l.fit(spans, c, w, row.Dim, lit, face))
 	}
 
-	if over := l.width - 1 - gridMargin - lay.Total(); lit && over > 0 {
+	if over := reach - gridMargin - lay.Total(); lit && over > 0 {
 		b.WriteString(face.Render(strings.Repeat(" ", over)))
 	}
 
@@ -171,7 +179,7 @@ func (l *List) gridLine(i int, lay table.Layout) string {
 // fit draws spans in exactly w cells. Text that fits is padded on the side the
 // column's alignment leaves free. Text that does not is cut as a whole, and a
 // cell of several spans keeps each span's face up to the cut.
-func (l *List) fit(spans []Span, c table.Column, w int, waiting bool, face lipgloss.Style) string {
+func (l *List) fit(spans []Span, c table.Column, w int, waiting, lit bool, face lipgloss.Style) string {
 	var plain strings.Builder
 	for _, s := range spans {
 		plain.WriteString(s.Text)
@@ -182,7 +190,7 @@ func (l *List) fit(spans []Span, c table.Column, w int, waiting bool, face lipgl
 			return ""
 		}
 
-		return face.Inherit(l.styles.role(r, waiting)).Render(text)
+		return face.Inherit(l.styles.role(r, waiting, lit)).Render(text)
 	}
 
 	blank := func(n int) string { return paint(strings.Repeat(" ", n), RoleCell) }
@@ -226,4 +234,18 @@ func (l *List) fit(spans []Span, c table.Column, w int, waiting bool, face lipgl
 	}
 
 	return b.String()
+}
+
+// bandFace is what a row is drawn on: the band when it is the row under the
+// cursor, and where the terminal has no color to paint one with, reverse video,
+// which is the one mark a monochrome terminal still draws across a row.
+func (l *List) bandFace(lit bool) lipgloss.Style {
+	switch {
+	case !lit:
+		return lipgloss.NewStyle()
+	case l.mono:
+		return lipgloss.NewStyle().Reverse(true)
+	}
+
+	return l.styles.band
 }

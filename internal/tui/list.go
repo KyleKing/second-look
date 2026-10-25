@@ -6,6 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/second-look/internal/labels"
@@ -289,6 +290,10 @@ type List struct {
 	// older lines.
 	columns func() []table.Column
 
+	// mono is a terminal with no color, where the row under the cursor is drawn
+	// reversed because no band can be.
+	mono bool
+
 	status  string
 	failed  bool
 	help    bool
@@ -447,6 +452,10 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return l, nil
 	case tea.MouseWheelMsg:
 		l.wheel(msg)
+
+		return l, nil
+	case tea.ColorProfileMsg:
+		l.mono = msg.Profile <= colorprofile.ASCII
 
 		return l, nil
 	case tea.KeyPressMsg:

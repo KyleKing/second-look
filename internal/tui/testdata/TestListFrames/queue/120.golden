@@ -1,8 +1,8 @@
  second-look conversations                                                                             sorted by triage 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   new since you looked  2
-▌good catch, pushed a defer                                                                                            
-        ● kyleking/tlr#118                          internal/pool/pool.go:42   2h     alice  2 replies  add TTL to the…
+ good catch, pushed a defer                                                                                             
+        ● kyleking/tlr#118                          internal/pool/pool.go:42   2h     alice  2 replies  add TTL to the… 
  two questions inline
         ● kyleking/a-much-longer-repository-name#7  review body                13h    bob  fix the footnote reorder
   waiting on you  0
