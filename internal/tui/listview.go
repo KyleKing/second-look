@@ -188,9 +188,20 @@ func (l *List) bodyView() string {
 	nat := l.natural()
 	lay := metaLayout(nat, width)
 
+	var grid table.Layout
+	if l.columns != nil {
+		grid = table.FitCompact(l.gridColumns(), width-gridMargin)
+	}
+
 	out := make([]string, 0, rows)
 
 	for i := l.offset; i < len(l.lines) && len(out) < rows; i++ {
+		if row := l.lines[i].row; row != nil && row.Cells != nil && l.columns != nil && !l.lines[i].under {
+			out = append(out, l.gridLine(i, grid))
+
+			continue
+		}
+
 		text := l.line(i, lay, width, nat.urgent)
 		if l.lit(i) {
 			text = lightLine(text, l.width-1, l.styles.selection.GetBackground())

@@ -1,0 +1,19 @@
+ second-look   1 inbox 4    2 other 2                                                                                                          sorted by triage 
+───────────────━━━━━━━━━━───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ready to merge  1
+  a#1         feat(inbox): order the queue by lane                                                    kyleking      2d    +57    -0  ✓ approved, checks passing
+  new for you  4
+▌ b#2       ! fix: a hotfix for the lease                                                             maria         9d            ·  priority                  
+  o/c#3     ╭ chore: bump a dependency whose name is long enough to be cut                            sam           4d            ·  ·                         
+  o/c#7     ╰ feat: use the bump                                                                      sam           4d            ·                            
+  p/c#8       no conventional prefix on this one                                                      lee           3d  +1.2k  -340  ◌ draft                   
+  waiting on others  1
+  d#4         docs: say why                                                                           kyleking      1d     +1    -1  ○ awaiting review         
+  merged  1 · z shows
+
+
+
+
+
+
+ [enter] review  [M]erge

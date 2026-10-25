@@ -6,6 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/second-look/internal/labels"
 )
@@ -35,6 +36,11 @@ type Tab struct {
 	// says how much it holds without being switched to. An empty Label draws
 	// nothing, which is what an unstarted or empty queue says.
 	Badge func() Badge
+	// Columns lays the tab's rows out on a grid, one line each, from each row's
+	// Cells. It is a function because a column's width can follow the rows,
+	// and it is read on every frame. A column's From is the terminal's width. A tab
+	// with none draws its rows as before.
+	Columns func() []table.Column
 	// Loader fills the tab in as its answers arrive. It is started when the tab
 	// is first looked at rather than when the screen opens, so a queue nobody
 	// switched to costs no requests.
@@ -115,7 +121,7 @@ func (l *List) adopt() {
 	t := &l.tabs[l.at]
 	l.sections, l.act = t.Sections, t.Act
 	l.state, l.hints, l.helpLines, l.inert = t.State, t.Hints, t.Help, t.Inert
-	l.loader, l.onRest = t.Loader, t.Rest
+	l.loader, l.onRest, l.columns = t.Loader, t.Rest, t.Columns
 	l.labeled, l.relabel = t.Labeled, t.Relabel
 
 	v := &l.views[l.at]

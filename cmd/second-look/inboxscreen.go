@@ -185,7 +185,7 @@ const searching = "searching…"
 func (s *inboxScreen) tab() tui.Tab {
 	return tui.Tab{
 		Name:     "inbox",
-		Sections: s.sections, Act: s.act, State: s.state,
+		Sections: s.sections, Act: s.act, State: s.state, Columns: s.columns,
 		Hints: inboxHints, Inert: s.inert, Help: inboxHelp, Loader: s, Rest: s.restedOn,
 		Badge: s.badge, Labeled: s.labeled, Relabel: s.relabel,
 	}
@@ -945,6 +945,8 @@ func (s *inboxScreen) sections() []tui.Section {
 		if b.Err != "" && len(b.Items) == 0 {
 			out = append(out, tui.Section{Name: b.Name, Rows: []tui.Row{{
 				Left: "could not be read", Tail: humanize.FirstLine(b.Err),
+				Cells: map[string]tui.Cell{colTitle: plain(
+					"  could not be read: "+humanize.FirstLine(b.Err), tui.RoleText)},
 			}}})
 
 			continue
@@ -967,6 +969,7 @@ func (s *inboxScreen) sections() []tui.Section {
 func (s *inboxScreen) rows(items []inbox.PullRequest, lane inbox.Lane, now time.Time) []tui.Row {
 	rows := make([]tui.Row, 0, len(items))
 	waits := !s.configured && lane == inbox.LaneWaiting
+	shared := s.sharedNames()
 
 	for j := range items {
 		p := &items[j]
@@ -988,6 +991,7 @@ func (s *inboxScreen) rows(items []inbox.PullRequest, lane inbox.Lane, now time.
 			Under:   p.Title,
 			Branch:  branch(k.Stack),
 			Urgent:  k.Priority,
+			Cells:   s.cells(p, k, shared, now),
 			Dim:     waits || (!s.configured && k.Stack.Size > 0 && k.Lane > lane),
 		})
 	}

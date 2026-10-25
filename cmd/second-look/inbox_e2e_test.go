@@ -396,7 +396,7 @@ func TestInboxScreenMergesOnTheSecondPress(t *testing.T) {
 	home := quietHome(t)
 
 	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
-	sc.await("approved,")
+	sc.await("approved")
 
 	sc.press("/aragonite#130")
 	sc.press("\r")
@@ -447,9 +447,10 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 
 	// The redraw rewrites only changed digits, so the header count never appears
 	// whole. A row is written whole, so an excluded row's absence proves the filter.
-	sc.awaitFrom(back, "kyleking/aragonite#100  octocat")
+	// The title is what survives the narrowest frame: the author and the owner do not.
+	sc.awaitFrom(back, "feat(vcs): read the head")
 
-	if after := sc.text()[back:]; strings.Contains(after, "octocat/hello-world#112") {
+	if after := sc.text()[back:]; strings.Contains(after, "hello-world#112") {
 		t.Errorf("the queue came back unnarrowed, listing a row the filter excludes:\n%s", after)
 	}
 
@@ -589,7 +590,7 @@ func TestInboxScreenLabelsAPullRequest(t *testing.T) {
 	sc.await("hand the fixes to the bot")
 	sc.press("doggo")
 	sc.press("\r")
-	sc.await("[watch-doggo-fix]")
+	sc.await("added watch-doggo-fix")
 
 	sc.press("\x7f\x7f\x7f\x7f\x7f")
 	sc.press("needs")

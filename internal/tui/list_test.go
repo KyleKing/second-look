@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
+	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/second-look/internal/tui"
 )
@@ -1015,32 +1016,91 @@ func TestTheFilterKeepsOneKindOfRow(t *testing.T) {
 	shows(t, l, []string{"kyleking/wavez#7", "showing 1 of 3"}, []string{"kyleking/tlr#118"})
 }
 
-// lanes carries every state the lane columns draw: the priority mark, who a
-// review waits on, why a row sits where it does, a dim lane, a folded one, and a stack hanging off its bottom.
+// laneColumns is the inbox's grid, as the screen that owns it declares it.
+func laneColumns() []table.Column {
+	return []table.Column{
+		{Key: "ref", Min: 8, Max: 8, Weight: 1, Trim: table.TrimLeft},
+		{Key: "title", Min: 30, Weight: 3},
+		{Key: "author", Min: 10, Max: 10, From: 112},
+		{Key: "age", Min: 4, Max: 4, Align: table.AlignRight},
+		{Key: "size", Min: 11, Max: 11, From: 100, Align: table.AlignRight},
+		{Key: "status", Min: 16, Max: 26, Weight: 1},
+	}
+}
+
+func sp(role tui.Role, text string) tui.Span { return tui.Span{Role: role, Text: text} }
+
+func status(glyph string, tone tui.Role, short, long string) tui.Cell {
+	words := func(word string) []tui.Span { return []tui.Span{sp(tone, glyph), sp(tui.RoleCell, " "+word)} }
+
+	return tui.Cell{Spans: words(short), Long: words(long), LongAt: 24}
+}
+
+func size(added, removed string) tui.Cell {
+	count := func(word string) string { return fmt.Sprintf("%5s", word) }
+
+	return tui.Cell{Spans: []tui.Span{
+		sp(tui.RoleAdd, count(added)), sp(tui.RoleCell, " "), sp(tui.RoleRemove, count(removed)),
+	}}
+}
+
+// gridRow is one inbox row on the grid, with the pieces the screen splits a
+// title into: the mark, the commit prefix, and the subject.
+func gridRow(key, owner, mark, prefix, subject, author, age string, size, status tui.Cell, dim bool) tui.Row {
+	name := key[strings.Index(key, "/")+1:]
+	ref := []tui.Span{sp(tui.RoleCell, name)}
+
+	if owner != "" {
+		ref = append([]tui.Span{sp(tui.RoleQuiet, owner)}, ref...)
+	}
+
+	lead := tui.RoleCell
+	switch mark {
+	case "!":
+		lead = tui.RolePriority
+	case "╭", "├", "╰":
+		lead = tui.RoleQuiet
+	}
+
+	return tui.Row{
+		Key: key, Dim: dim,
+		Cells: map[string]tui.Cell{
+			"ref": {Spans: ref},
+			"title": {Spans: []tui.Span{
+				sp(lead, mark), sp(tui.RoleCell, " "), sp(tui.RoleQuiet, prefix), sp(tui.RoleText, subject),
+			}},
+			"author": {Spans: []tui.Span{sp(tui.RoleCell, author)}},
+			"age":    {Spans: []tui.Span{sp(tui.RoleAge, age)}},
+			"size":   size,
+			"status": status,
+		},
+	}
+}
+
+// lanes carries every state the grid draws: the priority mark, a stack's connectors, a ref that
+// needs its owner, a fact not yet known, a status in two lengths, a dim lane, and a folded one.
 func lanes() []tui.Section {
+	ready := status("✓", tui.RoleGood, "approved", "approved, checks passing")
+	waits := status("○", tui.RoleMuted, "awaiting", "awaiting review")
+	pending := tui.Pending()
+
 	return []tui.Section{
-		{Name: "ready to merge", Rows: []tui.Row{{
-			Key: "o/a#1", Left: "o/a#1", Mid: "kyleking", Age: "2d", Why: "approved, checks passing",
-			Under: "feat(inbox): order the queue by lane",
-		}}},
-		{Name: "new for you", Rows: []tui.Row{
-			{
-				Key: "o/b#2", Left: "o/b#2", Mid: "maria", Age: "9d", Who: "+ 2", Why: "priority", Urgent: true,
-				Under: "fix: a hotfix for the lease",
-			},
-			{
-				Key: "o/c#3", Left: "o/c#3", Mid: "sam", Age: "4d", Who: "only you", Tail: "stack 1/2",
-				Under: "chore: bump",
-			},
-			{
-				Key: "o/c#7", Left: "o/c#7", Mid: "sam", Age: "4d", Who: "only you", Branch: "  └ 2/2",
-				Under: "feat: use the bump",
-			},
+		{Name: "ready to merge", Rows: []tui.Row{
+			gridRow("o/a#1", "", " ", "feat(inbox): ", "order the queue by lane", "kyleking", "2d",
+				size("+57", "-0"), ready, false),
 		}},
-		{Name: "waiting on others", Recedes: true, Rows: []tui.Row{{
-			Key: "o/d#4", Left: "o/d#4", Mid: "kyleking", Age: "1d", Who: "maria +1", Why: "awaiting review",
-			Under: "docs: say why", Dim: true,
-		}}},
+		{Name: "new for you", Rows: []tui.Row{
+			gridRow("o/b#2", "", "!", "fix: ", "a hotfix for the lease", "maria", "9d",
+				pending, tui.Cell{Spans: []tui.Span{sp(tui.RoleCell, "priority")}}, false),
+			gridRow("o/c#3", "o/", "╭", "chore: ", "bump a dependency whose name is long enough to be cut", "sam", "4d",
+				pending, pending, false),
+			gridRow("o/c#7", "o/", "╰", "feat: ", "use the bump", "sam", "4d", pending, tui.Cell{}, false),
+			gridRow("p/c#8", "p/", " ", "", "no conventional prefix on this one", "lee", "3d", size("+1.2k", "-340"),
+				tui.Cell{Spans: []tui.Span{sp(tui.RoleMuted, "◌"), sp(tui.RoleCell, " draft")}}, false),
+		}},
+		{Name: "waiting on others", Recedes: true, Rows: []tui.Row{
+			gridRow("o/d#4", "", " ", "docs: ", "say why", "kyleking", "1d", size("+1", "-1"), waits, true),
+		}},
 		{Name: "merged", Fold: true, Recedes: true, Rows: []tui.Row{{Key: "o/e#5", Left: "o/e#5"}}},
 	}
 }
@@ -1048,10 +1108,12 @@ func lanes() []tui.Section {
 func TestLaneFrames(t *testing.T) {
 	t.Parallel()
 
-	for _, size := range []struct{ width, height int }{{80, 20}, {120, 20}, {200, 20}, {120, 34}} {
-		name := strconv.Itoa(size.width)
-		if size.height != 20 {
-			name += "x" + strconv.Itoa(size.height)
+	for _, dims := range []struct{ width, height int }{
+		{80, 20}, {100, 20}, {120, 20}, {160, 20}, {200, 20}, {120, 34},
+	} {
+		name := strconv.Itoa(dims.width)
+		if dims.height != 20 {
+			name += "x" + strconv.Itoa(dims.height)
 		}
 
 		t.Run(name, func(t *testing.T) {
@@ -1059,7 +1121,7 @@ func TestLaneFrames(t *testing.T) {
 
 			l := tui.NewTabs([]tui.Tab{
 				{
-					Name: "inbox", Sections: lanes,
+					Name: "inbox", Sections: lanes, Columns: laneColumns,
 					Badge: func() tui.Badge { return tui.Badge{Label: "4"} },
 					State: func() tui.State { return tui.State{Text: "sorted by triage"} },
 					Hints: [][2]string{{"enter", "review"}, {"M", "merge"}},
@@ -1076,10 +1138,84 @@ func TestLaneFrames(t *testing.T) {
 					Badge: func() tui.Badge { return tui.Badge{Label: "2", Alert: true} },
 				},
 			}, 0)
-			l.Update(tea.WindowSizeMsg{Width: size.width, Height: size.height})
+			l.Update(tea.WindowSizeMsg{Width: dims.width, Height: dims.height})
 			l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
 
 			golden.RequireEqual(t, []byte(plain(l.ListFrame())))
 		})
 	}
+}
+
+// The cursor takes the margin's second cell and a background, and nothing else
+// on the row moves: every column sits where it did with the cursor elsewhere.
+func TestTheCursorLeavesTheGridWhereItWas(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{80, 100, 120, 160} {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
+			frame := func(moves int) []string {
+				l := tui.NewTabs([]tui.Tab{{Name: "inbox", Sections: lanes, Columns: laneColumns}}, 0)
+				l.Update(tea.WindowSizeMsg{Width: width, Height: 34})
+
+				for range moves {
+					l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+				}
+
+				return strings.Split(strings.ReplaceAll(plain(l.ListFrame()), "▌", " "), "\n")
+			}
+
+			lit := tui.NewTabs([]tui.Tab{{Name: "inbox", Sections: lanes, Columns: laneColumns}}, 0)
+			lit.Update(tea.WindowSizeMsg{Width: width, Height: 34})
+			lit.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+
+			if bare := unlitRunes(lit.ListFrame()); bare != "" {
+				t.Errorf("the lit row has cells with no background: %q", bare)
+			}
+
+			first, second := frame(0), frame(2)
+			for i := range first {
+				if first[i] != second[i] {
+					t.Errorf("line %d moved with the cursor:\n%q\n%q", i, first[i], second[i])
+				}
+			}
+		})
+	}
+}
+
+// unlitRunes is the text of the first lit line that is drawn with no background,
+// which is a reset inside the row that ended the band early.
+func unlitRunes(frame string) string {
+	for _, line := range strings.Split(frame, "\n") {
+		if !strings.Contains(line, "\x1b[48;") {
+			continue
+		}
+
+		var bare strings.Builder
+
+		lit := false
+
+		for rest := line; rest != ""; {
+			if strings.HasPrefix(rest, "\x1b[") {
+				end := strings.IndexByte(rest, 'm')
+				params := rest[2:end]
+				lit = (lit && params != "" && params != "0") || strings.Contains(params, "48;")
+				rest = rest[end+1:]
+
+				continue
+			}
+
+			r, n := utf8.DecodeRuneInString(rest)
+			if !lit {
+				bare.WriteRune(r)
+			}
+
+			rest = rest[n:]
+		}
+
+		return bare.String()
+	}
+
+	return ""
 }

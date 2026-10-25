@@ -70,6 +70,10 @@ type Row struct {
 	// Unread marks a row that has moved since it was last read, which is the
 	// one distinction a queue exists to draw.
 	Unread bool
+	// Cells is the row on a grid, keyed by the Key of the column each fills. It
+	// is read only where the tab names Columns, and a row carrying none there
+	// draws nothing in them.
+	Cells map[string]Cell
 	// Detail is the whole conversation, shown when the row is expanded. A list
 	// whose rows carry none is not expandable.
 	Detail []string
@@ -281,6 +285,9 @@ type List struct {
 	tabs  []Tab
 	at    int
 	views []view
+	// columns is the current tab's grid, nil where its rows are drawn on the
+	// older lines.
+	columns func() []table.Column
 
 	status  string
 	failed  bool
@@ -1042,7 +1049,7 @@ func (l *List) appendSection(i int, s *Section) {
 
 		l.lines = append(l.lines, listLine{row: row})
 
-		if row.Under != "" {
+		if row.Under != "" && row.Cells == nil {
 			l.lines = append(l.lines, listLine{row: row, under: true})
 		}
 

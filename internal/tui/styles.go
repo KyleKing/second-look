@@ -48,6 +48,9 @@ type styles struct {
 	ok        lipgloss.Style
 	merged    lipgloss.Style
 	priority  lipgloss.Style
+	// placeholder draws the dot standing in for a fact not yet known. It is
+	// decoration, so it is the one queue face the contrast test does not measure.
+	placeholder lipgloss.Style
 	// band is the background behind the row under the cursor, and nothing else:
 	// a face drawn over it supplies the foreground.
 	band lipgloss.Style
@@ -110,6 +113,7 @@ func newStyles() styles {
 		ok:           sk.Success,
 		merged:       base.Foreground(p.Mauve),
 		priority:     base.Foreground(p.Peach).Bold(true),
+		placeholder:  base.Foreground(p.Overlay0),
 		band:         sk.Band,
 		rungs:        newLadder(p, accent(p)),
 		badge:        sk.Badge,
@@ -162,8 +166,8 @@ type rung struct{ dim, lit lipgloss.Style }
 
 // ladder is every face a queue row draws text in.
 type ladder struct {
-	title, waiting, cell, age, mark, add, remove     rung
-	good, warn, bad, muted, merged, priority, unread rung
+	title, waiting, cell, age, mark, add, remove            rung
+	good, fresh, warn, bad, muted, merged, priority, unread rung
 }
 
 func newLadder(p theme.Palette, accent color.Color) ladder {
@@ -182,6 +186,7 @@ func newLadder(p theme.Palette, accent color.Color) ladder {
 		add:      fg(p.Green, p.Green),
 		remove:   fg(p.Red, p.Red),
 		good:     fg(p.Green, p.Green),
+		fresh:    fg(p.Sapphire, p.Sapphire),
 		warn:     fg(p.Yellow, p.Yellow),
 		bad:      fg(p.Red, p.Red),
 		muted:    fg(p.Overlay1, p.Subtext0),
@@ -196,7 +201,7 @@ func (l *ladder) all() map[string]*rung {
 	return map[string]*rung{
 		"title": &l.title, "waiting": &l.waiting, "cell": &l.cell, "age": &l.age,
 		"mark": &l.mark, "add": &l.add, "remove": &l.remove, "good": &l.good,
-		"warn": &l.warn, "bad": &l.bad, "muted": &l.muted, "merged": &l.merged,
+		"fresh": &l.fresh, "warn": &l.warn, "bad": &l.bad, "muted": &l.muted, "merged": &l.merged,
 		"priority": &l.priority, "unread mark": &l.unread,
 	}
 }
