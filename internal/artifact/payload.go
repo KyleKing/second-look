@@ -52,8 +52,8 @@ func (e *DraftError) Error() string {
 		" still draft; each has to be ready or skipped before this posts"
 }
 
-// TodoError reports comments an agent still owes work on, which posting refuses
-// for the same reason a draft does: it is unfinished.
+// TodoError reports the review's own comments an agent still owes work on, which
+// posting refuses for the same reason a draft does: it is unfinished.
 type TodoError struct{ Comments []Comment }
 
 func (e *TodoError) Error() string {
@@ -159,7 +159,7 @@ func (r *Review) Payload() (any, []ReplyPayload, error) {
 		return nil, nil, &DraftError{Comments: drafts}
 	}
 
-	if todos := r.Todos(); len(todos) > 0 {
+	if todos := r.todosWhere(false); len(todos) > 0 {
 		return nil, nil, &TodoError{Comments: todos}
 	}
 

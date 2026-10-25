@@ -50,8 +50,7 @@ func (m *Model) dispatch() tea.Cmd {
 	}
 
 	if m.dispatcher == nil {
-		m.say(fmt.Sprintf("%s written to %s; nothing is configured to read it",
-			plural(len(owed), "todo"), path), false)
+		m.say(unread(len(owed), path), false)
 
 		return nil
 	}
@@ -78,21 +77,29 @@ func (m *Model) setText() string {
 
 // writeSet leaves the todo set where a hand-off always records it.
 func (m *Model) writeSet() (string, error) {
-	if m.store == "" {
+	return writeSetTo(m.store, m.review.Number, m.setText())
+}
+
+func writeSetTo(store string, number int, text string) (string, error) {
+	if store == "" {
 		return "", errNoStore
 	}
 
-	path := artifact.TodoPath(m.store, m.review.Number)
+	path := artifact.TodoPath(store, number)
 
 	if err := os.MkdirAll(filepath.Dir(path), setDirPerm); err != nil {
 		return "", fmt.Errorf("writing the todo set: %w", err)
 	}
 
-	if err := os.WriteFile(path, []byte(m.setText()), setFilePerm); err != nil {
+	if err := os.WriteFile(path, []byte(text), setFilePerm); err != nil {
 		return "", fmt.Errorf("writing the todo set: %w", err)
 	}
 
 	return path, nil
+}
+
+func unread(n int, path string) string {
+	return fmt.Sprintf("%s written to %s; nothing is configured to read it", plural(n, "todo"), path)
 }
 
 type dispatchedMsg struct {

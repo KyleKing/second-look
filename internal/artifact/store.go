@@ -184,10 +184,28 @@ func (r *Review) Upsert(c Comment) {
 // remain, so an unfinished thought is never published and never quietly dropped.
 func (r *Review) Drafts() []Comment { return r.withStatus(StatusDraft) }
 
-// Todos returns the comments an agent still owes work on. Posting refuses while
-// any remain for the same reason a draft refuses, and handing work to an agent
-// does not, because that is not posting.
+// Todos returns the comments an agent still owes work on, replies included.
 func (r *Review) Todos() []Comment { return r.withStatus(StatusTodo) }
+
+// TodoReplies returns the todo comments that answer a thread. They post like
+// any reply: the work they name is handed off after the post.
+func (r *Review) TodoReplies() []Comment { return r.todosWhere(true) }
+
+// todosWhere splits todos into replies and the review's own comments, of which
+// only the latter hold a post back.
+func (r *Review) todosWhere(replies bool) []Comment {
+	all := r.withStatus(StatusTodo)
+
+	var out []Comment
+
+	for i := range all {
+		if (all[i].InReplyTo != 0) == replies {
+			out = append(out, all[i])
+		}
+	}
+
+	return out
+}
 
 func (r *Review) withStatus(status string) []Comment {
 	var out []Comment

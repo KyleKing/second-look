@@ -18,6 +18,7 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/ghrun"
+	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/prepared"
 	"github.com/kyleking/second-look/internal/resolve"
 )
@@ -279,6 +280,66 @@ func postReplies(
 	}
 
 	return nil
+}
+
+// LabelArgs is the gh call that adds a label to a pull request. The issues
+// endpoint creates a label the repository lacks, where `gh pr edit` refuses.
+func LabelArgs(r *artifact.Review, label string) []string {
+	return []string{
+		"api", "--method", "POST",
+		fmt.Sprintf("/repos/%s/%s/issues/%d/labels", r.Owner, r.Repo, r.Number),
+		"-f", "labels[]=" + label,
+	}
+}
+
+// Label adds a label to the review's pull request.
+func Label(ctx context.Context, run ghrun.Runner, root string, r *artifact.Review, label string) error {
+	if err := run.Run(ctx, root, LabelArgs(r, label)...); err != nil {
+		return fmt.Errorf("adding label %s: %w", label, err)
+	}
+
+	return nil
+}
+
+// Summary is the one line that says what Run sent.
+func Summary(r *artifact.Review) string {
+	var comments, replies, resolved int
+
+	for i := range r.Comments {
+		c := &r.Comments[i]
+
+		switch {
+		case c.Status == artifact.StatusSkip:
+		case c.InReplyTo == 0:
+			comments++
+		default:
+			replies++
+
+			if c.Resolve {
+				resolved++
+			}
+		}
+	}
+
+	var sent []string
+	if comments > 0 {
+		sent = append(sent, humanize.Plural(comments, "comment"))
+	}
+
+	if replies > 0 {
+		sent = append(sent, humanize.Plural(replies, "reply", "replies"))
+	}
+
+	out := "posted the review"
+	if len(sent) > 0 {
+		out = "posted " + strings.Join(sent, " and ")
+	}
+
+	if resolved > 0 {
+		out += fmt.Sprintf(" · resolved %d", resolved)
+	}
+
+	return out
 }
 
 func reviewEndpoint(r *artifact.Review) string {

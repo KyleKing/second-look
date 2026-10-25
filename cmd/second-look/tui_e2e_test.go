@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/seen"
 )
 
@@ -242,7 +244,7 @@ func TestReviewScreenSubmits(t *testing.T) {
 	// the only way to post: there is no key for "send it as whatever it says".
 	sc.press("S")
 	sc.press("c")
-	sc.await("posted to KyleKing/second-look #2")
+	sc.await("posted 4 comments")
 
 	sc.press("q")
 
@@ -264,6 +266,48 @@ func TestReviewScreenSubmits(t *testing.T) {
 
 	if _, err := os.Stat(artifact.Path(stored(t, dir), 2)); !os.IsNotExist(err) {
 		t.Error("the prepared review outlived the submit")
+	}
+
+	s.RequireAllPlayed(t)
+}
+
+// A todo reply posts like any reply, and the extra step names who gets the fix:
+// w posts it and then labels the pull request, which is the one added call.
+func TestReviewScreenHandsATodoReplyToWatchDoggo(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	label := post.LabelArgs(&artifact.Review{Owner: "KyleKing", Repo: "second-look", Number: 2}, "watch-doggo-fix")
+
+	s := ghcassette.Replay(t, deriveFrom(t, "post-reply", "todo-reply", func(c *ghcassette.Cassette) {
+		inCheckout(c)
+		restamp(c, sha)
+
+		all := c.Interactions
+		c.Interactions = slices.Concat(all[:reads], threadInteraction(t),
+			[]ghcassette.Interaction{commitsInteraction(nil, nil)}, all,
+			[]ghcassette.Interaction{{Args: label, Stdout: "[]"}})
+	}))
+
+	raw, err := os.ReadFile(filepath.Join("testdata", "review", "reply.toml"))
+	if err != nil {
+		t.Fatalf("reading the fixture review: %v", err)
+	}
+
+	todo := strings.NewReplacer(fixtureHeadSHA, sha, `status = "ready"`, `status = "todo"`).Replace(string(raw))
+	write(t, artifact.Path(stored(t, dir), 2), []byte(todo))
+
+	sc := openReview(t, s, dir, "2")
+	sc.await("testdata/fixture/sample.go")
+	sc.press("S")
+	sc.press("c")
+	sc.await("fixes go to")
+	sc.press("w")
+	sc.await("posted 1 reply · watch-doggo-fix added")
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("the screen exited %d:\n%s", code, sc.text())
 	}
 
 	s.RequireAllPlayed(t)

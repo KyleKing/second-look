@@ -1,0 +1,58 @@
+version = 1
+host = "github.com"
+owner = "KyleKing"
+repo = "second-look"
+number = 2
+head_sha = "6bc1218809a6faf83bc266c7a10b6b096f814a74"
+event = "COMMENT"
+body = ""
+note = ""
+
+[[comment]]
+id = "reply-4100000001"
+path = "testdata/fixture/sample.go"
+line = 19
+side = "RIGHT"
+body = "will fix: wrap the error with the path."
+in_reply_to = 4100000001
+thread_id = "PRRT_demo_wrap"
+origin = "claude"
+severity = "blocker"
+status = "todo"
+
+[[comment]]
+id = "reply-4100000002"
+path = "testdata/fixture/sample.go"
+line = 28
+side = "RIGHT"
+body = "will fix: return the failure with the offending line in the message."
+in_reply_to = 4100000002
+thread_id = "PRRT_demo_skip"
+origin = "claude"
+severity = "major"
+status = "todo"
+
+[[comment]]
+id = "reply-4100000003"
+path = "testdata/fixture/sample.go"
+line = 44
+side = "RIGHT"
+body = "won't fix because the loop keeps the empty trailing line that strings.Split would drop."
+in_reply_to = 4100000003
+thread_id = "PRRT_demo_split"
+resolve = true
+origin = "claude"
+severity = "nit"
+status = "ready"
+
+[[comment]]
+id = "reply-4100000004"
+path = "testdata/fixture/sample.go"
+line = 56
+side = "RIGHT"
+body = "Hours. I will say so in the file header."
+in_reply_to = 4100000004
+thread_id = "PRRT_demo_units"
+origin = "claude"
+severity = "question"
+status = "ready"

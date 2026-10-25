@@ -134,8 +134,8 @@ type Comment struct {
 	Severity string `json:"severity" toml:"severity"`
 
 	// Status gates posting. A draft blocks the submit rather than posting or
-	// vanishing, a todo blocks it because an agent still owes work here, and a
-	// skip records a decision not to comment.
+	// vanishing, a todo blocks it unless it is a reply (an agent still owes
+	// work here), and a skip records a decision not to comment.
 	Status string `json:"status" toml:"status"`
 
 	// SkipReason explains a skip, so a declined finding reads as considered.

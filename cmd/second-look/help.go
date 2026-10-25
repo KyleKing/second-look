@@ -478,7 +478,15 @@ CONFIG
       and in second-look status; a session absent from it ended. Unset,
       nothing probes.
 
-  limit, prefetch, generated, dispatch, resume, and agents are top-level keys, so they
+  fix_label = "watch-doggo-fix"
+      The label S adds to the pull request when todo replies go to Watch Doggo.
+      Unset, it is watch-doggo-fix.
+
+  fix_owners = ["coverbase"]
+      Repository owners whose todo replies go to Watch Doggo when the submit
+      step is answered with enter. Unset, enter hands them to the local agent.
+
+  limit, prefetch, generated, dispatch, resume, agents, fix_label, and fix_owners are top-level keys, so they
   belong above the first [[section]]: TOML reads a bare key after a table header
   as part of that table, where it is refused as a key the schema does not know.
 

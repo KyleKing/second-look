@@ -141,3 +141,33 @@ func TestCommentRefusesAnIDTheReviewDoesNotCarry(t *testing.T) {
 		t.Fatal("an unknown id was accepted")
 	}
 }
+
+func TestFixesListsEachTodoReplyWithItsFinding(t *testing.T) {
+	t.Parallel()
+
+	r := review()
+	r.HeadSHA = "abc123"
+	r.Comments = []artifact.Comment{
+		{ID: "reply-1", InReplyTo: 1, Body: "will fix: wrap it", Status: artifact.StatusTodo},
+		{ID: "reply-2", InReplyTo: 2, Body: "thanks", Status: artifact.StatusReady},
+		{ID: "own", Path: "pkg/read.go", Line: 4, Body: "my own note", Status: artifact.StatusTodo},
+	}
+
+	ts := []threads.Thread{
+		{Path: "pkg/read.go", Line: 4, Notes: []threads.Note{{ID: 1, Author: "doggo", Body: "Wrap the error."}}},
+		{Path: "pkg/other.go", Line: 9, Notes: []threads.Note{{ID: 2, Author: "doggo", Body: "Rename."}}},
+	}
+
+	want := `acme/widget#7 at abc123
+1 review finding the author agreed to fix. The replies are already posted.
+
+1. pkg/read.go:4
+finding:
+  Wrap the error.
+reply:
+  will fix: wrap it
+`
+	if got := brief.Fixes(r, ts); got != want {
+		t.Errorf("prompt =\n%s\nwant\n%s", got, want)
+	}
+}

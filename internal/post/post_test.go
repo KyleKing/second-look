@@ -129,6 +129,20 @@ func TestRun(t *testing.T) {
 			},
 		},
 		{
+			name:   "a todo reply posts like any reply",
+			review: review(artifact.Comment{ID: "5", InReplyTo: 11, Body: "will fix", Status: artifact.StatusTodo}),
+			wantEndpoints: []string{
+				"/repos/kyleking/second-look/pulls/42/reviews",
+				"/repos/kyleking/second-look/pulls/42/comments/11/replies",
+			},
+			wantFileGone: true,
+		},
+		{
+			name:    "a todo comment of the review's own blocks the post and nothing is sent",
+			review:  review(inlineComment("1", artifact.StatusTodo)),
+			wantErr: "still todo",
+		},
+		{
 			name:    "a reply with no text blocks the post and nothing is sent",
 			review:  review(artifact.Comment{ID: "4", InReplyTo: 5, Status: artifact.StatusReady}),
 			wantErr: "a reply with no text",
@@ -198,5 +212,29 @@ func checkArtifact(t *testing.T, path string, wantGone bool) {
 		t.Fatalf("artifact file still exists after a successful post: err = %v", err)
 	case !wantGone && err != nil:
 		t.Fatalf("artifact file missing when it should remain: %v", err)
+	}
+}
+
+func TestSummaryAndLabelNameWhatWasSent(t *testing.T) {
+	t.Parallel()
+
+	r := review(
+		inlineComment("1", artifact.StatusReady),
+		artifact.Comment{ID: "2", InReplyTo: 9, Body: "will fix", Status: artifact.StatusTodo},
+		artifact.Comment{ID: "3", InReplyTo: 8, Body: "no", Status: artifact.StatusReady, Resolve: true},
+		inlineComment("4", artifact.StatusSkip),
+	)
+
+	if got, want := post.Summary(r), "posted 1 comment and 2 replies · resolved 1"; got != want {
+		t.Errorf("summary = %q, want %q", got, want)
+	}
+
+	if got := post.Summary(review()); got != "posted the review" {
+		t.Errorf("an empty review summarized as %q", got)
+	}
+
+	want := "api --method POST /repos/kyleking/second-look/issues/42/labels -f labels[]=watch-doggo-fix"
+	if got := strings.Join(post.LabelArgs(r, "watch-doggo-fix"), " "); got != want {
+		t.Errorf("label call = %q, want %q", got, want)
 	}
 }

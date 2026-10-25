@@ -1,0 +1,1 @@
+dispatch = ["sh", "-c", "echo 'handed over:'; cat \"$1\"", "second-look-demo"]

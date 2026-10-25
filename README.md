@@ -227,6 +227,12 @@ an approval does not read afterwards as a comment. There is no key for sending i
 whatever the file already says, because that is the decision the confirmation exists to
 take. `o` opens the pull request in a browser, which is where to go the moment it posts.
 
+A review carrying a reply marked todo asks one more thing before it posts: `w` labels the
+pull request for Watch Doggo (`fix_label` in `config.toml`, `watch-doggo-fix` by default),
+`l` hands the findings to the local agent `dispatch` names, and `n` hands them to nobody.
+`enter` takes `w` for the owners in `fix_owners` and `l` for everyone else. The replies
+post either way, and `esc` backs out without posting.
+
 `second-look threads` is the queue of conversations across every open pull request you
 are involved in, in three buckets: what moved since you last looked, what is still
 waiting on you, then what is waiting on somebody else. A conversation is yours when the

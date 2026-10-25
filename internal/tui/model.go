@@ -199,6 +199,8 @@ type Model struct {
 	branchDeleted bool
 	deleting      bool
 	asking        confirmKind
+	fixEvent      string
+	fixes         Fixes
 	searching     bool
 	view          viewMode
 	// editing is the in-place editor, nil when nothing is being written.
@@ -583,6 +585,8 @@ type sentMsg struct {
 type submittedMsg struct {
 	summary string
 	err     error
+	// handErr is a hand-off that failed after the review posted.
+	handErr error
 }
 
 // mergedMsg is what the merge answered with.
@@ -2889,7 +2893,8 @@ func (m *Model) askSubmit() {
 	m.say("S  "+plural(c.ready, "comment")+"  "+hintLine(events()), false)
 }
 
-// submitAs answers the second key of the submit chord.
+// submitAs answers the second key of the submit chord. A review with a todo
+// reply asks one more thing before it posts: who gets the fixes.
 func (m *Model) submitAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var event string
 
@@ -2906,6 +2911,16 @@ func (m *Model) submitAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if len(m.review.TodoReplies()) > 0 {
+		m.askFixesTo(event, msg.String())
+
+		return m, nil
+	}
+
+	return m.submitWith(event, handNobody)
+}
+
+func (m *Model) submitWith(event string, hand handoff) (tea.Model, tea.Cmd) {
 	// The artifact records what was sent, so a review posted as an approval
 	// does not read afterwards as one posted as a comment.
 	if m.review.Event != event {
@@ -2923,12 +2938,17 @@ func (m *Model) submitAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	m.say("posting as "+event+"…", false)
 
-	ctx, review := m.ctx, m.review
+	ctx, review, handOff := m.ctx, m.review, m.handOff(m.ctx, hand)
 
 	return m, func() tea.Msg {
 		summary, err := m.submit(ctx, review)
+		if err != nil {
+			return submittedMsg{summary: summary, err: err}
+		}
 
-		return submittedMsg{summary: summary, err: err}
+		summary, handErr := withHandOff(summary, handOff)
+
+		return submittedMsg{summary: summary, handErr: handErr}
 	}
 }
 
@@ -2942,6 +2962,7 @@ const (
 	askMerge
 	askDeleteBranch
 	askAdvisories
+	askFixes
 )
 
 // askMergeNow asks before it merges. A merge is the least reversible thing this
@@ -2978,6 +2999,8 @@ func (m *Model) answer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.answerDeleteBranch(msg)
 	case askAdvisories:
 		return m.answerAdvisories(msg)
+	case askFixes:
+		return m.answerFixes(msg)
 	default:
 		return m, nil
 	}
@@ -3117,7 +3140,7 @@ func (m *Model) applySubmit(msg submittedMsg) {
 		hint += "D deletes " + m.review.HeadRef + " locally, "
 	}
 
-	m.say(hint+"q leaves", false)
+	m.say(hint+"q leaves", msg.handErr != nil)
 }
 
 // applyMerge reports the merge. A failure is carried out of the screen the way

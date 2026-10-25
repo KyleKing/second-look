@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -103,6 +104,13 @@ type Config struct {
 	// Sections replace the built-in buckets outright when the file names any.
 	// Merging the two would put rows in front of you that no query asked for.
 	Sections []Section `toml:"section"`
+	// FixLabel is the pull request label that hands todo replies to Watch
+	// Doggo. Unset, it is DefaultFixLabel.
+	FixLabel string `toml:"fix_label,omitempty"`
+	// FixOwners are the repository owners whose todo replies go to Watch Doggo
+	// when the submit step is answered with enter. Unset, enter hands them to
+	// the local agent.
+	FixOwners []string `toml:"fix_owners,omitempty"`
 	// Generated names files this repository writes by machine, added to the
 	// built-in patterns rather than replacing them: a monorepo's own generated
 	// tree does not stop a lockfile being one. A trailing slash means a
@@ -148,6 +156,25 @@ type Config struct {
 	// Plans are the reading rules each repository keeps: what folds, what
 	// never does, what reads after what, and what reads in which mode.
 	Plans []plan.Rules `toml:"plan,omitempty"`
+}
+
+// DefaultFixLabel is the label a pull request carries once its todo replies
+// are handed to Watch Doggo.
+const DefaultFixLabel = "watch-doggo-fix"
+
+// FixLabelName is the label that hands todo replies to Watch Doggo.
+func (c *Config) FixLabelName() string {
+	if c.FixLabel == "" {
+		return DefaultFixLabel
+	}
+
+	return c.FixLabel
+}
+
+// FixesToWatchDoggo reports whether todo replies on owner's repositories go to
+// Watch Doggo by default.
+func (c *Config) FixesToWatchDoggo(owner string) bool {
+	return slices.ContainsFunc(c.FixOwners, func(o string) bool { return strings.EqualFold(o, owner) })
 }
 
 // PriorityLabels is the labels that put a row first.
