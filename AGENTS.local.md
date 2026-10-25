@@ -112,17 +112,14 @@ that variable in the test process. `mise run test:coverage-min` collects both ha
 covdata directories and merges them, which is the only format `go tool covdata merge`
 takes. It runs in CI through `ci:project`.
 
-## The README recording
+## The README recordings
 
-`mise run demo` builds the binary and runs `demo/demo.tape` through VHS. The tape drives
-`demo/run.sh`, which copies `demo/fixture/.second-look` into a throwaway checkout and puts
-`demo/forge/gh` ahead of the real one. That stand-in answers the single `pr view` the screen
-makes to open a cached review and refuses everything else, so a recording reaches no
-network, needs no auth, and cannot touch a real review. A demo that failed because the
-fixture's head moved would be a fixture problem, not a network one.
-
-The gif is committed, so regenerate it whenever the screen changes shape. Keep the tape's
-sleeps: a frame nobody can read is not a demo.
+`mise run demo` builds the binary and runs every `demo/*.tape` through VHS. `triage.tape`
+drives `demo/scene.sh` (inbox, then judge) against the stand-in `gh`, so it reaches no
+network. `reading.tape` and `stills.tape` open the outline scene offline, then run
+`second-look local -r <commit>` on this repository's own commits 8cc3241 and 9066a8f, so
+they need gopls on PATH and those commits in the checkout. The gifs and `docs/images/*.png`
+are committed: regenerate them when the screen changes shape, and keep the sleeps.
 
 ## Commits behind the first frame
 
@@ -230,9 +227,8 @@ line. Without the second, every pass ran to its 30-second deadline.
 
 The suite and the demo turn the pass off the way a laptop without a server does, with a
 `[[server]]` override claiming the extensions and naming a command nothing has: `settle`
-in `e2e_test.go` for the pty tests, and a written config in `demo/run.sh` and
-`demo/scene.sh`. A configured server that is not installed disables its extensions rather
-than falling back, because silently running a different server than the one named is
+in `e2e_test.go` for the pty tests, and a written config in `demo/scene.sh`. A configured
+server that is not installed disables its extensions rather than falling back, because silently running a different server than the one named is
 worse. The pass itself is covered against a stub server in `internal/diag/lsp` and against
 a real gopls in `cmd/second-look/probe_test.go`, which skips where gopls is not installed.
 
