@@ -82,8 +82,8 @@ func (m *Model) verdictOfThread(t int) verdict {
 	return vNone
 }
 
-// toJudge counts the open threads nobody has ruled on. The pull request's own
-// author is the one answering findings, so a thread they opened is not one.
+// toJudge counts the open threads nobody has ruled on. A thread the viewer
+// opened is theirs to defend rather than to judge.
 func (m *Model) toJudge() int {
 	return m.toJudgeIn(func(string) bool { return true })
 }
@@ -297,8 +297,13 @@ var draftBrief = map[verdict]string{
 	vTodo:    `They will fix it: open with "will fix:" and say what changes.`,
 }
 
+// isMine is a thread the viewer opened. With no viewer cached nobody's is.
+func (m *Model) isMine(t *threads.Thread) bool {
+	return m.about.Viewer != "" && len(t.Notes) > 0 && t.Notes[0].Author == m.about.Viewer
+}
+
 func (m *Model) isFinding(t *threads.Thread) bool {
-	return !t.Resolved && len(t.Notes) > 0 && t.Notes[0].Author != m.about.Author
+	return !t.Resolved && len(t.Notes) > 0 && !m.isMine(t)
 }
 
 func (m *Model) judgeWord() string {

@@ -11,6 +11,9 @@ import (
 //nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 type response struct {
 	Data struct {
+		Viewer struct {
+			Login string `json:"login"`
+		} `json:"viewer"`
 		Repository struct {
 			PullRequest struct {
 				Title  string `json:"title"`
@@ -102,7 +105,7 @@ func (r *response) about() About {
 	pr := &r.Data.Repository.PullRequest
 
 	out := About{
-		Title: pr.Title, Author: pr.Author.Login, Body: pr.Body,
+		Title: pr.Title, Author: pr.Author.Login, Body: pr.Body, Viewer: r.Data.Viewer.Login,
 		Added: pr.Additions, Removed: pr.Deletions,
 	}
 

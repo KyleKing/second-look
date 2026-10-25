@@ -45,12 +45,15 @@ type Reaction struct {
 //
 // It comes back from the same query the threads do, so it costs no extra read.
 type About struct {
-	Title   string   `json:"title,omitempty"`
-	Author  string   `json:"author,omitempty"`
-	Body    string   `json:"body,omitempty"`
-	Labels  []string `json:"labels,omitempty"`
-	Added   int      `json:"added,omitempty"`
-	Removed int      `json:"removed,omitempty"`
+	Title  string   `json:"title,omitempty"`
+	Author string   `json:"author,omitempty"`
+	Body   string   `json:"body,omitempty"`
+	Labels []string `json:"labels,omitempty"`
+	Added  int      `json:"added,omitempty"`
+	// Viewer is the login the forge answers to, which is who a thread was
+	// opened by when it is "mine". A cache written before it was read has none.
+	Viewer  string `json:"viewer,omitempty"`
+	Removed int    `json:"removed,omitempty"`
 	// Comments are the pull request's own, newest last. A bot's coverage
 	// report, a preview build, and an agent's summary all arrive here rather
 	// than in a review thread.
@@ -109,6 +112,7 @@ func Replyable(ts []Thread) []ForReply {
 // anchors, whether it is still live, and the database ids a reply needs, plus
 // the pull request's own context, which is free in the same round trip.
 const query = `query($owner:String!,$repo:String!,$number:Int!){
+  viewer{login}
   repository(owner:$owner,name:$repo){
     pullRequest(number:$number){
       title

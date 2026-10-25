@@ -205,3 +205,24 @@ func TestVerdictFrames(t *testing.T) {
 		})
 	}
 }
+
+// Only a thread somebody else opened is the viewer's to judge, whoever wrote
+// the pull request.
+func TestOnlyOthersThreadsAreToJudge(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := modelFor(t, &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}, patch, tui.WithAbout(threads.About{Author: "octocat", Viewer: "KyleKing"}),
+		tui.WithThreads([]threads.Thread{
+			finding("a", 15, "KyleKing", "mine, on someone else's change"),
+			finding("b", 16, "octocat", "the author's own note"),
+			finding("c", 17, "watch-doggo", "wrap the error"),
+		}))
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "◆ 2 to judge") {
+		t.Errorf("the header should count the author's and the bot's threads only:\n%s", got)
+	}
+}
