@@ -216,6 +216,10 @@ Three harness rules each cost a session:
 - Queue rows tail-cut their `Left` cell, so `kyleking/aragonite#100` can render as
   `aragonite#100` at a narrow width. Await the substring that survives the narrowest frame
   the test drives
+- A status that changes in place is never in the stream whole. A redraw writes only
+  the cells that differ, so `showing 0 of 11` becoming `showing 1 of 15` writes
+  `1 of 15`. Wait on a row, which is written whole where the cell was blank, and
+  use `awaitPlayed` before quitting a screen that is still loading
 
 ## jj in this repository
 

@@ -184,6 +184,23 @@ func (s *screen) awaitFrom(mark int, want string) int {
 	return 0
 }
 
+// awaitPlayed blocks until the program has made want recorded gh calls, because a
+// screen fills in while its searches still run and quitting early drops the rest.
+func (s *screen) awaitPlayed(session *ghcassette.Session, want int) {
+	s.t.Helper()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(session.Played(s.t)) >= want {
+			return
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	s.t.Fatalf("waiting for %d gh calls, saw %d; the screen wrote:\n%s", want, len(session.Played(s.t)), s.text())
+}
+
 func (s *screen) press(keys string) {
 	s.t.Helper()
 

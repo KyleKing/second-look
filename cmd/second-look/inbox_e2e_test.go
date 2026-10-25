@@ -386,7 +386,8 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 
 	const body = "Rebased this onto main, CI is green now."
 
-	s := ghcassette.Replay(t, withComment(t, body))
+	cassette := withComment(t, body)
+	s := ghcassette.Replay(t, cassette)
 	home := quietHome(t)
 
 	editor := filepath.Join(t.TempDir(), "editor")
@@ -410,13 +411,20 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 	sc.press("m")
 	back := sc.awaitFrom(from, "commented on kyleking/aragonite#100")
 
-	// The queue comes back narrowed the way it was left, which is what makes a
-	// comment a detour rather than the end of the session. Both draws carry the
-	// same row, so the wait for the second is anchored to where the first ended
-	// rather than a separately timed mark, which could land after the redraw it
-	// means to catch.
-	sc.awaitFrom(back, "showing 1 of")
-	sc.awaitFrom(back, "kyleking/aragonite#100")
+	// The redraw rewrites only changed digits, so the header count never appears
+	// whole. A row is written whole, so an excluded row's absence proves the filter.
+	sc.awaitFrom(back, "kyleking/aragonite#100  octocat")
+
+	if after := sc.text()[back:]; strings.Contains(after, "octocat/hello-world#112") {
+		t.Errorf("the queue came back unnarrowed, listing a row the filter excludes:\n%s", after)
+	}
+
+	recorded, err := ghcassette.Load(cassette)
+	if err != nil {
+		t.Fatalf("loading the derived cassette: %v", err)
+	}
+
+	sc.awaitPlayed(s, len(recorded.Interactions))
 
 	sc.press("q")
 	sc.wait()
