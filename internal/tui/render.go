@@ -300,6 +300,18 @@ const movedGlyph = "⇄"
 // reindentGlyph marks a line that only moved to another indent, where its neighbors changed what it sits inside.
 const reindentGlyph = "⇥"
 
+// indentMarker is the last byte of a line's leading whitespace, the one cell of
+// its indent a changed line tints.
+type indentMarker [2]int
+
+func markIndent(text string) indentMarker {
+	at := indentOf(text)
+
+	return indentMarker{max(0, at-1), at}
+}
+
+func (m indentMarker) holds(p run) bool { return m[1] > m[0] && p.from >= m[0] && p.to <= m[1] }
+
 // indentOf is how many bytes of leading whitespace a line carries.
 func indentOf(text string) int { return len(text) - len(strings.TrimLeft(text, " \t")) }
 
@@ -429,11 +441,12 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 	mark := m.rich.mark[l.Kind]
 	marked := m.refined[refOf(r.path, l)]
 
-	// A changed line with no partner carries its side's band under its indent,
-	// so where a run of them starts and ends reads at the code rather than only in the gutter.
+	// A changed line with no partner carries its side's band under the last cell
+	// of its indent, so where a run of them starts and ends reads at the code
+	// rather than only in the gutter. The whole indent would draw a block.
 	lead, leads := m.rich.band[l.Kind]
 	leads = leads && !r.whole
-	indent := indentOf(l.Text)
+	marker := markIndent(l.Text)
 
 	var segs []string
 
@@ -459,7 +472,7 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 		switch {
 		case ok && covered(marked, piece.from):
 			style = under(face, mark, true)
-		case !ok && leads && piece.to <= indent:
+		case !ok && leads && marker.holds(piece):
 			style = under(face, lead, true)
 		}
 
@@ -562,8 +575,8 @@ func (m *Model) runs(r row, l diff.Line) []run {
 		cuts[min(s.From, len(text))], cuts[min(s.To, len(text))] = true, true
 	}
 
-	if l.Kind != diff.KindContext {
-		cuts[indentOf(text)] = true
+	if at := indentOf(text); l.Kind != diff.KindContext && at > 0 {
+		cuts[at-1], cuts[at] = true, true
 	}
 
 	at := make([]int, 0, len(cuts))
