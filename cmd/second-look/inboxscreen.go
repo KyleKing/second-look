@@ -25,6 +25,7 @@ import (
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/labels"
 	"github.com/kyleking/second-look/internal/lease"
+	"github.com/kyleking/second-look/internal/snapshot"
 	"github.com/kyleking/second-look/internal/structure"
 	"github.com/kyleking/second-look/internal/tui"
 )
@@ -115,6 +116,16 @@ type inboxScreen struct {
 	priority  []string
 	area      map[string]bool
 	showMerge bool
+	// snaps is where the last queue was kept, nil in a test that has none.
+	// records is what the facts were read as, keyed like facts, and stale is
+	// every row drawn from the snapshot that the forge has not confirmed this run.
+	snaps   *snapshot.Store
+	records map[string]inbox.Record
+	stale   map[string]bool
+	// painted is the viewer the snapshot was read as and age how long ago it
+	// was saved, both zero when nothing was painted.
+	painted string
+	age     time.Duration
 }
 
 // howManyAtOnce bounds the diffs the rating pool fetches. It is small because
@@ -437,7 +448,9 @@ func (s *inboxScreen) Start() tea.Cmd {
 	s.buckets = s.plan()
 	s.waiting = len(s.buckets)
 	s.facts, s.viewer, s.factsOut, s.factsErr = map[string]inbox.Facts{}, "", false, ""
+	s.records, s.stale, s.painted, s.age = map[string]inbox.Record{}, map[string]bool{}, "", 0
 	s.area = inbox.LoadArea()
+	s.paint()
 	s.regroup()
 	s.armed = ""
 	s.pending, s.listening, s.unread = 0, false, 0
@@ -501,6 +514,10 @@ func (s *inboxScreen) absorbBucket(answered bucketMsg) tea.Cmd {
 		s.asked[key] = true
 	}
 
+	if answered.bucket.Err != "" {
+		answered.bucket.Items = s.buckets[answered.at].Items
+	}
+
 	s.buckets[answered.at] = answered.bucket
 	s.waiting--
 	s.regroup()
@@ -510,6 +527,8 @@ func (s *inboxScreen) absorbBucket(answered bucketMsg) tea.Cmd {
 	if s.waiting > 0 {
 		return rate
 	}
+
+	s.save()
 
 	return tea.Batch(rate, s.readFacts())
 }
@@ -554,9 +573,10 @@ func (s *inboxScreen) absorbFacts(answered factsMsg) tea.Cmd {
 		say = func() tea.Msg { return tui.StatusMsg{Text: text, Failed: true} }
 	}
 
-	s.facts, s.viewer = answered.fetched.Facts, answered.fetched.Viewer
+	s.absorbRecords(answered)
 	s.regroup()
 	s.prunePrefetched()
+	s.save()
 
 	return tea.Batch(say, s.prefetch())
 }
@@ -850,7 +870,9 @@ func localKnowledge() map[string]inbox.Known {
 func (s *inboxScreen) state() tui.State {
 	switch {
 	case s.waiting > 0:
-		return tui.State{Text: humanize.Plural(s.waiting, "search", "searches") + " still out", Busy: true}
+		out := s.cachedWord() + humanize.Plural(s.waiting, "search", "searches") + " still out"
+
+		return tui.State{Text: out, Busy: true}
 	case s.pending > 0:
 		// Rows move as ratings land, so the header says what is moving them.
 		return tui.State{Text: humanize.Plural(s.pending, "row") + " still being rated", Busy: true}
@@ -875,6 +897,18 @@ func (s *inboxScreen) state() tui.State {
 	}
 
 	return tui.State{Text: out, Busy: s.factsOut}
+}
+
+// cachedWord says how old the rows on screen are while the searches that replace
+// them are out, so a snapshot is never read as fresh.
+func (s *inboxScreen) cachedWord() string {
+	if s.age < time.Minute {
+		return ""
+	}
+
+	now := time.Now()
+
+	return "cached " + humanize.Ago(now.Add(-s.age), now) + " ago · "
 }
 
 // yours is how many rows are waiting on you: the lanes before waiting on
@@ -994,6 +1028,7 @@ func (s *inboxScreen) rows(items []inbox.PullRequest, lane inbox.Lane, now time.
 			Cells:   s.cells(p, k, shared, now),
 			About:   about(p, k, now),
 			Dim:     waits || (!s.configured && k.Stack.Size > 0 && k.Lane > lane),
+			Stale:   s.stale[key],
 		})
 	}
 

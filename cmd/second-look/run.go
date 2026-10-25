@@ -41,6 +41,7 @@ import (
 	"github.com/kyleking/second-look/internal/prstate"
 	"github.com/kyleking/second-look/internal/react"
 	"github.com/kyleking/second-look/internal/skill"
+	"github.com/kyleking/second-look/internal/snapshot"
 	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
 	"github.com/kyleking/second-look/internal/versions"
@@ -134,16 +135,38 @@ func helpFor(parts ...[][2]string) [][2]string {
 	return out
 }
 
-// installCache puts the version cards' disk store under the user's cache
-// directory, next to whatever else keeps one. A store that cannot be resolved
-// leaves the cards to memory, which is not worth failing a run over.
-func installCache() {
+// cacheDir is where this program keeps what it can fetch again, next to
+// whatever else keeps one.
+func cacheDir() (string, error) {
 	base, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving the user cache directory: %w", err)
+	}
+
+	return filepath.Join(base, "second-look"), nil
+}
+
+// installCache puts the version cards' disk store under the user's cache
+// directory. A store that cannot be resolved leaves the cards to memory, which
+// is not worth failing a run over.
+func installCache() {
+	dir, err := cacheDir()
 	if err != nil {
 		return
 	}
 
-	cache.SetDiskCache(cache.NewDiskCache(filepath.Join(base, "second-look")))
+	cache.SetDiskCache(cache.NewDiskCache(dir))
+}
+
+// openSnapshots is the store the queue paints from. Without a cache directory
+// it keeps snapshots for this run alone, so a return from a review still paints.
+func openSnapshots() *snapshot.Store {
+	dir, err := cacheDir()
+	if err != nil {
+		return snapshot.Open(nil, time.Now)
+	}
+
+	return snapshot.Open(cache.NewDiskCache(dir), time.Now)
 }
 
 func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {

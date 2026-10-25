@@ -47,6 +47,8 @@ type Cell struct {
 	Spans  []Span
 	Long   []Span
 	LongAt int
+	// Fact marks a cell the forge supplies, which a Stale row draws receded.
+	Fact bool
 }
 
 // Pending is the cell of a fact that is not known yet. The column's alignment
@@ -166,7 +168,7 @@ func (l *List) gridLine(i int, lay table.Layout, reach int) string {
 			spans = cell.Long
 		}
 
-		b.WriteString(l.fit(spans, c, w, row.Dim, lit, face))
+		b.WriteString(l.fit(spans, c, w, row.Dim || (row.Stale && cell.Fact), lit, face))
 	}
 
 	if over := reach - gridMargin - lay.Total(); lit && over > 0 {

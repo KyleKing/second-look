@@ -248,6 +248,7 @@ func childEnv(t *testing.T, s *ghcassette.Session, dir string) []string {
 		"GH_REPO="+fixtureRepo,
 		"HOME="+home,
 		"XDG_CONFIG_HOME="+filepath.Join(home, ".config"),
+		"XDG_CACHE_HOME="+filepath.Join(home, ".cache"),
 	)
 
 	if coverDir != "" {

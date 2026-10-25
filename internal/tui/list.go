@@ -71,6 +71,9 @@ type Row struct {
 	// Unread marks a row that has moved since it was last read, which is the
 	// one distinction a queue exists to draw.
 	Unread bool
+	// Stale marks a row drawn from a snapshot that the forge has not confirmed
+	// this run. It recedes the cells that carry Fact and nothing else.
+	Stale bool
 	// Cells is the row on a grid, keyed by the Key of the column each fills. It
 	// is read only where the tab names Columns, and a row carrying none there
 	// draws nothing in them.

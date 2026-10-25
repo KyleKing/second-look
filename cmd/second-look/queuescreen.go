@@ -14,6 +14,7 @@ import (
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/journal"
+	"github.com/kyleking/second-look/internal/snapshot"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -37,8 +38,10 @@ const (
 func openQueue(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) error {
 	var where tui.Resume
 
+	snaps := openSnapshots()
+
 	for {
-		next, left, err := queueOnce(ctx, at, where, stdin, stdout)
+		next, left, err := queueOnce(ctx, snaps, at, where, stdin, stdout)
 		if err != nil || next < 0 {
 			// Leaving the sitting hands back every checkout it claimed. A
 			// warning written next to the error keeps both honest.
@@ -54,7 +57,7 @@ func openQueue(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) e
 // is over: reviewing, replying, and opening a staged review all end in the
 // review screen, which is where the rest of the work happens.
 func queueOnce(
-	ctx context.Context, at int, where tui.Resume, stdin io.Reader, stdout io.Writer,
+	ctx context.Context, snaps *snapshot.Store, at int, where tui.Resume, stdin io.Reader, stdout io.Writer,
 ) (int, tui.Resume, error) {
 	cfg, err := configured(os.Stderr)
 	if err != nil {
@@ -63,6 +66,7 @@ func queueOnce(
 
 	in := &inboxScreen{
 		ctx:        ctx,
+		snaps:      snaps,
 		configured: len(cfg.Sections) > 0,
 		ahead:      keepAhead(cfg),
 		priority:   cfg.PriorityLabels(),

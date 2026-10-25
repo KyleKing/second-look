@@ -120,7 +120,10 @@ func awayCassette(t *testing.T) string {
 }
 
 func homeEnv(home string) []string {
-	return []string{"HOME=" + home, "XDG_CONFIG_HOME=" + filepath.Join(home, ".config")}
+	return []string{
+		"HOME=" + home, "XDG_CONFIG_HOME=" + filepath.Join(home, ".config"),
+		"XDG_CACHE_HOME=" + filepath.Join(home, ".cache"),
+	}
 }
 
 // storeIn is where the state directory lands for the fixture repository. The

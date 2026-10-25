@@ -128,8 +128,8 @@ func (s *inboxScreen) cells(
 		colTitle:  {Spans: titleSpans(p.Title, mark(k))},
 		colAuthor: plain(p.Author, tui.RoleCell),
 		colAge:    plain(humanize.Ago(p.Updated, now), tui.RoleAge),
-		colSize:   sizeCell(k),
-		colStatus: statusCell(p, k, have),
+		colSize:   fact(sizeCell(k)),
+		colStatus: fact(statusCell(p, k, have)),
 	}
 }
 
@@ -184,6 +184,13 @@ func statusFact(p *inbox.PullRequest, k inbox.Known) tui.Fact {
 	}
 
 	return tui.Fact{}
+}
+
+// fact marks a cell the forge supplies, which a row drawn from a snapshot recedes.
+func fact(c tui.Cell) tui.Cell {
+	c.Fact = true
+
+	return c
 }
 
 func plain(text string, role tui.Role) tui.Cell {
