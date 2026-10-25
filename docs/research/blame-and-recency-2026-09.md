@@ -100,7 +100,7 @@ already follows.
 Both gh-repo-dashboard and second-look would want blame (gh-repo-dashboard already shows
 per-file recency in its dashboard rows via `GetNewestModifiedFile`/`GetLastModified`, and
 a heat map is the same shape of question at finer grain), so this is an `aragonite/vcs`
-addition, not a second-look-only one, matching `requirements.md`'s own rule for what
+addition, not a second-look-only one, matching the rule in [DESIGN.md](../../DESIGN.md) for what
 moves to aragonite ("the second consumer needs them"). Concretely:
 
 - Add `Blame(ctx, repoPath, path string, ranges []LineRange) ([]BlameLine, error)` to
@@ -177,7 +177,7 @@ reformat or a mechanical rename from attributing every line to that commit
 confirmed against
 [git-blame(1)](https://git-scm.com/docs/git-blame)). Second-look already treats
 whitespace-only changes as a separate category in its review-cost rating
-(`requirements.md`'s "Review cost" section excludes them before rating), so respecting an
+(the review cost rating excludes them before rating), so respecting an
 existing `.git-blame-ignore-revs` file the repository already maintains, rather than
 inventing a second reformat-detection mechanism, is the consistent choice if this ever
 becomes a real gap.
@@ -220,7 +220,7 @@ which specific flags are set. `-L` scoping is what keeps both bounded to hunk si
   is near-linear in the number of lines actually requested once `-L` limits the walk.
 - **Per review**: one process per changed, non-generated file that has at least one
   surviving (non-whitespace-only) hunk, which is the same file set second-look's review
-  rating already restricts itself to (`requirements.md`'s "Review cost" section excludes
+  rating already restricts itself to (it excludes
   whitespace-only changes and reads patch text, not a working copy, for the same reason).
   A typical reviewed PR in this project's own history touches single-digit files, so this
   is single-digit processes, not proportional to repository size.
