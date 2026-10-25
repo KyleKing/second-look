@@ -503,17 +503,18 @@ func (m *Model) helpWidth() int {
 	return min(boxW, m.width-boxMargin)
 }
 
-// roundBoxWidth is the room the H chord's page asks for, since a round's line
+// roundBoxWidth is the most room the H chord's page takes, since a round's line
 // carries who pushed it and how the todos stand.
 const roundBoxWidth = 76
 
-// pageWidth is the inner width of the box a page of the legend is drawn in.
-func (m *Model) pageWidth(path []string) int {
-	if len(path) > 0 && path[0] == "H" {
-		return min(roundBoxWidth, m.width-boxMargin)
+// pageRows draws a page of the legend. The H page is columns, so it is drawn
+// unwrapped and only as wide as its rows.
+func (m *Model) pageRows(path []string, page []keyhint.Hint) []string {
+	if len(path) == 1 && path[0] == "H" {
+		return m.roundRows(min(roundBoxWidth, m.width-boxMargin))
 	}
 
-	return m.helpWidth()
+	return keyhint.Column(legendStyles(m.styles), page, m.helpWidth())
 }
 
 // helpBox floats the legend's open page over the diff's bottom corner, the
@@ -521,7 +522,7 @@ func (m *Model) pageWidth(path []string) int {
 // The page is one column inside, since a narrow box has no room to spread,
 // and it scrolls because the root is longer than any frame.
 func (m *Model) helpBox(body []string) []string {
-	rows := keyhint.Column(legendStyles(m.styles), m.helpPage(), m.pageWidth(m.helpPath))
+	rows := m.pageRows(m.helpPath, m.helpPage())
 
 	h := m.viewHeight()
 	inner := max(1, min(len(rows), h-boxBorder))
@@ -549,7 +550,7 @@ func (m *Model) waitLines(body []string) []string {
 		return body
 	}
 
-	rows := keyhint.Column(legendStyles(m.styles), page, m.pageWidth([]string{string(m.pending)}))
+	rows := m.pageRows([]string{string(m.pending)}, page)
 	box := overlay.Box(boxStyles(m.styles), string(m.pending)+" then", rows, len(rows), 0)
 
 	return overlay.Blit(body, box, m.width-textWidth(box[0])-1, len(body)-len(box))

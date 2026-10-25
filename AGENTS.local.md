@@ -166,8 +166,10 @@ non-zero exit, which is how a scene draws a failure. A call nothing routes fails
 because a screen drawing nothing because a seed was missing is the failure this must not
 hide.
 
-A scene needing a second cached diff (`rounds` is the one, since comparing against an
-earlier round reads the diff cached at it) brings it as `diff/<sha>.patch`. A scene too big
+A scene needing cached diffs (`rounds` is the one, since comparing against an earlier round
+reads the diff cached at it) brings each as `diff/<sha>.patch`. `rounds` holds four rounds, three
+todo replies, and a patch per round, so `H` shows todos answered by a changed line, answered by a
+commit a reply names, and not answered. A scene too big
 to check in (`outline` is 72 files) brings an executable `seed.sh` instead, which writes its
 seed into the work directory's `.second-look/`.
 

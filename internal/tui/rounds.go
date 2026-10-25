@@ -9,6 +9,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
@@ -91,23 +93,53 @@ func roundKeys(was []numbered) [][2]string {
 	return out
 }
 
-// roundPage is the H chord's box: each round with when it was read, who pushed
-// it, and how the todos stand against it.
-func (m *Model) roundPage(now time.Time) [][2]string {
+// roundCols is the H chord's rows as columns: the round's number, short commit,
+// age, and what is known of who pushed it and how the todos stand.
+func (m *Model) roundCols(now time.Time) [][4]string {
 	was := m.earlier()
-	out := make([][2]string, 0, len(was))
+	out := make([][4]string, 0, len(was))
 
 	for _, r := range was {
-		label := short(r.SHA)
-		if at := when(r.Staged, now); at != "" {
-			label += " " + at
-		}
+		out = append(out, [4]string{
+			strconv.Itoa(r.n), short(r.SHA), when(r.Staged, now), strings.Join(m.roundFacts(r), " · "),
+		})
+	}
 
-		if facts := m.roundFacts(r); len(facts) > 0 {
-			label += " " + strings.Join(facts, " · ")
-		}
+	return out
+}
 
-		out = append(out, [2]string{strconv.Itoa(r.n), label})
+// roundPage is the rounds as the legend's hints, one line each.
+func (m *Model) roundPage(now time.Time) [][2]string {
+	cols := m.roundCols(now)
+	out := make([][2]string, 0, len(cols))
+
+	for _, c := range cols {
+		out = append(out, [2]string{c[0], strings.TrimSpace(strings.Join(c[1:], " "))})
+	}
+
+	return out
+}
+
+// roundGaps is the gutters between the four columns of a round row.
+const roundGaps = 3
+
+// roundRows draws the H chord's box: one unwrapped row per round, the age padded
+// so the columns line up, and the last column cut with an ellipsis to fit width.
+func (m *Model) roundRows(width int) []string {
+	cols := m.roundCols(time.Now())
+	aged := 0
+
+	for _, c := range cols {
+		aged = max(aged, textWidth(c[2]))
+	}
+
+	out := make([]string, 0, len(cols))
+
+	for _, c := range cols {
+		fixed := textWidth(c[0]) + textWidth(c[1]) + aged + roundGaps*len(keyhint.Gutter)
+		line := m.styles.key.Render(c[0]) + keyhint.Gutter + m.styles.footer.Render(c[1]+keyhint.Gutter+
+			table.Pad(c[2], aged, table.AlignLeft)+keyhint.Gutter+table.Truncate(c[3], max(1, width-fixed)))
+		out = append(out, strings.TrimRight(line, " "))
 	}
 
 	return out

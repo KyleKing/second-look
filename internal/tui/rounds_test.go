@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -160,8 +161,8 @@ func TestComparingAgainstARoundSaysWhichTodosWereAnswered(t *testing.T) {
 
 	box := plain(m.Frame())
 	for _, want := range []string{
-		short(was) + " " + month.Format("Jan 2") + " watch-doggo · 1 commit · 2 of 3 todos answered",
-		short(fixer) + " 2h ago watch-doggo · 1 commit · 1 of 3 todos answered",
+		fmt.Sprintf("1  %s  %-6s  watch-doggo · 1 commit · 2 of 3 todos answered", short(was), month.Format("Jan 2")),
+		"2  " + short(fixer) + "  2h ago  watch-doggo · 1 commit · 1 of 3 todos answered",
 	} {
 		if !strings.Contains(box, want) {
 			t.Errorf("the H box never said %q:\n%s", want, box)
