@@ -1,0 +1,63 @@
+# Copy to ~/.config/second-look/config.toml and keep what you need. Every key is
+# optional, and an unknown key is an error so a typo can't pass silently.
+
+# How many pull requests each queue section asks for.
+limit = 25
+
+# Labels that put a pull request at the top of "new for you".
+priority = ["priority", "urgent", "hotfix"]
+
+# Extra generated paths to fold, on top of lockfiles, go.sum, *.pb.go, and the
+# rest of the built-in list. A trailing slash matches a directory anywhere.
+generated = ["api/schema/", ".gen.ts"]
+
+# How many reviews ahead of the cursor the queue prepares in the background.
+# 0 turns it off.
+prefetch = 3
+
+# Who fixes a reply marked todo when you press enter at the submit step. Owners
+# listed here get the label, which Watch Doggo picks up. Everyone else goes to
+# the local agent that dispatch names.
+fix_label = "watch-doggo-fix"
+fix_owners = ["acme"]
+
+# The command that gets todo findings, with the file holding them as its last
+# argument. Unset, second-look writes the file and tells you where.
+dispatch = ["claude", "-p"]
+
+# Agents the review screen can talk to over ACP, first one preferred.
+# SECOND_LOOK_AGENT picks another at startup.
+[[agent]]
+name = "claude"
+command = ["npx", "-y", "@zed-industries/claude-code-acp"]
+
+# Queue sections replace the built-in lanes. A query is gh search terms, so a
+# gh-dash section works as written.
+[[section]]
+name = "needs my review"
+query = "review-requested:@me is:open archived:false sort:updated-desc"
+
+[[section]]
+name = "my work"
+query = "author:@me is:open archived:false sort:updated-desc"
+
+# Commands run over the review's files beside the language server. {files} is
+# the files under review, and format is ast-grep, ruff, or text.
+[[check]]
+name = "house rules"
+command = ["ast-grep", "scan", "--json=compact", "{files}"]
+format = "ast-grep"
+
+# A language server the built-in list (gopls, pyright, typescript) lacks.
+[[server]]
+name = "rust-analyzer"
+command = ["rust-analyzer"]
+extensions = [".rs"]
+roots = ["Cargo.toml"]
+
+# Reading rules for one repository: what folds, what never does, and what reads
+# after what. docs/reading-plan.md has the details.
+[[plan]]
+repo = "acme/api"
+fold = ["migrations/"]
+never_fold = ["migrations/schema.sql"]
