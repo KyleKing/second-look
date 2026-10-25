@@ -478,7 +478,7 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 		// stopping a review, the same as it leaves the built-in buckets.
 		tui.WithGenerated(generatedPatterns()), tui.WithPlanRules(planRules(opened.Review)),
 		tui.WithCommits(opened.Commits, opened.NoCommits),
-		tui.WithLabeling(labeling(t.Dir())),
+		tui.WithLabeling(labeling(t.Dir())), tui.WithRoster(roster(t.Dir(), opened.Review)),
 	}
 
 	if d := dispatcher(t.Dir()); d != nil {

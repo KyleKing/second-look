@@ -149,6 +149,10 @@ func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.fit()
 	m.keep()
 
+	if msg.String() == "@" {
+		cmd = tea.Batch(cmd, m.askRoster())
+	}
+
 	return m, cmd
 }
 

@@ -208,6 +208,11 @@ type Model struct {
 	asking        confirmKind
 	labeling      Labeling
 	labeler       *labelPicker
+	roster        Roster
+	involved      []string
+	recent        []string
+	rostering     bool
+	rostered      bool
 	fixEvent      string
 	fixOne        string
 	fixes         Fixes
@@ -798,6 +803,8 @@ func (m *Model) absorb(msg tea.Msg) {
 
 func (m *Model) absorbForge(msg tea.Msg) bool {
 	switch msg := msg.(type) {
+	case rosterMsg:
+		m.applyRoster(msg)
 	case labelsReadMsg:
 		m.labeler.hear(msg)
 	case labelSetMsg:

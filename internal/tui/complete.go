@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"slices"
 	"sort"
 	"strconv"
@@ -19,10 +20,10 @@ const wordChars = "/._-@" + "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXY
 // the next.
 //
 // The candidates are what is already on this screen: the files the diff
-// touches, the symbols the structural pass named, and the people who have
-// already said something on the pull request. Nothing here needs an index, and
-// what does (every symbol in the repository rather than the ones in the diff)
-// waits on codeintel.
+// touches, the symbols the structural pass named, and the people on the pull
+// request, then whoever has been on the repository's recent ones. Nothing here
+// needs an index, and what does (every symbol in the repository rather than the
+// ones in the diff) waits on codeintel.
 func (m *Model) suggestWord() {
 	line, col := m.cursorLine()
 
@@ -35,7 +36,7 @@ func (m *Model) suggestWord() {
 
 	want := m.candidates(stem)
 	if len(want) == 0 {
-		m.say("nothing in this review starts with "+stem, false)
+		m.say(m.nothingWord(stem), false)
 
 		return
 	}
@@ -49,6 +50,14 @@ func (m *Model) suggestWord() {
 
 	m.replaceWord(len([]rune(stem)), next)
 	m.say(next+"  ·  ctrl+n takes the next of "+matchWord(len(want)), false)
+}
+
+func (m *Model) nothingWord(stem string) string {
+	if m.rostering && strings.HasPrefix(stem, "@") {
+		return "still reading who is active on this repository"
+	}
+
+	return "nothing in this review starts with " + stem
 }
 
 func matchWord(n int) string {
@@ -99,24 +108,31 @@ func (m *Model) replaceWord(stem int, with string) {
 // order so the cycle is the same every time.
 func (m *Model) candidates(stem string) []string {
 	if login, ok := strings.CutPrefix(stem, "@"); ok {
-		return prefixed(m.logins(), login, "@")
+		return prefixed(login, "@", m.logins(), m.recent)
 	}
 
-	return prefixed(append(m.paths(), m.symbols()...), stem, "")
+	return prefixed(stem, "", append(m.paths(), m.symbols()...))
 }
 
-func prefixed(from []string, stem, lead string) []string {
-	var out []string
+// prefixed is what in each group starts with the stem, each group ranked above
+// the ones after it.
+func prefixed(stem, lead string, groups ...[]string) []string {
+	var out []string //nolint:prealloc // how many match is known only once each group is filtered
 
-	for _, want := range from {
-		if strings.HasPrefix(want, stem) && want != stem {
-			out = append(out, lead+want)
+	for _, group := range groups {
+		found := []string{}
+
+		for _, want := range group {
+			if strings.HasPrefix(want, stem) && want != stem && !slices.Contains(out, lead+want) {
+				found = append(found, lead+want)
+			}
 		}
+
+		sort.Strings(found)
+		out = append(out, slices.Compact(found)...)
 	}
 
-	sort.Strings(out)
-
-	return slices.Compact(out)
+	return out
 }
 
 // paths is every file the diff touches, by full path and by base name, since a
@@ -150,10 +166,9 @@ func (m *Model) symbols() []string {
 	return out
 }
 
-// logins is everyone who has already said something on this pull request, which
-// is who a comment is likely to be addressed to.
+// logins is everyone on this pull request, who a comment is likely to name.
 func (m *Model) logins() []string {
-	var out []string
+	out := slices.Concat([]string{m.about.Author}, m.involved)
 
 	for i := range m.threads {
 		for _, n := range m.threads[i].Notes {
@@ -161,5 +176,47 @@ func (m *Model) logins() []string {
 		}
 	}
 
+	for i := range m.about.Comments {
+		out = append(out, m.about.Comments[i].Author)
+	}
+
 	return out
+}
+
+// Roster reads who an @ can name beyond what the pull request already shows:
+// the people on it, and the people on the repository's recent pull requests.
+type Roster func(ctx context.Context) (involved, recent []string, err error)
+
+// WithRoster lets @ complete people who have not spoken on the pull request.
+func WithRoster(r Roster) Option {
+	return func(m *Model) { m.roster = r }
+}
+
+type rosterMsg struct {
+	involved, recent []string
+	err              error
+}
+
+func (m *Model) askRoster() tea.Cmd {
+	if m.roster == nil || m.rostering || m.rostered {
+		return nil
+	}
+
+	m.rostering = true
+	read, ctx := m.roster, m.ctx
+
+	return func() tea.Msg {
+		involved, recent, err := read(ctx)
+
+		return rosterMsg{involved: involved, recent: recent, err: err}
+	}
+}
+
+func (m *Model) applyRoster(msg rosterMsg) {
+	m.rostering, m.rostered = false, true
+	m.involved, m.recent = msg.involved, msg.recent
+
+	if msg.err != nil {
+		m.say(oneLine(msg.err), true)
+	}
 }
