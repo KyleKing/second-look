@@ -306,6 +306,12 @@ func Readings() []Reading {
 	}
 
 	for name, c := range map[string]*lipgloss.Style{
+		"hint key": &st.hintKey, "hint word": &st.hintWord,
+	} {
+		add(name+" on the panel", c.GetForeground(), mantle)
+	}
+
+	for name, c := range map[string]*lipgloss.Style{
 		"lane label": &st.lanes.label, "lane count": &st.lanes.count,
 		"quiet label": &st.lanes.quietLabel, "quiet count": &st.lanes.quietCount,
 	} {

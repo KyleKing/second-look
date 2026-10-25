@@ -3,6 +3,7 @@ package tui_test
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -1262,6 +1263,55 @@ func TestTheFrameKeepsItsHeight(t *testing.T) {
 				}
 
 				l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+			}
+		})
+	}
+}
+
+// The footer sheds whole hints as the frame narrows and never cuts one mid-word.
+// The keys a queue is for stay while anything else is drawn, and the ones that
+// shed first go first.
+func TestTheFooterShedsWholeHintsByPriority(t *testing.T) {
+	t.Parallel()
+
+	all := []string{
+		"enter review", "C check out", "m comment", "A approve", "M merge", "l labels",
+		"o GitHub", "s sort", "? help",
+	}
+	keep := []string{"enter review", "A approve", "M merge", "o GitHub", "? help"}
+	pairs := make([][2]string, len(all))
+
+	for i, h := range all {
+		key, word, _ := strings.Cut(h, " ")
+		pairs[i] = [2]string{key, word}
+	}
+
+	for width := 80; width <= 120; width += 3 {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
+			l := tui.NewTabs([]tui.Tab{{Name: "inbox", Sections: lanes, Columns: laneColumns, Hints: pairs}}, 0)
+			l.Update(tea.WindowSizeMsg{Width: width, Height: 24})
+
+			lines := strings.Split(plain(l.ListFrame()), "\n")
+			footer := strings.TrimRight(lines[len(lines)-1], " ")
+
+			var drawn []string
+
+			for _, h := range all {
+				if strings.Contains(footer, h) {
+					drawn = append(drawn, h)
+				}
+			}
+
+			if want := " " + strings.Join(drawn, "   "); footer != want {
+				t.Fatalf("the footer is %q, want whole hints only: %q", footer, want)
+			}
+
+			for _, h := range keep {
+				if !slices.Contains(drawn, h) {
+					t.Errorf("%q was shed at %d columns", h, width)
+				}
 			}
 		})
 	}

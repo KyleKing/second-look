@@ -98,3 +98,31 @@ func renderHints(s styles, hints []hint, drop bool) string {
 
 	return strings.Join(out, keyhint.Gap)
 }
+
+// footerStyles draws the footer's keys bare: the key in the accent and its word
+// quieter, three cells from the next.
+func footerStyles(s styles) keyhint.Styles {
+	return keyhint.Styles{Key: s.hintKey, Text: s.hintWord, Off: s.behind, Bare: true, Gap: footerGap}
+}
+
+const footerGap = "   "
+
+// The keys a footer sheds last, in the order a frame runs out of room. Enter,
+// approve, merge, GitHub, and help are what a queue is for and never go while
+// anything else is drawn.
+const (
+	shedFirst = iota + 1
+	shedLater
+	shedLast
+)
+
+func hintPriority(key string) int {
+	switch key {
+	case enterKey, "A", "M", "o", "?":
+		return shedLast
+	case "C", "m", "l", "s", "/":
+		return shedFirst
+	}
+
+	return shedLater
+}

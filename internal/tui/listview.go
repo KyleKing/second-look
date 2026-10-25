@@ -485,12 +485,14 @@ func (l *List) footer() string {
 		idle = l.inert(l.current())
 	}
 
-	hints := make([]hint, len(pairs))
+	hints := make([]keyhint.Hint, len(pairs))
 	for i, p := range pairs {
-		hints[i] = hint{key: p[0], what: p[1], off: slices.Contains(idle, p[0])}
+		hints[i] = keyhint.Hint{
+			Key: p[0], What: p[1], Off: slices.Contains(idle, p[0]), Priority: hintPriority(p[0]),
+		}
 	}
 
-	return cut(" "+dimLine(l.styles, hints, l.width), l.width)
+	return " " + keyhint.Fit(footerStyles(l.styles), hints, l.width-1)
 }
 
 // helpOver floats the legend over the list's bottom corner, the same window
