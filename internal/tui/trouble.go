@@ -30,6 +30,11 @@ type Prober interface {
 	Hover(ctx context.Context, path string, line int) ([]diag.Symbol, error)
 	// Jumps is where the name at a byte column of one line lives or is read.
 	Jumps(ctx context.Context, path string, line, col int, kind diag.JumpKind) (diag.Jump, error)
+	// Calls is the call graph one hop either way around the function a line is in.
+	Calls(ctx context.Context, path string, line int) (diag.Graph, error)
+	// Server names the language server that would answer for a path, and
+	// reports false where there is none.
+	Server(path string) (string, bool)
 	// Close ends whatever is still running.
 	Close()
 }

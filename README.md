@@ -455,7 +455,11 @@ sitting in the diff. `]p` walks the notes, `X` lists every one of them under the
 lands on, and `K` asks what each name on the line under the cursor actually is. `gd` and `gr` label
 the names on a line with letters and open the one you pick as a card under the line,
 `enter` on the card reads the whole file, and `ctrl+o` and `ctrl+i` walk the jumps back
-and forward. All of it needs a checkout, since a server resolves what a file imports from the tree around it and
+and forward. `gc` asks the server for the call hierarchy of the function the line is in
+and draws its callers and callees one hop out: `✎` marks a function the change edits and
+`◆` one with a finding to judge, `j` and `k` walk a side, `h` and `l` change it, `za`
+excerpts the call sites, `enter` opens the function, and `gc` again centers on it. A
+server without call hierarchy says so. All of it needs a checkout, since a server resolves what a file imports from the tree around it and
 a review staged with none has no tree.
 
 `v` walks the renderers, which change how a line of the diff is drawn rather than which

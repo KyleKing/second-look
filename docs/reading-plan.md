@@ -98,6 +98,10 @@ belong to, so there is one thing to learn:
 - `gd` and `gr` label each name on the line with a letter, and the letter picks one. A
   line with one name skips the labels. The answer opens as a peek card under the row:
   the definition's lines, or the list of references, walked with `j` and `k`
+- `gc` draws the call graph of the function the line is in as a peek card: callers on
+  the left, callees on the right, `✎` on a function the change edits and `◆` on one with
+  a finding to judge. `j` and `k` walk a side, `h` and `l` change it, `za` excerpts the
+  selected function's call sites, `enter` opens it, and `gc` on it centers the graph there
 - `enter` on a peek opens the whole file at head with the change marked in the gutter.
   `ctrl-o` and `ctrl-i` walk the jump list back to the diff row and forward again, and
   `gf` opens the same place in `$EDITOR`

@@ -16,12 +16,16 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diag"
 	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
 // errNoServer is a pass that could not run at all, which is a laptop missing
 // the server the review needs.
 var errNoServer = errors.New("gopls is not installed")
+
+// errNoCalls is what a server without call hierarchy answers.
+var errNoCalls = errors.New("gopls has no call hierarchy")
 
 // errRefused is a reader that cannot answer, which is the commit's reader
 // asked about a path that is not the commit's.
@@ -37,6 +41,11 @@ type prober struct {
 	err    error
 	closed bool
 	asked  []ask
+	// graphs are the call graphs answered in order, the last one repeating, and
+	// called is the site each was asked at. noServer makes Server say none.
+	graphs   []diag.Graph
+	called   []diag.Site
+	noServer bool
 }
 
 // ask is one question put to Jumps.
@@ -56,6 +65,18 @@ func (p *prober) Jumps(_ context.Context, _ string, line, col int, kind diag.Jum
 
 	return p.jump, p.err
 }
+
+func (p *prober) Calls(_ context.Context, path string, line int) (diag.Graph, error) {
+	p.called = append(p.called, diag.Site{Path: path, Line: line})
+
+	if p.err != nil || len(p.graphs) == 0 {
+		return diag.Graph{}, p.err
+	}
+
+	return p.graphs[min(len(p.called), len(p.graphs))-1], nil
+}
+
+func (p *prober) Server(string) (string, bool) { return "gopls", !p.noServer }
 
 func (p *prober) Close() { p.closed = true }
 
@@ -494,7 +515,7 @@ func peekable(t *testing.T, p tui.Prober) *tui.Model {
 	})
 }
 
-func peekableWith(t *testing.T, p tui.Prober, read tui.Blobs) *tui.Model {
+func peekableWith(t *testing.T, p tui.Prober, read tui.Blobs, opts ...tui.Option) *tui.Model {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "pr-42.toml")
@@ -508,7 +529,7 @@ func peekableWith(t *testing.T, p tui.Prober, read tui.Blobs) *tui.Model {
 	}
 
 	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, (&counter{}).post,
-		tui.WithProber(p), tui.WithBlobs(read))
+		append([]tui.Option{tui.WithProber(p), tui.WithBlobs(read)}, opts...)...)
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
@@ -694,5 +715,187 @@ func TestTroubleSaysWhenThePassFailed(t *testing.T) {
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "nothing ran: gopls is not installed") {
 		t.Errorf("the empty list reads as a clean change:\n%s", frame)
+	}
+}
+
+// parseGraph is Parse, the function the patch edits, with two callers and seven
+// callees: one past the five a side draws, one outside the checkout, and a
+// finding on a line inside it.
+func parseGraph() diag.Graph {
+	callee := func(name string, line int, sites ...int) diag.CallNode {
+		n := diag.CallNode{Name: name, Path: "internal/vcs/diff.go", Line: line, From: line, To: line + 3}
+		for _, s := range sites {
+			n.Sites = append(n.Sites, diag.Site{Path: parsed, Line: s})
+		}
+
+		return n
+	}
+
+	join := callee("Join", 100, 4, 5)
+	join.Path, join.Detail = "/usr/local/go/src/strings/strings.go", "strings"
+
+	return diag.Graph{
+		Server: "gopls",
+		Center: diag.CallNode{Name: "Parse", Path: parsed, Line: 12, From: 12, To: 30},
+		Callers: []diag.CallNode{
+			{
+				Name: "Load", Path: "internal/vcs/git.go", Line: 201, From: 190, To: 210,
+				Sites: []diag.Site{{Path: "internal/vcs/git.go", Line: 205}},
+			},
+			{
+				Name: "Run", Path: "cmd/app/main.go", Line: 8, From: 8, To: 20,
+				Sites: []diag.Site{
+					{Path: "cmd/app/main.go", Line: 9},
+					{Path: "cmd/app/main.go", Line: 12},
+					{Path: "cmd/app/main.go", Line: 15},
+				},
+			},
+		},
+		Callees: []diag.CallNode{
+			callee("split", 40, 15), join, callee("backoff", 60, 16), callee("fetch", 70, 17),
+			callee("pages", 80, 18), callee("warn", 90, 19), callee("inc", 95, 20),
+		},
+	}
+}
+
+func graphed(t *testing.T, p *prober) *tui.Model {
+	t.Helper()
+
+	read := func(context.Context, string) ([]string, error) {
+		return []string{"package io", "", "// split reads r.", "func split(r io.Reader) {", "\tfields(r)", "}", ""}, nil
+	}
+
+	m := peekableWith(t, p, read, tui.WithThreads([]threads.Thread{finding("a", 15, "doggo", "wrap the error")}))
+
+	go2(t, m, ']', 'h')
+	onto(t, m, splitLine)
+	press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+	drive(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+
+	return m
+}
+
+// gc asks about the line the cursor is on, and the answer is a card of the
+// function's callers and callees, with the edited and the unresolved marked, at
+// both ends of the sizes the screen runs at.
+func TestCallGraphDrawsTheFunctionTheLineIsIn(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range [][2]int{{80, 30}, {120, 40}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			t.Parallel()
+
+			p := &prober{graphs: []diag.Graph{parseGraph()}}
+			m := peekableWith(t, p, func(context.Context, string) ([]string, error) { return nil, errRefused },
+				tui.WithThreads([]threads.Thread{finding("a", 15, "doggo", "wrap the error")}))
+			resize(m, size[0], size[1])
+
+			go2(t, m, ']', 'h')
+			onto(t, m, splitLine)
+			press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+			drive(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+
+			if want := []diag.Site{{Path: parsed, Line: 15}}; fmt.Sprint(p.called) != fmt.Sprint(want) {
+				t.Fatalf("asked %+v, want %+v", p.called, want)
+			}
+
+			card := plain(m.Frame())
+			framed(t, "card", card)
+
+			for _, want := range []string{
+				"⇢ calls · Parse · " + parsed + ":12", "2 callers · 7 callees", "Parse ✎ ◆", "Run ×3", "+2",
+			} {
+				if !strings.Contains(card, want) {
+					t.Errorf("the card does not draw %q:\n%s", want, card)
+				}
+			}
+
+			fitsWidth(t, "the card", card, size[0])
+		})
+	}
+}
+
+// j and k walk a side and h and l change it, za excerpts the selected node's call
+// sites, enter opens the node in the diff where the diff draws it, gc centers on
+// the node, and ctrl+o comes back through every one of them.
+func TestCallGraphWalksExpandsOpensAndRecenters(t *testing.T) {
+	t.Parallel()
+
+	inner := parseGraph()
+	inner.Center = inner.Callees[0]
+
+	p := &prober{graphs: []diag.Graph{parseGraph(), inner}}
+	m := graphed(t, p)
+	key := func(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Text: string(r)} }
+
+	if row := cursorText(m); !strings.Contains(row, "›split") {
+		t.Fatalf("the first callee is not selected:\n%s", plain(m.Frame()))
+	}
+
+	press(t, m, key('j'))
+	press(t, m, key('z'))
+	press(t, m, key('a'))
+
+	frame := plain(m.Frame())
+	for _, want := range []string{
+		"›Join ×2", "call sites · " + parsed, "› 4  func split(r io.Reader) {", "› 5      fields(r)",
+	} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("za on Join does not draw %q:\n%s", want, frame)
+		}
+	}
+
+	press(t, m, key('k'))
+	press(t, m, key('g'))
+	drive(m, key('c'))
+
+	asked := []diag.Site{{Path: parsed, Line: 15}, {Path: parsed, Line: 40}}
+	if fmt.Sprint(p.called) != fmt.Sprint(asked) {
+		t.Fatalf("recentering asked %+v, want %+v", p.called, asked)
+	}
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "⇢ calls · split · "+parsed+":40") {
+		t.Fatalf("gc did not center on split:\n%s", frame)
+	}
+
+	press(t, m, tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "⇢ calls · Parse") {
+		t.Fatalf("ctrl+o did not come back to the first graph:\n%s", frame)
+	}
+
+	press(t, m, key('h'))
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	frame = plain(m.Frame())
+	if strings.Contains(frame, "⇢ calls") || !strings.Contains(cursorText(m), "return head") {
+		t.Fatalf("enter on Load did not land on its line in the diff:\n%s", frame)
+	}
+}
+
+// A server with no call hierarchy says so and nothing else is drawn, and a file
+// with no server is refused before anyone is asked.
+func TestCallGraphSaysWhyThereIsNone(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		p    *prober
+		want string
+		asks int
+	}{
+		{"no call hierarchy", &prober{err: errNoCalls}, "gopls has no call hierarchy", 1},
+		{"no server", &prober{noServer: true}, "no language server for " + parsed, 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := graphed(t, tt.p)
+
+			frame := plain(m.Frame())
+			if !strings.Contains(frame, tt.want) || strings.Contains(frame, "⇢ calls") || len(tt.p.called) != tt.asks {
+				t.Errorf("gc said, after %d asks:\n%s", len(tt.p.called), frame)
+			}
+		})
 	}
 }

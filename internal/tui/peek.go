@@ -32,6 +32,8 @@ type peekCard struct {
 	path  string
 	line  int
 	sites []diag.Site
+	// graph is set on a gc card, which draws it in place of sites.
+	graph *callGraph
 	// placing is true from the card's opening until the first key, while the
 	// file it draws may still arrive and move the lines under the cursor.
 	placing bool
@@ -47,7 +49,7 @@ type peekedMsg struct {
 }
 
 func peekKeys() [][2]string {
-	return [][2]string{{enterKey, "open"}, {walkKeys, ""}, {escKey, "close"}}
+	return [][2]string{{enterKey, openVerb}, {walkKeys, ""}, {escKey, "close"}}
 }
 
 func (m *Model) applyPeeked(msg peekedMsg) tea.Cmd {
@@ -90,6 +92,13 @@ func (m *Model) onAnchor(path string, line int) bool {
 // enterPeek puts the cursor on the definition's own line, or on the first
 // reference, and frames the card.
 func (m *Model) enterPeek() {
+	if m.peeked.graph != nil {
+		m.cursor = m.graphCursor()
+		m.reveal()
+
+		return
+	}
+
 	first := -1
 
 	for i := range m.screen.rows {
@@ -196,6 +205,10 @@ func (m *Model) settlePeek() {
 // reference, and the foot that says what the keys do.
 func (m *Model) peekRows() []row {
 	p := m.peeked
+	if p.graph != nil {
+		return m.callRows(p)
+	}
+
 	head := row{kind: rowPeek, comment: noComment, head: true, site: p.sites[0]}
 
 	var body []row
@@ -218,13 +231,19 @@ func (m *Model) peekRows() []row {
 }
 
 func (m *Model) definitionRows(site diag.Site) []row {
+	return m.excerptRows(site, peekAbove, peekLines)
+}
+
+// excerptRows draws up to n lines of a file with the site's line marked, starting
+// above lines before it.
+func (m *Model) excerptRows(site diag.Site, above, n int) []row {
 	lines, ok := m.blobs[site.Path]
 	if !ok {
 		return []row{{kind: rowPeek, comment: noComment, text: "reading " + siteWord(site) + "…", site: site}}
 	}
 
-	lo := max(1, site.Line-peekAbove)
-	hi := min(len(lines), lo+peekLines-1)
+	lo := max(1, site.Line-above)
+	hi := min(len(lines), lo+n-1)
 
 	if lo > hi {
 		text := siteWord(site) + " is past the end of the file"

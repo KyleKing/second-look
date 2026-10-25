@@ -620,7 +620,7 @@ func (m *Model) outlineHints() []hint {
 
 	return []hint{
 		{key: walkKeys, what: what},
-		{key: enterKey, what: "open"},
+		{key: enterKey, what: openVerb},
 		{key: tabKey, what: other, off: len(m.plan.Features) == 0},
 		{key: escKey, what: "the diff"},
 		{key: "?", what: m.keys.Help.Help().Desc},

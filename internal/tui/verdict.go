@@ -90,10 +90,15 @@ func (m *Model) toJudge() int {
 
 // toJudgeIn is toJudge restricted to the threads on files keep accepts.
 func (m *Model) toJudgeIn(keep func(path string) bool) int {
+	return m.toJudgeWhere(func(t *threads.Thread) bool { return keep(t.Path) })
+}
+
+// toJudgeWhere is toJudge restricted to the threads keep accepts.
+func (m *Model) toJudgeWhere(keep func(*threads.Thread) bool) int {
 	n := 0
 
 	for i := range m.threads {
-		if keep(m.threads[i].Path) && m.isFinding(&m.threads[i]) && m.verdictOfThread(i) == vNone {
+		if keep(&m.threads[i]) && m.isFinding(&m.threads[i]) && m.verdictOfThread(i) == vNone {
 			n++
 		}
 	}

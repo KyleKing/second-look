@@ -20,6 +20,7 @@ import (
 // offer it cannot drift.
 const (
 	foldVerb    = "fold"
+	openVerb    = "open"
 	quitWord    = "quit"
 	replyWord   = "reply"
 	editWord    = "edit"
@@ -39,6 +40,8 @@ const (
 type keyMap struct {
 	Up           key.Binding
 	Down         key.Binding
+	Callers      key.Binding
+	Callees      key.Binding
 	HalfUp       key.Binding
 	PeekUp       key.Binding
 	PeekDown     key.Binding
@@ -116,9 +119,11 @@ type keyMap struct {
 
 func defaultKeyMap() keyMap {
 	return keyMap{
-		Up:     key.NewBinding(key.WithKeys("k", "up"), key.WithHelp(walkKeys, "line")),
-		Down:   key.NewBinding(key.WithKeys("j", "down"), key.WithHelp(walkKeys, "line")),
-		HalfUp: key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
+		Up:      key.NewBinding(key.WithKeys("k", "up"), key.WithHelp(walkKeys, "line")),
+		Down:    key.NewBinding(key.WithKeys("j", "down"), key.WithHelp(walkKeys, "line")),
+		Callers: key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/l", "side")),
+		Callees: key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("h/l", "side")),
+		HalfUp:  key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
 		PeekUp: key.NewBinding(
 			key.WithKeys("ctrl+y", "shift+up", "y"), key.WithHelp("ctrl+y/e", "scroll a line"),
 		),
@@ -219,10 +224,13 @@ func lookObjects() [][2]string {
 }
 
 // goObjects are what g accepts: gg keeps the top it always was, d and r ask
-// the language server where a name on the line is declared and read, and f
-// opens the file itself in $EDITOR at the line the cursor is on.
+// the language server where a name on the line is declared and read, c draws
+// the call graph of the function the line is in, and f opens the file itself in
+// $EDITOR at the line the cursor is on.
 func goObjects() [][2]string {
-	return [][2]string{{"g", "top"}, {"d", "where defined"}, {"r", "where used"}, {"f", "the file"}}
+	return [][2]string{
+		{"g", "top"}, {"d", "where defined"}, {"r", "where used"}, {"c", "who calls, who is called"}, {"f", "the file"},
+	}
 }
 
 func foldObjects() [][2]string {
@@ -288,6 +296,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "X", What: "trouble"},
 		{Key: "K", What: "what is this"},
 		{Key: "g", What: "go", Kids: asHints(goObjects())},
+		{What: "in a gc card: j/k a node, h/l a side, za its call sites, enter opens it, gc centers on it"},
 		{Key: "L", What: "the lockfile"},
 		{Key: "A", What: "ask the agent", Kids: asHints(allAskObjects())},
 		{What: "A on an open V range asks about the range, kept in [plan]"},

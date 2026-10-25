@@ -217,3 +217,40 @@ func (m *Model) SearchHead() {
 // StartRoundReads is the reads the H chord starts behind the frame, which a test runs
 // itself because the key's own command is batched with a timer.
 func (m *Model) StartRoundReads() tea.Cmd { return m.readRounds(m.earlier()) }
+
+// GraphNode is a function in a call graph as a test spells it.
+type GraphNode struct {
+	Name          string
+	Times         int
+	Edited, Judge bool
+	Where         string
+}
+
+// DrawGraph draws a call graph at a width and returns its lines and the one
+// holding the selected node, which is the at-th of the callees or of the callers.
+func DrawGraph(center GraphNode, callers, callees []GraphNode, onCallees bool, at, width int) ([]string, int) {
+	nodes := func(in []GraphNode) []graphNode {
+		out := make([]graphNode, 0, len(in))
+		for _, n := range in {
+			out = append(out, graphNode{name: n.Name, times: n.Times, edited: n.Edited, judge: n.Judge, where: n.Where})
+		}
+
+		return out
+	}
+
+	side := sideCallers
+	if onCallees {
+		side = sideCallees
+	}
+
+	lines, row := layoutGraph(graphView{
+		center: nodes([]GraphNode{center})[0], callers: nodes(callers), callees: nodes(callees), side: side, at: at,
+	}, width)
+
+	out := make([]string, 0, len(lines))
+	for _, l := range lines {
+		out = append(out, l.text)
+	}
+
+	return out, row
+}

@@ -73,6 +73,8 @@ func (m *Model) footKeys(r row) []footKey {
 			[][2]string{{",", "react"}, {"za", foldVerb}})
 	case r.kind == rowThread:
 		return nil
+	case r.kind == rowPeek && m.peeked != nil && m.peeked.graph != nil:
+		return pairKeys(graphKeys())
 	case r.kind == rowPeek:
 		return pairKeys(peekKeys())
 	case r.kind == rowAsk:
@@ -85,9 +87,14 @@ func (m *Model) footKeys(r row) []footKey {
 	return pairKeys(commentKeys())
 }
 
+// cardMeasure is the cells of text a card's body has in a frame width wide.
+func (m *Model) cardMeasure(width int) int {
+	return max(1, min(cardCols(m.diffWidth(), m.screen.numWidth), width-m.gutterWidth()-cardBorder))
+}
+
 func (m *Model) cardLine(r row, width int) string {
 	inset := m.gutterWidth()
-	cols := max(1, min(cardCols(m.diffWidth(), m.screen.numWidth), width-inset-cardBorder))
+	cols := m.cardMeasure(width)
 	lead := strings.Repeat(" ", inset)
 	edge := m.cardEdge(r)
 

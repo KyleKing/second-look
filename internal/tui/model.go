@@ -707,6 +707,8 @@ func (m *Model) answered(msg tea.Msg) tea.Cmd {
 		return m.applyAnswer(msg)
 	case peekedMsg:
 		return m.applyPeeked(msg)
+	case callsMsg:
+		return m.applyCalls(msg)
 	case fileMsg:
 		return m.openWhole(msg)
 	}
@@ -916,6 +918,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if cmd, ok := m.judgeKey(msg); ok {
+		return m, cmd
+	}
+
+	if cmd, ok := m.graphKey(msg); ok {
 		return m, cmd
 	}
 
@@ -1289,15 +1295,9 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch prefix {
 	case 'z':
-		if m.frameAt(msg) {
-			return m, nil
-		}
+		cmd := m.zedKey(prefix, msg)
 
-		if m.foldNote(msg) {
-			m.remember(prefix, msg)
-		}
-
-		return m, nil
+		return m, cmd
 	case 'a':
 		cmd := m.writeAs(msg)
 
@@ -1337,8 +1337,23 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// gotoKey answers the g chord: gg is the top it always was, and d and r ask
-// the language server where each name on the line is declared and read.
+// zedKey answers the z chord: za expands the call sites of a graph's selected
+// node, and otherwise z places the frame or folds a note.
+func (m *Model) zedKey(prefix rune, msg tea.KeyPressMsg) tea.Cmd {
+	switch {
+	case msg.String() == "a" && m.graphHere() != nil:
+		return m.expandSites()
+	case m.frameAt(msg):
+	case m.foldNote(msg):
+		m.remember(prefix, msg)
+	}
+
+	return nil
+}
+
+// gotoKey answers the g chord: gg is the top it always was, d and r ask the
+// language server where each name on the line is declared and read, and c draws
+// the call graph of the function the line is in.
 func (m *Model) gotoKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "g":
@@ -1353,12 +1368,16 @@ func (m *Model) gotoKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.lookup(diag.References)
 
 		return m, cmd
+	case "c":
+		cmd := m.calls()
+
+		return m, cmd
 	case "f":
 		cmd := m.wholeFile()
 
 		return m, cmd
 	default:
-		m.say("no place for "+msg.String()+"; g top, d defined, r used, f file", false)
+		m.say("no place for "+msg.String()+"; g top, d defined, r used, c calls, f file", false)
 	}
 
 	return m, nil
