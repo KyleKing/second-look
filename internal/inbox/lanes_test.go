@@ -1,6 +1,8 @@
 package inbox_test
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,7 +87,7 @@ func TestDecodeFactsDropsBotsAndTeams(t *testing.T) {
 	t.Parallel()
 
 	body := `{"data":{"viewer":{"login":"kyle"},"nodes":[null,{"number":7,
-	"repository":{"nameWithOwner":"o/r"},"reviewDecision":"APPROVED",
+	"repository":{"nameWithOwner":"o/r"},"baseRefName":"main","headRefName":"feat","reviewDecision":"APPROVED",
 	"reviewRequests":{"nodes":[{"requestedReviewer":null},
 	  {"requestedReviewer":{"__typename":"User","login":"maria"}},
 	  {"requestedReviewer":{"__typename":"User","login":"ci[bot]"}}]},
@@ -105,7 +107,62 @@ func TestDecodeFactsDropsBotsAndTeams(t *testing.T) {
 		t.Errorf("humans only: viewer %q, facts %+v", got.Viewer, f)
 	}
 
+	if f.Base != "main" || f.Head != "feat" {
+		t.Errorf("the branches are read: %+v", f)
+	}
+
 	if len(f.Dirs) != 2 || f.Dirs[0] != "api" || f.Dirs[1] != "web" || f.Checks != "" {
 		t.Errorf("top-level directories and no checks: %+v", f)
 	}
+}
+
+// A stack is one unit placed in the lane of its most urgent member, bottom first,
+// and a row standing alone is ranked as before.
+func TestLanesDrawAStackWhereItsMostUrgentMemberIs(t *testing.T) {
+	t.Parallel()
+
+	const me = "kyle"
+
+	approved := inbox.Facts{Decision: "APPROVED", Checks: "SUCCESS", Base: "feat-a", Head: "feat-b"}
+	searched := inbox.Plan(30)
+	searched[0].Items = []inbox.PullRequest{
+		{Repository: "o/r", Number: 12, Author: "sam", Created: at("2026-08-01T00:00:00Z")},
+		{Repository: "o/r", Number: 10, Author: "maria", Created: at("2026-08-02T00:00:00Z")},
+	}
+	searched[2].Items = []inbox.PullRequest{{Repository: "o/r", Number: 11, Author: me}}
+
+	facts := map[string]inbox.Facts{
+		"o/r#10": {Requested: []string{me}, Base: "main", Head: "feat-a"},
+		"o/r#11": approved,
+		"o/r#12": {Requested: []string{me}, Base: "main", Head: "other"},
+	}
+	known := map[string]inbox.Known{}
+
+	lanes := inbox.Lanes(searched, facts, inbox.Context{Viewer: me}, known, inbox.Rank)
+
+	if got := numbers(lanes[inbox.LaneReady].Items); got != "10 11" {
+		t.Errorf("ready lane holds %q, want the stack bottom first", got)
+	}
+
+	if got := numbers(lanes[inbox.LaneNew].Items); got != "12" {
+		t.Errorf("new lane holds %q, want the row standing alone", got)
+	}
+
+	bottom, top := known["o/r#10"], known["o/r#11"]
+	if bottom.Lane != inbox.LaneNew || bottom.Stack != (inbox.Stack{ID: "o/r#10", Position: 1, Size: 2}) {
+		t.Errorf("bottom keeps its own lane and joins the stack: %+v", bottom)
+	}
+
+	if !top.Stack.Above() || top.Stack.ID != "o/r#10" {
+		t.Errorf("top is read after the bottom: %+v", top.Stack)
+	}
+}
+
+func numbers(items []inbox.PullRequest) string {
+	out := make([]string, 0, len(items))
+	for i := range items {
+		out = append(out, strconv.Itoa(items[i].Number))
+	}
+
+	return strings.Join(out, " ")
 }

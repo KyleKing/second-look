@@ -174,7 +174,9 @@ var inboxHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	"Opening one needs no checkout, and C is what gets one when this laptop has a",
 	"clone. M merges only a pull request of yours that is approved with checks",
 	"passing. The searches run at once and a search that failed says so and leaves",
-	"the others alone.",
+	"the others alone. Pull requests stacked on one another are drawn as one unit,",
+	"bottom first, in the lane of the most urgent of them; a dimmed row belongs to",
+	"a later lane. Opening one above the bottom says which to read first.",
 ))
 
 func (s *inboxScreen) tab() tui.Tab {
@@ -959,7 +961,7 @@ func (s *inboxScreen) sections() []tui.Section {
 			continue
 		}
 
-		lane := tui.Section{Name: b.Name, Rows: s.rows(b.Items, !s.configured && i == int(inbox.LaneWaiting), now)}
+		lane := tui.Section{Name: b.Name, Rows: s.rows(b.Items, inbox.Lane(i), now)}
 		lane.Fold = !s.configured && i == int(inbox.LaneMerged) && !s.showMerge
 
 		if b.Pending() {
@@ -972,8 +974,9 @@ func (s *inboxScreen) sections() []tui.Section {
 	return out
 }
 
-func (s *inboxScreen) rows(items []inbox.PullRequest, dim bool, now time.Time) []tui.Row {
+func (s *inboxScreen) rows(items []inbox.PullRequest, lane inbox.Lane, now time.Time) []tui.Row {
 	rows := make([]tui.Row, 0, len(items))
+	waits := !s.configured && lane == inbox.LaneWaiting
 
 	for j := range items {
 		p := &items[j]
@@ -991,10 +994,11 @@ func (s *inboxScreen) rows(items []inbox.PullRequest, dim bool, now time.Time) [
 			Removed: removed(k),
 			Who:     k.Who,
 			Why:     k.Why,
-			Tail:    holding(k) + tagged(p) + waiting(p),
+			Tail:    stackWord(k.Stack) + holding(k) + tagged(p) + waiting(p),
 			Under:   p.Title,
+			Branch:  branch(k.Stack),
 			Urgent:  k.Priority,
-			Dim:     dim,
+			Dim:     waits || (!s.configured && k.Stack.Size > 0 && k.Lane > lane),
 		})
 	}
 
@@ -1002,6 +1006,37 @@ func (s *inboxScreen) rows(items []inbox.PullRequest, dim bool, now time.Time) [
 }
 
 const authorCap = 14
+
+// branch hangs a row above the bottom of its stack off the row before it.
+func branch(st inbox.Stack) string {
+	if !st.Above() {
+		return ""
+	}
+
+	return fmt.Sprintf("  └ %d/%d", st.Position, st.Size)
+}
+
+// stackWord marks the bottom of a stack, since the rows above it say where they
+// are themselves.
+func stackWord(st inbox.Stack) string {
+	if st.Size == 0 || st.Above() {
+		return ""
+	}
+
+	return fmt.Sprintf("stack 1/%d  ", st.Size)
+}
+
+// readFirst names the pull request to read before one stacked above it. A stack
+// lives in one repository, so the number is enough.
+func readFirst(st inbox.Stack) string {
+	if !st.Above() {
+		return ""
+	}
+
+	_, number, _ := strings.Cut(st.ID, "#")
+
+	return " · read #" + number + " first"
+}
 
 // rated is what an earlier read of this pull request made of it, which is the
 // one number here that is about the change rather than about the queue. The
@@ -1145,7 +1180,7 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 
 		s.next = &handoff{act: a, at: at}
 
-		return leaving(a) + " " + row.Key, true, nil
+		return leaving(a) + " " + row.Key + readFirst(s.local[row.Key].Stack), true, nil
 	case tui.ActApprove:
 		return s.approve(row.Key, at)
 	case tui.ActMerge:

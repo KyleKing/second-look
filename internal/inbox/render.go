@@ -99,7 +99,7 @@ func line(p *PullRequest, now time.Time, nameWidth, authorWidth int) string {
 		b.WriteString("  draft")
 	}
 
-	for _, word := range []string{p.Who, p.Why} {
+	for _, word := range []string{p.Who, p.Why, p.stackWord()} {
 		if word != "" {
 			b.WriteString("  " + word)
 		}
@@ -108,4 +108,12 @@ func line(p *PullRequest, now time.Time, nameWidth, authorWidth int) string {
 	b.WriteString("  " + p.Title)
 
 	return b.String()
+}
+
+func (p *PullRequest) stackWord() string {
+	if p.Stack.Size == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("stack %d/%d", p.Stack.Position, p.Stack.Size)
 }

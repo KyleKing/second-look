@@ -30,6 +30,10 @@ type Facts struct {
 	Talk      []Event   `json:"talk,omitempty"`
 	Pushed    time.Time `json:"pushed,omitzero"`
 	Dirs      []string  `json:"dirs,omitempty"`
+	// Base and Head are the branches the pull request joins, which is how a
+	// stack is told from rows that merely share a repository.
+	Base string `json:"base,omitempty"`
+	Head string `json:"head,omitempty"`
 }
 
 // Fetched is one read of Facts keyed like a queue row, with the login it was read as.
@@ -47,6 +51,8 @@ const query = `query($ids: [ID!]!) {
     ... on PullRequest {
       number
       repository { nameWithOwner }
+      baseRefName
+      headRefName
       reviewDecision
       reviewRequests(first: 20) {
         nodes { requestedReviewer { __typename ... on User { login } } }
@@ -150,6 +156,8 @@ type node struct {
 	Repository struct {
 		NameWithOwner string `json:"nameWithOwner"`
 	} `json:"repository"`
+	BaseRefName    string `json:"baseRefName"`
+	HeadRefName    string `json:"headRefName"`
 	ReviewDecision string `json:"reviewDecision"`
 	ReviewRequests struct {
 		Nodes []struct {
@@ -215,7 +223,7 @@ func DecodeFacts(body []byte) (Fetched, error) {
 }
 
 func (n *node) facts() Facts {
-	f := Facts{Decision: n.ReviewDecision}
+	f := Facts{Decision: n.ReviewDecision, Base: n.BaseRefName, Head: n.HeadRefName}
 
 	for _, r := range n.ReviewRequests.Nodes {
 		if r.RequestedReviewer.human() {

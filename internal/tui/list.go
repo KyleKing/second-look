@@ -50,6 +50,9 @@ type Row struct {
 	// and left-aligned, with the columns indented below it. A row carrying
 	// none draws its columns as its own line instead.
 	Under string
+	// Branch is drawn muted before the title, which is how a row says it hangs
+	// off the one above it.
+	Branch string
 
 	// Tone is the face the state word and the unread mark are drawn in. Zero
 	// leaves them plain, which is what most of a queue is.

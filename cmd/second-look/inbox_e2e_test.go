@@ -74,6 +74,39 @@ func TestInboxJSON(t *testing.T) {
 			t.Errorf("the %s field is missing:\n%s", want, res.stdout)
 		}
 	}
+
+	var buckets []struct {
+		Bucket string `json:"bucket"`
+		Items  []struct {
+			Number int         `json:"number"`
+			Lane   string      `json:"lane"`
+			Stack  inbox.Stack `json:"stack"`
+		} `json:"items"`
+	}
+
+	if err := json.Unmarshal([]byte(res.stdout), &buckets); err != nil {
+		t.Fatalf("reading the queue: %v", err)
+	}
+
+	// The stack is drawn in the lane of its most urgent member, bottom first,
+	// and each row still says which lane it belongs to on its own.
+	var got []string
+
+	for _, b := range buckets {
+		for _, it := range b.Items {
+			if it.Stack.Size > 0 {
+				got = append(got, fmt.Sprintf("%s/%d@%s:%s/%d",
+					b.Bucket, it.Number, it.Lane, it.Stack.ID, it.Stack.Position))
+			}
+		}
+	}
+
+	want := []string{
+		"back to you/104@new for you:kyleking/aragonite#104/1", "back to you/105@back to you:kyleking/aragonite#104/2",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("the stack is %q, want %q", got, want)
+	}
 }
 
 // Whatever reviews a queue in turn reads the piped shape, so it has to arrive in

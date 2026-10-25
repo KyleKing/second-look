@@ -1016,7 +1016,7 @@ func TestTheFilterKeepsOneKindOfRow(t *testing.T) {
 }
 
 // lanes carries every state the lane columns draw: the priority mark, who a
-// review waits on, why a row sits where it does, a dim lane, and a folded one.
+// review waits on, why a row sits where it does, a dim lane, a folded one, and a stack hanging off its bottom.
 func lanes() []tui.Section {
 	return []tui.Section{
 		{Name: "ready to merge", Rows: []tui.Row{{
@@ -1028,7 +1028,14 @@ func lanes() []tui.Section {
 				Key: "o/b#2", Left: "o/b#2", Mid: "maria", Age: "9d", Who: "+ 2", Why: "priority", Urgent: true,
 				Under: "fix: a hotfix for the lease",
 			},
-			{Key: "o/c#3", Left: "o/c#3", Mid: "sam", Age: "4d", Who: "only you", Under: "chore: bump"},
+			{
+				Key: "o/c#3", Left: "o/c#3", Mid: "sam", Age: "4d", Who: "only you", Tail: "stack 1/2",
+				Under: "chore: bump",
+			},
+			{
+				Key: "o/c#7", Left: "o/c#7", Mid: "sam", Age: "4d", Who: "only you", Branch: "  └ 2/2",
+				Under: "feat: use the bump",
+			},
 		}},
 		{Name: "waiting on others", Rows: []tui.Row{{
 			Key: "o/d#4", Left: "o/d#4", Mid: "kyleking", Age: "1d", Who: "maria +1", Why: "awaiting review",

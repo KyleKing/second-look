@@ -1,8 +1,9 @@
 package prepared
 
 import (
-	"sort"
 	"strconv"
+
+	"github.com/kyleking/second-look/internal/stack"
 )
 
 // Stack is a chain of staged reviews, bottom first: each one's base branch is
@@ -24,41 +25,30 @@ type Stack struct {
 // own, keeping the order they came in. A review staged before the branches were
 // recorded carries none, so it can only ever stand alone.
 func Split(rows []Review) ([]Stack, []Review) {
-	heads := make(map[string]int, len(rows))
-
+	nodes := make([]stack.Node, 0, len(rows))
 	for i := range rows {
-		if rows[i].HeadRef != "" {
-			heads[key(&rows[i], rows[i].HeadRef)] = i
-		}
+		nodes = append(nodes, stack.Node{
+			Repository: rows[i].Repository, Number: rows[i].Number,
+			Base: rows[i].BaseRef, Head: rows[i].HeadRef,
+		})
 	}
 
-	next := children(rows, heads)
+	chains := stack.Chains(nodes)
+	stacks := make([]Stack, 0, len(chains))
+	taken := make([]bool, len(rows))
 
-	// A chain of one is a review standing on its own, whatever its base names.
-	const shortest = 2
-
-	var (
-		stacks []Stack
-		alone  []Review
-		taken  = make([]bool, len(rows))
-	)
-
-	for i := range rows {
-		if taken[i] || !bottom(rows, heads, i) {
-			continue
-		}
-
-		chain := walk(next, make(map[int]bool), i)
-		if len(chain) < shortest {
-			continue
-		}
+	for _, chain := range chains {
+		rowsOf := make([]Review, 0, len(chain))
 
 		for _, at := range chain {
 			taken[at] = true
+			rowsOf = append(rowsOf, rows[at])
 		}
 
-		stacks = append(stacks, Stack{Onto: rows[i].BaseRef, Rows: pick(rows, chain)})
+		stacks = append(stacks, Stack{Onto: rows[chain[0]].BaseRef, Rows: rowsOf})
 	}
+
+	var alone []Review
 
 	for i := range rows {
 		if !taken[i] {
@@ -67,74 +57,6 @@ func Split(rows []Review) ([]Stack, []Review) {
 	}
 
 	return stacks, alone
-}
-
-// children maps each review to the ones staged on top of it, in number order so
-// a stack that forks reads the same way twice.
-func children(rows []Review, heads map[string]int) map[int][]int {
-	next := make(map[int][]int)
-
-	for i := range rows {
-		if rows[i].BaseRef == "" {
-			continue
-		}
-
-		if under, ok := heads[key(&rows[i], rows[i].BaseRef)]; ok && under != i {
-			next[under] = append(next[under], i)
-		}
-	}
-
-	for under := range next {
-		sort.SliceStable(next[under], func(a, b int) bool {
-			return rows[next[under][a]].Number < rows[next[under][b]].Number
-		})
-	}
-
-	return next
-}
-
-// bottom reports a review nothing staged here sits under, which is where a
-// chain is read from.
-func bottom(rows []Review, heads map[string]int, i int) bool {
-	if rows[i].BaseRef == "" {
-		return false
-	}
-
-	under, ok := heads[key(&rows[i], rows[i].BaseRef)]
-
-	return !ok || under == i
-}
-
-// Walk collects the chain above i, depth first. The seen set guards against a
-// pair of reviews naming each other, which would otherwise never end.
-func walk(next map[int][]int, seen map[int]bool, i int) []int {
-	if seen[i] {
-		return nil
-	}
-
-	seen[i] = true
-	out := []int{i}
-
-	for _, above := range next[i] {
-		out = append(out, walk(next, seen, above)...)
-	}
-
-	return out
-}
-
-func pick(rows []Review, chain []int) []Review {
-	out := make([]Review, 0, len(chain))
-	for _, i := range chain {
-		out = append(out, rows[i])
-	}
-
-	return out
-}
-
-// key scopes a branch name to its repository, since "main" names a different
-// branch in every repository.
-func key(r *Review, ref string) string {
-	return r.Repository + "\x00" + ref
 }
 
 // Order is the staged reviews in the order they are read: each stack's chain

@@ -265,17 +265,26 @@ func Lanes(searched []Bucket, facts map[string]Facts, c Context, known map[strin
 		lanes[i] = Bucket{Name: Lane(i).String(), done: true}
 	}
 
+	judged := make([]Lane, len(rows))
 	for i := range rows {
-		p := rows[i]
-		j := record(&p, via[keyOf(&p)], facts, c, known)
+		judged[i] = record(&rows[i], via[keyOf(&rows[i])], facts, c, known).Lane
+	}
 
-		lanes[j.Lane].Items = append(lanes[j.Lane].Items, p)
+	into := stacked(rows, facts, known)
+
+	for i := range rows {
+		lane, ok := into[keyOf(&rows[i])]
+		if !ok {
+			lane = judged[i]
+		}
+
+		lanes[lane].Items = append(lanes[lane].Items, rows[i])
 	}
 
 	at := func(p *PullRequest) Known { return known[keyOf(p)] }
 
 	for i := range lanes {
-		order(lanes[i].Items, at)
+		Arrange(lanes[i].Items, at, order)
 
 		for j := range searched {
 			if feeds(Lane(i))&searched[j].via == 0 {
@@ -313,7 +322,7 @@ func record(p *PullRequest, via Source, facts map[string]Facts, c Context, known
 	j := Judge(p, via, f, c)
 
 	k := known[key]
-	k.Judgement = j
+	k.Judgement, k.Stack = j, Stack{}
 	known[key] = k
 
 	return j

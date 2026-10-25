@@ -8,10 +8,9 @@ The goal is to review twenty-five pull requests in one sitting without opening a
 
 1. Use the agent pane and the verdict loop on real queues. Both agent adapters (`devin acp` and the Claude shim) have run full turns, and what is left is a week of daily use to find what the loop gets wrong
 2. Move to the next repository without leaving the queue. Focus holds one repository, and ending one and starting the next takes three keys (clear, move, focus), so the motion needs a key of its own
-3. Draw a stack as a stack in the inbox. The `reviews` tab already orders staged reviews bottom first, but the inbox lists a stack as unrelated rows, so the top gets read before the bottom
-4. Extract the definitions-and-usages index. `gd`, `gr`, and `gc` ask a language server today, and if real reviews show the shape is right, the index moves to a shared `codeintel` package in aragonite. Comment completion could then offer every symbol in the repository instead of only those in the diff
-5. Add blast radius to the rating as a third input. Import graphs overcount and dynamic imports undercount, and the scan needs a checkout, so it would be cached by base SHA and skipped where there is no checkout
-6. Put images in inline review comments once `gh` allows it. `gh --attach` covers pull request comments only, and the upload endpoint behind it is undocumented. Rendering an image in the terminal is a separate task with no blocker
+3. Extract the definitions-and-usages index. `gd`, `gr`, and `gc` ask a language server today, and if real reviews show the shape is right, the index moves to a shared `codeintel` package in aragonite. Comment completion could then offer every symbol in the repository instead of only those in the diff
+4. Add blast radius to the rating as a third input. Import graphs overcount and dynamic imports undercount, and the scan needs a checkout, so it would be cached by base SHA and skipped where there is no checkout
+5. Put images in inline review comments once `gh` allows it. `gh --attach` covers pull request comments only, and the upload endpoint behind it is undocumented. Rendering an image in the terminal is a separate task with no blocker
 
 ## Not scheduled
 

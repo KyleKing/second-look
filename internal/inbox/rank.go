@@ -14,6 +14,8 @@ import (
 // cached was rated. Both come off disk, so ordering eighty rows costs nothing.
 type Known struct {
 	Judgement
+	// Stack is the chain of open pull requests this row belongs to, if any.
+	Stack Stack `json:"stack,omitzero"`
 	// Reviewed is a prepared review for it under .second-look or the user
 	// config directory, which is the closest thing to "you have started this"
 	// that a search result can be matched against.
@@ -158,7 +160,7 @@ func Attach(buckets []Bucket, ratings artifact.Ratings, known map[string]Known) 
 
 	for i := range buckets {
 		Recall(buckets[i].Items, ratings, known)
-		Rank(buckets[i].Items, at)
+		Arrange(buckets[i].Items, at, Rank)
 
 		for j := range buckets[i].Items {
 			p := &buckets[i].Items[j]

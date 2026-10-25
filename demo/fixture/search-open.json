@@ -76,5 +76,31 @@
     "title": "refactor(forge): move the pull request type out of models",
     "updatedAt": "2026-07-19T11:05:00Z",
     "url": "https://github.com/octocat/hello-world/pull/112"
+  },
+  {
+    "author": {
+      "id": "MDQ6VXNlcjE=",
+      "is_bot": false,
+      "login": "maria",
+      "type": "User",
+      "url": "https://github.com/maria"
+    },
+    "commentsCount": 1,
+    "createdAt": "2026-08-27T10:00:00Z",
+    "id": "PR_kwDO0105",
+    "isDraft": false,
+    "labels": [],
+    "number": 105,
+    "repository": {
+      "description": "",
+      "id": "R_1",
+      "isFork": false,
+      "name": "aragonite",
+      "nameWithOwner": "kyleking/aragonite",
+      "url": "https://github.com/kyleking/aragonite"
+    },
+    "title": "feat(vcs): read the head through the operations interface",
+    "updatedAt": "2026-08-31T09:45:00Z",
+    "url": "https://github.com/kyleking/aragonite/pull/100"
   }
 ]

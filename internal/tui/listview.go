@@ -183,9 +183,14 @@ func (l *List) line(i int, lay table.Layout, width int, urgent bool) string {
 
 	// A row whose Under carries a title reads title-first: the one line a
 	// queue is scanned by, cut at a fixed cap so the scan holds at any width.
-	var text string
+	var text, branch string
+
 	if line.row.Under != "" {
-		text = cut(line.row.Under, min(titleCap, width-markRoom-bool2int(urgent)))
+		if line.row.Branch != "" {
+			branch = line.row.Branch + " "
+		}
+
+		text = cut(line.row.Under, min(titleCap, width-markRoom-bool2int(urgent))-textWidth(branch))
 	} else {
 		text = cut(l.row(line.row, lay), width)
 	}
@@ -201,12 +206,12 @@ func (l *List) line(i int, lay table.Layout, width int, urgent bool) string {
 
 	switch {
 	case i == l.cursor:
-		return l.styles.cursor.Render(cursorBar) + mark + text
+		return l.styles.cursor.Render(cursorBar) + mark + l.styles.subtitle.Render(branch) + text
 	case line.row.Dim:
-		return " " + mark + l.styles.behind.Render(text)
+		return " " + mark + l.styles.behind.Render(branch+text)
 	}
 
-	return " " + mark + text
+	return " " + mark + l.styles.subtitle.Render(branch) + text
 }
 
 // lit reports whether line i belongs to the row under the cursor: its title and
