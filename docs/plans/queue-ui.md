@@ -2,6 +2,17 @@
 
 Plan for a visual rewrite of the queue screen (inbox, conversations, staged). Nothing here is built yet. A sibling plan, [queue-loading.md](queue-loading.md), covers caching, fetching, and reorder animation. This one only names the interfaces it needs from that plan (see "Interfaces with queue-loading").
 
+## Round 2 revisions (these override the design below)
+
+After review, the user asked for a quieter frame with stronger titles, and chose the tint over a slide for reorders.
+
+- Lane headers are `  label  count`, with no rule and no dot. The label is bold Text for action lanes and Overlay2 for waiting and merged. The count is Subtext0 or Overlay1. Merged reads `merged  5 · z shows`. Lanes are separated by one blank line at 30 rows and up, and by none below that.
+- Rows lead with the ref (`repo#n`) in a fixed dim column, then one mark cell (`!`, `╭`, `╰`, or `●` for unread), then the title. All titles start on the same column.
+- A conventional-commit prefix (`feat(inbox):`) draws in Overlay1, and the subject draws in Text. The inspector shows the subject as its bold first line, with the prefix and ref after it.
+- Only the status glyph carries the tone. The word draws in Subtext0 (Overlay2 on waiting rows). `↻ new commits` uses Sapphire, and comments use Yellow.
+- The inspector and footer share one Mantle panel pinned to the bottom of the frame. Key hints drop their brackets: the key draws in Lavender and the word in Overlay1.
+- Kept from round 1: tab chips with the underline, the selection band with lit faces, the one-line grid, `·` placeholders, Overlay2 waiting rows, and breakpoints.
+
 ## What is wrong now
 
 Frames captured from `demo/scene.sh inbox` under tmux at 80x24, 120x34, and 160x45.

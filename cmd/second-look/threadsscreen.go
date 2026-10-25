@@ -297,7 +297,7 @@ func (s *threadsScreen) sections() []tui.Section {
 			})
 		}
 
-		out = append(out, tui.Section{Name: b.Name, Rows: rows})
+		out = append(out, tui.Section{Name: b.Name, Rows: rows, Recedes: b.Name == conversations.BucketAwaiting})
 	}
 
 	return out

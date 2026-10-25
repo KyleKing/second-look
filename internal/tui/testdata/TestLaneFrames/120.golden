@@ -1,19 +1,19 @@
  second-look   1 inbox 4    2 other 2                                                                  sorted by triage 
 ───────────────━━━━━━━━━━───────────────────────────────────────────────────────────────────────────────────────────────
-  ready to merge (1)
+  ready to merge  1
   feat(inbox): order the queue by lane
           o/a#1  kyleking  2d               approved, checks passing
-  new for you (3)
+  new for you  3
 ▌!fix: a hotfix for the lease                                                                                          
           o/b#2  maria     9d     + 2       priority                                                                   
   chore: bump
           o/c#3  sam       4d     only you                            stack 1/2
     └ 2/2 feat: use the bump
           o/c#7  sam       4d     only you
-  waiting on others (1)
+  waiting on others  1
   docs: say why
           o/d#4  kyleking  1d     maria +1  awaiting review
-  merged (1, z shows them)
+  merged  1 · z shows
 
 
  [enter] review  [M]erge

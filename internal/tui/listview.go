@@ -210,8 +210,10 @@ func (l *List) line(i int, lay table.Layout, width int, urgent bool) string {
 	line := l.lines[i]
 
 	switch {
-	case line.heading != "":
-		return " " + l.styles.file.Render(" "+line.heading)
+	case line.blank:
+		return ""
+	case line.section != nil:
+		return l.laneRule(line.section, width)
 	case line.detail != "":
 		return " " + l.styles.body.Render(cut("        "+line.detail, width))
 	case line.under:
@@ -257,6 +259,32 @@ func (l *List) line(i int, lay table.Layout, width int, urgent bool) string {
 	}
 
 	return " " + mark + l.styles.subtitle.Render(branch) + text
+}
+
+// laneRule is the line a group starts with: its name and its count. A group
+// that needs action reads bold, and one waiting on somebody else reads quiet.
+func (l *List) laneRule(s *Section, width int) string {
+	faces := l.styles.lanes
+	label, count := faces.label, faces.count
+
+	if s.Recedes {
+		label, count = faces.quietLabel, faces.quietCount
+	}
+
+	return cut("  "+label.Render(s.Name)+"  "+count.Render(laneCount(s)), width)
+}
+
+// laneCount is what stands beside a group's name: the note where the group
+// cannot count its rows yet, else the count, with the key that shows a folded one.
+func laneCount(s *Section) string {
+	switch {
+	case s.Note != "":
+		return s.Note
+	case s.Fold:
+		return strconv.Itoa(len(s.Rows)) + " · z shows"
+	}
+
+	return strconv.Itoa(len(s.Rows))
 }
 
 // lit reports whether line i belongs to the row under the cursor: its title and

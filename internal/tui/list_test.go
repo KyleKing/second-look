@@ -445,11 +445,11 @@ func TestAQueueDrawsEachSectionAsItLands(t *testing.T) {
 		WithLoader(feed)
 	l.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 
-	shows(t, l, []string{"pending your review (searching…)"}, []string{"repo#1", "repo#2"})
+	shows(t, l, []string{"pending your review", "searching…"}, []string{"repo#1", "repo#2"})
 
 	// The later section answers first, which is what the cursor has to survive.
 	l.Update(feed.order[0])
-	shows(t, l, []string{"repo#2", "pending your review (searching…)"}, []string{"repo#1"})
+	shows(t, l, []string{"repo#2", "pending your review", "searching…"}, []string{"repo#1"})
 
 	l.Update(feed.order[1])
 	shows(t, l, []string{"repo#1", "repo#2"}, []string{"searching…"})
@@ -1037,19 +1037,24 @@ func lanes() []tui.Section {
 				Under: "feat: use the bump",
 			},
 		}},
-		{Name: "waiting on others", Rows: []tui.Row{{
+		{Name: "waiting on others", Recedes: true, Rows: []tui.Row{{
 			Key: "o/d#4", Left: "o/d#4", Mid: "kyleking", Age: "1d", Who: "maria +1", Why: "awaiting review",
 			Under: "docs: say why", Dim: true,
 		}}},
-		{Name: "merged", Fold: true, Rows: []tui.Row{{Key: "o/e#5", Left: "o/e#5"}}},
+		{Name: "merged", Fold: true, Recedes: true, Rows: []tui.Row{{Key: "o/e#5", Left: "o/e#5"}}},
 	}
 }
 
 func TestLaneFrames(t *testing.T) {
 	t.Parallel()
 
-	for _, width := range []int{80, 120, 200} {
-		t.Run(strconv.Itoa(width), func(t *testing.T) {
+	for _, size := range []struct{ width, height int }{{80, 20}, {120, 20}, {200, 20}, {120, 34}} {
+		name := strconv.Itoa(size.width)
+		if size.height != 20 {
+			name += "x" + strconv.Itoa(size.height)
+		}
+
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			l := tui.NewTabs([]tui.Tab{
@@ -1071,7 +1076,7 @@ func TestLaneFrames(t *testing.T) {
 					Badge: func() tui.Badge { return tui.Badge{Label: "2", Alert: true} },
 				},
 			}, 0)
-			l.Update(tea.WindowSizeMsg{Width: width, Height: 20})
+			l.Update(tea.WindowSizeMsg{Width: size.width, Height: size.height})
 			l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
 
 			golden.RequireEqual(t, []byte(plain(l.ListFrame())))

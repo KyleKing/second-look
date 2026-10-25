@@ -1,6 +1,6 @@
  second-look conversations                                     sorted by triage 
 ────────────────────────────────────────────────────────────────────────────────
-  new since you looked (2)
+  new since you looked  2
 ▌good catch, pushed a defer                                                    
         ● kyleking/tlr#118                    internal/pool/pool.go:42   2h    …
          you:
@@ -9,8 +9,8 @@
            good catch, pushed a defer
  two questions inline
         ● …g/a-much-longer-repository-name#7  review body                13h   …
-  waiting on you (0)
-  awaiting others (1)
+  waiting on you  0
+  awaiting others  1
  no, that one is per worker
           kyleking/wavez#7                    internal/lease/lease.go:9  4d    …
 

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"image/color"
-	"strconv"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -308,14 +307,8 @@ func Readings() []Reading {
 	for name, c := range map[string]*lipgloss.Style{
 		"lane label": &st.lanes.label, "lane count": &st.lanes.count,
 		"quiet label": &st.lanes.quietLabel, "quiet count": &st.lanes.quietCount,
-		"hollow dot": &st.lanes.hollow,
 	} {
 		add(name, c.GetForeground(), base)
-	}
-
-	for tone := range st.lanes.dots {
-		face := st.lanes.dots[tone]
-		add("lane dot "+strconv.Itoa(int(tone)), face.GetForeground(), base)
 	}
 
 	return out

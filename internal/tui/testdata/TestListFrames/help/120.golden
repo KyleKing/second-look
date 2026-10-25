@@ -1,12 +1,12 @@
  second-look conversations                             ╭─ keys ───────────────────────────────────────────────────────╮ 
 ───────────────────────────────────────────────────────│ j/k, ctrl+u/d, g/G  move, half page, top and bottom          │─
-  new since you looked (2)                             │      ctrl+e/ctrl+y  scroll without moving the cursor         │
+  new since you looked  2                              │      ctrl+e/ctrl+y  scroll without moving the cursor         │
 ▌good catch, pushed a defer                            │       1/2/3, ] / [  the queue to read                        │
         ● kyleking/tlr#118                          int│                tab  the next group                           │
  two questions inline                                  │                  /  narrow to the rows carrying a word; esc  │
         ● kyleking/a-much-longer-repository-name#7  rev│                     puts them back                           │
-  waiting on you (0)                                   │              enter  read the whole conversation, and mark it │
-  awaiting others (1)                                  │                     read                                     │
+  waiting on you  0                                    │              enter  read the whole conversation, and mark it │
+  awaiting others  1                                   │                     read                                     │
  no, that one is per worker                            │              space  mark read without opening it             │
           kyleking/wavez#7                          int│                  r  reply, staged into the prepared review   │
                                                        │                  R  resolve the thread, or thumbs-up what    │

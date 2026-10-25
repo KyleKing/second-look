@@ -94,8 +94,6 @@ const (
 	// ToneMerged marks work the pull request's merge made moot, drawn in the
 	// forge's own color for a merge.
 	ToneMerged
-	// ToneInfo marks work that is new to the reader and asks nothing yet.
-	ToneInfo
 )
 
 // Section is a group of rows under a heading. An empty section keeps its
@@ -109,6 +107,9 @@ type Section struct {
 	Rows []Row
 	// Fold draws the heading and its note and none of the rows.
 	Fold bool
+	// Recedes draws the heading in quieter words, for a section that is waiting
+	// on somebody else or already done.
+	Recedes bool
 }
 
 // Action is what was pressed on a row.
@@ -293,6 +294,10 @@ type List struct {
 // it this line carries.
 type listLine struct {
 	heading string
+	// section is the group a heading line draws, and blank marks the empty line
+	// that sets a heading apart from the rows above it.
+	section *Section
+	blank   bool
 	row     *Row
 	// under marks the second line of a row, which quotes what was last said.
 	under bool
@@ -994,31 +999,7 @@ func (l *List) rebuild() {
 	l.shown = l.filter.narrow(keepFocused(l.focused, l.sections()))
 
 	for i := range l.shown {
-		s := &l.shown[i]
-
-		l.lines = append(l.lines, listLine{heading: heading(s)})
-
-		if s.Fold {
-			continue
-		}
-
-		for i := range s.Rows {
-			row := &s.Rows[i]
-
-			l.lines = append(l.lines, listLine{row: row})
-
-			if row.Under != "" {
-				l.lines = append(l.lines, listLine{row: row, under: true})
-			}
-
-			if !l.expanded[row.Key] {
-				continue
-			}
-
-			for _, d := range row.Detail {
-				l.lines = append(l.lines, listLine{row: row, detail: d})
-			}
-		}
+		l.appendSection(i, &l.shown[i])
 	}
 
 	if was == nil || !l.touched {
@@ -1037,6 +1018,42 @@ func (l *List) rebuild() {
 	}
 
 	l.to(l.cursor)
+}
+
+// roomyHeight is how many rows the terminal needs before a blank line sets
+// each group apart: below it the room goes to the rows.
+const roomyHeight = 30
+
+// appendSection lays out the i'th section: its heading, then its rows and
+// whatever each has expanded.
+func (l *List) appendSection(i int, s *Section) {
+	if i > 0 && l.height >= roomyHeight {
+		l.lines = append(l.lines, listLine{blank: true})
+	}
+
+	l.lines = append(l.lines, listLine{heading: heading(s), section: s})
+
+	if s.Fold {
+		return
+	}
+
+	for j := range s.Rows {
+		row := &s.Rows[j]
+
+		l.lines = append(l.lines, listLine{row: row})
+
+		if row.Under != "" {
+			l.lines = append(l.lines, listLine{row: row, under: true})
+		}
+
+		if !l.expanded[row.Key] {
+			continue
+		}
+
+		for _, d := range row.Detail {
+			l.lines = append(l.lines, listLine{row: row, detail: d})
+		}
+	}
 }
 
 // moved handles every key that only changes where the frame is looking, so the

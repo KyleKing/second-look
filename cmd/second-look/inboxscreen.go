@@ -951,6 +951,7 @@ func (s *inboxScreen) sections() []tui.Section {
 		}
 
 		lane := tui.Section{Name: b.Name, Rows: s.rows(b.Items, inbox.Lane(i), now)}
+		lane.Recedes = !s.configured && (i == int(inbox.LaneWaiting) || i == int(inbox.LaneMerged))
 		lane.Fold = !s.configured && i == int(inbox.LaneMerged) && !s.showMerge
 
 		if b.Pending() {

@@ -201,14 +201,10 @@ func (l *ladder) all() map[string]*rung {
 	}
 }
 
-// laneFaces are the faces of a lane heading: the dot in the lane's tone, a
-// bold label for lanes that need action and a quiet one for those that wait,
-// and the count.
+// laneFaces are the faces of a lane heading: a bold label for lanes that need
+// action and a quiet one for those that wait, each with its count.
 type laneFaces struct {
-	label, count           lipgloss.Style
-	quietLabel, quietCount lipgloss.Style
-	dots                   map[Tone]lipgloss.Style
-	hollow                 lipgloss.Style
+	label, count, quietLabel, quietCount lipgloss.Style
 }
 
 func newLaneFaces(p theme.Palette) laneFaces {
@@ -216,16 +212,8 @@ func newLaneFaces(p theme.Palette) laneFaces {
 
 	return laneFaces{
 		label:      base.Foreground(p.Text).Bold(true),
-		count:      base.Foreground(p.Subtext1).Bold(true),
+		count:      base.Foreground(p.Subtext0),
 		quietLabel: base.Foreground(p.Overlay2),
 		quietCount: base.Foreground(p.Overlay1),
-		hollow:     base.Foreground(p.Overlay1),
-		dots: map[Tone]lipgloss.Style{
-			ToneGood:     base.Foreground(p.Green),
-			ToneWarn:     base.Foreground(p.Yellow),
-			ToneInfo:     base.Foreground(p.Sapphire),
-			ToneBad:      base.Foreground(p.Red),
-			ToneOrdinary: base.Foreground(p.Lavender),
-		},
 	}
 }
