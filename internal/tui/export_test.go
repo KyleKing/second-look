@@ -228,7 +228,9 @@ type GraphNode struct {
 
 // DrawGraph draws a call graph at a width and returns its lines and the one
 // holding the selected node, which is the at-th of the callees or of the callers.
-func DrawGraph(center GraphNode, callers, callees []GraphNode, onCallees bool, at, width int) ([]string, int) {
+// The selection walks down to via first and then to at, one node at a time, so
+// the side is scrolled where pressing j and k would have left it.
+func DrawGraph(center GraphNode, callers, callees []GraphNode, onCallees bool, via, at, width int) ([]string, int) {
 	nodes := func(in []GraphNode) []graphNode {
 		out := make([]graphNode, 0, len(in))
 		for _, n := range in {
@@ -243,9 +245,25 @@ func DrawGraph(center GraphNode, callers, callees []GraphNode, onCallees bool, a
 		side = sideCallees
 	}
 
-	lines, row := layoutGraph(graphView{
+	v := graphView{
 		center: nodes([]GraphNode{center})[0], callers: nodes(callers), callees: nodes(callees), side: side, at: at,
-	}, width)
+	}
+
+	n := len(v.callers)
+	if onCallees {
+		n = len(v.callees)
+	}
+
+	cur := 0
+
+	for _, target := range []int{via, at} {
+		for cur != target {
+			cur += min(max(target-cur, -1), 1)
+			v.tops[side] = scrollTo(n, cur, v.tops[side])
+		}
+	}
+
+	lines, row := layoutGraph(v, width)
 
 	out := make([]string, 0, len(lines))
 	for _, l := range lines {

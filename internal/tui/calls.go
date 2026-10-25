@@ -15,13 +15,13 @@ import (
 // graphSites is how many call sites a node's expansion excerpts.
 const graphSites = 3
 
-// callGraph is a gc card's state: the answer, and which node of it is selected.
-// Only the first graphSide nodes of a side can be selected, because the rest are
-// folded into a +N the layout draws as names.
+// callGraph is a gc card's state: the answer, which node of it is selected, and
+// how far each side has scrolled to keep that node in view.
 type callGraph struct {
 	graph diag.Graph
 	side  int
 	at    int
+	tops  [2]int
 	// open is whether the selected node's call sites are drawn under the graph.
 	open bool
 }
@@ -43,7 +43,7 @@ func (c *callGraph) nodes(side int) []diag.CallNode {
 	return c.graph.Callees
 }
 
-func (c *callGraph) reach(side int) int { return min(len(c.nodes(side)), graphSide) }
+func (c *callGraph) reach(side int) int { return len(c.nodes(side)) }
 
 func (c *callGraph) selected() (diag.CallNode, bool) {
 	if c.at >= c.reach(c.side) {
@@ -55,6 +55,7 @@ func (c *callGraph) selected() (diag.CallNode, bool) {
 
 func (c *callGraph) step(by int) {
 	c.at, c.open = clamp(c.at+by, c.reach(c.side)-1), false
+	c.tops[c.side] = scrollTo(c.reach(c.side), c.at, c.tops[c.side])
 }
 
 func (c *callGraph) across(side int) {
@@ -63,6 +64,7 @@ func (c *callGraph) across(side int) {
 	}
 
 	c.side, c.at, c.open = side, clamp(c.at, c.reach(side)-1), false
+	c.tops[side] = scrollTo(c.reach(side), c.at, c.tops[side])
 }
 
 func graphKeys() [][2]string {
@@ -353,6 +355,7 @@ func (m *Model) graphView(c *callGraph) graphView {
 
 	return graphView{
 		center: center, callers: nodes(c.graph.Callers), callees: nodes(c.graph.Callees), side: c.side, at: c.at,
+		tops: c.tops,
 	}
 }
 

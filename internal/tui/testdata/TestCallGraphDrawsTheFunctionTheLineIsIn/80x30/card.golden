@@ -1,4 +1,4 @@
-kyleking/jj-diff #42           2 files · +2 −1 · ◆ 1 to judge · checking… ·  28%
+kyleking/jj-diff #42           2 files · +2 −1 · ◆ 1 to judge · checking… ·  29%
 vcs ●───────────────────────────────────────────────────────────────────────┊─  
  
      internal/vcs/diff.go  +2 -1 ───────────────────────────────────────────────
@@ -7,12 +7,11 @@ vcs ●────────────────────────�
   15 -     lines := split(r)                                                    
   15 +     lines, err := split(r)                                               
        ╭─ ⇢ calls · Parse · internal/vcs/diff.go:12 ── 2 callers · 7 callees ─╮
-▌      │                                ┌── ›split       …/vcs/diff.go:40     │
-       │                                ├──  Join ×2     strings              │
-       │  Load       ──┬──▶ Parse ✎ ◆ ──┼──  backoff     …/vcs/diff.go:60     │
-       │  Run ×3     ──┘                ├──  fetch       …/vcs/diff.go:70     │
-       │                                ├──  pages       …/vcs/diff.go:80     │
-       │                                └──  +2          warn, inc            │
+▌      │                                ┌── ›split        …/vcs/diff.go:40    │
+       │                                ├──  Join ×2      strings             │
+       │  Load       ──┬──▶ Parse ✎ ◆ ──┼──  backoff      …/vcs/diff.go:60    │
+       │  Run ×3     ──┘                ├──  fetch        …/vcs/diff.go:70    │
+       │                                └──  ↓ 3 more     pages, warn, inc    │
        ╰─ [j/k] node · [h/l] side · [za] call sites · [enter] open ───────────╯
        ╭─ ⤷ @doggo · unresolved · 1 comment ───────────────────── diff.go:15 ─╮
        │   wrap the error                                                     │
@@ -26,5 +25,6 @@ vcs ●────────────────────────�
  
       ┃ REVIEW BODY  empty · e to write one
       ┃ REVIEW NOTE  empty · e to write one
+
 
  [j/k] line  ] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit

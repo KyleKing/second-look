@@ -7,8 +7,8 @@ import (
 	"github.com/kyleking/second-look/internal/highlight"
 )
 
-// The call graph's grid. Every side draws at most graphSide nodes and folds the
-// rest into a +N row, and the three text columns have a ceiling and a floor
+// The call graph's grid. Every side draws at most graphSide rows and scrolls
+// the nodes past them, and the three text columns have a ceiling and a floor
 // they are squeezed between when the card is narrow.
 const (
 	graphSide         = 5
@@ -34,8 +34,9 @@ const (
 	sideCallees
 )
 
-// graphNode is one function as the layout draws it. A rest node stands for the
-// functions a side folded away, and its where is their names.
+// graphNode is one function as the layout draws it. A rest node is the marker
+// for the functions a side has scrolled out of view, and its where is their
+// names.
 type graphNode struct {
 	name   string
 	times  int
@@ -47,13 +48,14 @@ type graphNode struct {
 }
 
 // graphView is everything the layout needs, with the selection as a side and an
-// index into the nodes that side draws.
+// index into that side's nodes, and where each side is scrolled to.
 type graphView struct {
 	center  graphNode
 	callers []graphNode
 	callees []graphNode
 	side    int
 	at      int
+	tops    [2]int
 }
 
 // graphLine is one row of the layout and the spans that color it, byte offsets
@@ -80,21 +82,28 @@ func (c graphCols) total() int {
 // location columns are the same width on every line, so a column reads straight
 // down however many nodes a side has.
 func layoutGraph(v graphView, width int) ([]graphLine, int) {
-	left, right := foldSide(v.callers), foldSide(v.callees)
+	left, firstLeft := scrolled(v.callers, v.tops[sideCallers])
+	right, firstRight := scrolled(v.callees, v.tops[sideCallees])
 	mid := max(trunkRow(len(left)), trunkRow(len(right)))
 	g := grid{
 		center: v.center, mid: mid, left: newGridSide(left, mid), right: newGridSide(right, mid),
 		cols: fitColumns(graphColumns(v.center, left, right), width),
-		side: v.side, at: v.at,
+		side: v.side,
 	}
 
 	selected := mid
 
-	switch {
-	case v.side == sideCallers && v.at < len(left):
-		selected = g.left.rowOf(v.at)
-	case v.side == sideCallees && v.at < len(right):
-		selected = g.right.rowOf(v.at)
+	switch v.side {
+	case sideCallers:
+		g.at = v.at - v.tops[sideCallers] + firstLeft
+		selected = g.left.rowOf(g.at)
+	case sideCallees:
+		g.at = v.at - v.tops[sideCallees] + firstRight
+		selected = g.right.rowOf(g.at)
+	}
+
+	if g.at < 0 || selected < 0 {
+		selected = mid
 	}
 
 	rows := max(mid, g.left.hi, g.right.hi) + 1
@@ -188,19 +197,69 @@ func (g grid) draw(row int) graphLine {
 	return b.line()
 }
 
-// foldSide keeps the first graphSide nodes and folds the rest into one muted +N.
-func foldSide(nodes []graphNode) []graphNode {
-	if len(nodes) <= graphSide {
-		return nodes
+// scrollSpan is the nodes [top, to) an n-node side shows when scrolled to top,
+// and whether a marker row stands in for the nodes above and for the nodes
+// below. The markers take rows of the graphSide the side has, so the side is as
+// tall at one scroll position as at any other and the center's row does not move.
+type scrollSpan struct {
+	to       int
+	up, down bool
+}
+
+func window(n, top int) scrollSpan {
+	room := graphSide
+	if top > 0 {
+		room--
 	}
 
-	names := make([]string, 0, len(nodes)-graphSide)
-	for _, n := range nodes[graphSide:] {
+	if n-top <= room {
+		return scrollSpan{to: n, up: top > 0}
+	}
+
+	return scrollSpan{to: top + room - 1, up: top > 0, down: true}
+}
+
+// scrollTo is the top that shows node at when the side was scrolled to top: the
+// same one while it is in view, and just far enough otherwise.
+func scrollTo(n, at, top int) int {
+	top = min(top, at)
+
+	for {
+		if at < window(n, top).to {
+			return top
+		}
+
+		top++
+	}
+}
+
+// scrolled is the rows a side draws at top, markers included, and the row of
+// the first node among them.
+func scrolled(nodes []graphNode, top int) ([]graphNode, int) {
+	w := window(len(nodes), top)
+	rows := make([]graphNode, 0, graphSide)
+	first := 0
+
+	if w.up {
+		rows, first = append(rows, hidden("↑", nodes[:top])), 1
+	}
+
+	rows = append(rows, nodes[top:w.to]...)
+
+	if w.down {
+		rows = append(rows, hidden("↓", nodes[w.to:]))
+	}
+
+	return rows, first
+}
+
+func hidden(arrow string, nodes []graphNode) graphNode {
+	names := make([]string, 0, len(nodes))
+	for _, n := range nodes {
 		names = append(names, n.name)
 	}
 
-	return append(append([]graphNode{}, nodes[:graphSide]...),
-		graphNode{name: fmt.Sprintf("+%d", len(names)), where: strings.Join(names, ", "), rest: true})
+	return graphNode{name: fmt.Sprintf("%s %d more", arrow, len(names)), where: strings.Join(names, ", "), rest: true}
 }
 
 func graphColumns(center graphNode, left, right []graphNode) graphCols {
