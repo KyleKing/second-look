@@ -50,6 +50,18 @@ type styles struct {
 	ok        lipgloss.Style
 	merged    lipgloss.Style
 	priority  lipgloss.Style
+	// band is the background behind the row under the cursor, and nothing else:
+	// a face drawn over it supplies the foreground.
+	band lipgloss.Style
+	// rungs are the faces a queue row is drawn in, each as a pair: dim on the
+	// frame's background and lit on the band.
+	rungs ladder
+	// Chips and rules for the queue's header and lane headings.
+	badge        lipgloss.Style
+	badgeOn      lipgloss.Style
+	badgeBlocked lipgloss.Style
+	hairline     lipgloss.Style
+	lanes        laneFaces
 	// Card faces, until aragonite's skin.Edge and skin.Card carry this contrast.
 	edge      lipgloss.Style
 	agentEdge lipgloss.Style
@@ -88,23 +100,30 @@ func newStyles() styles {
 		// The cursor is drawn as a solid chip rather than sk.Cursor's bold text,
 		// since a single lavender character reads the same as the rail and the
 		// title's own accent and is lost in a screen already full of them.
-		cursor:    base.Background(accent(p)).Foreground(p.Base).Bold(true),
-		selected:  sk.Accent,
-		selection: sk.Selection,
-		rail:      sk.Accent,
-		body:      sk.Body,
-		note:      sk.Muted.Italic(true),
-		footer:    sk.Subtitle,
-		head:      sk.Heading,
-		key:       sk.Key,
-		warn:      sk.Warning,
-		fail:      sk.Error,
-		ok:        sk.Success,
-		merged:    base.Foreground(p.Mauve),
-		priority:  base.Foreground(p.Peach).Bold(true),
-		edge:      base.Foreground(p.Overlay2),
-		agentEdge: base.Foreground(p.Mauve),
-		fill:      p.Surface0,
+		cursor:       base.Background(accent(p)).Foreground(p.Base).Bold(true),
+		selected:     sk.Accent,
+		selection:    sk.Selection,
+		rail:         sk.Accent,
+		body:         sk.Body,
+		note:         sk.Muted.Italic(true),
+		footer:       sk.Subtitle,
+		head:         sk.Heading,
+		key:          sk.Key,
+		warn:         sk.Warning,
+		fail:         sk.Error,
+		ok:           sk.Success,
+		merged:       base.Foreground(p.Mauve),
+		priority:     base.Foreground(p.Peach).Bold(true),
+		band:         sk.Band,
+		rungs:        newLadder(p, accent(p)),
+		badge:        sk.Badge,
+		badgeOn:      sk.BadgeActive,
+		badgeBlocked: sk.Badge.Foreground(p.Red),
+		hairline:     sk.Hairline,
+		lanes:        newLaneFaces(p),
+		edge:         base.Foreground(p.Overlay2),
+		agentEdge:    base.Foreground(p.Mauve),
+		fill:         p.Surface0,
 		severity: map[string]lipgloss.Style{
 			"blocker": base.Foreground(p.Red).Bold(true),
 			"major":   base.Foreground(p.Peach).Bold(true),
@@ -137,5 +156,80 @@ func statusGlyph(status string) string {
 		return "◑"
 	default:
 		return "?"
+	}
+}
+
+// rung is one face of a queue row in its two states. Selection puts a band
+// behind the row that Overlay2 and dimmer cannot be read on, so every face has
+// a variant one step brighter for the row under the cursor.
+type rung struct{ dim, lit lipgloss.Style }
+
+// ladder is every face a queue row draws text in.
+type ladder struct {
+	title, waiting, cell, age, mark, add, remove     rung
+	good, warn, bad, muted, merged, priority, unread rung
+}
+
+func newLadder(p theme.Palette, accent color.Color) ladder {
+	base := lipgloss.NewStyle()
+	fg := func(dim, lit color.Color) rung {
+		return rung{dim: base.Foreground(dim), lit: base.Foreground(lit)}
+	}
+	bold := func(r rung) rung { return rung{dim: r.dim.Bold(true), lit: r.lit.Bold(true)} }
+
+	return ladder{
+		title:    rung{dim: base.Foreground(p.Text), lit: base.Foreground(p.Text).Bold(true)},
+		waiting:  fg(p.Overlay2, p.Subtext0),
+		cell:     fg(p.Subtext0, p.Text),
+		age:      fg(p.Overlay1, p.Subtext0),
+		mark:     fg(p.Overlay1, p.Subtext0),
+		add:      fg(p.Green, p.Green),
+		remove:   fg(p.Red, p.Red),
+		good:     fg(p.Green, p.Green),
+		warn:     fg(p.Yellow, p.Yellow),
+		bad:      fg(p.Red, p.Red),
+		muted:    fg(p.Overlay1, p.Subtext0),
+		merged:   fg(p.Mauve, p.Mauve),
+		priority: bold(fg(p.Peach, p.Peach)),
+		unread:   bold(fg(accent, accent)),
+	}
+}
+
+// all names every rung, for the contrast test to walk.
+func (l *ladder) all() map[string]*rung {
+	return map[string]*rung{
+		"title": &l.title, "waiting": &l.waiting, "cell": &l.cell, "age": &l.age,
+		"mark": &l.mark, "add": &l.add, "remove": &l.remove, "good": &l.good,
+		"warn": &l.warn, "bad": &l.bad, "muted": &l.muted, "merged": &l.merged,
+		"priority": &l.priority, "unread mark": &l.unread,
+	}
+}
+
+// laneFaces are the faces of a lane heading: the dot in the lane's tone, a
+// bold label for lanes that need action and a quiet one for those that wait,
+// and the count.
+type laneFaces struct {
+	label, count           lipgloss.Style
+	quietLabel, quietCount lipgloss.Style
+	dots                   map[Tone]lipgloss.Style
+	hollow                 lipgloss.Style
+}
+
+func newLaneFaces(p theme.Palette) laneFaces {
+	base := lipgloss.NewStyle()
+
+	return laneFaces{
+		label:      base.Foreground(p.Text).Bold(true),
+		count:      base.Foreground(p.Subtext1).Bold(true),
+		quietLabel: base.Foreground(p.Overlay2),
+		quietCount: base.Foreground(p.Overlay1),
+		hollow:     base.Foreground(p.Overlay1),
+		dots: map[Tone]lipgloss.Style{
+			ToneGood:     base.Foreground(p.Green),
+			ToneWarn:     base.Foreground(p.Yellow),
+			ToneInfo:     base.Foreground(p.Sapphire),
+			ToneBad:      base.Foreground(p.Red),
+			ToneOrdinary: base.Foreground(p.Lavender),
+		},
 	}
 }

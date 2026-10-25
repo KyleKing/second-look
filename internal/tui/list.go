@@ -94,6 +94,8 @@ const (
 	// ToneMerged marks work the pull request's merge made moot, drawn in the
 	// forge's own color for a merge.
 	ToneMerged
+	// ToneInfo marks work that is new to the reader and asks nothing yet.
+	ToneInfo
 )
 
 // Section is a group of rows under a heading. An empty section keeps its

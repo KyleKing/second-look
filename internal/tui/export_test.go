@@ -2,8 +2,10 @@ package tui
 
 import (
 	"image/color"
+	"strconv"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/theme"
 )
 
@@ -271,4 +273,50 @@ func DrawGraph(center GraphNode, callers, callees []GraphNode, onCallees bool, v
 	}
 
 	return out, row
+}
+
+// Reading is the contrast of one face against what it is drawn on.
+type Reading struct {
+	Name  string
+	Ratio float64
+}
+
+// Readings measures every face a queue draws text in against its background:
+// a row's dim face on the frame, its lit face on the selection band, and the
+// chips and lane headings on what they sit on.
+func Readings() []Reading {
+	st := loadStyles()
+	base, band := st.palette.Base, st.band.GetBackground()
+
+	var out []Reading
+
+	add := func(name string, fg, bg color.Color) {
+		out = append(out, Reading{Name: name, Ratio: theme.Contrast(fg, bg)})
+	}
+
+	for name, r := range st.rungs.all() {
+		add(name+" dim on Base", r.dim.GetForeground(), base)
+		add(name+" lit on the band", r.lit.GetForeground(), band)
+	}
+
+	for name, c := range map[string]*lipgloss.Style{
+		"badge": &st.badge, "badge active": &st.badgeOn, "badge blocked": &st.badgeBlocked,
+	} {
+		add(name, c.GetForeground(), c.GetBackground())
+	}
+
+	for name, c := range map[string]*lipgloss.Style{
+		"lane label": &st.lanes.label, "lane count": &st.lanes.count,
+		"quiet label": &st.lanes.quietLabel, "quiet count": &st.lanes.quietCount,
+		"hollow dot": &st.lanes.hollow,
+	} {
+		add(name, c.GetForeground(), base)
+	}
+
+	for tone := range st.lanes.dots {
+		face := st.lanes.dots[tone]
+		add("lane dot "+strconv.Itoa(int(tone)), face.GetForeground(), base)
+	}
+
+	return out
 }

@@ -37,3 +37,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
 )
+
+// Removed when aragonite v0.23.0 is tagged.
+replace github.com/kyleking/aragonite => ../aragonite
