@@ -7,7 +7,7 @@ go stale.
 
 The question this was scoping: what would "VCS blame, a recency heat map, and similar
 views" mean for second-look, given that
-[requirements.md's "Reviewing needs no checkout"](../requirements.md) section makes
+[DESIGN.md's "Reviewing needs no checkout"](../../DESIGN.md) section makes
 having a working tree optional and lazy. Blame needs history, and history lives in a
 checkout, not in a pull request's diff from the API. So the real question is narrower:
 what can the screen show in each of the three states it already models, and what does it

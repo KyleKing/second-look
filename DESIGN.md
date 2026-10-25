@@ -1,429 +1,212 @@
 # Design
 
-Screens, keymap, and architecture for second-look. Scope and priorities live in
-[requirements.md](requirements.md).
+Why second-look is shaped the way it is, and how the pieces fit. What to build next is
+in [ROADMAP.md](ROADMAP.md). The screens and keys are not described here because the
+footer and `?` describe them, and they change faster than this file.
 
-## Overview
+## The problem
 
-Diff-dominant TUI in Bubble Tea, in the same idiom as gh-repo-dashboard: minimal color,
-one unified background, borders for hierarchy, vim keybindings, Catppuccin Macchiato.
+Most of the code I ship is now written by an agent and checked first by a review bot.
+The loop looks like this: an agent opens a pull request, a bot such as Watch Doggo
+reviews it, another agent drafts replies, and a third pushes fixes. Every step is
+automated except the one that matters, which is a person reading the diff and deciding
+whether the change is right. On github.com that read is shallow. The viewed checkbox is
+per file and resets on a push, a moved function shows up as a delete and an unrelated
+insert, and files arrive in alphabetical order. So I skim, and the review I post says
+LGTM whether or not I looked.
 
-The diff owns the screen because navigation is by hunk. Everything else summons: the file
-tree as an overlay, the context pane as an alternate right half, signature detail as an
-on-request popup. The one exception is comments, which stay inline where they anchor and
-are capped so they never bury the code.
+Two smaller problems sit under that one. Working the queue of waiting pull requests
+means opening a browser tab per repository, each with its own conventions. And the
+comments I stage with an agent lived in a markdown file with no schema, so nothing
+checked that a comment still pointed at the line it cited, and posting meant a series
+of `gh` calls I supervised.
+
+second-look puts the diff, the open threads, and my staged comments on one screen, keeps
+what I have read, and posts the review in one call. It is also the interface the agents
+use, so the person and the bots work on one artifact.
+
+## Who it is for
+
+It is for one person (me) reviewing many pull requests a day across many repositories,
+where the authors are often agents. It is published for anyone with the same loop. It
+assumes `gh` is signed in and that an agent such as Claude Code drafts comments through
+the skill the binary prints. It does not try to serve a team, a web UI, or a forge other
+than GitHub.
+
+## Decisions
+
+### The review is a local artifact
+
+A review lives in a TOML file per pull request, written by the tool and by agents through
+the CLI, and nothing reaches GitHub until I press `S`. The alternative was to post
+comments as they are written, which is how `gh pr review` works. It loses the property I
+need most: a comment an agent drafted at 2am has to be readable, editable, and
+deletable before anyone else sees it.
+
+TOML is the on-disk format because a person edits it. The agent and `gh` speak JSON, so
+JSON is the input and output of the CLI and nothing a person edits. Every field is
+either posted or local, and the payload builder reads only the posted fields. Local
+fields carry the command that proved a finding, the doubt, and the reason a finding was
+declined, so a private note cannot leak by being forgotten. An unknown field is refused
+because a misspelled key is a hand edit that will not do what its author meant.
+
+The store is one directory per repository under the user config directory, keyed by
+host, owner, and name. A checkout that held reviews keeps a pointer to it. Keeping the
+review in the checkout was the first shape, and it turned pull request #42 read from two
+clones into two unrelated reviews.
+
+### Posting is one call
+
+`S` sends the review body and every line comment to GitHub's reviews endpoint in one
+request, so a failure leaves none of them posted. Replies to existing threads cannot ride
+in a review, so they follow as one request each. Before anything is sent, each comment's
+anchor is checked against the live diff and the pull request's head is compared with the
+one the review was written against. A comment that no longer anchors, or a head that
+moved, stops the post and says which. A draft present at submit time blocks it rather
+than posting or dropping it. The artifact is deleted once GitHub has the review, and
+GitHub is the source of truth from then on.
+
+### Seen-state is a content hash
+
+A hunk is identified by its file plus every line of the hunk with the line numbers left
+out. A hunk that slides down the file stays read, and a hunk whose text changed comes
+back unread, so a force-push keeps the reading that still applies. The first plan was to
+delegate to `git range-diff`. It was built and measured, and it answers nothing the hash
+does not: it reports per commit and calls a pair identical only when the patch matches
+byte for byte, which is exactly when the hunk hashes match too.
+
+### The queue is ordered in lanes
+
+A flat list of pull requests says nothing about what to do next. The queue has five
+lanes, drawn in this order: yours that are ready to merge, anything back in your court,
+new requests, pull requests waiting on others, and merged. The order keeps work in
+flight small by finishing before beginning. Inside a lane, drafts sink, a review already
+started comes first, then a priority label, then a request where I am the only human
+asked, then one in the area of the pull request I opened last, then the oldest. The cost
+rating and line count order nothing. They are drawn beside the row for me to weigh,
+because a rating that decides is a rating I stop checking.
+
+### Verdicts are reply states
+
+Judging a bot finding is the most common action, so it gets one key. The verdict is the
+state of the staged reply to that finding's thread: discuss (reply, thread stays open),
+todo (reply, and the finding goes to a fixer), won't fix (reply, then resolve the
+thread), or skip (post nothing). A blank reply is drafted by the agent for that verdict.
+Keeping the verdict and the reply as one object means there is no second list to drift
+out of step with the first.
+
+On submit, todo replies go to a fixer: a label that Watch Doggo picks up, or a local
+agent run over ACP. When the fixer pushes, the pull request returns to the back-to-you
+lane, and `H` shows which todos the new commits answered.
+
+### Reviewing needs no checkout
+
+The diff comes from the API, and a threaded reply carries a comment id rather than a
+line, so reading, judging, answering, and posting need no working tree. A checkout is
+something the reader asks for when they want to read around the change or run it. `C`
+moves a clone that is already on the laptop and never makes one, because a tool that
+cloned gigabytes to answer a keystroke would be the wrong tool. When several clones
+exist, they are ranked by what using one costs: already on the head, then clean, then one
+that needs a stash. gh-repo-dashboard already scans the clones, so second-look asks it
+rather than growing a second directory scanner. A lease file names the process holding a
+clone, so two sessions do not move one tree out from under each other.
+
+### Chroma, ast-grep, and no cgo
+
+The release builds every platform with `CGO_ENABLED=0`, and every tree-sitter binding for
+Go needs cgo. So highlighting is [chroma](https://github.com/alecthomas/chroma), and the
+structural pass shells out to `ast-grep` when it is on the path. The tool already shells
+out to `gh`, `git`, `$EDITOR`, and `$SHELL`, and a missing binary costs one feature that
+the screen says is off. difftastic was measured out: it calls a reworded comment a
+change and a pure reformat none, and telling comment changes from code changes is the
+distinction the pass exists to make.
+
+### The language-server pass
+
+Go to definition, references, the call graph, and checker notes come from whatever
+language server is installed, so second-look carries no index of its own yet. A file is
+opened as an unsaved buffer holding the commit under review, so nothing writes to the
+working tree. The server starts in the project the file belongs to rather than at the
+checkout root, because a TypeScript server rooted at a monorepo reads a package's imports
+as unresolvable and reports errors the change did not cause. A configured server that is
+not installed disables its extensions, since silently running a different server than
+the one named is worse. The cost is that nothing answers without a checkout, which is
+why these features are asked for and never run to open a screen.
+
+### The conversation queue
+
+GitHub notifications fire on everything and say nothing about whose turn it is. The
+conversations tab lists open discussions across every pull request I am in, bucketed by
+whose turn it is. A bot reaches it only through an inline review thread, because that is
+the one place its words anchor to code and can be resolved. Its pull request comments are
+coverage tables and nudges nobody resolves, and without this rule the queue held 77 rows
+of which 13 were real. A machine account is told apart by GitHub's `__typename`, since a
+list of logins goes stale and `coderabbitai` carries no `[bot]` suffix.
 
 ## Architecture
 
-Three front ends over one core, following gh-repo-dashboard. Only the TUI has an event
-loop.
-
 ```mermaid
-flowchart TB
-    main["cmd: flags, target resolution"] --> tui["tui: Bubble Tea"]
-    main --> cli["cli: JSON in, JSON out"]
-    main --> script["--script: replay :commands"]
-
-    tui & cli & script --> review
-
-    subgraph review["review: the core"]
-        artifact[("artifact: .second-look/")]
-        anchor["anchor: hunk identity, seen-state"]
-        rate["rate: changed symbols, capability delta"]
-        structure["structure: ast-grep, one pass per hunk"]
-    end
-
-    review --> ara
-
-    subgraph ara["aragonite"]
-        forge["forge: gh"]
-        vcs["vcs: git, jj"]
-        cache[("cache: TTL, disk")]
-    end
+flowchart LR
+    cmd["cmd/second-look"] --> tui["internal/tui"]
+    cmd --> post["internal/post"]
+    tui --> inbox["internal/inbox"]
+    tui --> artifact["internal/artifact"]
+    tui --> diag["internal/diag"]
+    post --> artifact
+    inbox --> gh[("gh CLI")]
+    post --> gh
+    artifact --> store[("store on disk")]
+    diag --> ls["language servers"]
+    tui & inbox & post --> aragonite["aragonite"]
 ```
 
 | Package | Responsibility |
 | --- | --- |
-| `review/artifact` | Read, write, and validate the versioned review JSON |
-| `review/anchor` | Hunk identity, seen-state, re-anchoring across a force-push |
-| `rate` | Deterministic review-cost rating, from the structural pass |
-| `structure` | What a parser sees in a hunk's two sides, through ast-grep |
-| `conversations` | The cross-repository conversation queue and what has been read |
-| `resolve` | Resolve a thread, or thumbs-up what GitHub gives no resolve |
-| `config` | The sections the inbox shows, read from the user's own file |
-| `ghrun` | One gh call behind a seam: resolve, react, browse, approve, comment, merge |
-| `inbox` | The review searches, and what a triage line shows |
-| `prepared` | What is staged under `.second-look/`, in a checkout and in the state directory |
-| `stash` | Park uncommitted work so the checkout can move onto a pull request |
-| `checkouts` | Which local clones hold a repository, asked of gh-repo-dashboard |
-| `lease` | The claim a sitting puts on a checkout, swept when the holding pid is gone |
-| `aragonite/forge` | Fetch a pull request, post a review atomically |
-| `aragonite/vcs` | Diff, branch identity, and working-tree state for git and jj |
-| `aragonite/cache` | Everything network-derived and everything expensive to compute |
+| `cmd/second-look` | Flags, target resolution, and the CLI an agent drives (`--help` is its contract) |
+| `internal/tui` | The tabbed screen: queues, review, outline, tour, and the agent pane |
+| `internal/inbox` | The review searches, lanes, and the order inside a lane |
+| `internal/artifact` | The prepared review: schema, anchors, the store, and the caches keyed by head |
+| `internal/post` | The anchor guard and the single review request |
+| `internal/diag` | Language-server and `[[check]]` notes, placed against the diff |
+| `aragonite` | Shared Go layer: `forge`, `vcs`, `cache`, `filter`, and `tui/` widgets |
 
-State lives in one of two places, and every path helper takes a root and appends
-`.second-look` so neither is a special case. A pull request of the repository the working
-directory belongs to keeps its review, diff cache, thread cache, and read marks in that
-checkout, which is where an agent looks. Any other keeps them under the user config
-directory, one directory per host, owner, and name, because the queue spans repositories
-and a review filed into whichever checkout happened to be open would be lost to every
-other one.
+About forty smaller packages sit under `internal/`, each with one job described in its
+package comment. `internal/get` prepares a review, `internal/plan` and `internal/order`
+decide reading order, `internal/conversations` is the second queue, and `internal/acp`
+speaks to a local agent.
 
-Opening a review that is already staged reads nothing but those files. The diff and the
-threads are on disk, so the screen draws in about a tenth of a second, and the one
-question left for GitHub (whether the head still stands) runs behind the first frame and
-puts "head moved" in the title when it does not. Posting re-checks the head anyway, so
-nothing can be published against the older diff. A first open still fetches, and its two
-calls run at once rather than one after the other.
+State lives under the user config directory, one directory per host, owner, and name,
+because the queue spans repositories and a review filed into whichever clone was open
+would be lost to every other one. A checkout that held reviews gets them moved there and
+a `WHERE.md` left behind. `second-look local` is the exception, and keeps `local.toml`
+in the checkout. The diff, threads, and rating are cached by head commit and cleared
+when the review posts or is discarded, and `second-look gc` sweeps what no staged review
+pins.
 
-The queue's own ratings are the exception to that shape: one file under the state home,
-keyed by pull request and by the update time the search reported, rather than one artifact
-tree per repository. A queue spans repositories and most of its rows have no review staged
-anywhere, so a per-repository tree would mean a directory for every row of a search, and
-the cache sweep below would delete a rating nothing has a review pinned to.
+Opening a staged review reads those files and makes one network call, a check that the
+head still stands. The first frame waits for it, because a diff staged against an older
+head has been read by the time the screen admits it. Being offline costs that one round
+trip rather than the review.
 
-The diff, the threads, and the rating are keyed by head commit, so a pull request pushed
-to a dozen times would leave a dozen copies of each. `second-look get` clears every one no
-staged review is pinned to, and posting, discarding, and merging take that review's own
-with them. A file that will not parse stops the sweep: its head is unknown, so the diff a
-hand repair needs could be any of them.
+### Shared code
 
-The CLI is the agent's interface. `--help` prints every subcommand, the JSON shapes each
-accepts and emits, and the errors each raises, so Claude Code can drive the tool with no
-other documentation. `-h` prints the short form for a human who forgot a flag.
+aragonite holds what gh-repo-dashboard and second-look both need: the GitHub client, git
+and jj behind one interface, a TTL cache with a disk layer, the filter engine, and the
+table and pane widgets. The two tools keep separate inboxes because they answer
+different questions. gh-repo-dashboard asks what state my repositories are in, and
+second-look asks what review I owe. `go.mod` pins a released aragonite version, and
+`mise run verify-released` builds and tests with `GOWORK=off` to prove the consumer works
+against the published one rather than a sibling checkout.
 
-## Screens
+## What it does not do
 
-The inbox, the conversations, and the staged reviews are three tabs of one screen. They
-are the same shape, they are read in one sitting, and as three programs there was no way
-to go from a pull request waiting on you to the conversation on it without leaving and
-starting again. Each command opens on its own tab, digits and `]`/`[` switch, and every
-tab keeps its own cursor, filter, and scroll. A tab's loader runs when it is first looked
-at, so a tab nobody switched to makes no request.
-
-### Inbox
-
-A task list in three buckets, ranked inside each by the cost rating, with stacks shown as
-stacks. The buckets are the whole point: what I owe, what I have done that is still live,
-and what is finished.
-
-Built as a `tui.List` over the configured searches, with `enter` opening the review, `C`
-checking out, `m` commenting, and `A` approving. `f` narrows every tab to the cursor row's
-repository and `F` puts them all back, because a sitting is one repository at a time. What
-the mock below still promises and the screen does not: the stack, and sorting by anything
-but the triage order. The cost rating
-shows where an earlier read cached one. Opening a row needs no clone of the repository, which is what makes the queue
-faster than a browser tab.
-
-```
- second-look                                  12 open · 4 assigned
-┌──────────────────────────────────────────────────────────────────┐
-│ pending my review                                            4   │
-│ ▸ kyleking/jj-diff #42   fix hunk parse errors       7 hunks     │
-│     ▓▓▓▓▓▓▓▓░░░░░████░░██  22 mechanical 9 moved 5 logic         │
-│   kyleking/tlr #118      add TTL to the pool         3 hunks     │
-│     ████                   3 logic  1 signature                  │
-│   kyleking/wavez #7      stack 1/3 scheduler leases  4 hunks     │
-│   └ #8  stack 2/3 lock contention                   12 hunks     │
-│                                                                  │
-│ reviewed and open                                            5   │
-│   kyleking/calcipy #91   drop the py39 shim    2 unresolved      │
-│                                                                  │
-│ reviewed and merged                                          3   │
-│   kyleking/yak-shears #12  retry the upload     merged 2d ago    │
-└──────────────────────────────────────────────────────────────────┘
- [enter]open [/]search [s]ort [tab]bucket [r]efresh [:]cmd [?]help
-```
-
-The merged bucket outlives the cached diff. What I said about a change is worth finding
-again, so the artifact survives a merge even though the diff it annotated is collected.
-
-gh-repo-dashboard keeps its own inbox and answers a different question. The cache, the
-filter and sort engine, and the table live in aragonite, so the two share data and logic
-while their screens stay separate.
-
-### Conversations
-
-The queue of open discussions across every pull request I am involved in, bucketed by
-whose turn it is. It answers the question neither GitHub nor Linear does: GitHub's
-notifications fire on everything and say nothing about who is waiting, and Linear shows
-the newest comment rather than the thread it belongs to, so a reply that arrived while I
-was away is easy to miss.
-
-```
- second-look conversations                        50 conversations · 13 unread
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ new since you looked (13)                                                    │
-│ ● kyleking/tlr#118      internal/pool/pool.go:42   2h  alice  2 replies       │
-│      good catch, pushed a defer                                              │
-│ ● kyleking/calcipy#91   review body               13h  bob                    │
-│      two questions inline                                                    │
-│ waiting on you (2)                                                           │
-│ awaiting others (35)                                                         │
-│   kyleking/wavez#7      internal/lease/lease.go:9  4d  KyleKing               │
-│      no, that one is per worker                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
- [enter]read [space]mark read [r]reply [R]resolve [o]GitHub [tab]group [?]help
-```
-
-Three surfaces count as a conversation: inline review threads, the pull request's own
-comments, and the bodies submitted reviews carry. A conversation is mine when the pull
-request is mine, when I have commented in it, or when a comment names me.
-
-Four rules keep the queue short enough to read, and each one was measured against my own
-82 open pull requests rather than guessed:
-
-- A machine account reaches the queue only through an inline review thread. That is the
-  one surface where what a bot says is anchored to code and can be resolved, whereas its
-  pull request comments are coverage tables, linkbacks, and reviewer nudges nobody ever
-  resolves. Without this rule the queue held 77 rows and 13 were real
-- My own comment with nothing under it is something I said rather than a discussion.
-  Nobody owes an answer and I will not thumbs-up myself, so it would be a row that never
-  leaves
-- A resolved thread is gone, and so is anything I have thumbs-upped. The thumbs-up is my
-  marker for dealt-with and it is the only one a pull request comment or a review body can
-  carry, so `R` always leaves it and resolves the thread as well when there is one to
-  resolve. It goes on the comment that raised the point rather than the last reply
-- An outdated thread stays. A reply to it is still owed even though the review screen has
-  nowhere to draw it
-
-What I have read is kept per conversation under the user config directory rather than in
-a repository, because the queue spans repositories and a mark written into whichever
-checkout happened to be open would be lost to every other one. Which bucket a row is in
-is fixed while the screen is open: recomputing it after a mark moved the row out from
-under the cursor the moment I opened it, which made the screen unusable.
-
-A reply is staged into that pull request's prepared review and posts with it, so `r`
-leaves this screen and opens the review screen, which is where a threaded reply already
-lives. Writing the answer here would mean a second editor flow and a second copy of the
-anchor rules.
-
-Answering means standing on the pull request, and the whole point of the queue is that I
-am somewhere else when I read it. So choosing a row off either list moves the checkout
-onto it. A dirty tree is the one case that needs me: the question names how many files
-are uncommitted and offers to park them with `git stash`, and `git stash pop` brings them
-back on whichever branch I choose. Nothing is popped for me, because the work rarely
-belongs on the head I just checked out. Declining leaves the tree exactly as it was, so
-committing by hand and asking again is the other way through.
-
-The question is only ever asked on a terminal. A piped or `--json` run answers no and
-fails with the reason, which keeps an agent from moving a working tree nobody is watching.
-
-A conversation on a repository I am not standing in is the case the queue creates, because
-the queue spans repositories and I read it from wherever I happen to be. Finding the clone
-is gh-repo-dashboard's job: it already scans the fleet, knows which worktree holds which
-branch, and caches it, so second-look runs `gh repo-dashboard --cli` and matches on the
-`remote` field rather than growing a second directory scanner. Candidates are ranked by
-what using one costs (standing on the branch already, a switch, or the stash question),
-one is used without asking, and several are offered in that order. I have more than one
-clone of some repositories, which is exactly the case a ranking has to handle rather than
-pick for me.
-
-The chosen directory becomes the process's own with one `os.Chdir`, because the prepared
-review, the diff cache, the anchor guard, and the shell `!` hands the terminal to all read
-`.`. Threading a root through every one of them would eventually miss one and write a
-review's state into the wrong repository.
-
-The move is offered rather than automatic: a review that opens where I already stand has
-no business touching the tree, so the checkout only moves when standing elsewhere is what
-stopped it opening.
-
-### Staged reviews
-
-What is on disk under `.second-look/`, newest first, in two groups: this checkout, then
-the reviews staged with no checkout of their repository at all. The artifact is deleted the
-moment a review posts, so every row is unfinished work: the review being written, or one
-whose head has since moved and which will refuse to post until it is prepared again.
-
-Each row carries what the pull request is called, read out of what `get` cached, and what
-the forge thinks of it now: merged, closed, or the last review you left. That last one is
-read when the cursor stops on the row, one request per row at most, because whether the
-work is still wanted is the thing a local file cannot say.
-
-```
- second-look staged reviews                                  5 staged · 1 blocked
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ staged under .second-look (4)                                                │
-│ ● #9                        unreadable  7m   owner, repo, and number are all  │
-│   kyleking/second-look#2    ready       7m   1 ready · 1 reply · body @6bc121 │
-│   kyleking/second-look#118  ready       17d  3 ready · 2 skipped · body       │
-│ ● kyleking/second-look#42   blocked     1y   3 ready · 1 draft · 1 skipped    │
-│ staged with no checkout (1)                                                  │
-│   acme/platform#904         ready       2h   2 ready · body        @91af0c2   │
-└──────────────────────────────────────────────────────────────────────────────┘
- [enter]open [ctrl+r]refresh [?]help
-```
-
-The second group is what makes a review with no clone findable again. Both groups open the
-same way, from the API, and `C` inside the screen is what gets a working copy when one is
-wanted.
-
-A file that no longer parses is listed with its reason rather than skipped, because a
-review I cannot read is the row most worth knowing about. `blocked` means a comment is
-still a draft, which stops the submit.
-
-A pull request whose base branch is another staged review's head is a stack, and the chain
-gets its own group with the bottom first: reading the top of a stack first means reading a
-diff against changes you have not seen. Both branches are recorded when a review is
-prepared, so the artifact alone answers it and a stack is visible where both of its pull
-requests have a review staged here. That is the limit of reading disk, and it is the case
-that matters, because a stack nobody is reviewing needs no reading order.
-
-All three screens are the same `tui.List`: sections of rows, one cursor, and a set of
-actions the caller supplies. They are the same shape, and three screens would drift apart.
-
-### Review
-
-The default screen. Diff fills the frame, comments render inline where they anchor. The
-review's own prose sits after the last hunk, since it is written once the diff has been
-read: the body first, drawn in full because it is the verdict, then the note under it,
-folded because it is the run log. The frame looks a few lines past the last row, and past
-that by the editor's height while one is open, so writing either is never drawn off the
-bottom. `i`
-opens what the pull request says about itself over the diff: its description, its labels,
-and the comments left on the pull request rather than on a line of it, which is where a
-coverage report, a preview build, and an agent's summary all arrive. It reads the context
-`second-look get` cached in the threads' own query, so it costs no request of its own.
-
-```
- kyleking/jj-diff #42  parse: wrap the split error     2 ready · read 1 of 5 hunks
- internal/ ━━━━━━┊───●────  cmd/ ───
-      internal/vcs/diff.go  +9 -3 ──────────────────────────────────────────────
-  14 ▎ func Parse(r io.Reader) ([]Hunk, error) {
-  15 ▎     lines := split(r)
-  15 ▎     lines, err := split(r)
-  16 ▎     if err != nil { return nil, err }
-       ╭─ ◆ agent · ● ready · minor ────────────────────── diff.go:16 ─╮
-       │ split returns a wrapped error here, so callers that match on   │
-       │ io.EOF stop matching. Worth unwrapping?                        │
-       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip ──────────────╯
- [j/k] line  ] go to  [c]ode  [a]dd  [i] context  [S]ubmit  [?] help  [q]uit
-```
-
-The header's first line is the change and what is left of it, and the PR title is the
-last thing it gives up. The second line is the strip: each file a segment sized by its
-changed lines, `━` read and `─` not, grouped by directory, with a `●` at how far through
-the current file the cursor stands. Comments and threads are cards, with a blank row
-between the last card on a line and the code under it. An agent's card is edged in mauve,
-and the card under the cursor in the accent. Below 40 columns a card draws as plain rows.
-
-A changed line carries its side's `▎` (its sign where the terminal draws no color), and one
-with no partner also tints its indent, so a run's first and last line read at the code rather
-than only in the gutter. A line that only moved to another indent, as a block does when an
-`if` opens around it, pairs with itself and is marked `⇥`, which leaves the `if` as the
-change. A hunk that changes nothing but whitespace is a formatter's and folds. A run of three
-or more lines taken from one place and put in another is marked `⇄`, with a note above each
-end naming the other, and `enter` on the note jumps there. A file the change creates or
-deletes says so on its heading, and its lines drop the mark every one of them would carry.
-How the order of a large change is planned, and the views built on that plan, are in
-[docs/reading-plan.md](docs/reading-plan.md).
-
-A change of up to 60 files opens as the tour: the plan's stops, then its chapters. From 160
-columns a rail lists them on the left and a margin on the right holds the current stop's
-what and then and its chapter's why. Below that the strip names the stops by number and the
-chapters by name, and a stop's note draws above its hunk. `n` walks the stops (the chapters
-where nothing named any) until another motion is named, and `p` gives the plain screen on the same hunk. A
-plan of one chapter has nothing to tour and draws the plain screen. A bigger change opens
-on the outline, the plan's chapters as a list with the selected one in detail, and `I`
-moves between it and the diff. `tab` there lists the features and the files they share.
-A chapter in shape mode, an edit made in many files, draws the edit once, then a row per
-file saying what it does beyond it, then the files at head the edit missed. `space` on the
-files' heading marks every exact one read, `za` on an exact file opens its edit under its
-row, and a file drawn beyond the shape marks the lines it shares with the shape `≈`.
-
-An unresolved thread caps at three rendered lines: two lines of the comment when it is
-alone, or one line of the first, a thread count, and one line of the last when it is not.
-The cap exists so a long thread inserts between hunks instead of burying the code.
-Resolved threads collapse to nothing in the diff and to a count in the comment view.
-
-### Comment thread
-
-`enter` on a thread opens it. The first comment pins to the top, the reply input sits at
-the bottom, and history scrolls up between them, so the two things you always want are
-always where you left them.
-
-```
-┌─ internal/vcs/diff.go:16 ────────────────────────────── unresolved ─┐
-│ [AI:] split returns a wrapped error here, so callers that match on  │
-│ io.EOF stop matching. Worth unwrapping?                             │
-├─────────────────────────────────────────────────────────────────────┤
-│   kyleking: good catch, io.EOF is load-bearing in Read              │
-│   author: unwrapping loses the file name though                     │
-├─────────────────────────────────────────────────────────────────────┤
-│ > errors.Is handles that without unwrapping, see |                  │
-│                                    vcs/read.go ← completion         │
-└─────────────────────────────────────────────────────────────────────┘
- [ctrl+j/k]scroll [tab]complete [esc]close  ● draft, will not post
-```
-
-The reply input takes vim bindings and completes files and symbols. `ctrl+j` and
-`ctrl+k` scroll the thread without leaving the input. The input shrinks to one line when
-it loses focus. Draft text persists to the artifact immediately and never posts, and a
-draft present at submit time blocks the submit rather than silently publishing or
-silently dropping it.
-
-### Comment view
-
-Every comment in the review, searchable.
-
-```
- 12 comments · 3 unresolved                              /error
-┌──────────────────────────────────────────────────────────────────┐
-│ internal/vcs/diff.go                              7 resolved     │
-│  ● :16  [AI:] split returns a wrapped error here, so callers     │
-│         that match on io.EOF stop matching. Worth unwrapping?    │
-│         ── 2 more ──                                             │
-│         author: unwrapping loses the file name though            │
-│                                                                  │
-│  ● :88  [TODO:] confirm this path is covered before posting      │
-│                                                                  │
-│ internal/vcs/git.go                               5 resolved     │
-│  ● :204 is the retry bound intentional here?                     │
-└──────────────────────────────────────────────────────────────────┘
- [enter]open [/]search [u]nresolved only [esc]back
-```
-
-An unresolved entry shows the first comment truncated to two lines, the count in between,
-and the last comment in full, which is the inverse of the diff's cap: here the latest
-state matters more than the anchor.
-
-### Context pane
-
-Takes the right half, as an alternate to side-by-side rather than alongside it. Shows
-where the symbol under the cursor is used, its blast radius, and diagrams derived from
-the symbol graph once codeintel is available.
-
-Signature detail is not a pane. It is an on-request popup over the diff, the way an LSP
-hover works in vim, because wanting a type is not the same as wanting to navigate.
-
-## Keymap
-
-Layered so the footer stays short. A key that does nothing where the cursor is standing is
-drawn dim in the footer and in the legend rather than disappearing, since a key that comes
-and goes teaches nothing about what the screen offers. A frame with no room for the whole
-line drops the dim ones instead of truncating it.
-
-| Layer | Keys |
-| --- | --- |
-| Universal | `q` quit, `esc` back, `enter` select, `/` search, `?` help, `:` command |
-| Motion | `j`/`k` line, `]`/`[` then `]` chapter, `s` stop, `h` hunk, `f` file, or `a` ask, `n`/`N` the same again, `gg`/`G` top and bottom |
-| Review | `space` seen, `c` comment, `a` then a severity writes one, `A` on a range asks about it, `S` then `a`/`r`/`c` submit, `i` what the pull request says, `o` on GitHub, `u` unresolved only |
-| Fold | `z` then `a` here, `i` invert all, `R` open all, `M` to the file names |
-| Queue | `1`/`2`/`3` and `]`/`[` the tab, `tab` the next group, `f`/`F` focus one repository |
-| View | `p` the tour or the plain screen, `I` the outline, `-` file overlay, `g` context pane, `s` split, `w` whitespace, `t` syntax-aware |
-| Thread | `ctrl+j`/`ctrl+k` scroll, `tab` complete, `e` reply, `r` ready, `t` todo, `x` skip, `R` resolve (each is a verdict, the state of the staged reply, and an agent drafts the text where none is typed), `,` then an emoji reacts, `z` then `a` folds the conversation |
-
-`space` marks the hunk under the cursor seen and advances, because marking and moving on
-are one motion in practice.
-
-Shelling out follows lazygit: the subprocess owns the terminal, its stdout and stderr are
-seen as intended, and the TUI restores on exit. Running the code under review is a first
-class action rather than a reason to quit.
-
-## Degradation
-
-- Usable at 80x24. Below that, a resize message
-- Usable in 16 colors and under `NO_COLOR`. Seen state, resolved state, and move markers
-  all carry a symbol as well as a color, so nothing depends on color alone
-- The context pane and side-by-side both collapse below their minimum width, leaving the
-  diff, which is the one thing that must always render
+- Call a language model. Drafting is an agent's job, driven through the CLI and the
+  skill, so no API key or prompt lives in this tool
+- Run a daemon. The process starts fast and reads `.second-look/` and the cache, so there
+  is no resident index to go stale
+- Clone a repository, or move a working tree without asking
+- Post to a forge other than GitHub. The forge layer is an interface so another could be
+  added, and none has been
+- Rate a pull request to decide anything. The rating is advisory
+- Attach an image to an inline review comment. `gh --attach` covers pull request comments
+  only, and the endpoint it uses for reviews is undocumented

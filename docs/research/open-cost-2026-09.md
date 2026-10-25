@@ -1,15 +1,15 @@
 # What opening a review costs
 
-**Kyle's bot did stuff and wants it available for future bots.** Findings from an agent session with minimal human review. Validate every claim before building on it.
+**Kyle's bot did stuff and wants it available for future bots.** Findings from an agent session on 2026-09-06 with minimal human review. Validate every claim before building on it.
 
 ## Method
 
-Benchmarks live in [`internal/diff/bench_test.go`](../internal/diff/bench_test.go) and
-[`internal/tui/open_bench_test.go`](../internal/tui/open_bench_test.go), plus two new
-exports in [`internal/tui/export_test.go`](../internal/tui/export_test.go)
+Benchmarks live in [`internal/diff/bench_test.go`](../../internal/diff/bench_test.go) and
+[`internal/tui/open_bench_test.go`](../../internal/tui/open_bench_test.go), plus two new
+exports in [`internal/tui/export_test.go`](../../internal/tui/export_test.go)
 (`Relayout` calls `rebuild`, `Restructure` runs and applies the real structural pass).
 They follow the shape of the existing `BenchmarkRichFrame` family in
-[`internal/tui/bench_test.go`](../internal/tui/bench_test.go): build a synthetic patch,
+[`internal/tui/bench_test.go`](../../internal/tui/bench_test.go): build a synthetic patch,
 construct a `*tui.Model` with `tui.New` and `m.Init()`, then measure. All use `b.Loop()`
 (Go 1.25 here) and `b.ReportAllocs()`.
 

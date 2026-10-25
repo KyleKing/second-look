@@ -1,4 +1,4 @@
-// Package journal keeps the usage log the parked decisions in NEXT_STEPS.md
+// Package journal keeps the usage log the parked decisions in ROADMAP.md
 // are waiting on: one JSON line per key or event, so "which renderer did I
 // reach for" is a grep rather than a memory.
 package journal

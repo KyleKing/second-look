@@ -1,29 +1,22 @@
 # second-look specifics
 
-What [AGENTS.md](AGENTS.md) does not cover because it is template-owned and this is not.
+What [AGENTS.md](AGENTS.md) does not cover, because it is template-owned and this is not.
 
 ## Recorded gh interactions
 
-Everything that reaches GitHub goes through the `gh` binary: aragonite's pull request
-reads and second-look's own `gh api` posts alike. So the recording seam is `PATH`, not an
-HTTP transport. `aragonite/ghcassette` builds a stand-in `gh`, puts it ahead of the real
-one, and either records what the real binary did or answers from a cassette. The tests in
-`cmd/second-look` drive the built binary against it, which is the same code path a person
-runs, subprocess included.
-
-It lives in aragonite because gh-sweep and gh-repo-dashboard shell out to `gh` the same
-way. `GHCASSETTE_RECORD=1` is its variable, not this repository's, and its `Apply` replays
-gh for an in-process test that drives the packages rather than the built binary.
+Everything that reaches GitHub goes through the `gh` binary, so the recording seam is
+`PATH`. `aragonite/ghcassette` builds a stand-in `gh`, puts it ahead of the real one, and
+either records what the real binary did or answers from a cassette. The tests in
+`cmd/second-look` drive the built binary against it. `GHCASSETTE_RECORD=1` is aragonite's
+variable, and its `Apply` replays gh for in-process tests.
 
 A cassette is TOML named `.golden`, because `hk.pkl` excludes that suffix from the
-whitespace fixers and nothing else. A recorded diff whose trailing spaces were stripped on
-commit no longer matches the anchors it was recorded with.
+whitespace fixers and nothing else. A diff with stripped trailing spaces no longer matches
+its anchors.
 
-There is one recording per outward-facing shape, and every other case is derived from it
-in test code rather than checked in again. `cmd/second-look/testdata/cassettes/` holds
-`post-review` and `post-reply`; the head that moved, the run that stops before it posts,
-and the reply that failed are edits to those, made by `derive` in `e2e_test.go`. Three
-copies of the same 60-line diff would drift.
+Each outward-facing shape has one recording, and the other cases are derived from it in test
+code (`derive` in `e2e_test.go`), because three copies of one 60-line diff would drift.
+`cmd/second-look/testdata/cassettes/` holds `post-review` and `post-reply`.
 
 ### Re-recording
 
@@ -34,281 +27,201 @@ go test ./cmd/second-look/ -update       # then regenerate the goldens
 
 **This posts to GitHub for real.** The target is
 [KyleKing/second-look#2](https://github.com/KyleKing/second-look/pull/2), a draft pull
-request that exists to be reviewed and is never merged. Nothing is pushed to
-`fixture/review-target` again, so `fixtureHeadSHA` in `e2e_test.go` and the anchors in
-`testdata/review/*.toml` stay valid. Record one test at a time: the tests run in parallel
-and a recording session writes one cassette.
+request that is never merged. Nothing is pushed to `fixture/review-target` again, so
+`fixtureHeadSHA` in `e2e_test.go` and the anchors in `testdata/review/*.toml` stay valid.
+Record one test at a time, because the tests run in parallel and a session writes one
+cassette.
 
-`post-reply` answers a comment created by the `post-review` recording, so its
-`in_reply_to` is a real comment id. Re-recording the review without re-recording the reply
-leaves that id pointing at a thread that still exists, which is fine; deleting the thread
-on GitHub is what would break it.
+`post-reply` answers a comment the `post-review` recording created, so its `in_reply_to` is
+a real comment id. Deleting that thread on GitHub would break it.
 
-`internal/resolve` carries the fourth, of the resolve and the thumbs-up `R` sends. It is
-the one recording of a mutation this repository makes on its own behalf, and it is the
-reason one thread on #2 is resolved and carries a thumbs-up: `addReaction` refuses a
-duplicate and a resolved thread cannot be resolved again, so re-recording it needs a new
-thread rather than the same one twice. The ids are consts at the top of `live_test.go`.
-That test replays gh in-process through `Session.Apply` rather than driving the binary,
-which is why it cannot be parallel.
+- `internal/resolve` records the resolve and thumbs-up `R` sends. One thread on #2 is now
+  resolved with a thumbs-up, and `addReaction` refuses a duplicate, so re-recording needs a
+  new thread. The ids are consts atop `live_test.go`. It replays through `Session.Apply`, so
+  it cannot be parallel
+- `internal/threads` records the GraphQL query for open review threads. It lives there
+  because the scratch repository cannot record a whole `get` (its head differs from the
+  recorded one, so `get` would pull from an unreachable origin). Re-record with
+  `GHCASSETTE_RECORD=1 go test ./internal/threads/`, which posts nothing.
+  `cmd/second-look` splices it onto the `post-review` reads in `getCassette`
+- `inbox.golden` and `internal/conversations/testdata/queue.json` are written by hand with
+  invented content, because a real recording would carry private repository names, logins,
+  and titles in a public repository. The inbox test uses `Replay` because
+  `GHCASSETTE_RECORD=1` would overwrite the file with real data. Every conversation
+  admit-or-drop rule runs against that one `queue.json`, since the rules interact
+- The conversation queue's cassette is built by `queueCassette` in `threads_e2e_test.go`
+  from `conversations.Args` and `queue.json`, so it cannot drift from the query
 
-`internal/threads` carries the third recording, of the GraphQL query for a pull request's
-open review threads. It lives there rather than under `cmd/second-look/testdata/` because
-the scratch repository cannot record a whole `get`: the recorded head and the scratch head
-differ, so `get` tries to pull from an unreachable origin. Re-record it with
-`GHCASSETTE_RECORD=1 go test ./internal/threads/`, which reads and posts nothing.
-`cmd/second-look` splices that interaction onto the `post-review` reads in `getCassette`.
-
-`cmd/second-look/testdata/cassettes/inbox.golden` is the exception to all of this: it is
-written, not recorded. A real recording of `second-look inbox` carries the private
-repository names, usernames, and pull request titles of whatever is in the reviewer's
-queue, and this repository is public. The arguments in it are the ones a real run made and
-the answers are gh's own shape with invented content. `GHCASSETTE_RECORD=1` would
-overwrite it with real data, so the test uses `Replay` rather than `Start`.
-
-The conversation queue's cassette is not checked in at all. `queueCassette` in
-`threads_e2e_test.go` builds it from `conversations.Args` and
-`internal/conversations/testdata/queue.json`, so the call it answers is the call the
-fetcher makes. A hand-written copy of that 60-line GraphQL query would stop matching on
-the first edit to it, and there is only one fixture of the queue's shape to keep current.
-
-`internal/conversations/testdata/queue.json` is written for the same reason
-`inbox.golden` is. A real reply carries the private repository names, logins, and titles
-of whatever is open, and this repository is public, so the shapes in it are GitHub's own
-with invented content. Every admit-or-drop rule is exercised against that one reply,
-because the rules interact: a bot's inline thread stays while the same bot's pull request
-comment goes, and that only reads as a rule when both are present.
-
-### `--repo` is in the recording, and stripped for the tests that stand in a checkout
-
-`post-review` and `post-reply` were recorded from a directory holding nothing but a
-prepared review, which is what `post` reads, so their `pr view` and `pr diff` calls carry
-`--repo KyleKing/second-look`: with no checkout to read a repository off, second-look names
-it. A test that stands in `scratchRepo` gets the other shape, because there gh resolves the
-repository itself, and `inCheckout` in `e2e_test.go` drops the flag for those. Re-recording
-produces the flag again, so the file stays canonical and `inCheckout` stays the derivation.
+`post-review` and `post-reply` were recorded from a directory with no checkout, so their
+`pr view` and `pr diff` calls carry `--repo KyleKing/second-look`. Tests standing in
+`scratchRepo` get the other shape, and `inCheckout` drops the flag. Re-recording produces the
+flag again, so the file stays canonical and `inCheckout` stays the derivation.
 
 ### The suite reaches nothing
 
-Only `gh` is replayed. `git` runs for real, so a code path that shells out to the network
-would pass on a laptop that has credentials and hang in CI. `scratchRepo` points `origin`
-at `https://127.0.0.1:1/KyleKing/second-look.git`, which parses as the right repository
-and answers nothing. A test that starts failing with a connection error has found a new
-network call, not a broken fixture.
+Only `gh` is replayed and `git` runs for real, so a path that shells out to the network would
+pass on a laptop with credentials and hang in CI. `scratchRepo` points `origin` at
+`https://127.0.0.1:1/KyleKing/second-look.git`, which parses as the right repository and
+answers nothing. A connection error in a test means a new network call, not a broken fixture.
 
-`childEnv` also gives every child its own `HOME` and `XDG_CONFIG_HOME`. The queue's read
-marks and every review staged with no checkout live under the user config directory, so a
-child inheriting a real one would read the state of whoever runs the suite and write into
-it. A test that inspects that state appends its own `HOME`, which wins because `os/exec`
-keeps the last of a repeated variable.
+`childEnv` gives each child its own `HOME` and `XDG_CONFIG_HOME`, because read marks and
+checkout-less reviews live under the user config directory and an inherited one would read
+and write the runner's state. A test that inspects that state appends its own `HOME`, which
+wins because `os/exec` keeps the last of a repeated variable.
 
 ## Coverage counts the subprocess
 
-`go test -cover` instruments the test binary, and everything `cmd/second-look` tests
-happens in a child process, so the plain profile reads `internal/get` as 0% while the pty
-tests exercise it end to end. `TestMain` builds the binary with `go build -cover` and
-passes `GOCOVERDIR` to the child explicitly, since `go test -test.gocoverdir` overwrites
-that variable in the test process. `mise run test:coverage-min` collects both halves as
-covdata directories and merges them, which is the only format `go tool covdata merge`
-takes. It runs in CI through `ci:project`.
+`go test -cover` instruments only the test binary, and `cmd/second-look` tests run in a child
+process, so the plain profile reads `internal/get` as 0%. `TestMain` builds the binary with
+`go build -cover` and passes `GOCOVERDIR` to the child explicitly, since
+`go test -test.gocoverdir` overwrites that variable in the test process.
+`mise run test:coverage-min` collects both halves as covdata directories and merges them,
+which is the only format `go tool covdata merge` takes.
 
-## The README recordings
+## The README recording
 
-`mise run demo` builds the binary and runs every `demo/*.tape` through VHS. `triage.tape`
-drives `demo/scene.sh` (inbox, then judge) against the stand-in `gh`, so it reaches no
-network. `reading.tape` and `stills.tape` open the outline scene offline, then run
-`second-look local -r <commit>` on this repository's own commits 8cc3241 and 9066a8f, so
-they need gopls on PATH and those commits in the checkout. The gifs and `docs/images/*.png`
-are committed: regenerate them when the screen changes shape, and keep the sleeps.
-
-## Commits behind the first frame
-
-`get.Commits` runs behind the first frame through `tui.WithCommitReader`, and a restage
-asks again for the new head. It lists commits with `gh pr view --json commits`, which is
-one more call every review-screen cassette must answer. `withCommits` in `e2e_test.go`
-adds an empty list to a cassette a screen test replays. `get` never makes the call, so
-the cassettes it shares stay without it and `RequireAllPlayed` holds them to that.
-`TestReviewScreenOrdersByThePullRequestsCommits` builds a real two-commit checkout and
-derives its cassette from `post-review`, so nothing is re-recorded.
+`mise run demo` builds the binary and runs `demo/demo.tape` through VHS. The tape drives
+`demo/run.sh`, which copies `demo/fixture/.second-look` into a throwaway checkout and puts
+`demo/bin/gh` ahead of the real one. That stand-in answers the one `pr view` the screen makes
+and refuses everything else, so a recording reaches no network and touches no real review.
+The gif is committed, so regenerate it when the screen changes shape, and keep the tape's
+sleeps so each frame is readable.
 
 ## `internal/ghmd`
 
-Segmenting a GitHub comment body is not second-look's problem alone: gh-repo-dashboard and
-gh-sweep both render bodies somebody wrote for a browser. So `ghmd` imports nothing from
-this repository and answers in blocks rather than in rows or escapes, which is what makes
-it liftable into aragonite the moment a second tool wants it. Keep it that way: the
-decisions about width, folding, and color belong to `internal/tui/notes.go`, which is the
-half that is second-look's.
-
-It is deliberately not a markdown implementation. It answers the four questions a screen
-cannot draw without: where a fence starts and ends, which lines are a table, what a
-`<details>` holds, and what is an HTML comment. Everything else is prose. A rule that
-would need a real parser is a rule not worth having here.
+It segments a GitHub comment body and imports nothing from this repository, so it can move to
+aragonite when a second tool wants it. It answers in blocks and leaves width, folding, and
+color to `internal/tui/notes.go`. It is not a markdown implementation. It answers four
+questions: where a fence starts and ends, which lines are a table, what a `<details>` holds,
+and what an HTML comment is. Everything else is prose, and a rule needing a real parser is not
+worth having here.
 
 ## Scenes
 
-`demo/scene.sh <name>` opens `demo/scenes/<name>/` as a live screen against seed data on
-disk, so what the app does in a situation is settled by looking at it. A scene names the
-argv in `scene.conf` and brings only what it changes about the shared fixture: a prepared
-review as `review.toml`, its conversations as `threads.json`, reading rules as
-`config.toml`, extra `gh` routes, and any seed those routes name. `demo/scene.sh` with no
-argument lists them.
+`demo/scene.sh <name>` opens `demo/scenes/<name>/` as a live screen against seed data, and
+with no argument lists them. A scene names its argv in `scene.conf` and brings only what it
+changes about the shared fixture: `review.toml`, `threads.json`, extra `gh` routes and their
+seeds, and `diff/<sha>.patch` when it compares against an earlier round (`rounds`).
 
-`demo/forge/gh` is the forge every scene runs against. It reads a routing table, `routes`,
-whose rows are the tokens a call must carry and the seed file that answers it, and a token
-has to start an argument rather than appear anywhere in the call: matching a substring of
-the whole command line reads `--review-requested` as the word "view", which routed the
-inbox's searches to the pull request. A seed named `.err` is written to stderr with a
-non-zero exit, which is how a scene draws a failure. A call nothing routes fails loudly,
-because a screen drawing nothing because a seed was missing is the failure this must not
-hide.
+`demo/bin/gh` is the forge every scene runs against. Its `routes` table maps the tokens a call
+must carry to the seed file that answers it. A token must start an argument, because
+substring matching anywhere in the call read `--review-requested` as "view" and routed
+the inbox's searches to the pull request. A seed named `.err` goes to stderr with a non-zero
+exit, which is how a scene draws a failure. An unrouted call fails loudly, so a missing seed
+cannot pass as an empty screen.
 
-A scene needing cached diffs (`rounds` is the one, since comparing against an earlier round
-reads the diff cached at it) brings each as `diff/<sha>.patch`. `rounds` holds four rounds, three
-todo replies, and a patch per round, so `H` shows todos answered by a changed line, answered by a
-commit a reply names, and not answered. A scene too big
-to check in (`outline` is 72 files) brings an executable `seed.sh` instead, which writes its
-seed into the work directory's `.second-look/`.
-
-`SEED` is the directories searched in order, the scene's own first, so overriding an
-answer is dropping a file of the same name into the scene. That is why `head-moved` is one
-JSON file and `search-failed` is two.
-
-The seed under `demo/fixture/` is written rather than recorded, for the reason
-`inbox.golden` is: a real one carries the private repository names, logins, and titles of
-whatever is open, and this repository is public. The inbox's three searches and the
-conversation queue's reply are the same content the cassettes hold, so one queue shape
-stays current rather than two.
-
-The checkout is rebuilt on every run and kept afterwards, so what the screen wrote back is
-readable at `demo/.work/<name>/.second-look/`. Edits belong in `demo/scenes/`, since the
-work directory is thrown away on the next run.
+`SEED` lists directories searched in order, the scene's own first, so overriding an answer
+means dropping a same-named file into the scene. The seed under `demo/fixture/` is written
+rather than recorded, for the same privacy reason as `inbox.golden`. The checkout is rebuilt
+on every run and kept afterwards, so what the screen wrote back is at
+`demo/.work/<name>/.second-look/`. Edit `demo/scenes/`, since the work directory is discarded.
 
 ## The checker pass
 
-`internal/diag` places notes against the diff, `internal/diag/lsp` speaks the protocol to
-whatever language server is installed, and `internal/diag/scan` runs the commands
-`[[check]]` names. A file is opened as an unsaved buffer holding the commit under review,
-so nothing writes to the working tree, and what that file imports still comes from disk.
+`internal/diag` places notes against the diff, `internal/diag/lsp` speaks the protocol to the
+installed language server, and `internal/diag/scan` runs the commands `[[check]]` names. A
+file opens as an unsaved buffer holding the commit under review, so nothing writes to the
+working tree, and its imports still come from disk.
 
-A server is started in the project the file belongs to rather than at the checkout, and
-`internal/diag/project` answers where that is for the language server and for a
-`[[check]]` alike. That is a correctness rule: rooted at the whole of a TypeScript
-monorepo, tsserver reads a package's imports as unresolvable and reports a module error
-the change did not cause, and where the root holds no `typescript` at all it refuses to
-start. The root it is told about goes in `rootUri` and `rootPath` both, because that is
-what a server resolving its own toolchain reads. The screen hands over a checkout named
-`.`, so the session makes the root absolute before any of that walking means anything, and
-every project is asked at the same time so the floor below is paid once rather than once
-per package.
+A server starts in the file's project and not at the checkout root, and
+`internal/diag/project` answers where that is for a server and a `[[check]]` alike. This is a
+correctness rule. Rooted at a TypeScript monorepo, tsserver reads a package's imports as
+unresolvable and reports errors the change did not cause, and where the root has no
+`typescript` it refuses to start. The root goes in both `rootUri` and `rootPath`. The screen
+passes a checkout named `.`, so the session makes the root absolute before walking, and every
+project is asked at once so the floor below is paid once.
 
-`Root` ranks the marker groups before it walks the directories, which is
-`vim.fs.root`'s own order and not the obvious one. A `go.mod` beside the file and a
-`go.work` above it both mark a root, and the workspace resolves the siblings the file
-imports, so depth is the wrong tiebreak between two markers that say different things. A
-directory holding a marker and none of the server's `Needs` is walked past, because a
-project with no `typescript` of its own hosts nothing.
+`Root` ranks marker groups before walking directories, as `vim.fs.root` does, because a
+`go.work` above a file's `go.mod` resolves its sibling imports and depth is the wrong
+tiebreak. A directory with a marker and none of the server's `Needs` is walked past.
 
-A server that pulls its settings is answered rather than refused.
-`workspace/configuration` is answered a section at a time out of `Settings`, and
-`workspace/didChangeConfiguration` carries the whole of it once at the handshake.
-Answering that request null leaves a server on its own defaults however it is
-configured, which is the failure to watch for. A `[[check]]` resolves its command out of
-the project first (`bin`), because a linter from the `PATH` is a different version under
-different settings than the one the project pins, and what it prints is re-anchored from
-the project it ran in to the checkout the diff is spelled against.
+A server that pulls its settings must be answered. `workspace/configuration` is answered per
+section out of `Settings`, and `workspace/didChangeConfiguration` carries all of it once at
+the handshake. Answering null leaves the server on its defaults. A `[[check]]` resolves its
+command out of the project first (`bin`), because a linter from `PATH` is a different version
+under different settings. Its output is re-anchored from the project to the checkout.
 
-Two invariants in `lsp` each cost a session and each have a test that fails without them.
-A server publishes an empty list while it is still loading the project and corrects itself
-seconds later, so the pass waits out a floor before a quiet line means anything. And a
-server publishes for every file it loaded on the way to the ones asked about, which
-against a monorepo never stops, so only a file the pass asked about restarts that quiet
-line. Without the second, every pass ran to its 30-second deadline.
+Two invariants in `lsp` each cost a session and each have a failing test without them:
 
-The suite and the demo turn the pass off the way a laptop without a server does, with a
-`[[server]]` override claiming the extensions and naming a command nothing has: `settle`
-in `e2e_test.go` for the pty tests, and a written config in `demo/scene.sh`. A configured
-server that is not installed disables its extensions rather than falling back, because silently running a different server than the one named is
-worse. The pass itself is covered against a stub server in `internal/diag/lsp` and against
-a real gopls in `cmd/second-look/probe_test.go`, which skips where gopls is not installed.
+- A server publishes an empty list while loading the project and corrects itself seconds
+  later, so the pass waits out a floor before a quiet line means anything
+- A server publishes for every file it loaded on the way, which never stops in a monorepo, so
+  only a file the pass asked about restarts the quiet line. Without this every pass ran to its
+  30-second deadline
+
+The suite and demo turn the pass off like a laptop without a server: a `[[server]]` override
+claims the extensions and names a command nothing has (`settle` in `e2e_test.go`, and a
+written config in `demo/run.sh` and `demo/scene.sh`). A configured server that is not
+installed disables its extensions instead of falling back to another. Coverage is a stub
+server in `internal/diag/lsp` and a real gopls in `cmd/second-look/probe_test.go`, which skips
+without it.
 
 ## `internal/advisory`
 
-The question this tool sends to a service the lockfile never named. `L` on a lockfile
-puts the question up and names what it will send, and only a second `L` sends it,
-because every package name in the file leaves the laptop when it does. A review is given
-a client unconditionally and still asks nobody until a reader says so twice, which is
-why there is no config key for it.
+`L` on a lockfile asks osv.dev, which the lockfile never named. It names what it will send and
+only a second `L` sends it, because every package name leaves the laptop. A review is given a
+client unconditionally, which is why there is no config key.
 
-OSV's batch call carries advisory ids and nothing else, so each hit is read again from
-`/v1/vulns/{id}`. That second read is what carries the summary, the severity word, and
-the version it was fixed in, and the severity is the one the record states rather than
-one computed from its CVSS vector: a number invented here would read as the publisher's.
-The batch answer is positional, so an answer shorter than the question is refused rather
-than lined up.
+OSV's batch call returns advisory ids only, so each hit is read again from `/v1/vulns/{id}`.
+Severity is the record's own word and never computed from its CVSS vector. The batch answer
+is positional, so a short answer is refused instead of lined up. Three limits shape the
+screen's wording:
 
-Three things the API cannot do, each of which shapes what the screen may say. It says
-the same thing about a package it has never heard of as about one it has and finds
-clean, so "nothing known against it" cannot be narrowed to "every name resolved". Two
-databases publish one finding under their own ids and name each other as aliases, so a
-Go module otherwise reads twice. And being offline, being rate limited, and a private
-registry all arrive as the same refusal, which the lockfile's own row says rather than a
-footer nobody kept.
+- A package OSV has never heard of answers the same as a clean one, so "nothing known against
+  it" cannot become "every name resolved"
+- Two databases publish one finding under their own ids and name each other as aliases, so a
+  Go module otherwise reads twice
+- Offline, rate limited, and a private registry arrive as one refusal, which the lockfile's
+  own row says
 
 ## `internal/versions`
 
-What each dependency's own registry says about the version a lockfile moved to: when it
-shipped, what the registry calls current, and where the source lives. Asked behind the
-first frame with no consent gate, because a module's index is where its name already
-goes — the gate `L` carries is for osv.dev alone. Answers are cached through
-`aragonite/cache`, memory first and disk under it (`~/Library/Caches/second-look` or the
-platform's), keyed by ecosystem and package with a day's TTL.
+It asks each ecosystem's registry what a lockfile's new version shipped, what is current, and
+where the source lives. It runs behind the first frame with no consent gate, because a
+module's index is where its name already goes, and the `L` gate is for osv.dev alone. Answers
+are cached through `aragonite/cache`, memory then disk, keyed by ecosystem and package with a
+day's TTL.
 
-The fetchers read: Go proxy `/@latest` and `/@v/<ver>.info` (uppercase escapes as
-`!lower`, and the proxy dates one version at a time, so a cached package at a new version
-still re-asks); PyPI `/pypi/<name>/json`, whose `releases` carries both a zoned and a
-naive-UTC upload field; npm's full packument, because the abbreviated form drops the
-`time` object the card exists for; crates.io `/api/v1/crates/<name>`; and RubyGems
-`versions/<gem>.json` plus `gems/<gem>.json`, where latest is the newest non-prerelease
-on the ruby platform. A 404 is an answer (`Missing`, drawn as "not in <eco>"), and a
-failed ask is neither an answer nor cached. Requests carry a `second-look` user agent
-because crates.io refuses the HTTP client's own. npm's `repository` field normalizes
-from a string or `{url}`, through git+/ssh/git@ forms, to a browsable link; the Go proxy
-names the repository in its `Origin` field, and where it does not the card links the
-forge the module path spells or its pkg.go.dev page.
+Gotchas by fetcher:
+
+- The Go proxy escapes uppercase as `!lower` and dates one version at a time, so a cached
+  package at a new version still re-asks
+- PyPI's `releases` carries both a zoned and a naive-UTC upload field
+- npm needs the full packument, because the abbreviated form drops the `time` object
+- RubyGems latest is the newest non-prerelease on the ruby platform
+- crates.io refuses the HTTP client's default user agent, so requests send `second-look`
+
+A 404 is an answer (`Missing`, drawn "not in <eco>"), and a failed ask is neither an answer
+nor cached.
 
 ## Driving the review screen
 
-`tmux` for looking at it, the pty tests in `cmd/second-look/tui_e2e_test.go` for pinning
-it, and `internal/tui/testdata/TestFrames/` for the frames themselves.
+Use `tmux` to look at it, the pty tests in `cmd/second-look/tui_e2e_test.go` to pin it, and
+`internal/tui/testdata/TestFrames/` for frames.
 
 A bare pty answers no terminal capability queries, so the program waits out a two-second
-timeout on each of OSC 11 and DA1 before drawing anything, and the first frame used to
-take about 4.5 seconds there against 0.5 under tmux. The harness answers those queries
-now, which brings a pty test back under 1.5 seconds and is what stopped them timing out
-when two suites run at once (`hk check --all` runs `ci` and `verify-released`
-concurrently, each running the whole suite). A new capability query that nothing answers
-will put the 2-second stall back: add it to `answers` in that file rather than widening
-the deadline.
+timeout on each of OSC 11 and DA1 before drawing, which made the first frame take about 4.5
+seconds against 0.5 under tmux. The harness answers them now, which keeps pty tests under 1.5
+seconds when two suites run at once (`hk check --all` runs `ci` and `verify-released`
+concurrently). Add any new capability query to `answers` in that file and leave the deadline
+alone, since an unanswered one brings the stall back.
 
-Two things the harness has to get right, each of which cost a session:
+Three harness rules each cost a session:
 
-- `wait` waits for the reader as well as for the exit. A process that has exited may still
-  have bytes in the pty, so an assertion about the last thing it wrote (the escape that
-  gives the alternate screen back) fails under load without that
-- `await` searches the whole buffer, which is wrong the moment a screen closes and
-  reopens: the same text is written twice and the wait answers from the first draw, so the
-  next keystroke goes into a program that has not started. Take a `mark()` and use
-  `awaitFrom` across any handoff that comes back to a screen
-- `await` on text a column truncation can eat. Queue rows tail-cut their `Left` cell, so
-  `kyleking/aragonite#100` can render as `aragonite#100` in a narrower frame and the full
-  string never exists in the buffer to be found. Await on the substring that survives the
-  narrowest frame the test drives, not on the widest spelling
+- `wait` waits for the reader as well as the exit, because an exited process may still have
+  bytes in the pty and an assertion on its last write fails under load without that
+- `await` searches the whole buffer, so across a screen that closes and reopens it answers
+  from the first draw and the next keystroke lands in a program that has not started. Take a
+  `mark()` and use `awaitFrom` across any hand-off that returns to a screen
+- Queue rows tail-cut their `Left` cell, so `kyleking/aragonite#100` can render as
+  `aragonite#100` at a narrow width. Await the substring that survives the narrowest frame
+  the test drives
 
 ## jj in this repository
 
-`jj split` opens the configured diff editor (nvim) even when filesets are given, so it has
-no headless path in this setup. The non-interactive route is `jj new` for an empty change
-on top, then `jj squash --from @- --into @ <files>` to move specific files' diffs into it.
-And `jj new <rev>` on an ancestor does not reset the working tree — the new change forks
-whatever the tree already holds, which silently duplicates a change if edits are present.
+`jj split` opens the configured diff editor (nvim) even with filesets, so it has no headless
+path. The non-interactive route is `jj new` for an empty change on top, then
+`jj squash --from @- --into @ <files>`.
+
+`jj new <rev>` on an ancestor does not reset the working tree, so the new change forks
+whatever the tree holds and silently duplicates a change if edits are present.

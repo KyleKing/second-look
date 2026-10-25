@@ -409,7 +409,7 @@ NAMING A PULL REQUEST
       by, and the waits -- how long the head check held a frame and how long
       a review held the screen. Typed text is never in it, so the counts are
       about reaching, not writing. It is the evidence the parked decisions in
-      NEXT_STEPS.md are waiting on.
+      ROADMAP.md are waiting on.
 
   second-look session <pr> [<session-id> [tool]]
       Record the agent session this review is being worked in, or print the one
