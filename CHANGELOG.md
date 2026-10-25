@@ -1,3 +1,25 @@
+## v0.35.0 (2026-10-25)
+
+### Feat
+
+- **tui**: draw in Ink always
+- **tui**: complete an @ from the people on the pull request and the repository's recent ones
+- **tui**: pick a pull request's labels from the repository's own on a row or a review
+- **tui**: scroll a call graph side past five nodes
+
+### Fix
+
+- **tui**: draw a bracket key bare in the chord footer
+- **tui**: tint one cell of a changed line's indent instead of all of it
+- **tui**: tag headings instead of narrating them, and show how to see a summary's hunks
+- **post**: hand todo replies off from P and post, as S does
+- **tui**: count only threads someone else opened as to judge
+- **tui**: draw the call graph as two contiguous trees that meet the center row
+
+### Refactor
+
+- **tui**: hand todo replies to the local agent or nobody, and drop the Watch Doggo label settings
+
 ## v0.34.0 (2026-10-25)
 
 ### Feat
