@@ -53,8 +53,31 @@ type Context struct {
 	Area map[string]bool
 }
 
+// Tone is how loud a row's status reads, which the screen maps to a color so
+// that nothing here knows what a terminal's warning looks like.
+type Tone uint8
+
+// The tones, quietest first. ToneNone is a row with nothing to say.
+const (
+	ToneNone Tone = iota
+	ToneMuted
+	ToneGood
+	ToneNew
+	ToneWarn
+	ToneBad
+	ToneMerged
+)
+
+// ShortWidth is the widest a Judgement's Short word may be, so a status cell of
+// a glyph, a space, and ShortWidth cells always holds it whole.
+const ShortWidth = 14
+
 // Judgement is what a row's lane, columns, and ordering signals come to. The
 // three booleans are only ever set in LaneNew.
+//
+// Why is the prose that --json and the plain queue print. Glyph, Short, Long,
+// and Tone say the same thing to a screen, which draws the glyph in the tone's
+// color and picks Short or Long by the room it has. They are empty together.
 type Judgement struct {
 	Lane     Lane   `json:"lane"`
 	Who      string `json:"who,omitempty"`
@@ -62,6 +85,55 @@ type Judgement struct {
 	Priority bool   `json:"priority,omitempty"`
 	Alone    bool   `json:"alone,omitempty"`
 	Area     bool   `json:"area,omitempty"`
+	Glyph    string `json:"-"`
+	Short    string `json:"-"`
+	Long     string `json:"-"`
+	Tone     Tone   `json:"-"`
+}
+
+// status is one reason a row sits where it does, in the three spellings its
+// readers need.
+type status struct {
+	why, glyph, short, long string
+	tone                    Tone
+}
+
+func (j *Judgement) say(s status) {
+	j.Why, j.Glyph, j.Short, j.Long, j.Tone = s.why, s.glyph, s.short, s.long, s.tone
+}
+
+// same is a status whose short and long words are its prose.
+func same(why, glyph string, tone Tone) status {
+	return status{why: why, glyph: glyph, short: why, long: why, tone: tone}
+}
+
+var (
+	statusMerged      = same("merged", "✓", ToneMerged)
+	statusApproved    = same("approved", "✓", ToneGood)
+	statusReady       = status{"approved, checks passing", "✓", "approved", "approved, checks passing", ToneGood}
+	statusAwaiting    = status{"awaiting review", "○", "awaiting", "awaiting review", ToneMuted}
+	statusDraft       = same("draft", "◌", ToneMuted)
+	statusChecksFail  = same("checks failing", "✗", ToneBad)
+	statusChecksWait  = same("checks pending", "○", ToneMuted)
+	statusAsked       = status{"changes requested", "✗", "changes asked", "changes requested", ToneBad}
+	statusYouAsked    = status{"you asked for changes", "✗", "changes asked", "you asked for changes", ToneBad}
+	statusPushed      = status{"pushed since your review", "↻", "new commits", "pushed since your review", ToneNew}
+	statusYouApproved = same("you approved", "✓", ToneMuted)
+	statusYouComment  = same("you commented", "○", ToneMuted)
+	statusYouReviewed = same("you reviewed", "○", ToneMuted)
+	statusPriority    = status{"priority", "", "priority", "priority label", ToneWarn}
+	statusArea        = same("same area", "", ToneMuted)
+)
+
+func comments(n int) status {
+	if n == 1 {
+		return status{"1 new comment", "◆", "1 comment", "1 new comment", ToneWarn}
+	}
+
+	return status{
+		fmt.Sprintf("%d new comments", n), "◆",
+		fmt.Sprintf("%d comments", n), fmt.Sprintf("%d new comments", n), ToneWarn,
+	}
 }
 
 // Mergeable reports a row the viewer can merge from the queue.
@@ -72,7 +144,10 @@ func (j Judgement) Mergeable() bool { return j.Lane == LaneReady }
 func Judge(p *PullRequest, via Source, f *Facts, c Context) Judgement {
 	switch {
 	case via&Merged != 0:
-		return Judgement{Lane: LaneMerged}
+		j := Judgement{Lane: LaneMerged}
+		j.say(statusMerged)
+
+		return j
 	case f == nil:
 		return provisional(via)
 	}
@@ -80,12 +155,19 @@ func Judge(p *PullRequest, via Source, f *Facts, c Context) Judgement {
 	j := Judgement{Who: who(f.Requested, c.Viewer)}
 
 	if p.Author == c.Viewer {
-		j.Lane, j.Why = authored(p, f, c.Viewer)
+		var s status
+
+		j.Lane, s = authored(p, f, c.Viewer)
+		j.say(s)
 
 		return j
 	}
 
-	j.Lane, j.Why = others(via, f, c.Viewer)
+	var s status
+
+	j.Lane, s = others(via, f, c.Viewer)
+	j.say(s)
+
 	if j.Lane == LaneNew {
 		j.signal(p, f, c)
 	}
@@ -110,32 +192,32 @@ func (j *Judgement) signal(p *PullRequest, f *Facts, c Context) {
 
 	switch {
 	case j.Priority:
-		j.Why = "priority"
+		j.say(statusPriority)
 	case j.Area:
-		j.Why = "same area"
+		j.say(statusArea)
 	}
 }
 
-func authored(p *PullRequest, f *Facts, me string) (Lane, string) {
+func authored(p *PullRequest, f *Facts, me string) (Lane, status) {
 	if f.Decision == approved && !p.Draft && (f.Checks == "SUCCESS" || f.Checks == "") {
 		if f.Checks == "SUCCESS" {
-			return LaneReady, "approved, checks passing"
+			return LaneReady, statusReady
 		}
 
-		return LaneReady, "approved"
+		return LaneReady, statusApproved
 	}
 
-	if why := answered(f, me); why != "" {
-		return LaneBack, why
+	if s, ok := answered(f, me); ok {
+		return LaneBack, s
 	}
 
 	return LaneWaiting, stalled(p, f)
 }
 
 // answered says what others did to your pull request after your last push.
-func answered(f *Facts, me string) string {
+func answered(f *Facts, me string) (status, bool) {
 	if f.Pushed.IsZero() {
-		return ""
+		return status{}, false
 	}
 
 	n := 0
@@ -146,7 +228,7 @@ func answered(f *Facts, me string) string {
 		}
 
 		if r.State == changesRequested {
-			return "changes requested"
+			return statusAsked, true
 		}
 
 		n++
@@ -158,51 +240,48 @@ func answered(f *Facts, me string) string {
 		}
 	}
 
-	switch n {
-	case 0:
-		return ""
-	case 1:
-		return "1 new comment"
+	if n == 0 {
+		return status{}, false
 	}
 
-	return fmt.Sprintf("%d new comments", n)
+	return comments(n), true
 }
 
-func stalled(p *PullRequest, f *Facts) string {
+func stalled(p *PullRequest, f *Facts) status {
 	switch {
 	case p.Draft:
-		return "draft"
+		return statusDraft
 	case f.Decision == changesRequested:
-		return "changes requested"
+		return statusAsked
 	case f.Decision == approved && f.Checks == "FAILURE":
-		return "checks failing"
+		return statusChecksFail
 	case f.Decision == approved:
-		return "checks pending"
+		return statusChecksWait
 	}
 
-	return "awaiting review"
+	return statusAwaiting
 }
 
-func others(via Source, f *Facts, me string) (Lane, string) {
+func others(via Source, f *Facts, me string) (Lane, status) {
 	mine, ok := latestBy(f.Reviews, me)
 
 	switch {
 	case !ok && via&Reviewed == 0:
-		return LaneNew, ""
+		return LaneNew, status{}
 	case !ok:
-		return LaneWaiting, "you reviewed"
+		return LaneWaiting, statusYouReviewed
 	case !f.Pushed.IsZero() && f.Pushed.After(mine.At):
-		return LaneBack, "pushed since your review"
+		return LaneBack, statusPushed
 	}
 
 	switch mine.State {
 	case approved:
-		return LaneWaiting, "you approved"
+		return LaneWaiting, statusYouApproved
 	case changesRequested:
-		return LaneWaiting, "you asked for changes"
+		return LaneWaiting, statusYouAsked
 	}
 
-	return LaneWaiting, "you commented"
+	return LaneWaiting, statusYouComment
 }
 
 func latestBy(events []Event, login string) (Event, bool) {

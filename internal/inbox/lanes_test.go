@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/kyleking/second-look/internal/inbox"
 )
@@ -30,13 +31,19 @@ func TestJudge(t *testing.T) {
 	}{
 		{
 			name: "approved and green is ready", pr: mine, via: inbox.Authored,
-			f:    &inbox.Facts{Decision: "APPROVED", Checks: "SUCCESS", Pushed: pushed},
-			want: inbox.Judgement{Lane: inbox.LaneReady, Why: "approved, checks passing"},
+			f: &inbox.Facts{Decision: "APPROVED", Checks: "SUCCESS", Pushed: pushed},
+			want: inbox.Judgement{
+				Lane: inbox.LaneReady, Why: "approved, checks passing",
+				Glyph: "✓", Short: "approved", Long: "approved, checks passing", Tone: inbox.ToneGood,
+			},
 		},
 		{
 			name: "approved with failing checks waits", pr: mine, via: inbox.Authored,
-			f:    &inbox.Facts{Decision: "APPROVED", Checks: "FAILURE", Pushed: pushed},
-			want: inbox.Judgement{Lane: inbox.LaneWaiting, Why: "checks failing"},
+			f: &inbox.Facts{Decision: "APPROVED", Checks: "FAILURE", Pushed: pushed},
+			want: inbox.Judgement{
+				Lane: inbox.LaneWaiting, Why: "checks failing",
+				Glyph: "✗", Short: "checks failing", Long: "checks failing", Tone: inbox.ToneBad,
+			},
 		},
 		{
 			name: "comments after the push come back", pr: mine, via: inbox.Authored,
@@ -46,23 +53,35 @@ func TestJudge(t *testing.T) {
 					{Author: "maria", At: after}, {Author: "maria", At: before}, {Author: me, At: after},
 				},
 			},
-			want: inbox.Judgement{Lane: inbox.LaneBack, Who: "maria", Why: "1 new comment"},
+			want: inbox.Judgement{
+				Lane: inbox.LaneBack, Who: "maria", Why: "1 new comment",
+				Glyph: "◆", Short: "1 comment", Long: "1 new comment", Tone: inbox.ToneWarn,
+			},
 		},
 		{
 			name: "a push after your review comes back", pr: theirs, via: inbox.Reviewed,
-			f:    &inbox.Facts{Pushed: pushed, Reviews: []inbox.Event{{Author: me, State: "COMMENTED", At: before}}},
-			want: inbox.Judgement{Lane: inbox.LaneBack, Why: "pushed since your review"},
+			f: &inbox.Facts{Pushed: pushed, Reviews: []inbox.Event{{Author: me, State: "COMMENTED", At: before}}},
+			want: inbox.Judgement{
+				Lane: inbox.LaneBack, Why: "pushed since your review",
+				Glyph: "↻", Short: "new commits", Long: "pushed since your review", Tone: inbox.ToneNew,
+			},
 		},
 		{
 			name: "requested and unreviewed is new, priority first", pr: theirs, via: inbox.Requested,
-			f:    &inbox.Facts{Requested: []string{me, "sam", "lee"}, Dirs: []string{"api"}},
-			want: inbox.Judgement{Lane: inbox.LaneNew, Who: "+ 2", Why: "priority", Priority: true, Area: true},
+			f: &inbox.Facts{Requested: []string{me, "sam", "lee"}, Dirs: []string{"api"}},
+			want: inbox.Judgement{
+				Lane: inbox.LaneNew, Who: "+ 2", Why: "priority", Priority: true, Area: true,
+				Short: "priority", Long: "priority label", Tone: inbox.ToneWarn,
+			},
 		},
 		{
 			name: "only you is said and the area is the reason", pr: inbox.PullRequest{Author: "maria"},
-			via:  inbox.Requested,
-			f:    &inbox.Facts{Requested: []string{me}, Dirs: []string{"api"}},
-			want: inbox.Judgement{Lane: inbox.LaneNew, Who: "only you", Why: "same area", Alone: true, Area: true},
+			via: inbox.Requested,
+			f:   &inbox.Facts{Requested: []string{me}, Dirs: []string{"api"}},
+			want: inbox.Judgement{
+				Lane: inbox.LaneNew, Who: "only you", Why: "same area", Alone: true, Area: true,
+				Short: "same area", Long: "same area", Tone: inbox.ToneMuted,
+			},
 		},
 		{
 			name: "no facts is provisional", pr: theirs, via: inbox.Requested,
@@ -70,14 +89,22 @@ func TestJudge(t *testing.T) {
 		},
 		{
 			name: "merged search is merged", pr: theirs, via: inbox.Merged,
-			want: inbox.Judgement{Lane: inbox.LaneMerged},
+			want: inbox.Judgement{
+				Lane: inbox.LaneMerged, Why: "merged",
+				Glyph: "✓", Short: "merged", Long: "merged", Tone: inbox.ToneMerged,
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := inbox.Judge(&tc.pr, tc.via, tc.f, c); got != tc.want {
+			got := inbox.Judge(&tc.pr, tc.via, tc.f, c)
+			if got != tc.want {
 				t.Errorf("Judge() is %+v, want %+v", got, tc.want)
+			}
+
+			if n := utf8.RuneCountInString(got.Short); n > inbox.ShortWidth {
+				t.Errorf("short status %q is %d cells, over the %d a narrow cell has", got.Short, n, inbox.ShortWidth)
 			}
 		})
 	}
