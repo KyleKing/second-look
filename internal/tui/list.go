@@ -75,6 +75,9 @@ type Row struct {
 	// is read only where the tab names Columns, and a row carrying none there
 	// draws nothing in them.
 	Cells map[string]Cell
+	// About is what the inspector says of the row. A row carrying none is
+	// described by its other fields.
+	About *About
 	// Detail is the whole conversation, shown when the row is expanded. A list
 	// whose rows carry none is not expandable.
 	Detail []string
@@ -851,12 +854,10 @@ func (l *List) half() int {
 	return l.visible() / halves
 }
 
-// visible is how many lines the frame has for rows, after the header, the tab
-// strip where there is one, and the footer.
+// visible is how many lines the frame has for rows, after the header and the
+// panel pinned to the bottom.
 func (l *List) visible() int {
-	const footerAndSpare = 2
-
-	return max(0, l.height-headerRows-footerAndSpare)
+	return max(0, l.height-headerRows-l.panelRows())
 }
 
 func abs(n int) int {

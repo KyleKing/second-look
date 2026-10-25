@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/labels"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -22,6 +24,9 @@ const (
 	colSize   = "size"
 	colStatus = "status"
 )
+
+// wordDraft is what a draft pull request reads as, before and after the facts land.
+const wordDraft = "draft"
 
 // The grid's widths. A change is drawn in a count of at most four cells and a
 // sign, so the size column holds two of those and the space between them. The
@@ -128,6 +133,59 @@ func (s *inboxScreen) cells(
 	}
 }
 
+// about is what the inspector says of a row: everything the grid dropped or
+// never had room for, in the order a reader asks for it. The change's size is
+// said only where the grid hid it.
+func about(p *inbox.PullRequest, k inbox.Known, now time.Time) *tui.About {
+	prefix := conventional.FindString(p.Title)
+
+	a := tui.About{
+		Subject: p.Title[len(prefix):],
+		Prefix:  strings.TrimSuffix(prefix, ": "),
+		Ref:     keyOf(p),
+		Facts: []tui.Fact{
+			{Text: p.Author},
+			{Text: humanize.Old(p.Updated, now)},
+			statusFact(p, k),
+			{Text: k.Who},
+		},
+	}
+
+	if k.Stack.Size > 0 {
+		a.Facts = append(a.Facts,
+			tui.Fact{Text: fmt.Sprintf("stack %d of %d", k.Stack.Position, k.Stack.Size)},
+			tui.Fact{Text: strings.TrimPrefix(readFirst(k.Stack), " · ")})
+	}
+
+	a.Facts = append(a.Facts, tui.Fact{Text: strings.TrimSpace(holding(k))})
+
+	if k.Rated {
+		a.Facts = append(a.Facts, tui.Fact{Text: "cost " + rated(k)})
+	}
+
+	a.Facts = append(a.Facts, tui.Fact{Text: labels.Tags(p.Labels)})
+
+	if measured(k) {
+		a.Facts = append(a.Facts, tui.Fact{
+			Text: "+" + humanize.Count(k.Added) + " -" + humanize.Count(k.Removed), Column: colSize,
+		})
+	}
+
+	return &a
+}
+
+// statusFact is the long word for why the row sits where it does, in its tone.
+func statusFact(p *inbox.PullRequest, k inbox.Known) tui.Fact {
+	switch {
+	case k.Long != "":
+		return tui.Fact{Text: k.Long, Role: toneRole(k.Tone)}
+	case p.Draft:
+		return tui.Fact{Text: wordDraft, Role: tui.RoleMuted}
+	}
+
+	return tui.Fact{}
+}
+
 func plain(text string, role tui.Role) tui.Cell {
 	return tui.Cell{Spans: []tui.Span{{Text: text, Role: role}}}
 }
@@ -188,7 +246,7 @@ func statusCell(p *inbox.PullRequest, k inbox.Known, have bool) tui.Cell {
 	if k.Short == "" {
 		switch {
 		case p.Draft:
-			return statusOf("◌", "draft", "draft", inbox.ToneMuted)
+			return statusOf("◌", wordDraft, wordDraft, inbox.ToneMuted)
 		case !have:
 			return tui.Pending()
 		}

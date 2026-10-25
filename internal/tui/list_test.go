@@ -137,7 +137,7 @@ func TestTheCursorRowIsReversedWhereThereIsNoColor(t *testing.T) {
 		height  int
 	}{
 		{"ascii", colorprofile.ASCII, "\x1b[7m", "\x1b[48;", 34},
-		{"ascii beside a scrollbar", colorprofile.ASCII, "\x1b[7m", "\x1b[48;", 12},
+		{"ascii beside a scrollbar", colorprofile.ASCII, "\x1b[7m", "\x1b[48;", 17},
 		{"truecolor", colorprofile.TrueColor, "\x1b[48;", "\x1b[7m", 34},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestTheCursorRowIsReversedWhereThereIsNoColor(t *testing.T) {
 
 			var marked []string
 
-			for _, line := range strings.Split(l.ListFrame(), "\n") {
+			for _, line := range panelless(l.ListFrame()) {
 				if strings.Contains(line, tc.absent) {
 					t.Errorf("a line carries %q: %q", tc.absent, line)
 				}
@@ -662,7 +662,7 @@ func TestARatingIsAColumnRatherThanTitleText(t *testing.T) {
 	l := tui.NewList("inbox", rated, nil)
 	l.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
 
-	at := startsOf(plain(l.ListFrame()), "the title")
+	at := startsOf(l.ListFrame(), "the title")
 
 	if len(at) != 3 {
 		t.Fatalf("found %d titles, want 3:\n%s", len(at), plain(l.ListFrame()))
@@ -678,7 +678,7 @@ func TestARatingIsAColumnRatherThanTitleText(t *testing.T) {
 
 	// The signs line up down the list, which two columns give and one figure
 	// with a space in it does not.
-	if got := startsOf(plain(l.ListFrame()), "-"); len(got) != 2 || got[0] != got[1] {
+	if got := startsOf(l.ListFrame(), "-"); len(got) != 2 || got[0] != got[1] {
 		t.Errorf("the removed column starts at %v, want one column for both rows", got)
 	}
 }
@@ -706,7 +706,7 @@ func TestTrailingWordsKeepTheirColumns(t *testing.T) {
 	l := tui.NewList("staged", rows, nil)
 	l.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
 
-	frame := plain(l.ListFrame())
+	frame := rowsOf(l.ListFrame())
 
 	if at := startsOf(frame, "merged"); len(at) != 2 || at[0] != at[1] {
 		t.Errorf("the forge's word lands at columns %v, want one column for both rows:\n%s", at, frame)
@@ -715,7 +715,7 @@ func TestTrailingWordsKeepTheirColumns(t *testing.T) {
 	// Narrowing hides the tail first and says so; the words still moving keep
 	// their columns.
 	l.Update(tea.WindowSizeMsg{Width: 90, Height: 20})
-	frame = plain(l.ListFrame())
+	frame = rowsOf(l.ListFrame())
 
 	for _, want := range []string{"…+1", "merged", "agent blocked"} {
 		if !strings.Contains(frame, want) {
@@ -736,7 +736,7 @@ func TestAnUnratedListSpendsNoWidthOnTheColumn(t *testing.T) {
 	l := list(t, nil)
 	l.Update(tea.WindowSizeMsg{Width: 140, Height: 20})
 
-	bare := startsOf(plain(l.ListFrame()), "add TTL to the pool")
+	bare := startsOf(l.ListFrame(), "add TTL to the pool")
 	if len(bare) != 1 {
 		t.Fatalf("the fixture row is drawn %d times, want once", len(bare))
 	}
@@ -749,19 +749,34 @@ func TestAnUnratedListSpendsNoWidthOnTheColumn(t *testing.T) {
 	}, nil)
 	withCost.Update(tea.WindowSizeMsg{Width: 140, Height: 20})
 
-	got := startsOf(plain(withCost.ListFrame()), "add TTL to the pool")
+	got := startsOf(withCost.ListFrame(), "add TTL to the pool")
 	if len(got) != 1 || got[0] != bare[0]+len("  9") {
 		t.Errorf("the tail is at %v with a rating and %v without", got, bare)
 	}
 }
 
-// startsOf is the column each line of a frame puts want at, measured in cells
-// so the cursor glyph is one column rather than the three bytes it is written
-// in.
+// rowsOf is a frame without the panel pinned under it, which repeats the row
+// under the cursor and so is not what a test of the rows is asking about.
+func rowsOf(frame string) string {
+	return strings.Join(panelless(plain(frame)), "\n")
+}
+
+// panelless is a frame's lines above the panel, which keeps its own background
+// in every profile.
+func panelless(frame string) []string {
+	const panelRows = 3
+
+	lines := strings.Split(frame, "\n")
+
+	return lines[:len(lines)-panelRows]
+}
+
+// startsOf is the column each line of the rows puts want at, measured in cells
+// so a wide glyph is one column rather than the bytes it is written in.
 func startsOf(frame, want string) []int {
 	var out []int
 
-	for _, line := range strings.Split(frame, "\n") {
+	for _, line := range strings.Split(rowsOf(frame), "\n") {
 		if i := strings.Index(line, want); i >= 0 {
 			out = append(out, utf8.RuneCountInString(line[:i]))
 		}
@@ -1094,6 +1109,23 @@ func size(added, removed string) tui.Cell {
 	}}
 }
 
+// wordsOf is what the first set of spans that has any says as plain text.
+func wordsOf(sets ...[]tui.Span) string {
+	for _, set := range sets {
+		var b strings.Builder
+
+		for _, s := range set {
+			b.WriteString(s.Text)
+		}
+
+		if b.Len() > 0 {
+			return b.String()
+		}
+	}
+
+	return ""
+}
+
 // gridRow is one inbox row on the grid, with the pieces the screen splits a
 // title into: the mark, the commit prefix, and the subject.
 func gridRow(key, owner, mark, prefix, subject, author, age string, size, status tui.Cell, dim bool) tui.Row {
@@ -1112,8 +1144,18 @@ func gridRow(key, owner, mark, prefix, subject, author, age string, size, status
 		lead = tui.RoleQuiet
 	}
 
+	about := tui.About{
+		Subject: subject, Prefix: strings.TrimSuffix(prefix, ": "), Ref: key,
+		Facts: []tui.Fact{
+			{Text: author},
+			{Text: age + " old"},
+			{Text: strings.TrimPrefix(wordsOf(status.Long, status.Spans), "·")},
+			{Text: strings.Join(strings.Fields(strings.TrimPrefix(wordsOf(size.Spans), "·")), " "), Column: "size"},
+		},
+	}
+
 	return tui.Row{
-		Key: key, Dim: dim,
+		Key: key, Dim: dim, About: &about,
 		Cells: map[string]tui.Cell{
 			"ref": {Spans: ref},
 			"title": {Spans: []tui.Span{
@@ -1159,7 +1201,7 @@ func TestLaneFrames(t *testing.T) {
 	t.Parallel()
 
 	for _, dims := range []struct{ width, height int }{
-		{80, 20}, {100, 20}, {120, 20}, {160, 20}, {200, 20}, {120, 34},
+		{80, 20}, {100, 20}, {120, 20}, {160, 20}, {200, 20}, {120, 34}, {80, 24}, {80, 15},
 	} {
 		name := strconv.Itoa(dims.width)
 		if dims.height != 20 {
@@ -1196,6 +1238,52 @@ func TestLaneFrames(t *testing.T) {
 	}
 }
 
+// The panel is part of the frame, so the frame is as tall as the terminal
+// whatever the cursor is on and however short the terminal is, and the row
+// under the cursor is always one of those the body shows.
+func TestTheFrameKeepsItsHeight(t *testing.T) {
+	t.Parallel()
+
+	for _, height := range []int{10, 15, 16, 24, 34, 60} {
+		t.Run(strconv.Itoa(height), func(t *testing.T) {
+			t.Parallel()
+
+			l := tui.NewTabs([]tui.Tab{{Name: "inbox", Sections: lanes, Columns: laneColumns}}, 0)
+			l.Update(tea.WindowSizeMsg{Width: 80, Height: height})
+
+			for range 12 {
+				frame := l.ListFrame()
+				if got := strings.Count(frame, "\n") + 1; got != height {
+					t.Fatalf("the frame is %d lines tall in a terminal of %d", got, height)
+				}
+
+				if !strings.Contains(frame, "\x1b[48;") {
+					t.Fatal("the row under the cursor is not drawn")
+				}
+
+				l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+			}
+		})
+	}
+}
+
+// A column the grid had no room for is said in the inspector, and only there.
+func TestTheInspectorSaysWhatTheGridDropped(t *testing.T) {
+	t.Parallel()
+
+	for width, want := range map[int]bool{80: true, 100: false, 120: false} {
+		l := tui.NewTabs([]tui.Tab{{Name: "inbox", Sections: lanes, Columns: laneColumns}}, 0)
+		l.Update(tea.WindowSizeMsg{Width: width, Height: 34})
+
+		lines := strings.Split(plain(l.ListFrame()), "\n")
+		panel := strings.Join(lines[len(lines)-3:], "\n")
+
+		if got := strings.Contains(panel, "+57 -0"); got != want {
+			t.Errorf("at %d columns the inspector says the size = %v, want %v:\n%s", width, got, want, panel)
+		}
+	}
+}
+
 // The cursor takes a background and nothing else on the row moves: every column
 // sits where it did with the cursor elsewhere.
 func TestTheCursorLeavesTheGridWhereItWas(t *testing.T) {
@@ -1213,7 +1301,7 @@ func TestTheCursorLeavesTheGridWhereItWas(t *testing.T) {
 					l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
 				}
 
-				return strings.Split(plain(l.ListFrame()), "\n")
+				return panelless(plain(l.ListFrame()))
 			}
 
 			lit := tui.NewTabs([]tui.Tab{{Name: "inbox", Sections: lanes, Columns: laneColumns}}, 0)

@@ -15,5 +15,6 @@
                                                        │             ctrl+r  read the queue again                     │
                                                        │             q, esc  leave                                    │
                                                        │                                                              │
-                                                       │                     ● marks a conversation that moved since  │
- [enter] read  [space] mark read  [r]eply  [R]esolve  [╰ · · ·────────────────────────────────────────────────────────╯
+ good catch, pushed a defer  kyleking/tlr#118          │                     ● marks a conversation that moved since  │ 
+ internal/pool/pool.go:42 · 2h · alice  2 replies  add ╰ · · ·────────────────────────────────────────────────────────╯ 
+ [enter] read  [space] mark read  [r]eply  [R]esolve  [o] GitHub  [tab] group  [/] filter  [?] help  [q]uit             

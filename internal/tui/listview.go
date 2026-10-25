@@ -40,7 +40,7 @@ func (l *List) render() string {
 	b.WriteByte('\n')
 	b.WriteString(l.bodyView())
 	b.WriteByte('\n')
-	b.WriteString(l.footer())
+	b.WriteString(l.panel())
 
 	frame := b.String()
 	if l.help {
@@ -190,7 +190,7 @@ func (l *List) bodyView() string {
 
 	var grid table.Layout
 	if l.columns != nil {
-		grid = table.FitCompact(l.gridColumns(), width-gridMargin)
+		grid = l.gridLayout(width)
 	}
 
 	// The band runs to the last cell the scrollbar leaves.

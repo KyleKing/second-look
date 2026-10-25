@@ -57,23 +57,41 @@ func Ago(then, now time.Time) string {
 		return ""
 	}
 
+	n, unit := elapsed(now.Sub(then))
+
+	return strconv.Itoa(n) + unit.short
+}
+
+// Old is Ago spelled out for a line with room for it: "55 days old".
+func Old(then, now time.Time) string {
+	if then.IsZero() {
+		return ""
+	}
+
+	n, unit := elapsed(now.Sub(then))
+
+	return Plural(n, unit.long) + " old"
+}
+
+type unit struct{ short, long string }
+
+// elapsed is d in the largest unit it fills once.
+func elapsed(d time.Duration) (int, unit) {
 	const (
 		day  = 24 * time.Hour
 		year = 365 * day
 	)
 
-	d := now.Sub(then)
-
 	switch {
 	case d < time.Hour:
-		return strconv.Itoa(int(d.Minutes())) + "m"
+		return int(d.Minutes()), unit{"m", "minute"}
 	case d < day:
-		return strconv.Itoa(int(d.Hours())) + "h"
+		return int(d.Hours()), unit{"h", "hour"}
 	case d < year:
-		return strconv.Itoa(int(d/day)) + "d"
+		return int(d / day), unit{"d", "day"}
 	}
 
-	return strconv.Itoa(int(d/year)) + "y"
+	return int(d / year), unit{"y", "year"}
 }
 
 // Clip cuts a string to at most the given width, marking that it was cut.

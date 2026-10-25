@@ -281,11 +281,11 @@ type Reading struct {
 }
 
 // Readings measures every face a queue draws text in against its background:
-// a row's dim face on the frame, its lit face on the selection band, and the
-// chips and lane headings on what they sit on.
+// a row's dim face on the frame and on the panel under it, its lit face on the
+// selection band, and the chips and lane headings on what they sit on.
 func Readings() []Reading {
 	st := loadStyles()
-	base, band := st.palette.Base, st.band.GetBackground()
+	base, band, mantle := st.palette.Base, st.band.GetBackground(), st.panel.GetBackground()
 
 	var out []Reading
 
@@ -296,6 +296,7 @@ func Readings() []Reading {
 	for name, r := range st.rungs.all() {
 		add(name+" dim on Base", r.dim.GetForeground(), base)
 		add(name+" lit on the band", r.lit.GetForeground(), band)
+		add(name+" dim on the panel", r.dim.GetForeground(), mantle)
 	}
 
 	for name, c := range map[string]*lipgloss.Style{

@@ -992,6 +992,7 @@ func (s *inboxScreen) rows(items []inbox.PullRequest, lane inbox.Lane, now time.
 			Branch:  branch(k.Stack),
 			Urgent:  k.Priority,
 			Cells:   s.cells(p, k, shared, now),
+			About:   about(p, k, now),
 			Dim:     waits || (!s.configured && k.Stack.Size > 0 && k.Lane > lane),
 		})
 	}
@@ -1082,7 +1083,7 @@ func holding(k inbox.Known) string {
 		one, plural string
 	}{
 		{k.Ready, "ready", "ready"},
-		{k.Draft, "draft", "drafts"},
+		{k.Draft, wordDraft, "drafts"},
 		{k.Replies, "reply", "replies"},
 	} {
 		if c.n > 0 {

@@ -15,5 +15,6 @@
           kyleking/wavez#7                          internal/lease/lease.go:9  4d     KyleKing  scheduler leases
 
 
-
- [enter] read  [space] mark read  [r]eply  [R]esolve  [o] GitHub  [tab] group  [/] filter  [?] help  [q]uit
+ good catch, pushed a defer  kyleking/tlr#118                                                                           
+ internal/pool/pool.go:42 · 2h · alice  2 replies  add TTL to the pool                                                  
+ [enter] read  [space] mark read  [r]eply  [R]esolve  [o] GitHub  [tab] group  [/] filter  [?] help  [q]uit             

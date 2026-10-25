@@ -54,6 +54,8 @@ type styles struct {
 	// band is the background behind the row under the cursor, and nothing else:
 	// a face drawn over it supplies the foreground.
 	band lipgloss.Style
+	// panel is the background of the inspector and the footer beneath it.
+	panel lipgloss.Style
 	// rungs are the faces a queue row is drawn in, each as a pair: dim on the
 	// frame's background and lit on the band.
 	rungs ladder
@@ -115,6 +117,7 @@ func newStyles() styles {
 		priority:     base.Foreground(p.Peach).Bold(true),
 		placeholder:  base.Foreground(p.Overlay0),
 		band:         sk.Band,
+		panel:        base.Background(p.Mantle),
 		rungs:        newLadder(p, accent(p)),
 		badge:        sk.Badge,
 		badgeOn:      sk.BadgeActive,

@@ -2,6 +2,7 @@ package humanize_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/kyleking/second-look/internal/humanize"
 )
@@ -55,5 +56,43 @@ func TestPlural(t *testing.T) {
 		if tc.got != tc.want {
 			t.Errorf("= %q, want %q", tc.got, tc.want)
 		}
+	}
+}
+
+func TestAgoAndOldShareTheirUnits(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.October, 25, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		ago      time.Duration
+		short    string
+		long     string
+		testName string
+	}{
+		{5 * time.Minute, "5m", "5 minutes old", "minutes"},
+		{time.Hour, "1h", "1 hour old", "one hour"},
+		{55 * 24 * time.Hour, "55d", "55 days old", "days"},
+		{800 * 24 * time.Hour, "2y", "2 years old", "years"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.testName, func(t *testing.T) {
+			t.Parallel()
+
+			then := now.Add(-tc.ago)
+
+			if got := humanize.Ago(then, now); got != tc.short {
+				t.Errorf("Ago() = %q, want %q", got, tc.short)
+			}
+
+			if got := humanize.Old(then, now); got != tc.long {
+				t.Errorf("Old() = %q, want %q", got, tc.long)
+			}
+		})
+	}
+
+	if got := humanize.Old(time.Time{}, now); got != "" {
+		t.Errorf("Old(zero) = %q, want empty", got)
 	}
 }
