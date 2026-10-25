@@ -126,6 +126,11 @@ type inboxScreen struct {
 	// was saved, both zero when nothing was painted.
 	painted string
 	age     time.Duration
+	// started is set by the first Start, so a later one is a refresh, which
+	// reads every row's facts again whatever the snapshot says. forced carries
+	// that to the read.
+	started bool
+	forced  bool
 }
 
 // howManyAtOnce bounds the diffs the rating pool fetches. It is small because
@@ -450,6 +455,7 @@ func (s *inboxScreen) Start() tea.Cmd {
 	s.facts, s.viewer, s.factsOut, s.factsErr = map[string]inbox.Facts{}, "", false, ""
 	s.records, s.stale, s.painted, s.age = map[string]inbox.Record{}, map[string]bool{}, "", 0
 	s.area = inbox.LoadArea()
+	s.forced, s.started = s.started, true
 	s.paint()
 	s.regroup()
 	s.armed = ""
@@ -533,15 +539,19 @@ func (s *inboxScreen) absorbBucket(answered bucketMsg) tea.Cmd {
 	return tea.Batch(rate, s.readFacts())
 }
 
-// factsMsg is the one batched read of reviews, checks, and changed paths.
+// factsMsg is the batched read of reviews, checks, and changed paths, and the
+// rows it asked about. A row it did not ask about kept the record it had.
 type factsMsg struct {
 	fetched inbox.Fetched
+	asked   map[string]bool
 	err     error
 }
 
-// readFacts asks once for every row the searches found. The queue is prepared
-// when it answers, so what is staged ahead follows the lanes rather than
-// whichever search came back first.
+// readFacts asks for the rows whose facts the snapshot cannot vouch for. The
+// queue is prepared when it answers, so what is staged ahead follows the lanes
+// rather than whichever search came back first. A read nobody forced and
+// nothing needs still asks about one row where the snapshot's login has not been
+// confirmed, since the answer is where the login comes from.
 func (s *inboxScreen) readFacts() tea.Cmd {
 	var rows []inbox.PullRequest
 
@@ -553,12 +563,33 @@ func (s *inboxScreen) readFacts() tea.Cmd {
 		rows = inbox.Rows(s.buckets)
 	}
 
+	records := s.records
+	if s.forced {
+		records = nil
+	}
+
+	s.forced = false
+
+	reuse, fetch := inbox.Split(records, rows, time.Now())
+	if len(fetch) == 0 && s.painted != "" && len(reuse) > 0 {
+		fetch = reuse[:1]
+	}
+
+	asked := make(map[string]bool, len(fetch))
+	for i := range fetch {
+		asked[keyOf(&fetch[i])] = true
+	}
+
 	s.factsOut = true
 
 	return func() tea.Msg {
-		fetched, err := inbox.Fetch(s.ctx, ".", rows)
+		if len(fetch) == 0 {
+			return factsMsg{asked: asked}
+		}
 
-		return factsMsg{fetched: fetched, err: err}
+		fetched, err := inbox.Fetch(s.ctx, ".", fetch)
+
+		return factsMsg{fetched: fetched, asked: asked, err: err}
 	}
 }
 
@@ -573,8 +604,13 @@ func (s *inboxScreen) absorbFacts(answered factsMsg) tea.Cmd {
 		say = func() tea.Msg { return tui.StatusMsg{Text: text, Failed: true} }
 	}
 
-	s.absorbRecords(answered)
+	redo := s.absorbRecords(answered)
 	s.regroup()
+
+	if redo {
+		return tea.Batch(say, s.readFacts())
+	}
+
 	s.prunePrefetched()
 	s.save()
 

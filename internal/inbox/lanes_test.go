@@ -114,7 +114,8 @@ func TestDecodeFactsDropsBotsAndTeams(t *testing.T) {
 	t.Parallel()
 
 	body := `{"data":{"viewer":{"login":"kyle"},"nodes":[null,{"number":7,
-	"repository":{"nameWithOwner":"o/r"},"baseRefName":"main","headRefName":"feat","reviewDecision":"APPROVED",
+	"repository":{"nameWithOwner":"o/r"},"baseRefName":"main","headRefName":"feat","headRefOid":"abc123",
+	"reviewDecision":"APPROVED",
 	"reviewRequests":{"nodes":[{"requestedReviewer":null},
 	  {"requestedReviewer":{"__typename":"User","login":"maria"}},
 	  {"requestedReviewer":{"__typename":"User","login":"ci[bot]"}}]},
@@ -134,8 +135,8 @@ func TestDecodeFactsDropsBotsAndTeams(t *testing.T) {
 		t.Errorf("humans only: viewer %q, facts %+v", got.Viewer, f)
 	}
 
-	if f.Base != "main" || f.Head != "feat" {
-		t.Errorf("the branches are read: %+v", f)
+	if f.Base != "main" || f.Head != "feat" || f.Oid != "abc123" {
+		t.Errorf("the branches and the head commit are read: %+v", f)
 	}
 
 	if len(f.Dirs) != 2 || f.Dirs[0] != "api" || f.Dirs[1] != "web" || f.Checks != "" {

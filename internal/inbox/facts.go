@@ -34,6 +34,8 @@ type Facts struct {
 	// stack is told from rows that merely share a repository.
 	Base string `json:"base,omitempty"`
 	Head string `json:"head,omitempty"`
+	// Oid is the head commit, kept so a snapshot says which push it was read at.
+	Oid string `json:"oid,omitempty"`
 }
 
 // Fetched is one read of Facts keyed like a queue row, with the login it was read as.
@@ -53,6 +55,7 @@ const query = `query($ids: [ID!]!) {
       repository { nameWithOwner }
       baseRefName
       headRefName
+      headRefOid
       reviewDecision
       reviewRequests(first: 20) {
         nodes { requestedReviewer { __typename ... on User { login } } }
@@ -158,6 +161,7 @@ type node struct {
 	} `json:"repository"`
 	BaseRefName    string `json:"baseRefName"`
 	HeadRefName    string `json:"headRefName"`
+	HeadRefOid     string `json:"headRefOid"`
 	ReviewDecision string `json:"reviewDecision"`
 	ReviewRequests struct {
 		Nodes []struct {
@@ -223,7 +227,7 @@ func DecodeFacts(body []byte) (Fetched, error) {
 }
 
 func (n *node) facts() Facts {
-	f := Facts{Decision: n.ReviewDecision, Base: n.BaseRefName, Head: n.HeadRefName}
+	f := Facts{Decision: n.ReviewDecision, Base: n.BaseRefName, Head: n.HeadRefName, Oid: n.HeadRefOid}
 
 	for _, r := range n.ReviewRequests.Nodes {
 		if r.RequestedReviewer.human() {

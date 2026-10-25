@@ -49,7 +49,11 @@ func (s *inboxScreen) paint() {
 
 	maps.Copy(s.records, snap.Facts)
 	s.facts = factsOf(s.records)
-	s.viewer, s.painted, s.age = snap.Viewer, snap.Viewer, age
+	s.viewer, s.age = snap.Viewer, age
+
+	if !snap.Verified {
+		s.painted = snap.Viewer
+	}
 }
 
 func factsOf(records map[string]inbox.Record) map[string]inbox.Facts {
@@ -64,15 +68,19 @@ func factsOf(records map[string]inbox.Record) map[string]inbox.Facts {
 
 // absorbRecords takes the facts a read answered. A login other than the one the
 // snapshot was read as drops the snapshot, since every fact in it was judged
-// for somebody else. A row the read could not answer keeps its snapshot facts
-// and stays stale.
-func (s *inboxScreen) absorbRecords(answered factsMsg) {
+// for somebody else, and reports that every row has to be read again. A row the
+// read could not answer keeps its snapshot facts and stays stale, and a row it
+// did not ask about was vouched for by its record.
+func (s *inboxScreen) absorbRecords(answered factsMsg) bool {
+	redo := false
+
 	if login := answered.fetched.Viewer; login != "" {
 		if s.painted != "" && s.painted != login {
 			s.snaps.DropInbox()
 
 			s.records = map[string]inbox.Record{}
 			s.stale = map[string]bool{}
+			redo = true
 		}
 
 		s.viewer, s.painted = login, ""
@@ -84,6 +92,12 @@ func (s *inboxScreen) absorbRecords(answered factsMsg) {
 		for j := range s.buckets[i].Items {
 			p := &s.buckets[i].Items[j]
 			key := keyOf(p)
+
+			if !answered.asked[key] {
+				delete(s.stale, key)
+
+				continue
+			}
 
 			if f, ok := answered.fetched.Facts[key]; ok {
 				s.records[key] = inbox.Record{Facts: f, Updated: p.Updated, Fetched: now}
@@ -100,6 +114,8 @@ func (s *inboxScreen) absorbRecords(answered factsMsg) {
 	}
 
 	s.facts = factsOf(s.records)
+
+	return redo
 }
 
 // save keeps what the screen holds as the snapshot the next open paints. A
@@ -134,5 +150,7 @@ func (s *inboxScreen) save() {
 		}
 	}
 
-	s.snaps.SaveInbox(s.viewer, snapshot.Inbox{Buckets: buckets, Facts: facts})
+	s.snaps.SaveInbox(s.viewer, snapshot.Inbox{
+		Buckets: buckets, Facts: facts, Verified: s.viewer != "" && s.painted == "",
+	})
 }

@@ -468,17 +468,21 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 }
 
 // withComment is the searches, the comment m sends, then the searches again for
-// the queue it returns to.
+// the queue it returns to. That queue paints from the snapshot the first one
+// saved, whose facts are minutes old and unchanged, so it reads none again.
 func withComment(t *testing.T, body string) string {
 	t.Helper()
 
 	c := onScreen(t)
 	searches := c.Interactions
+	again := slices.DeleteFunc(slices.Clone(searches), func(in ghcassette.Interaction) bool {
+		return slices.Equal(in.Args[:2], []string{"api", "graphql"})
+	})
 
 	c.Interactions = append(append([]ghcassette.Interaction{}, searches...), ghcassette.Interaction{
 		Args: []string{"pr", "comment", "100", "--repo", "kyleking/aragonite", "--body", body},
 	})
-	c.Interactions = append(c.Interactions, searches...)
+	c.Interactions = append(c.Interactions, again...)
 
 	path := filepath.Join(t.TempDir(), "inbox-comment.golden")
 	if err := ghcassette.Save(path, c); err != nil {

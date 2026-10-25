@@ -104,6 +104,9 @@ type Inbox struct {
 	Header
 	Buckets []Bucket                `json:"buckets"`
 	Facts   map[string]inbox.Record `json:"facts"`
+	// Verified says this process read the snapshot's viewer from the forge. It
+	// is never written to disk, so a snapshot loaded from disk is unverified.
+	Verified bool `json:"-"`
 }
 
 // Conversations is the conversation tab: the queue and the notification stream.

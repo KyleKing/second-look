@@ -1,9 +1,12 @@
 package main_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -104,4 +107,139 @@ func TestInboxPaintsTheLastQueueBeforeGHAnswers(t *testing.T) {
 	if _, kept := got.Facts["example/cached#9"]; kept {
 		t.Error("the snapshot still holds a fact read as the other login")
 	}
+}
+
+// searched is the rows each of the cassette's searches answered, in the order
+// the queue's buckets run, with the node ids a facts read asks by.
+func searched(t *testing.T, c *ghcassette.Cassette) []snapshot.Bucket {
+	t.Helper()
+
+	var out []snapshot.Bucket
+
+	for i, in := range c.Interactions {
+		if in.Args[0] != "search" {
+			continue
+		}
+
+		//nolint:tagliatelle // gh answers in camelCase and these names are its own
+		var raw []struct {
+			ID         string `json:"id"`
+			Repository struct {
+				NameWithOwner string `json:"nameWithOwner"`
+			} `json:"repository"`
+			Number    int       `json:"number"`
+			Title     string    `json:"title"`
+			UpdatedAt time.Time `json:"updatedAt"`
+		}
+
+		if err := json.Unmarshal([]byte(in.Stdout), &raw); err != nil {
+			t.Fatalf("reading search %d: %v", i, err)
+		}
+
+		b := snapshot.Bucket{Name: inbox.Plan(30)[len(out)].Name}
+
+		for _, r := range raw {
+			b.Items = append(b.Items, snapshot.Row{
+				ID: r.ID, Repository: r.Repository.NameWithOwner, Number: r.Number,
+				Title: r.Title, Updated: r.UpdatedAt,
+			})
+		}
+
+		out = append(out, b)
+	}
+
+	return out
+}
+
+func rowKey(r *snapshot.Row) string { return fmt.Sprintf("%s#%d", r.Repository, r.Number) }
+
+// withheld is a facts record for every open row, as the last open read them a
+// minute ago, then three of them spoiled: one that moved since, one read too
+// long ago, and one with checks still running. It returns the spoiled rows'
+// node ids.
+func withheld(
+	t *testing.T, buckets []snapshot.Bucket, facts map[string]inbox.Facts,
+) (map[string]inbox.Record, []string) {
+	t.Helper()
+
+	now := time.Now()
+	records := map[string]inbox.Record{}
+
+	var open []snapshot.Row
+
+	for _, b := range buckets[:len(buckets)-1] {
+		open = append(open, b.Items...)
+	}
+
+	if len(open) < 4 {
+		t.Fatalf("the recording has %d open rows, want at least four to leave one untouched", len(open))
+	}
+
+	for i := range open {
+		r := &open[i]
+		records[rowKey(r)] = inbox.Record{Facts: facts[rowKey(r)], Updated: r.Updated, Fetched: now.Add(-time.Minute)}
+	}
+
+	moved, aged, running := &open[0], &open[1], &open[2]
+
+	rec := records[rowKey(moved)]
+	rec.Updated = rec.Updated.Add(-time.Hour)
+	records[rowKey(moved)] = rec
+
+	rec = records[rowKey(aged)]
+	rec.Fetched = now.Add(-inbox.MaxAge - time.Minute)
+	records[rowKey(aged)] = rec
+
+	rec = records[rowKey(running)]
+	rec.Facts.Checks = "PENDING"
+	records[rowKey(running)] = rec
+
+	return records, []string{moved.ID, aged.ID, running.ID}
+}
+
+// A snapshot that still holds is not read again: only the rows that are new,
+// moved, had checks running, or were read too long ago go in the facts call.
+func TestInboxFetchesOnlyWhatTheSnapshotCannotVouchFor(t *testing.T) {
+	t.Parallel()
+
+	base := onScreen(t)
+	buckets := searched(t, base)
+
+	body, err := os.ReadFile(filepath.Join("..", "..", "internal", "inbox", "testdata", "facts.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	read, err := inbox.DecodeFacts(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	records, want := withheld(t, buckets, read.Facts)
+
+	home := quietHome(t)
+	snapshotsIn(home, time.Now).SaveInbox("kyleking", snapshot.Inbox{Buckets: buckets, Facts: records})
+
+	base.Interactions = slices.DeleteFunc(base.Interactions, func(in ghcassette.Interaction) bool {
+		return slices.Equal(in.Args[:2], []string{"api", "graphql"})
+	})
+	base.Interactions = append(base.Interactions, ghcassette.Interaction{
+		Args: inbox.FactsArgs(want), Stdout: string(body),
+	})
+
+	cassette := filepath.Join(t.TempDir(), "inbox.golden")
+	if err := ghcassette.Save(cassette, base); err != nil {
+		t.Fatalf("writing the derived cassette: %v", err)
+	}
+
+	s := ghcassette.Replay(t, cassette)
+	sc := openReview(t, s, t.TempDir(),
+		"HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "XDG_CACHE_HOME="+home+"/.cache", "inbox")
+
+	sc.await("aragonite#100")
+	sc.awaitPlayed(s, len(base.Interactions))
+	sc.press("q")
+	sc.wait()
+
+	s.RequireAllPlayed(t)
 }
