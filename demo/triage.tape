@@ -10,10 +10,11 @@ Set FontSize 15
 Set Width 1180
 Set Height 700
 Set Padding 18
+Set Theme {"name": "Ink", "black": "#2d3340", "red": "#f27a86", "green": "#5fd497", "yellow": "#e8c35a", "blue": "#7aa8ff", "magenta": "#f29ac8", "cyan": "#7fcfc0", "white": "#b6bdc8", "brightBlack": "#343b48", "brightRed": "#ee8f99", "brightGreen": "#5fd497", "brightYellow": "#ffa45c", "brightBlue": "#94a8ff", "brightMagenta": "#c39bff", "brightCyan": "#56c8d8", "brightWhite": "#c8ced8", "background": "#1e2128", "foreground": "#c8ced8", "selection": "#343b48", "cursor": "#c8ced8"}
 Set Framerate 8
 Set TypingSpeed 90ms
 
-Env CATPPUCCIN_THEME "ink"
+Env COLORTERM "truecolor"
 
 Hide
 Type "demo/scene.sh inbox" Enter
