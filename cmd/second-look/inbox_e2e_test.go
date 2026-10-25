@@ -183,10 +183,10 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	sc.press("\r")
 	sc.await("kyleking/aragonite #100")
 
-	// Detecting the palette reads the answer off stdin, which deadlocks against
-	// the program's own reader, so it happens once and before the program starts.
-	if n := strings.Count(sc.raw(), "\x1b]11;?"); n != 1 {
-		t.Errorf("the terminal was asked its background color %d times, want once", n)
+	// The palette is Ink whatever the terminal is, so nothing asks for the
+	// background, and a query against the program's own reader would deadlock.
+	if n := strings.Count(sc.raw(), "\x1b]11;?"); n != 0 {
+		t.Errorf("the terminal was asked its background color %d times, want never", n)
 	}
 
 	// Leaving the review comes back to the queue rather than ending the

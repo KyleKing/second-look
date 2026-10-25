@@ -57,16 +57,14 @@ type styles struct {
 	severity  map[string]lipgloss.Style
 }
 
-// loadStyles is the one palette this process draws with. Detecting it writes an
-// escape to the terminal and reads the answer off stdin, which deadlocks
-// against a running program's own reader, so it must happen once and before any
-// screen is on.
+// loadStyles is the one palette this process draws with: Ink, whatever the
+// terminal's background.
 //
-//nolint:gochecknoglobals // a process-wide detection, resolved once
+//nolint:gochecknoglobals // a process-wide palette, built once
 var loadStyles = sync.OnceValue(newStyles)
 
 func newStyles() styles {
-	p := theme.Detect()
+	p := theme.Ink()
 	sk := skin.New(p, accent(p))
 	base := lipgloss.NewStyle()
 

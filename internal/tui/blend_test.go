@@ -13,11 +13,9 @@ import (
 	"github.com/kyleking/second-look/internal/tui"
 )
 
-// The palettes a diff is drawn on. Both are checked because the depths are one
-// set of numbers for both, and a lift that separates two bands on a dark
-// background can leave them touching on a light one.
+// The palettes a diff is drawn on: Ink, which is the only one the screen uses.
 func palettes() map[string]theme.Palette {
-	return map[string]theme.Palette{"dark": theme.Macchiato(), "light": theme.Latte()}
+	return map[string]theme.Palette{"ink": theme.Ink()}
 }
 
 // A band is the accent's hue at the background's depth rather than a mix of the
