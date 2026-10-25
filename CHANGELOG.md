@@ -1,3 +1,21 @@
+## v0.34.0 (2026-10-25)
+
+### Feat
+
+- **tui**: draw the call graph under the cursor's line on gc
+- **lsp**: ask a language server for the call graph around a function
+- **tui**: show read and to-judge progress per chapter in the outline
+- **tui**: say which todos a round answered on the thread and in the H box
+- **post**: hand todo replies to Watch Doggo or a local agent when submitting
+- **demo**: a scene for judging a bot's findings
+- **tui**: rule on a finding with r t x R and draft the reply for it
+- **post**: resolve the thread a won't-fix reply answers
+- **inbox**: order the queue by lanes that keep work in flight small
+
+### Fix
+
+- **tui**: align the H box in columns and size it to its rows
+
 ## v0.33.0 (2026-10-24)
 
 ### Feat
