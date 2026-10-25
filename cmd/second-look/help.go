@@ -16,6 +16,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look post <pr>            post the review
   second-look post <pr> --dry-run  print the request without sending it
   second-look post <pr> --only <id>  post one comment on its own, now
+  second-look post <pr> --fixes <to>  hand todo replies to watch-doggo, local, or nobody
   second-look local [--branch|--base <ref>]  review this checkout's own diff
   second-look local --range A..B | -r <revset>  review a git range or a jj revset
   second-look inbox                the review queue, in your own sections
@@ -92,7 +93,8 @@ NAMING A PULL REQUEST
 
       P posts the comment under the cursor on its own, now, and takes it off
       the review. It asks nothing first: a single comment is small enough to
-      take back by deleting it on GitHub, where a whole review is not.
+      take back by deleting it on GitHub, where a whole review is not. A todo
+      reply is the exception: P asks who gets the fix first, as S does.
 
       w hides hunks that change nothing but whitespace and says how many it
       hid, and takes them out of the read count too, since a hunk nobody is
@@ -267,13 +269,15 @@ NAMING A PULL REQUEST
       Post the review in one request, then post any replies. Refuses while any
       comment is still a draft. On success the prepared review is removed:
       GitHub is the source of truth from that point and re-running post would
-      publish a second copy.
+      publish a second copy. A todo reply posts like any reply, and --fixes names
+      who gets its fix afterwards (watch-doggo, local, or nobody, the default),
+      the same choice S asks for on the screen.
 
   second-look post <pr> --only <id>
       Post one comment on its own, outside any review, for the finding worth
       saying now rather than at the end. The anchor guard runs first, the rest
       of the review stays staged, and the comment is taken out of the file
-      because GitHub owns it from that moment.
+      because GitHub owns it from that moment. It takes --fixes for a todo reply.
 
   second-look inbox [--json]
       The review queue, as the sections your config names or five built-in lanes

@@ -104,7 +104,7 @@ func (r *Review) OnePayload(id string) (any, *Comment, error) {
 			continue
 		}
 
-		if c.Status != StatusReady {
+		if c.Status != StatusReady && !c.TodoReply() {
 			return nil, nil, fmt.Errorf("%s: %w", id, ErrNotPostable)
 		}
 
@@ -138,6 +138,19 @@ func (r *Review) Remove(id string) bool {
 	}
 
 	return false
+}
+
+// Only is a copy of the review holding just the comment carrying id, which is
+// what a comment posted on its own hands off.
+func (r *Review) Only(id string) *Review {
+	one := *r
+	one.Comments = nil
+
+	if c := r.Find(id); c != nil {
+		one.Comments = []Comment{*c}
+	}
+
+	return &one
 }
 
 // Find is the comment carrying an id, or nil.

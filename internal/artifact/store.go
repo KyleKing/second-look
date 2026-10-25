@@ -191,6 +191,9 @@ func (r *Review) Todos() []Comment { return r.withStatus(StatusTodo) }
 // any reply: the work they name is handed off after the post.
 func (r *Review) TodoReplies() []Comment { return r.todosWhere(true) }
 
+// TodoReply is a todo comment answering a thread.
+func (c *Comment) TodoReply() bool { return c.Status == StatusTodo && c.InReplyTo != 0 }
+
 // todosWhere splits todos into replies and the review's own comments, of which
 // only the latter hold a post back.
 func (r *Review) todosWhere(replies bool) []Comment {

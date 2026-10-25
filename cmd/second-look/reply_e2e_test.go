@@ -7,6 +7,9 @@ import (
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/kyleking/aragonite/ghcassette"
 
+	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/config"
+	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/resolve"
 )
 
@@ -85,4 +88,50 @@ func TestPostResolvesTheThreadItAnswered(t *testing.T) {
 	}
 
 	s.RequireAllPlayed(t)
+}
+
+// A todo reply posts like any reply, and --fixes names who gets its fix
+// afterwards: nobody by default, the label for watch-doggo, the written set
+// for local.
+func TestPostHandsATodoReplyToWhoeverTheFlagNames(t *testing.T) {
+	t.Parallel()
+
+	label := post.LabelArgs(&artifact.Review{Owner: "KyleKing", Repo: "second-look", Number: 2}, config.DefaultFixLabel)
+
+	tests := []struct {
+		name  string
+		args  []string
+		extra []ghcassette.Interaction
+		want  string
+	}{
+		{name: "nobody by default", want: "removed the staged review"},
+		{
+			name: "watch-doggo labels the pull request", args: []string{"--fixes", "watch-doggo"},
+			extra: []ghcassette.Interaction{{Args: label, Stdout: "[]"}}, want: config.DefaultFixLabel + " added",
+		},
+		{name: "local writes the set", args: []string{"--fixes", "local"}, want: "1 todo written to"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cassette := deriveFrom(t, "post-reply", "reply-todo", func(c *ghcassette.Cassette) {
+				c.Interactions = append(c.Interactions, tc.extra...)
+			})
+
+			s := ghcassette.Replay(t, cassette)
+
+			res := runCLI(t, s, workspace(t, "reply-todo.toml"), append([]string{"post", "2"}, tc.args...)...)
+			if res.code != 0 {
+				t.Fatalf("post failed: %s%s", res.stdout, res.stderr)
+			}
+
+			if !strings.Contains(res.stdout, tc.want) {
+				t.Errorf("stdout never said %q:\n%s", tc.want, res.stdout)
+			}
+
+			s.RequireAllPlayed(t)
+		})
+	}
 }

@@ -206,6 +206,7 @@ type Model struct {
 	deleting      bool
 	asking        confirmKind
 	fixEvent      string
+	fixOne        string
 	fixes         Fixes
 	searching     bool
 	view          viewMode
@@ -587,6 +588,7 @@ type sentMsg struct {
 	id      string
 	summary string
 	err     error
+	handErr error
 }
 
 type submittedMsg struct {
@@ -2826,9 +2828,10 @@ func (m *Model) currentThread() int {
 	return r.thread
 }
 
-// sendOne posts the comment under the cursor on its own. It asks nothing first:
-// a single comment is the one thing here small enough to take back by deleting
-// it on GitHub, where a whole review is not.
+// sendOne posts the comment under the cursor on its own. A ready comment asks
+// nothing first: a single comment is the one thing here small enough to take
+// back by deleting it on GitHub, where a whole review is not. A todo reply asks
+// who gets the fix, as the submit chord does.
 func (m *Model) sendOne() tea.Cmd {
 	i := m.current()
 	if i < 0 {
@@ -2843,19 +2846,35 @@ func (m *Model) sendOne() tea.Cmd {
 		return nil
 	}
 
-	if m.review.Comments[i].Status != artifact.StatusReady {
-		m.say("only a ready comment goes out on its own; r marks it ready", false)
-
-		return nil
+	switch c := &m.review.Comments[i]; {
+	case c.Status == artifact.StatusReady:
+		return m.sendWith(c.ID, HandNobody)
+	case c.TodoReply():
+		m.fixOne = c.ID
+		m.askFixes("P  1 todo")
+	default:
+		m.say("only a ready comment or a todo reply goes out on its own; r marks it ready", false)
 	}
 
-	ctx, review, id := m.ctx, m.review, m.review.Comments[i].ID
+	return nil
+}
+
+// sendWith posts comment id on its own and then hands its fix to hand.
+func (m *Model) sendWith(id string, hand Hand) tea.Cmd {
+	ctx, review := m.ctx, m.review
+	handOff := m.handOff(ctx, hand, review.Only(id))
+
 	m.say("posting "+id+"…", false)
 
 	return func() tea.Msg {
 		summary, err := m.send(ctx, review, id)
+		if err != nil {
+			return sentMsg{id: id, summary: summary, err: err}
+		}
 
-		return sentMsg{id: id, summary: summary, err: err}
+		summary, handErr := withHandOff(summary, handOff)
+
+		return sentMsg{id: id, summary: summary, handErr: handErr}
 	}
 }
 
@@ -2868,7 +2887,7 @@ func (m *Model) applySent(msg sentMsg) {
 	}
 
 	m.rebuild()
-	m.say(msg.summary, false)
+	m.say(msg.summary, msg.handErr != nil)
 }
 
 // askSubmit opens the submit chord. Posting is the only thing the screen does
@@ -2941,10 +2960,10 @@ func (m *Model) submitAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m.submitWith(event, handNobody)
+	return m.submitWith(event, HandNobody)
 }
 
-func (m *Model) submitWith(event string, hand handoff) (tea.Model, tea.Cmd) {
+func (m *Model) submitWith(event string, hand Hand) (tea.Model, tea.Cmd) {
 	// The artifact records what was sent, so a review posted as an approval
 	// does not read afterwards as one posted as a comment.
 	if m.review.Event != event {
@@ -2962,7 +2981,7 @@ func (m *Model) submitWith(event string, hand handoff) (tea.Model, tea.Cmd) {
 
 	m.say("posting as "+event+"…", false)
 
-	ctx, review, handOff := m.ctx, m.review, m.handOff(m.ctx, hand)
+	ctx, review, handOff := m.ctx, m.review, m.handOff(m.ctx, hand, m.review)
 
 	return m, func() tea.Msg {
 		summary, err := m.submit(ctx, review)

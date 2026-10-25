@@ -45,6 +45,25 @@ func (h *handoffs) dispatch(_ context.Context, set, _ string) (string, error) {
 	return "", nil
 }
 
+func todoModel(t *testing.T, h *handoffs, fixes tui.Fixes) (*tui.Model, *counter) {
+	t.Helper()
+
+	reply := artifact.Comment{
+		ID: "reply-1500", Path: parsed, Side: artifact.SideRight, Line: 15, InReplyTo: 1500,
+		ThreadID: "PRRT_a", Body: "will fix: wrap it", Status: artifact.StatusTodo,
+	}
+
+	m, _, sub := modelFor(t, &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment, Comments: []artifact.Comment{reply},
+	}, patch,
+		tui.WithThreads([]threads.Thread{finding("a", 15, "doggo", "wrap the error with the path")}),
+		tui.WithStore(t.TempDir()), tui.WithDispatcher(h.dispatch), tui.WithFixes(fixes))
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+
+	return m, sub
+}
+
 // A todo reply posts like any reply, and the submit chord asks who gets the fix
 // before it does.
 func TestSubmitAsksWhoGetsTheFixes(t *testing.T) {
@@ -96,24 +115,13 @@ func TestSubmitAsksWhoGetsTheFixes(t *testing.T) {
 			t.Parallel()
 
 			h := &handoffs{}
-			reply := artifact.Comment{
-				ID: "reply-1500", Path: parsed, Side: artifact.SideRight, Line: 15, InReplyTo: 1500,
-				ThreadID: "PRRT_a", Body: "will fix: wrap it", Status: artifact.StatusTodo,
-			}
 
 			label := tc.label
 			if label == "" {
 				label = "watch-doggo-fix"
 			}
 
-			m, _, sub := modelFor(t, &artifact.Review{
-				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
-				HeadSHA: "a1b2c3d", Event: artifact.EventComment, Comments: []artifact.Comment{reply},
-			}, patch,
-				tui.WithThreads([]threads.Thread{finding("a", 15, "doggo", "wrap the error with the path")}),
-				tui.WithStore(t.TempDir()), tui.WithDispatcher(h.dispatch),
-				tui.WithFixes(tui.Fixes{Add: h.label, Label: label, ToWatchDoggo: tc.cloud}))
-			m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+			m, sub := todoModel(t, h, tui.Fixes{Add: h.label, Label: label, ToWatchDoggo: tc.cloud})
 
 			press(t, m, key('S'))
 			press(t, m, key('r'))
@@ -144,5 +152,67 @@ func requireFinding(t *testing.T, sets []string) {
 		if err != nil || !strings.Contains(string(body), "wrap the error with the path") {
 			t.Errorf("the agent was handed %s without the finding: %v", set, err)
 		}
+	}
+}
+
+// P on a todo reply stops at the same hand-off choice S does, and the reply
+// goes out on its own once it is made.
+func TestPostingOneTodoReplyAsksWhoGetsTheFix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		keys   []tea.KeyPressMsg
+		sent   int
+		labels []string
+		sets   int
+		footer string
+	}{
+		{name: "asks", sent: 0, footer: "P  1 todo  fixes go to  [w]atch-doggo  [l]ocal claude  [n]obody"},
+		{
+			name: "watch-doggo labels the pull request", keys: []tea.KeyPressMsg{key('w')},
+			sent: 1, labels: []string{"watch-doggo-fix"}, footer: "posted reply-1500 · watch-doggo-fix added",
+		},
+		{
+			name: "local hands the finding to the agent", keys: []tea.KeyPressMsg{key('l')},
+			sent: 1, sets: 1, footer: "posted reply-1500 · handed 1 todo to the local agent",
+		},
+		{name: "nobody only posts", keys: []tea.KeyPressMsg{key('n')}, sent: 1, footer: "posted reply-1500"},
+		{name: "esc backs out", keys: []tea.KeyPressMsg{{Code: tea.KeyEscape}}, footer: "canceled, nothing was posted"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := &handoffs{}
+			m, _ := todoModel(t, h, tui.Fixes{Add: h.label, Label: "watch-doggo-fix"})
+
+			var sent []string
+
+			m.SetSender(func(_ context.Context, _ *artifact.Review, id string) (string, error) {
+				sent = append(sent, id)
+
+				return "posted " + id, nil
+			})
+
+			go2(t, m, ']', 'c')
+			press(t, m, key('P'))
+
+			for _, k := range tc.keys {
+				press(t, m, k)
+			}
+
+			if len(sent) != tc.sent || len(h.labels) != len(tc.labels) || len(h.sets) != tc.sets {
+				t.Errorf("sent=%v labels=%v sets=%d, want sent=%d labels=%v sets=%d",
+					sent, h.labels, len(h.sets), tc.sent, tc.labels, tc.sets)
+			}
+
+			if got := plain(m.Frame()); !strings.Contains(got, tc.footer) {
+				t.Errorf("the footer never said %q:\n%s", tc.footer, got)
+			}
+
+			requireFinding(t, h.sets)
+		})
 	}
 }

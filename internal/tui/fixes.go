@@ -2,7 +2,9 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/brief"
+	"github.com/kyleking/second-look/internal/threads"
 )
 
 // Labeler adds a label to the pull request a review belongs to.
@@ -29,50 +32,80 @@ func WithFixes(f Fixes) Option {
 	return func(m *Model) { m.fixes = f }
 }
 
-type handoff int
+// Hand is who gets the fixes behind a posted todo reply.
+type Hand int
 
+// The hand-offs a posted todo reply can end in.
 const (
-	handNobody handoff = iota
-	handWatchDoggo
-	handLocal
+	HandNobody Hand = iota
+	HandWatchDoggo
+	HandLocal
 )
+
+var handNames = [...]string{HandNobody: "nobody", HandWatchDoggo: "watch-doggo", HandLocal: "local"}
+
+func (h Hand) String() string { return handNames[h] }
+
+// HandNames lists the names ParseHand takes, as a usage line spells them.
+func HandNames() string {
+	return handNames[HandWatchDoggo] + "|" + handNames[HandLocal] + "|" + handNames[HandNobody]
+}
+
+// ErrUnknownHand is a name ParseHand does not know.
+var ErrUnknownHand = errors.New("unknown hand-off")
+
+// ParseHand reads the name a hand-off goes by on a command line.
+func ParseHand(name string) (Hand, error) {
+	i := slices.Index(handNames[:], name)
+	if i < 0 {
+		return HandNobody, fmt.Errorf("%w %q, want %s", ErrUnknownHand, name, HandNames())
+	}
+
+	return Hand(i), nil
+}
 
 func fixTargets(def string) [][2]string {
 	return [][2]string{
-		{"w", "watch-doggo"}, {"l", "local claude"}, {"n", "nobody"}, {"enter", def},
+		{"w", HandWatchDoggo.String()}, {"l", "local claude"}, {"n", HandNobody.String()}, {"enter", def},
 	}
 }
 
-func (m *Model) defaultHand() (handoff, string) {
+func (m *Model) defaultHand() (Hand, string) {
 	if m.fixes.ToWatchDoggo && m.fixes.Add != nil {
-		return handWatchDoggo, "watch-doggo"
+		return HandWatchDoggo, HandWatchDoggo.String()
 	}
 
-	return handLocal, "local claude"
+	return HandLocal, "local claude"
 }
 
-// askFixesTo is the submit chord's extra step, reached only with a todo reply;
-// nothing posts until it names who gets the fixes.
-func (m *Model) askFixesTo(event, chosen string) {
-	m.fixEvent, m.asking = event, askFixes
+// askFixes puts up the hand-off choice that every post carrying a todo reply
+// stops at; nothing posts until it names who gets the fixes.
+func (m *Model) askFixes(lead string) {
+	m.asking = askFixes
 
 	_, def := m.defaultHand()
-	m.say(fmt.Sprintf("S %s  %d todo  fixes go to  %s", chosen, len(m.review.TodoReplies()),
-		hintLine(fixTargets(def))), false)
+	m.say(lead+"  fixes go to  "+hintLine(fixTargets(def)), false)
+}
+
+// askFixesTo is the submit chord's extra step, reached only with a todo reply.
+func (m *Model) askFixesTo(event, chosen string) {
+	m.fixEvent = event
+	m.askFixes(fmt.Sprintf("S %s  %d todo", chosen, len(m.review.TodoReplies())))
 }
 
 func (m *Model) answerFixes(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	event := m.fixEvent
+	event, one := m.fixEvent, m.fixOne
+	m.fixOne = ""
 
-	var hand handoff
+	var hand Hand
 
 	switch {
 	case msg.String() == "w":
-		hand = handWatchDoggo
+		hand = HandWatchDoggo
 	case msg.String() == "l":
-		hand = handLocal
+		hand = HandLocal
 	case msg.String() == "n":
-		hand = handNobody
+		hand = HandNobody
 	case key.Matches(msg, m.keys.Accept):
 		hand, _ = m.defaultHand()
 	default:
@@ -81,28 +114,49 @@ func (m *Model) answerFixes(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if hand == handWatchDoggo && m.fixes.Add == nil {
+	if hand == HandWatchDoggo && m.fixes.Add == nil {
 		m.say("handing fixes to Watch Doggo is not available here", true)
 
 		return m, nil
 	}
 
+	if one != "" {
+		cmd := m.sendWith(one, hand)
+
+		return m, cmd
+	}
+
 	return m.submitWith(event, hand)
 }
 
-// handOff is what follows a posted review: the label, or the findings handed
-// to the local agent. It is nil where the replies post and nothing else does.
-func (m *Model) handOff(ctx context.Context, hand handoff) func() (string, error) {
-	review := m.review
+// Delivery is what a hand-off needs beyond the review it follows: where the
+// set of fixes is written, what runs over it, and how the pull request is labeled.
+type Delivery struct {
+	Fixes
 
+	Store string
+	Run   Dispatcher
+}
+
+func (m *Model) handOff(ctx context.Context, hand Hand, review *artifact.Review) func() (string, error) {
+	return HandOff(ctx, hand, Delivery{Fixes: m.fixes, Store: m.store, Run: m.dispatcher}, review, m.threads)
+}
+
+// HandOff is what follows a posted review: the label, or the findings handed
+// to the local agent. It is nil where the replies post and nothing else does.
+// The findings are read when it is built, so it can be built before the post
+// clears what they come from.
+func HandOff(
+	ctx context.Context, hand Hand, d Delivery, review *artifact.Review, ts []threads.Thread,
+) func() (string, error) {
 	switch hand {
-	case handWatchDoggo:
-		add, label := m.fixes.Add, m.fixes.Label
+	case HandWatchDoggo:
+		add, label := d.Add, d.Label
 
 		return func() (string, error) { return label + " added", add(ctx, review, label) }
-	case handLocal:
-		n, text := len(review.TodoReplies()), brief.Fixes(review, m.threads)
-		store, session, run := m.store, review.Agent.Session, m.dispatcher
+	case HandLocal:
+		n, text := len(review.TodoReplies()), brief.Fixes(review, ts)
+		store, session, run := d.Store, review.Agent.Session, d.Run
 
 		return func() (string, error) {
 			path, err := writeSetTo(store, review.Number, text)
@@ -120,7 +174,7 @@ func (m *Model) handOff(ctx context.Context, hand handoff) func() (string, error
 
 			return "handed " + plural(n, "todo") + " to the local agent", nil
 		}
-	case handNobody:
+	case HandNobody:
 	}
 
 	return nil

@@ -56,20 +56,21 @@ var (
 	errUnknownCommand = errors.New("unknown command; try second-look -h")
 	errUsageComment   = errors.New("usage: second-look comment add <pr>")
 	errUsageGet       = errors.New("usage: second-look get <pr>")
-	errUsagePost      = errors.New("usage: second-look post <pr> [--dry-run|--only <id>]")
-	errUsageReview    = errors.New("usage: second-look <pr>")
-	errUsageInbox     = errors.New("usage: second-look inbox [--json]")
-	errUsageThreads   = errors.New("usage: second-look threads [--json]")
-	errUsageReviews   = errors.New("usage: second-look reviews [--json]")
-	errUsageContext   = errors.New("usage: second-look context <pr> <comment-id>")
-	errUsageTodo      = errors.New("usage: second-look todo <pr>")
-	errUsageShow      = errors.New("usage: second-look show <pr> [--diff|--payload|--threads]")
-	errUsageSkill     = errors.New("usage: second-look skill")
-	errUsageLocal     = errors.New("usage: second-look local [--branch] [--base <ref>] | --range A..B | -r <revset>")
-	errUsageGC        = errors.New("usage: second-look gc [--dry-run] [--stale]")
-	errUsageStatus    = errors.New("usage: second-look status")
-	errUsageJournal   = errors.New("usage: second-look journal")
-	errCheckoutMoved  = errors.New("the checkout has moved past the reviewed head")
+	errUsagePost      = errors.New("usage: second-look post <pr> [--dry-run | [--only <id>] [--fixes " +
+		tui.HandNames() + "]]")
+	errUsageReview   = errors.New("usage: second-look <pr>")
+	errUsageInbox    = errors.New("usage: second-look inbox [--json]")
+	errUsageThreads  = errors.New("usage: second-look threads [--json]")
+	errUsageReviews  = errors.New("usage: second-look reviews [--json]")
+	errUsageContext  = errors.New("usage: second-look context <pr> <comment-id>")
+	errUsageTodo     = errors.New("usage: second-look todo <pr>")
+	errUsageShow     = errors.New("usage: second-look show <pr> [--diff|--payload|--threads]")
+	errUsageSkill    = errors.New("usage: second-look skill")
+	errUsageLocal    = errors.New("usage: second-look local [--branch] [--base <ref>] | --range A..B | -r <revset>")
+	errUsageGC       = errors.New("usage: second-look gc [--dry-run] [--stale]")
+	errUsageStatus   = errors.New("usage: second-look status")
+	errUsageJournal  = errors.New("usage: second-look journal")
+	errCheckoutMoved = errors.New("the checkout has moved past the reviewed head")
 )
 
 // The two flags every listing command takes, named so the switch and the
@@ -1134,7 +1135,7 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return errUsagePost
 	}
 
-	dry, only, err := postFlags(args[1:])
+	opts, err := postFlags(args[1:])
 	if err != nil {
 		return err
 	}
@@ -1156,34 +1157,123 @@ func postCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 
+	if opts.dry {
+		//nolint:wrapcheck // DryRun's own error already names what failed
+		return post.DryRun(stdout, r)
+	}
+
+	handOff, err := postHandOff(ctx, t, r, opts, stdout)
+	if err != nil {
+		return err
+	}
+
+	if err := postNow(ctx, path, r, opts.only, stdout); err != nil || handOff == nil {
+		return err
+	}
+
+	note, err := handOff()
+	if err != nil {
+		return fmt.Errorf("the replies posted; handing them off: %w", err)
+	}
+
+	return write(stdout, note+"\n")
+}
+
+func postNow(ctx context.Context, path string, r *artifact.Review, only string, stdout io.Writer) error {
 	if only != "" {
 		//nolint:wrapcheck // One's own error already names what failed
 		return post.One(ctx, post.GH(), path, r, only, stdout)
-	}
-
-	if dry {
-		//nolint:wrapcheck // DryRun's own error already names what failed
-		return post.DryRun(stdout, r)
 	}
 
 	//nolint:wrapcheck // Run's own error already names what failed
 	return post.Run(ctx, post.GH(), path, r, stdout)
 }
 
-// postFlags reads post's two optional flags. --only takes an id, and neither
-// flag may accompany the other: a dry run of one comment is a different command
-// nobody asked for, and guessing which was meant would post something.
-func postFlags(args []string) (bool, string, error) {
-	switch {
-	case len(args) == 0:
-		return false, "", nil
-	case len(args) == 1 && args[0] == "--dry-run":
-		return true, "", nil
-	case len(args) == 2 && args[0] == "--only" && args[1] != "":
-		return false, args[1], nil
+// postHandOff is what follows the post for the todo replies it carries, built
+// before the post because posting clears the caches it reads. It is nil when
+// there are none or nobody is to get them, and a terminal run that named no
+// target is told what happens to them.
+func postHandOff(
+	ctx context.Context, t get.Target, r *artifact.Review, opts postOptions, stdout io.Writer,
+) (func() (string, error), error) {
+	posting := r
+	if opts.only != "" {
+		posting = r.Only(opts.only)
 	}
 
-	return false, "", errUsagePost
+	n, hand := len(posting.TodoReplies()), opts.hand
+	if n == 0 {
+		hand = tui.HandNobody
+	}
+
+	if n > 0 && !opts.handGiven && onATerminal() {
+		line := fmt.Sprintf("%s post with no hand-off; --fixes %s hands them on\n",
+			humanize.Plural(n, "todo reply", "todo replies"), tui.HandNames())
+		if err := write(stdout, line); err != nil {
+			return nil, err
+		}
+	}
+
+	var open []threads.Thread
+
+	if hand == tui.HandLocal {
+		if err := artifact.LoadThreads(t.Store, r.HeadSHA, &open); err != nil {
+			return nil, fmt.Errorf("reading the cached review threads: %w", err)
+		}
+	}
+
+	d := tui.Delivery{Fixes: fixes(t, r.Owner), Store: t.Store, Run: dispatcher(t.Dir())}
+
+	return tui.HandOff(ctx, hand, d, posting, open), nil
+}
+
+type postOptions struct {
+	dry       bool
+	only      string
+	hand      tui.Hand
+	handGiven bool
+}
+
+// postFlags reads post's optional flags. --dry-run takes no company: a dry run
+// of one comment is a different command nobody asked for, and guessing which
+// was meant would post something.
+func postFlags(args []string) (postOptions, error) {
+	var o postOptions
+
+	for i := 0; i < len(args); i++ {
+		val := ""
+		if i+1 < len(args) {
+			val = args[i+1]
+		}
+
+		switch args[i] {
+		case "--dry-run":
+			o.dry = true
+		case "--only":
+			if val == "" {
+				return o, errUsagePost
+			}
+
+			o.only = val
+			i++
+		case "--fixes":
+			hand, err := tui.ParseHand(val)
+			if err != nil {
+				return o, fmt.Errorf("%w: %w", errUsagePost, err)
+			}
+
+			o.hand, o.handGiven = hand, true
+			i++
+		default:
+			return o, errUsagePost
+		}
+	}
+
+	if o.dry && (o.only != "" || o.handGiven) {
+		return o, errUsagePost
+	}
+
+	return o, nil
 }
 
 // inboxLimit is how many pull requests each bucket asks for when the config
