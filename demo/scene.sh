@@ -86,17 +86,22 @@ git remote add origin https://github.com/KyleKing/second-look.git
 # recorded. The override turns the checker pass off the same way a laptop
 # without one does.
 mkdir -p "$work/config/second-look"
-cat > "$work/config/second-look/config.toml" <<'CONF'
+
+# A scene that keeps reading rules or an agent command brings them as config of
+# its own. It goes first, because a top-level key after the override's table
+# would land inside it.
+if [ -f "$scene/config.toml" ]; then
+  cp "$scene/config.toml" "$work/config/second-look/config.toml"
+else
+  : > "$work/config/second-look/config.toml"
+fi
+
+cat >> "$work/config/second-look/config.toml" <<'CONF'
 [[server]]
 name = "none"
 command = ["second-look-no-such-language-server"]
 extensions = [".go", ".js", ".py", ".ts", ".tsx"]
 CONF
-
-# A scene that keeps reading rules brings them as config of its own.
-if [ -f "$scene/config.toml" ]; then
-  cat "$scene/config.toml" >> "$work/config/second-look/config.toml"
-fi
 
 # The scene's own seeds are searched before the shared ones, so overriding an
 # answer is dropping a file of the same name into the scene.

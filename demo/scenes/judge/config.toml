@@ -1,0 +1,1 @@
+dispatch = ["sh", "-c", "sleep 1; case \"$1\" in *\"fix because\"*) echo \"won't fix because the caller already names the path when it reports this error.\";; *\"will fix:\"*) echo 'will fix: return the failure with the offending line in the message.';; *) echo 'Is there a reason strings.Split would not serve here?';; esac", "second-look-demo"]
