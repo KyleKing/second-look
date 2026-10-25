@@ -87,6 +87,30 @@ type Site struct {
 	Line int
 }
 
+// Graph is one function and the functions one hop either side of it in the call
+// graph, as a language server draws it.
+type Graph struct {
+	// Server names the language server that answered.
+	Server  string
+	Center  CallNode
+	Callers []CallNode
+	Callees []CallNode
+}
+
+// CallNode is a function in a Graph. Line is where its name is, and From and To
+// are the lines its definition spans. Sites are the lines the call is made on:
+// in the caller's file for a caller, and in the center's for a callee.
+type CallNode struct {
+	Name string
+	// Detail is the package or module a server says the function belongs to.
+	Detail string
+	Path   string
+	Line   int
+	From   int
+	To     int
+	Sites  []Site
+}
+
 // JumpKind is which of the two questions a Jumps asks.
 type JumpKind uint8
 

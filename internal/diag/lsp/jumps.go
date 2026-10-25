@@ -32,22 +32,12 @@ func (s *Session) References(ctx context.Context, doc Doc, line, col int) (diag.
 func (s *Session) places(
 	ctx context.Context, doc Doc, line, col int, method string, extra map[string]any,
 ) (diag.Jump, error) {
-	srv, ok := pick(s.servers, doc.Path)
-	if !ok {
-		return diag.Jump{}, fmt.Errorf("%s: %w", doc.Path, ErrNoServer)
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, hoverDeadline)
 	defer cancel()
 
-	c, err := s.serverFor(ctx, srv, srv.rootFor(s.root, doc.Path))
+	at, err := s.attach(ctx, doc)
 	if err != nil {
 		return diag.Jump{}, err
-	}
-
-	uri := s.uri(doc.Path)
-	if err := s.open(c, srv, doc.Path, uri, doc.Text); err != nil {
-		return diag.Jump{}, fmt.Errorf("%s: %w", srv.Name, err)
 	}
 
 	lines := strings.Split(doc.Text, "\n")
@@ -63,16 +53,16 @@ func (s *Session) places(
 	}
 
 	params := map[string]any{
-		documentKey: map[string]any{uriKey: uri},
-		"position":  position{Line: line - 1, Character: unitsTo(text, col)},
+		documentKey: map[string]any{uriKey: at.uri},
+		positionKey: position{Line: line - 1, Character: unitsTo(text, col)},
 	}
 	if extra != nil {
 		params["context"] = extra
 	}
 
-	raw, err := c.call(ctx, method, params)
+	raw, err := at.c.call(ctx, method, params)
 	if err != nil {
-		return diag.Jump{}, fmt.Errorf("asking about %s: %w", uri, err)
+		return diag.Jump{}, fmt.Errorf("asking about %s: %w", at.uri, err)
 	}
 
 	return diag.Jump{Name: name, At: s.sites(raw)}, nil

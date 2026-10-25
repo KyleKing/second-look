@@ -252,6 +252,70 @@ func TestPlacesRefusesWhatItCannotAnswer(t *testing.T) {
 	}
 }
 
+// The graph is asked at the name of the function the line is inside, which the
+// server's own outline says: the row is in the body, three rows below the name.
+// Sites of a callee are in the center's file, and a caller outside the project
+// keeps the path the server gave.
+func TestCallsReadsOneHopEachWayFromTheFunctionTheLineIsIn(t *testing.T) {
+	t.Parallel()
+
+	s := lsp.New(t.Context(), t.TempDir(), stubServer())
+	defer s.Close()
+
+	doc := lsp.Doc{Path: "a.ts", Text: "class Syncer {\n  sync() {\n    pages()\n  }\n\n\n\n}\n"}
+
+	got, err := s.Calls(t.Context(), doc, 3)
+	if err != nil {
+		t.Fatalf("asking the stub: %v", err)
+	}
+
+	want := diag.Graph{
+		Server: "stub",
+		Center: diag.CallNode{Name: "sync", Detail: "asked at 1:2", Path: "a.ts", Line: 2, From: 2, To: 5},
+		Callers: []diag.CallNode{
+			{
+				Name: "viaDep", Detail: "pkg/viaDep", Path: "/elsewhere/dep.ts", Line: 8, From: 8, To: 10,
+				Sites: []diag.Site{{Path: "/elsewhere/dep.ts", Line: 9}},
+			},
+			{
+				Name: "run", Detail: "pkg/run", Path: "other.ts", Line: 4, From: 4, To: 6,
+				Sites: []diag.Site{{Path: "other.ts", Line: 6}, {Path: "other.ts", Line: 5}},
+			},
+		},
+		Callees: []diag.CallNode{{
+			Name: "pages", Detail: "pkg/pages", Path: "other.ts", Line: 12, From: 12, To: 14,
+			Sites: []diag.Site{{Path: "a.ts", Line: 3}},
+		}},
+	}
+
+	if fmt.Sprintf("%+v", got) != fmt.Sprintf("%+v", want) {
+		t.Errorf("read\n%+v\nwant\n%+v", got, want)
+	}
+
+	if _, err := s.Calls(t.Context(), doc, 7); !errors.Is(err, lsp.ErrNoFunction) {
+		t.Errorf("a row of the class outside its method was answered: %v", err)
+	}
+
+	if _, err := s.Calls(t.Context(), doc, 99); !errors.Is(err, lsp.ErrNoLine) {
+		t.Errorf("a row past the end of the file was answered: %v", err)
+	}
+}
+
+func TestCallsNamesTheServerThatHasNoCallHierarchy(t *testing.T) {
+	t.Parallel()
+
+	servers := stubServer()
+	servers[0].Argv = append(servers[0].Argv, "-no-calls")
+
+	s := lsp.New(t.Context(), t.TempDir(), servers)
+	defer s.Close()
+
+	_, err := s.Calls(t.Context(), lsp.Doc{Path: "a.ts", Text: "one\n"}, 1)
+	if !errors.Is(err, lsp.ErrNoCallHierarchy) || err.Error() != "stub has no call hierarchy" {
+		t.Errorf("a server without call hierarchy was asked anyway: %v", err)
+	}
+}
+
 // A path no configured server claims is not an error and not an answer: the
 // review draws what it always drew.
 func TestNotesSkipsWhatNothingAnswersFor(t *testing.T) {

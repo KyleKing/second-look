@@ -76,6 +76,9 @@ type client struct {
 	// It is written before the server is spoken to and only read after, so the
 	// reader goroutine needs no lock to answer from it.
 	settings map[string]any
+	// callHierarchy is whether the server said it answers the call hierarchy
+	// requests. It is written during the handshake, before the client is shared.
+	callHierarchy bool
 }
 
 // published is one file's diagnostics as the server currently sees them. A

@@ -77,7 +77,7 @@ func main() {
 		case f.Method == "initialize":
 			rooted = rootOf(f.Params)
 
-			send(map[string]any{"id": f.ID, "result": map[string]any{"capabilities": map[string]any{}}})
+			send(map[string]any{"id": f.ID, "result": map[string]any{"capabilities": capabilities()}})
 		case f.Method == "initialized":
 			// Nothing is published until this is answered, which is what a
 			// client that ignores a server's requests hangs on.
@@ -97,6 +97,14 @@ func main() {
 			} else {
 				send(map[string]any{"id": f.ID, "result": res})
 			}
+		case f.Method == "textDocument/documentSymbol":
+			send(map[string]any{"id": f.ID, "result": outline()})
+		case f.Method == "textDocument/prepareCallHierarchy":
+			send(map[string]any{"id": f.ID, "result": []any{prepared(f.Params)}})
+		case f.Method == "callHierarchy/incomingCalls":
+			send(map[string]any{"id": f.ID, "result": incoming(f.Params)})
+		case f.Method == "callHierarchy/outgoingCalls":
+			send(map[string]any{"id": f.ID, "result": outgoing(f.Params)})
 		case f.Method == "textDocument/didOpen", f.Method == "textDocument/didChange":
 			uri := uriOf(f.Params)
 
@@ -267,6 +275,111 @@ func references(params json.RawMessage) (any, bool) {
 	}
 
 	return locs, false
+}
+
+// capabilities offers call hierarchy unless the stub was started with
+// -no-calls, which is how a test gets a server that lacks it.
+func capabilities() map[string]any {
+	if len(os.Args) > 1 && os.Args[1] == "-no-calls" {
+		return map[string]any{}
+	}
+
+	return map[string]any{"callHierarchyProvider": true}
+}
+
+// outline is a class holding one method on rows 1 through 4, with a row of the
+// class outside it, so a client has to descend to find the function.
+func outline() []map[string]any {
+	span := func(from, to, char int) map[string]any {
+		return map[string]any{
+			"start": map[string]any{"line": from, "character": char},
+			"end":   map[string]any{"line": to, "character": char + 4},
+		}
+	}
+
+	return []map[string]any{{
+		"name": "Syncer", "kind": 5, "range": span(0, 8, 0), "selectionRange": span(0, 0, 6),
+		"children": []map[string]any{{
+			"name": "sync", "kind": 6, "range": span(1, 4, 2), "selectionRange": span(1, 1, 2),
+		}},
+	}}
+}
+
+// prepared answers with the position it was asked at in the item's detail, and
+// a data field a client has to carry back for the calls to be answered.
+func prepared(params json.RawMessage) map[string]any {
+	var p struct {
+		TextDocument struct {
+			URI string `json:"uri"`
+		} `json:"textDocument"`
+		Position struct {
+			Line      int `json:"line"`
+			Character int `json:"character"`
+		} `json:"position"`
+	}
+
+	_ = json.Unmarshal(params, &p)
+
+	return map[string]any{
+		"name": "sync", "kind": 6, "detail": fmt.Sprintf("asked at %d:%d", p.Position.Line, p.Position.Character),
+		"uri": p.TextDocument.URI, "data": "carried",
+		"range":          map[string]any{"start": at0(1, 2), "end": at0(4, 6)},
+		"selectionRange": map[string]any{"start": at0(1, 2), "end": at0(1, 6)},
+	}
+}
+
+func at0(line, char int) map[string]any {
+	return map[string]any{"line": line, "character": char}
+}
+
+func carried(params json.RawMessage) bool {
+	var p struct {
+		Item struct {
+			Data string `json:"data"`
+		} `json:"item"`
+	}
+
+	_ = json.Unmarshal(params, &p)
+
+	return p.Item.Data == "carried"
+}
+
+func place(uri, name string, line int) map[string]any {
+	return map[string]any{
+		"name": name, "kind": 12, "detail": "pkg/" + name, "uri": uri,
+		"range":          map[string]any{"start": at0(line, 0), "end": at0(line+2, 1)},
+		"selectionRange": map[string]any{"start": at0(line, 5), "end": at0(line, 9)},
+	}
+}
+
+// incoming is two callers, one beside the asked file and one outside the
+// project, the first calling twice.
+func incoming(params json.RawMessage) []map[string]any {
+	if !carried(params) {
+		return []map[string]any{}
+	}
+
+	return []map[string]any{
+		{"from": place("file:///elsewhere/dep.ts", "viaDep", 7), "fromRanges": []any{
+			map[string]any{"start": at0(8, 2), "end": at0(8, 6)},
+		}},
+		{"from": place("file://"+rooted+"/other.ts", "run", 3), "fromRanges": []any{
+			map[string]any{"start": at0(5, 2), "end": at0(5, 6)},
+			map[string]any{"start": at0(4, 2), "end": at0(4, 6)},
+		}},
+	}
+}
+
+func outgoing(params json.RawMessage) []map[string]any {
+	if !carried(params) {
+		return []map[string]any{}
+	}
+
+	return []map[string]any{{
+		"to": place("file://"+rooted+"/other.ts", "pages", 11), "fromRanges": []any{
+			map[string]any{"start": at0(2, 4), "end": at0(2, 9)},
+		},
+	}}
 }
 
 func uriOf(params json.RawMessage) string {

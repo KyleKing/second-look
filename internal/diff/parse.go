@@ -177,6 +177,31 @@ func squeeze(s string) string {
 	return strings.NewReplacer(" ", "", "\t", "", "\r", "").Replace(s)
 }
 
+// Touches reports whether the change adds a line within lo through hi of the
+// post-image, or removes one from between two lines of that range.
+func (d *Diff) Touches(path string, lo, hi int) bool {
+	for i := range d.Files {
+		if pathOf(&d.Files[i]) != path {
+			continue
+		}
+
+		before := 0
+
+		for _, l := range d.Files[i].Lines {
+			switch {
+			case l.Kind == KindAdd && l.New >= lo && l.New <= hi:
+				return true
+			case l.Kind == KindRemove && before >= lo && before < hi:
+				return true
+			case l.New > 0:
+				before = l.New
+			}
+		}
+	}
+
+	return false
+}
+
 func pathOf(f *File) string {
 	if f.NewPath != "" {
 		return f.NewPath

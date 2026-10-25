@@ -97,6 +97,90 @@ func Archived(r Row) bool {
 	}
 }
 
+// A call graph asked from a line inside the function is the one asked from its
+// name, drawn from the commit's text, and a callee in the standard library keeps
+// the absolute path the server gave.
+func TestProberReadsACallGraphFromARealServer(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("gopls"); err != nil {
+		t.Skip("gopls is not installed")
+	}
+
+	root := t.TempDir()
+	write(t, filepath.Join(root, "go.mod"), []byte("module probe\n\ngo 1.25\n"))
+	write(t, filepath.Join(root, "a.go"), []byte(`package probe
+
+import "strings"
+
+func leaf(s string) string { return s }
+
+func middle(s string) string {
+	leaf(s)
+	_ = strings.TrimSpace(s)
+	return leaf(s + "!")
+}
+
+func top() string { return middle("x") }
+`))
+
+	sha := commitAll(t, root)
+
+	d := diff.Parse([]byte(`diff --git a/a.go b/a.go
+--- a/a.go
++++ b/a.go
+@@ -5,3 +5,3 @@
+ func leaf(s string) string { return s }
+
++func top() string { return middle("x") }
+`))
+
+	p := main.CheckerFor(t.Context(), root, d, blob.Reader{Work: root, SHA: sha})
+	if p == nil {
+		t.Fatal("a Go checkout with gopls installed offered no checker")
+	}
+
+	defer p.Close()
+
+	if name, ok := p.Server("a.go"); !ok || name != "gopls" {
+		t.Fatalf("the server for a Go file is %q, %v", name, ok)
+	}
+
+	g, err := p.Calls(t.Context(), "a.go", 10)
+	if err != nil {
+		t.Fatalf("asking for the call graph: %v", err)
+	}
+
+	if !strings.Contains(g.Center.Name, "middle") || g.Center.Path != "a.go" || g.Center.Line != 7 {
+		t.Errorf("the center is %+v, want middle at a.go:7", g.Center)
+	}
+
+	if len(g.Callers) != 1 || !strings.Contains(g.Callers[0].Name, "top") {
+		t.Errorf("the callers are %+v, want top", g.Callers)
+	}
+
+	sites, outside := calleeSites(g)
+	if !slices.Equal(sites["leaf"], []int{8, 10}) || !outside["TrimSpace"] || outside["leaf"] {
+		t.Errorf("the callees are %+v, want leaf at lines 8 and 10 and TrimSpace outside the checkout", g.Callees)
+	}
+}
+
+// calleeSites is the lines each callee is called on, and whether its definition
+// is outside the checkout.
+func calleeSites(g diag.Graph) (map[string][]int, map[string]bool) {
+	sites, outside := map[string][]int{}, map[string]bool{}
+
+	for _, c := range g.Callees {
+		for _, s := range c.Sites {
+			sites[c.Name] = append(sites[c.Name], s.Line)
+		}
+
+		outside[c.Name] = filepath.IsAbs(c.Path)
+	}
+
+	return sites, outside
+}
+
 // commit puts the tree in the object store, since a review reads the commit
 // rather than the working copy.
 func commitAll(t *testing.T, root string) string {

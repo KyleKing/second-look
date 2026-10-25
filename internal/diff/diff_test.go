@@ -63,6 +63,31 @@ func TestAnchor(t *testing.T) {
 	}
 }
 
+func TestTouches(t *testing.T) {
+	t.Parallel()
+
+	d := diff.Parse([]byte(patch))
+
+	for _, tc := range []struct {
+		name   string
+		path   string
+		lo, hi int
+		want   bool
+	}{
+		{"an added line", "internal/one.go", 12, 20, true},
+		{"above the change", "internal/one.go", 1, 9, false},
+		{"ending where a line was removed", "internal/one.go", 9, 10, false},
+		{"around a removal", "internal/one.go", 10, 13, true},
+		{"below the change", "internal/one.go", 13, 20, false},
+		{"a created file", "internal/new.go", 1, 1, true},
+		{"a path the diff never touched", "internal/absent.go", 1, 99, false},
+	} {
+		if got := d.Touches(tc.path, tc.lo, tc.hi); got != tc.want {
+			t.Errorf("%s: Touches(%q, %d, %d) = %v, want %v", tc.name, tc.path, tc.lo, tc.hi, got, tc.want)
+		}
+	}
+}
+
 // A comment two lines above "last := 4" moves by exactly the insertions above
 // it, which is what Relocate has to recover without help: the same text, a
 // different line.

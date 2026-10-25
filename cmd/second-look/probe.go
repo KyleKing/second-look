@@ -113,6 +113,20 @@ func (p *prober) Jumps(ctx context.Context, path string, line, col int, kind dia
 	return jump, nil
 }
 
+// Calls is the call graph around the function a line is in.
+func (p *prober) Calls(ctx context.Context, path string, line int) (diag.Graph, error) {
+	lines, err := p.read.Read(ctx, path)
+	if err != nil {
+		return diag.Graph{}, fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	//nolint:wrapcheck // the session's error already names the file and the server
+	return p.session.Calls(ctx, lsp.Doc{Path: path, Text: strings.Join(lines, "\n")}, line)
+}
+
+// Server names the language server that would answer for a path.
+func (p *prober) Server(path string) (string, bool) { return p.session.ServerName(path) }
+
 func (p *prober) Close() { p.session.Close() }
 
 // docs is every file under review as it reads after the change. A file that

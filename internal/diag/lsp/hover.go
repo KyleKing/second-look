@@ -35,22 +35,12 @@ const probes = 24
 // is asked about at each name rather than at a point, which is the same answer
 // an editor gives one hover at a time.
 func (s *Session) Hover(ctx context.Context, doc Doc, line int) ([]diag.Symbol, error) {
-	srv, ok := pick(s.servers, doc.Path)
-	if !ok {
-		return nil, fmt.Errorf("%s: %w", doc.Path, ErrNoServer)
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, hoverDeadline)
 	defer cancel()
 
-	c, err := s.serverFor(ctx, srv, srv.rootFor(s.root, doc.Path))
+	at, err := s.attach(ctx, doc)
 	if err != nil {
 		return nil, err
-	}
-
-	uri := s.uri(doc.Path)
-	if err := s.open(c, srv, doc.Path, uri, doc.Text); err != nil {
-		return nil, fmt.Errorf("%s: %w", srv.Name, err)
 	}
 
 	lines := strings.Split(doc.Text, "\n")
@@ -58,7 +48,7 @@ func (s *Session) Hover(ctx context.Context, doc Doc, line int) ([]diag.Symbol, 
 		return nil, fmt.Errorf("%s line %d: %w", doc.Path, line, ErrNoLine)
 	}
 
-	return askLine(ctx, c, uri, lines[line-1], line-1)
+	return askLine(ctx, at.c, at.uri, lines[line-1], line-1)
 }
 
 // askLine asks about each name on one line, keeping one of each answer. A name
@@ -80,7 +70,7 @@ func askLine(ctx context.Context, c *client, uri, text string, row int) ([]diag.
 
 		raw, err := c.call(ctx, "textDocument/hover", map[string]any{
 			documentKey: map[string]any{uriKey: uri},
-			"position":  position{Line: row, Character: unitsTo(text, at)},
+			positionKey: position{Line: row, Character: unitsTo(text, at)},
 		})
 		if err != nil {
 			// One refused position is a name with no answer, not a failed ask.

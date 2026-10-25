@@ -33,6 +33,7 @@ const (
 const (
 	uriKey      = "uri"
 	documentKey = "textDocument"
+	positionKey = "position"
 )
 
 // Doc is one file as it reads after the change.
@@ -386,7 +387,7 @@ func (s *Session) serverFor(ctx context.Context, srv Server, root string) (*clie
 }
 
 func handshake(ctx context.Context, c *client, root string) error {
-	_, err := c.call(ctx, "initialize", map[string]any{
+	res, err := c.call(ctx, "initialize", map[string]any{
 		"processId": os.Getpid(),
 		// rootPath beside rootUri, because a server that resolves its own
 		// toolchain out of the workspace (tsserver finding typescript) reads
@@ -402,6 +403,8 @@ func handshake(ctx context.Context, c *client, root string) error {
 				"hover":              map[string]any{"contentFormat": []string{"plaintext", "markdown"}},
 				"definition":         map[string]any{},
 				"references":         map[string]any{},
+				"callHierarchy":      map[string]any{},
+				"documentSymbol":     map[string]any{"hierarchicalDocumentSymbolSupport": true},
 			},
 			"workspace": map[string]any{"workspaceFolders": true},
 		},
@@ -409,6 +412,8 @@ func handshake(ctx context.Context, c *client, root string) error {
 	if err != nil {
 		return err
 	}
+
+	c.callHierarchy = offersCalls(res)
 
 	if err := c.notify("initialized", map[string]any{}); err != nil {
 		return err
@@ -419,6 +424,53 @@ func handshake(ctx context.Context, c *client, root string) error {
 	}
 
 	return c.notify("workspace/didChangeConfiguration", map[string]any{"settings": c.settings})
+}
+
+// offersCalls reads whether an initialize result advertises call hierarchy,
+// which the protocol allows as a boolean or as an options object.
+func offersCalls(res json.RawMessage) bool {
+	var init struct {
+		Capabilities map[string]json.RawMessage `json:"capabilities"`
+	}
+
+	if err := json.Unmarshal(res, &init); err != nil {
+		return false
+	}
+
+	switch string(init.Capabilities["callHierarchyProvider"]) {
+	case "", "null", "false":
+		return false
+	}
+
+	return true
+}
+
+// attached is a server holding a document, ready to be asked about it.
+type attached struct {
+	c   *client
+	srv Server
+	uri string
+}
+
+// attach starts the server a document belongs to, if it is not running, and
+// tells it the document's text.
+func (s *Session) attach(ctx context.Context, doc Doc) (attached, error) {
+	srv, ok := pick(s.servers, doc.Path)
+	if !ok {
+		return attached{}, fmt.Errorf("%s: %w", doc.Path, ErrNoServer)
+	}
+
+	c, err := s.serverFor(ctx, srv, srv.rootFor(s.root, doc.Path))
+	if err != nil {
+		return attached{}, err
+	}
+
+	uri := s.uri(doc.Path)
+	if err := s.open(c, srv, doc.Path, uri, doc.Text); err != nil {
+		return attached{}, fmt.Errorf("%s: %w", srv.Name, err)
+	}
+
+	return attached{c: c, srv: srv, uri: uri}, nil
 }
 
 // open tells a server about a document, or about a new version of one it
