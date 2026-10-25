@@ -1884,25 +1884,9 @@ func (m *Model) toNote(step int) bool {
 	return true
 }
 
-// chord is what the second key can be, shown while the first is waiting. The
-// brackets are unstyled because the footer renders the status as one span, and
-// a color opened inside it would close the span around it. Every key is
-// bracketed, the repeated bracket of ] and [ included, since the footer has no
-// face to set it apart.
+// chord is what the second key can be, shown while the first is waiting.
 func (*Model) chord(prefix string, hints [][2]string) string {
-	out := make([]string, 0, len(hints))
-
-	for _, h := range asHints(hints) {
-		if h.Key == "[" || h.Key == "]" {
-			out = append(out, "["+h.Key+"] "+h.What)
-
-			continue
-		}
-
-		out = append(out, keyhint.One(keyhint.Styles{}, h))
-	}
-
-	return prefix + keyhint.Gap + strings.Join(out, keyhint.Gap)
+	return prefix + keyhint.Gap + keyhint.Line(keyhint.Styles{}, asHints(hints))
 }
 
 // moved handles every key that only changes where the cursor is, so the action
