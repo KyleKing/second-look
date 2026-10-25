@@ -52,7 +52,7 @@ func list(t *testing.T, act tui.Act) *tui.List {
 	t.Helper()
 
 	l := tui.NewList("second-look conversations", queue, act).
-		WithSubtitle(func() string { return "3 conversations · 2 unread" })
+		WithState(func() tui.State { return tui.State{Text: "sorted by triage"} })
 	l.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
 
 	return l
@@ -516,11 +516,11 @@ func TestTabsLoadOnceAndKeepWhereEachWasLeft(t *testing.T) {
 
 	l := tui.NewTabs([]tui.Tab{
 		{
-			Name: "conversations", Title: "second-look conversations",
+			Name:     "conversations",
 			Sections: queue, Act: func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
 		},
 		{
-			Name: "inbox", Title: "second-look inbox",
+			Name:     "inbox",
 			Sections: func() []tui.Section { return late.rows },
 			Act:      func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
 			Loader:   late,
@@ -534,7 +534,7 @@ func TestTabsLoadOnceAndKeepWhereEachWasLeft(t *testing.T) {
 
 	// Leave the cursor somewhere the other tab cannot be confused with.
 	l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
-	shows(t, l, []string{"[1] conversations", "[2] inbox"}, nil)
+	shows(t, l, []string{"1 conversations", "2 inbox"}, nil)
 
 	if got := l.CursorKey(); got != "T2" {
 		t.Fatalf("the cursor sits on %q, want the second row", got)
@@ -821,7 +821,7 @@ func TestAQueueComesBackNarrowedTheWayItWasLeft(t *testing.T) {
 // tabsOver is the one tab both resume tests need on each side of the handoff.
 func tabsOver(sections func() []tui.Section) []tui.Tab {
 	return []tui.Tab{{
-		Name: "staged", Title: "second-look staged reviews", Sections: sections,
+		Name: "staged", Sections: sections,
 		Act: func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
 	}}
 }
@@ -863,8 +863,8 @@ func focusQueues() []tui.Tab {
 	}
 
 	return []tui.Tab{
-		{Name: "inbox", Title: "second-look inbox", Sections: inbox, Act: act},
-		{Name: "staged", Title: "second-look staged reviews", Sections: staged, Act: act},
+		{Name: "inbox", Sections: inbox, Act: act},
+		{Name: "staged", Sections: staged, Act: act},
 	}
 }
 
@@ -1054,7 +1054,9 @@ func TestLaneFrames(t *testing.T) {
 
 			l := tui.NewTabs([]tui.Tab{
 				{
-					Name: "inbox", Title: "second-look inbox", Sections: lanes,
+					Name: "inbox", Sections: lanes,
+					Badge: func() tui.Badge { return tui.Badge{Label: "4"} },
+					State: func() tui.State { return tui.State{Text: "sorted by triage"} },
 					Hints: [][2]string{{"enter", "review"}, {"M", "merge"}},
 					Inert: func(r *tui.Row) []string {
 						if r != nil && r.Key == "o/a#1" {
@@ -1064,7 +1066,10 @@ func TestLaneFrames(t *testing.T) {
 						return []string{"M"}
 					},
 				},
-				{Name: "other", Title: "other", Sections: queue},
+				{
+					Name: "other", Sections: queue,
+					Badge: func() tui.Badge { return tui.Badge{Label: "2", Alert: true} },
+				},
 			}, 0)
 			l.Update(tea.WindowSizeMsg{Width: width, Height: 20})
 			l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})

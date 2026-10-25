@@ -90,16 +90,16 @@ func queueOnce(
 	list := tui.NewTabs([]tui.Tab{
 		in.tab(),
 		{
-			Name: "conversations", Title: "second-look conversations",
-			Sections: th.sections, Act: th.act, Subtitle: th.counts,
+			Name:     "conversations",
+			Sections: th.sections, Act: th.act, State: th.state,
 			Hints: threadsHints, Help: threadsHelp, Loader: th,
-			Note: th.note,
+			Badge: th.badge,
 		},
 		{
-			Name: "staged", Title: "second-look staged reviews",
-			Sections: rv.sections, Act: rv.act, Subtitle: rv.counts,
+			Name:     "staged",
+			Sections: rv.sections, Act: rv.act, State: rv.state,
 			Hints: reviewsHints, Help: reviewsHelp, Loader: rv, Rest: rv.restedOn,
-			Note: rv.note,
+			Badge: rv.badge,
 		},
 	}, at).
 		WithLabeling(labeling(".")).

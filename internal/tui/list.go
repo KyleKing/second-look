@@ -220,10 +220,10 @@ type Loader interface {
 // that drift apart.
 type List struct {
 	title string
-	// subtitle and sections are read again on every rebuild, because an action
-	// can move a row between sections or change the count in the header, and a
+	// state and sections are read again on every rebuild, because an action
+	// can move a row between sections or change the state in the header, and a
 	// snapshot taken at construction would show neither.
-	subtitle func() string
+	state    func() State
 	sections func() []Section
 	act      Act
 
@@ -385,10 +385,10 @@ func (l *List) settled(at int) tea.Cmd {
 	return l.onRest(row.Key)
 }
 
-// WithSubtitle puts a count or a filter in the header's right-hand corner. It
-// is a function because the count changes as rows are answered.
-func (l *List) WithSubtitle(s func() string) *List {
-	l.subtitle = s
+// WithState puts what changes how to read the list in the header's right-hand
+// corner. It is a function because it changes as rows are answered.
+func (l *List) WithState(s func() State) *List {
+	l.state = s
 
 	return l
 }

@@ -1,5 +1,5 @@
-second-look inbox
- [1] inbox   [2] other 
+ second-look   1 inbox 4    2 other 2                                                                                                                                                  sorted by triage 
+───────────────━━━━━━━━━━───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   ready to merge (1)
   feat(inbox): order the queue by lane
           o/a#1  kyleking  2d               approved, checks passing

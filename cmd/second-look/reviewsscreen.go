@@ -272,31 +272,38 @@ func (s *reviewsScreen) counts() string {
 	return fmt.Sprintf("%d staged · %d blocked", len(s.rows), blocked)
 }
 
-// note is what the tab strip says: how many staged reviews are holding a
-// draft, which is the number that means there is a decision to make here, and
-// how many agents are waiting on an answer, which is the reason to open it.
-func (s *reviewsScreen) note() string {
-	blocked, waiting := 0, 0
+// badge is the tab's count: how many reviews are staged, red when any is
+// blocked, which is the reason to open it.
+func (s *reviewsScreen) badge() tui.Badge {
+	if len(s.rows) == 0 {
+		return tui.Badge{}
+	}
 
 	for i := range s.rows {
 		if s.rows[i].Blocked() {
-			blocked++
+			return tui.Badge{Label: strconv.Itoa(len(s.rows)), Alert: true}
 		}
+	}
 
+	return tui.Badge{Label: strconv.Itoa(len(s.rows))}
+}
+
+// state names the agents waiting on an answer, which no row says until it is
+// read.
+func (s *reviewsScreen) state() tui.State {
+	waiting := 0
+
+	for i := range s.rows {
 		if live, ok := s.live[s.rows[i].Agent.Session]; ok && live.State == agents.Blocked {
 			waiting++
 		}
 	}
 
-	var parts []string
-	if blocked > 0 {
-		parts = append(parts, fmt.Sprintf("%d blocked", blocked))
-	}
-	if waiting > 0 {
-		parts = append(parts, humanize.Plural(waiting, "agent")+" waiting")
+	if waiting == 0 {
+		return tui.State{}
 	}
 
-	return strings.Join(parts, " · ")
+	return tui.State{Text: humanize.Plural(waiting, "agent") + " waiting"}
 }
 
 // sections puts each stack in its own group, then splits what is left by where

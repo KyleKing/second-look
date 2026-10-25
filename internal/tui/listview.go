@@ -36,7 +36,7 @@ func (l *List) render() string {
 
 	b.WriteString(l.header())
 	b.WriteByte('\n')
-	b.WriteString(l.modes())
+	b.WriteString(l.rule())
 	b.WriteByte('\n')
 	b.WriteString(l.bodyView())
 	b.WriteByte('\n')
@@ -54,27 +54,13 @@ func (l *List) render() string {
 	return frame
 }
 
+// header is the first of the header's two lines: the program's name, the tabs,
+// and on the right what changes how to read the list. A narrowing filter or a
+// focused repository takes the right side, since a queue that is quiet for the
+// wrong reason is the worst thing narrowing it can do.
 func (l *List) header() string {
-	left := l.styles.title.Render(l.title)
-
-	right := ""
-	if l.subtitle != nil {
-		right = l.styles.subtitle.Render(l.subtitle() + " ")
-	}
-
-	// What is being held back outranks the counts, since a queue that is quiet
-	// for the wrong reason is the worst thing narrowing it can do.
-	if l.focused != "" {
-		left += l.styles.file.Render("  " + l.focused)
-
-		if l.focusNote != "" {
-			left += l.styles.subtitle.Render("  " + l.focusNote)
-		}
-	}
-
-	if l.focused != "" || l.filter.on() {
-		right = l.styles.subtitle.Render(l.counted() + " ")
-	}
+	left, _ := l.lead()
+	right := l.right()
 
 	gap := l.width - textWidth(left) - textWidth(right)
 	if right == "" || gap < 1 {
@@ -84,11 +70,62 @@ func (l *List) header() string {
 	return left + strings.Repeat(" ", gap) + right
 }
 
-// modes is the header's second line, the review screen's own shape: the tab
-// strip on the left and, on the right, what is narrowing the rows. The section
-// yields to the filter and the strip, since it is the one part of the line a
-// reader can recover by looking at the rows under it.
-func (l *List) modes() string {
+// lead is the header's left side and the cells the active tab spans in it.
+func (l *List) lead() (string, stretch) {
+	text := " " + l.styles.title.Render(l.title)
+
+	strip, at := l.tabStrip()
+	if strip == "" {
+		return text, stretch{}
+	}
+
+	offset := textWidth(text) + len(tabGap)
+
+	return text + tabGap + strip, stretch{from: offset + at.from, to: offset + at.to}
+}
+
+func (l *List) right() string {
+	if l.focused != "" || l.filter.on() {
+		var parts []string
+
+		if l.focused != "" {
+			parts = append(parts, l.styles.file.Render(l.focused))
+
+			if l.focusNote != "" {
+				parts = append(parts, l.styles.subtitle.Render(l.focusNote))
+			}
+		}
+
+		parts = append(parts, l.styles.subtitle.Render(l.counted()))
+
+		return strings.Join(parts, "  ") + " "
+	}
+
+	if l.state == nil {
+		return ""
+	}
+
+	s := l.state()
+	if s.Text == "" {
+		return ""
+	}
+
+	face := l.styles.subtitle
+	if s.Busy {
+		face = l.styles.warn
+	}
+
+	return face.Render(s.Text + " ")
+}
+
+// ruleGap is the cells kept between the underline and the words on its right.
+const ruleGap = 2
+
+// rule is the header's second line: a hairline with the active tab marked by a
+// heavier line under it, and on the right what is narrowing the rows. The
+// section yields to the filter, since it is the one part of the line a reader
+// can recover by looking at the rows under it.
+func (l *List) rule() string {
 	var words []string
 
 	if l.filter.on() {
@@ -99,20 +136,28 @@ func (l *List) modes() string {
 		words = append(words, section)
 	}
 
-	if len(words) == 0 {
-		return cut(l.tabStrip(), l.width)
+	_, under := l.lead()
+
+	// The rule never runs under the words, so what is cut is the line.
+	tail := ""
+	room := l.width
+
+	if len(words) > 0 {
+		tail = " " + l.styles.hunk.Render(cut(strings.Join(words, " · "), max(1, l.width-under.to-ruleGap))) + " "
+		room = l.width - textWidth(tail)
 	}
 
-	right := l.styles.hunk.Render(strings.Join(words, " · ") + " ")
-	room := l.width - textWidth(right) - indent
+	var b strings.Builder
 
-	if room < 1 {
-		return cut(right, l.width)
-	}
+	edge := min(under.from, room)
+	b.WriteString(l.styles.hairline.Render(strings.Repeat("─", edge)))
 
-	left := cut(l.tabStrip(), room)
+	heavy := max(0, min(under.to, room)-edge)
+	b.WriteString(l.styles.rail.Render(strings.Repeat("━", heavy)))
+	b.WriteString(l.styles.hairline.Render(strings.Repeat("─", max(0, room-edge-heavy))))
+	b.WriteString(tail)
 
-	return left + strings.Repeat(" ", max(1, l.width-textWidth(left)-textWidth(right))) + right
+	return b.String()
 }
 
 // section is the heading the cursor sits under, and only once that heading has

@@ -19,21 +19,22 @@ const several = 2
 // are read in one sitting, so they are one program with three tabs rather than
 // three programs that cannot see each other.
 type Tab struct {
-	// Name is what the strip calls it, and Title what the header says.
+	// Name is what the strip calls it.
 	Name     string
-	Title    string
 	Sections func() []Section
 	Act      Act
-	Subtitle func() string
-	Hints    [][2]string
+	// State is what changes how to read the list, drawn in the header's
+	// right-hand corner: the sort, or what is still loading.
+	State func() State
+	Hints [][2]string
 	// Inert names the hinted keys that do nothing at a row, which the footer
 	// draws dim. The row is nil where the cursor is on no row.
 	Inert func(r *Row) []string
 	Help  [][2]string
-	// Note is a short count drawn beside the tab's name in the strip, so a
-	// queue says how much it holds without being switched to. Empty draws
+	// Badge is the count chip beside the tab's name in the strip, so a queue
+	// says how much it holds without being switched to. An empty Label draws
 	// nothing, which is what an unstarted or empty queue says.
-	Note func() string
+	Badge func() Badge
 	// Loader fills the tab in as its answers arrive. It is started when the tab
 	// is first looked at rather than when the screen opens, so a queue nobody
 	// switched to costs no requests.
@@ -46,6 +47,23 @@ type Tab struct {
 	Labeled func(r *Row) (labels.Target, []string, bool)
 	Relabel func(row, name string, on bool)
 }
+
+// Badge is a tab's count chip.
+type Badge struct {
+	Label string
+	// Alert draws the count in red, for a queue holding something blocked.
+	Alert bool
+}
+
+// State is the header's right-hand text. Busy draws it in the warning color,
+// since a queue still loading reads differently from one that is settled.
+type State struct {
+	Text string
+	Busy bool
+}
+
+// programName leads the header line of a screen that has tabs.
+const programName = "second-look"
 
 // view is where a tab was left. Switching back to one puts the cursor, the
 // scroll, and the filter back where they were, since a tab that forgot them
@@ -65,7 +83,8 @@ type view struct {
 // tab at index at.
 func NewTabs(tabs []Tab, at int) *List {
 	l := &List{
-		tabs: tabs, at: min(max(at, 0), len(tabs)-1),
+		title: programName,
+		tabs:  tabs, at: min(max(at, 0), len(tabs)-1),
 		views: make([]view, len(tabs)),
 		keys:  defaultKeyMap(), list: defaultListKeys(), styles: loadStyles(),
 		width: minWidth, height: startHeight, expanded: map[string]bool{}, filter: newFilter(),
@@ -94,8 +113,8 @@ func (l *List) adopt() {
 	}
 
 	t := &l.tabs[l.at]
-	l.title, l.sections, l.act = t.Title, t.Sections, t.Act
-	l.subtitle, l.hints, l.helpLines, l.inert = t.Subtitle, t.Hints, t.Help, t.Inert
+	l.sections, l.act = t.Sections, t.Act
+	l.state, l.hints, l.helpLines, l.inert = t.State, t.Hints, t.Help, t.Inert
 	l.loader, l.onRest = t.Loader, t.Rest
 	l.labeled, l.relabel = t.Labeled, t.Relabel
 
@@ -176,33 +195,54 @@ func (l *List) tabKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	return nil, false
 }
 
-// tabStrip is the row of names across the top, drawn as filled segments the
-// way the sibling tools draw theirs: the key bracketed inside the segment the
-// way every other hint in these tools is, and the tab being read filled in the
-// accent so it is the one thing the eye lands on first.
-func (l *List) tabStrip() string {
+// stretch is the columns of a line a thing covers.
+type stretch struct{ from, to int }
+
+// tabGap separates one tab from the next.
+const tabGap = "   "
+
+// tabStrip is the tabs on the header line: each a digit, a name, and a count
+// chip. It also says which cells the active tab spans, so the rule below can
+// underline it.
+func (l *List) tabStrip() (string, stretch) {
 	if len(l.tabs) < several {
-		return ""
+		return "", stretch{}
 	}
 
 	parts := make([]string, 0, len(l.tabs))
+	col := 0
+	var active stretch
 
 	for i := range l.tabs {
-		label := "[" + strconv.Itoa(i+1) + "] " + l.tabs[i].Name
+		on := i == l.at
+		name := l.styles.rungs.cell.dim
+		chip := l.styles.badge
 
-		if l.tabs[i].Note != nil {
-			if note := l.tabs[i].Note(); note != "" {
-				label += " · " + note
+		if on {
+			name = l.styles.rungs.title.dim
+			chip = l.styles.badgeOn
+		}
+
+		part := l.styles.rungs.mark.dim.Render(strconv.Itoa(i+1)) + " " + name.Render(l.tabs[i].Name)
+
+		if l.tabs[i].Badge != nil {
+			if b := l.tabs[i].Badge(); b.Label != "" {
+				if b.Alert && !on {
+					chip = l.styles.badgeBlocked
+				}
+
+				part += chip.Render(b.Label)
 			}
 		}
 
-		style := l.styles.tab
-		if i == l.at {
-			style = l.styles.tabOn
+		if on {
+			active = stretch{from: col, to: col + textWidth(part)}
 		}
 
-		parts = append(parts, style.Render(label))
+		col += textWidth(part) + len(tabGap)
+
+		parts = append(parts, part)
 	}
 
-	return strings.Join(parts, " ")
+	return strings.Join(parts, tabGap), active
 }

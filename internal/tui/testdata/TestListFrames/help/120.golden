@@ -1,5 +1,5 @@
-second-look conversations                              ╭─ keys ───────────────────────────────────────────────────────╮ 
-                                                       │ j/k, ctrl+u/d, g/G  move, half page, top and bottom          │
+ second-look conversations                             ╭─ keys ───────────────────────────────────────────────────────╮ 
+───────────────────────────────────────────────────────│ j/k, ctrl+u/d, g/G  move, half page, top and bottom          │─
   new since you looked (2)                             │      ctrl+e/ctrl+y  scroll without moving the cursor         │
 ▌good catch, pushed a defer                            │       1/2/3, ] / [  the queue to read                        │
         ● kyleking/tlr#118                          int│                tab  the next group                           │

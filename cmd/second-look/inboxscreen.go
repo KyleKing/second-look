@@ -179,12 +179,15 @@ var inboxHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	"a later lane. Opening one above the bottom says which to read first.",
 ))
 
+// searching is what a queue says while its search is out.
+const searching = "searching…"
+
 func (s *inboxScreen) tab() tui.Tab {
 	return tui.Tab{
-		Name: "inbox", Title: "second-look inbox",
-		Sections: s.sections, Act: s.act, Subtitle: s.counts,
+		Name:     "inbox",
+		Sections: s.sections, Act: s.act, State: s.state,
 		Hints: inboxHints, Inert: s.inert, Help: inboxHelp, Loader: s, Rest: s.restedOn,
-		Note: s.note, Labeled: s.labeled, Relabel: s.relabel,
+		Badge: s.badge, Labeled: s.labeled, Relabel: s.relabel,
 	}
 }
 
@@ -840,40 +843,27 @@ func localKnowledge() map[string]inbox.Known {
 	return out
 }
 
-// counts leads with the number worth acting on, which is what is waiting on you
-// for the built-in buckets and the whole queue for sections somebody wrote: a
-// configured first section is whatever its query asked for and calling it work
-// waiting on you would be a guess.
+// state is what the header says about how to read the queue: the sort, or what
+// is still moving the rows. The number worth acting on is the tab's own count.
 //
 // A failed search is named rather than left to make a short queue look quiet.
-func (s *inboxScreen) counts() string {
-	if s.waiting > 0 {
-		return humanize.Plural(s.waiting, "search", "searches") + " still out"
+func (s *inboxScreen) state() tui.State {
+	switch {
+	case s.waiting > 0:
+		return tui.State{Text: humanize.Plural(s.waiting, "search", "searches") + " still out", Busy: true}
+	case s.pending > 0:
+		// Rows move as ratings land, so the header says what is moving them.
+		return tui.State{Text: humanize.Plural(s.pending, "row") + " still being rated", Busy: true}
+	case s.short:
+		return tui.State{Text: s.budgetWord()}
+	case s.unread > 0:
+		return tui.State{Text: humanize.Plural(s.unread, "row") + " could not be rated" + s.readyWord()}
 	}
 
-	// Rows move as ratings land, so the header says what is moving them.
-	if s.pending > 0 {
-		return humanize.Plural(s.pending, "row") + " still being rated"
-	}
-
-	if s.short {
-		return s.budgetWord()
-	}
-
-	if s.unread > 0 {
-		return humanize.Plural(s.unread, "row") + " could not be rated" + s.readyWord()
-	}
-
-	out := fmt.Sprintf("%d waiting on you", s.yours())
-	if s.configured {
-		out = fmt.Sprintf("%d in %s", s.yours(), humanize.Plural(len(s.buckets), "section"))
-	}
-
-	out += s.readyWord()
-	out += " · sorted by " + inbox.Orders[s.order].Name
+	out := "sorted by " + inbox.Orders[s.order].Name + s.readyWord()
 
 	if s.factsOut {
-		out += " · reading reviews"
+		out += " · reading reviews…"
 	}
 
 	if s.factsErr != "" {
@@ -884,7 +874,7 @@ func (s *inboxScreen) counts() string {
 		out += " · " + humanize.Plural(failed, "search", "searches") + " failed"
 	}
 
-	return out
+	return tui.State{Text: out, Busy: s.factsOut}
 }
 
 // yours is how many rows are waiting on you: the lanes before waiting on
@@ -914,20 +904,19 @@ func (s *inboxScreen) failedSearches() int {
 	return failed
 }
 
-// note is what the tab strip says: how much is waiting on you, once the
-// searches have answered. It counts the same rows counts does, so the strip
-// and the header never disagree.
-func (s *inboxScreen) note() string {
+// badge is the tab's count: how much is waiting on you, once the searches have
+// answered.
+func (s *inboxScreen) badge() tui.Badge {
 	if s.waiting > 0 {
-		return ""
+		return tui.Badge{}
 	}
 
 	rows := s.yours()
 	if rows == 0 {
-		return ""
+		return tui.Badge{}
 	}
 
-	return fmt.Sprintf("%d waiting", rows)
+	return tui.Badge{Label: strconv.Itoa(rows)}
 }
 
 // budgetWord says why the order stopped where it did, and when it can be
@@ -965,7 +954,7 @@ func (s *inboxScreen) sections() []tui.Section {
 		lane.Fold = !s.configured && i == int(inbox.LaneMerged) && !s.showMerge
 
 		if b.Pending() {
-			lane.Note = "searching…"
+			lane.Note = searching
 		}
 
 		out = append(out, lane)

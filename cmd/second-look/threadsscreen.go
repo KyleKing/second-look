@@ -202,7 +202,7 @@ func (s *threadsScreen) counts() string {
 	}
 
 	if s.waiting {
-		return "searching…"
+		return searching
 	}
 
 	counts := fmt.Sprintf("%d conversations · %d unread", len(s.queue.Conversations), s.unread())
@@ -228,18 +228,31 @@ func (s *threadsScreen) unread() int {
 	return n
 }
 
-// note is what the tab strip says: the unread count once it is known, and
-// nothing while the queue is still out or refused.
-func (s *threadsScreen) note() string {
+// badge is the tab's count: the unread count once it is known, and nothing
+// while the queue is still out or refused.
+func (s *threadsScreen) badge() tui.Badge {
 	if s.waiting || s.failed != nil {
-		return ""
+		return tui.Badge{}
 	}
 
 	if n := s.unread(); n > 0 {
-		return fmt.Sprintf("%d unread", n)
+		return tui.Badge{Label: strconv.Itoa(n)}
 	}
 
-	return ""
+	return tui.Badge{}
+}
+
+// state says what the header cannot leave to the rows: that the search is out
+// or was refused.
+func (s *threadsScreen) state() tui.State {
+	switch {
+	case s.failed != nil:
+		return tui.State{Text: "the search failed"}
+	case s.waiting:
+		return tui.State{Text: searching, Busy: true}
+	}
+
+	return tui.State{}
 }
 
 // sections turns the snapshot into rows. The unread mark is read live, so
