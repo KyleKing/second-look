@@ -1,3 +1,9 @@
+## v0.36.0 (2026-10-25)
+
+### Feat
+
+- **inbox**: draw stacked pull requests as one unit, bottom first
+
 ## v0.35.0 (2026-10-25)
 
 ### Feat
