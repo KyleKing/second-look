@@ -1,24 +1,24 @@
 kyleking/jj-diff #42    2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
 vcs ●───────────────────────────────────────────────────────────────────────┊─  
-                               ╭─ keys ───────────────────────────────────────╮┃
-     internal/vcs/diff.go  +2 -│ moving                                       │┃
-       func Parse(r io.Reader) │       j/k  a line                            │┃
-  14       first := 1          │  ctrl+d/u  half a page                       │┃
-                               │  ctrl+e/y  scroll a line                     │┃
-       ╭─ ◐ draft · question ──│            y/Y and shift+up/down do the same │┃
-       │ Is first still 1 after│      gg/G  the ends                          │┃
-       │ note  Unverified: I ha│         ]  go to…                            │┃
-       ╰─ [e]dit · [r]eady · [d│         [  go back…                          │┃
-                               │       n/N  the same, or back                 │┃
-  15 -     lines := split(r)   │  ctrl+o/i  back and forward through jumps    │┃
-  15 +     lines, err := split(│            tab goes forward too once ctrl+o  │┃
-                               │            has left a place ahead            │┃
-       ╭─ ● ready · major ─────│         .  the last change                   │┃
-       │ split can fail now, so│       tab  what wants a decision             │┃
-       ╰─ [e]dit · [r]eady · [d│ shift+tab  and back                          │┃
-                               │         /  search                            ││
-  16 +     if err != nil {     │            tab in the prompt narrows a       ││
-  17       last := 4           │            search to hunks not yet read      ││
-     internal/vcs/git.go ──────│ what is shown                                ││
-       func Head() string {    ╰ · · ·────────────────────────────────────────╯│
+                          ╭─ keys ────────────────────────────────────────────╮┃
+     internal/vcs/diff.go │ moving                                            │┃
+       func Parse(r io.Rea│       j/k  a line                                 │┃
+  14       first := 1     │  ctrl+d/u  half a page                            │┃
+                          │  ctrl+e/y  scroll a line                          │┃
+       ╭─ ◐ draft · questi│            y/Y and shift+up/down do the same      │┃
+       │ Is first still 1 │      gg/G  the ends                               │┃
+       │ note  Unverified:│         ]  go to…                                 │┃
+       ╰─ [e]dit · [r]eady│         [  go back…                               │┃
+                          │       n/N  the same, or back                      │┃
+  15 -     lines := split(│  ctrl+o/i  back and forward through jumps         │┃
+  15 +     lines, err := s│            tab goes forward too once ctrl+o has   │┃
+                          │            left a place ahead                     │┃
+       ╭─ ● ready · major │         .  the last change                        │┃
+       │ split can fail no│       tab  what wants a decision                  │┃
+       ╰─ [e]dit · [r]eady│ shift+tab  and back                               │┃
+                          │         /  search                                 ││
+  16 +     if err != nil {│            tab in the prompt narrows a search to  ││
+  17       last := 4      │            hunks not yet read                     ││
+     internal/vcs/git.go ─│ what is shown                                     ││
+       func Head() string ╰ · · ·─────────────────────────────────────────────╯│
  j/k line   ] go to   c code   i context   S submit   ? help   q quit

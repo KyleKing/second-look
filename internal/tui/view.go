@@ -501,13 +501,18 @@ func (m *Model) helpPage() []keyhint.Hint {
 	return marked
 }
 
-// helpWidth is the inner width of the legend's box: narrow enough that the
-// diff stays a frame around it, which is what makes it a window rather than
-// the screen.
+// helpWidth is the inner width of the legend's box: five eighths of the frame
+// between a floor and a ceiling, so the diff stays a frame around it, which is
+// what makes it a window rather than the screen, and a page of one-line rows
+// fits a wide one without wrapping.
 func (m *Model) helpWidth() int {
-	const boxW = 44
+	const (
+		floor, ceiling = 44, 76
+		numerator      = 5
+		denominator    = 8
+	)
 
-	return min(boxW, m.width-boxMargin)
+	return min(max(floor, m.width*numerator/denominator), ceiling, m.width-boxMargin)
 }
 
 // roundBoxWidth is the most room the H chord's page takes, since a round's line
