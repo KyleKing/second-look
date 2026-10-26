@@ -10,7 +10,9 @@ import (
 	"github.com/kyleking/second-look/internal/tui"
 )
 
-// refFloor is the narrowest a ref column goes when the frame has no room.
+// refFloor is the width every tab's ref column keeps at least, and the
+// narrowest it goes when the frame has no room, so a title starts in the same
+// column on every tab.
 const refFloor = 15
 
 // place is what a row's ref points at: a repository and, where the subject has
@@ -67,9 +69,9 @@ func (p place) spans(shared map[string]bool) []tui.Span {
 	return out
 }
 
-// refColumn is the ref column, as wide as the longest ref in view up to the
-// floor it keeps when there is no room, so every title starts in the same
-// column whatever lands.
+// refColumn is the ref column, as wide as the longest ref in view and never
+// narrower than refFloor, so every title starts in the same column whatever
+// lands.
 func refColumn(places []place) table.Column {
 	shared := sharedNames(places)
 	widest := 0
@@ -79,7 +81,7 @@ func refColumn(places []place) table.Column {
 		widest = max(widest, humanize.Width(owner+rest))
 	}
 
-	widest = max(widest, 1)
+	widest = max(widest, refFloor)
 
 	return table.Column{Key: colRef, Min: min(widest, refFloor), Max: widest, Weight: 1, Trim: table.TrimLeft}
 }
