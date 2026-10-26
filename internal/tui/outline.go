@@ -345,7 +345,7 @@ func (m *Model) chapterPane(size sizes) listPane {
 
 	return listPane{
 		head: head + m.styles.note.Render(facts), n: len(cs), at: at,
-		row:    func(i, w int) string { return m.outlineRow(size, cs[i], w, jw) },
+		row:    func(i, w int) string { return m.outlineRow(size, cs[i], w, jw, i == at) },
 		detail: func(w int) []string { return m.chapterDetail(size, at, w, jw) },
 	}
 }
@@ -371,7 +371,7 @@ func (m *Model) listLines(p listPane, w, h int) []string {
 	return block(out, h, w)
 }
 
-func (m *Model) outlineRow(size sizes, c plan.Chapter, w, jw int) string {
+func (m *Model) outlineRow(size sizes, c plan.Chapter, w, jw int, lit bool) string {
 	added, removed := size.of(c.Hunks)
 	lines := "+" + humanize.Count(added) + " −" + humanize.Count(removed)
 
@@ -408,7 +408,12 @@ func (m *Model) outlineRow(size sizes, c plan.Chapter, w, jw int) string {
 		face = m.styles.behind.Render
 	}
 
-	return m.railMark(false, read) + face(name) + gap + progress + m.styles.note.Render(facts)
+	note := m.styles.note
+	if lit {
+		note = m.styles.rungs.muted.lit.Italic(true)
+	}
+
+	return m.railMark(false, read) + face(name) + gap + progress + note.Render(facts)
 }
 
 // stripWidth is the read strip's cells in a row w wide holding a judge column
