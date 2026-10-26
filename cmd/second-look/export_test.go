@@ -55,10 +55,10 @@ func StagedRow(review prepared.Review, repo, head string, remote ...prstate.Stat
 
 // StagedAgent is what a staged row says of the session recorded on it and how
 // loudly, given the listing's last answer.
-func StagedAgent(review prepared.Review, live map[string]agents.Live) (string, tui.Tone) {
+func StagedAgent(review prepared.Review, live map[string]agents.Live) (string, tui.Role) {
 	s := &reviewsScreen{rows: []prepared.Review{review}, live: live}
 
-	return s.agentWord(&s.rows[0]), s.agentTone(&s.rows[0])
+	return s.agentWord(&s.rows[0]), s.agentRole(&s.rows[0])
 }
 
 // StagedOrder is the order the staged tab would list the reviews in, across

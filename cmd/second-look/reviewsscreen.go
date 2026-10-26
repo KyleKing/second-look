@@ -241,8 +241,10 @@ var reviewsHelp = helpFor(helpMove(), [][2]string{
 	"opens the same way, from the API.",
 	"here marks the one row this directory is standing on; a C pressed on a",
 	"row it cannot reach says why in the footer.",
-	"The second line is what the pull request is called, and the row says what",
-	"the forge thinks of it: merged, closed, or the last review you left.",
+	"The row is what the pull request is called, then what the review holds and",
+	"its state. At 140 columns it says what the forge thinks of it as well, and",
+	"what its agent is doing; below that the line under the list says them.",
+	"A row dims once the forge has merged or closed the pull request.",
 	"A pull request based on another one staged here is grouped with it, bottom",
 	"first, which is the order the diffs read in.",
 ))
@@ -302,6 +304,7 @@ func (s *reviewsScreen) state() tui.State {
 // hand, with dead work last.
 func (s *reviewsScreen) sections() []tui.Section {
 	now := time.Now()
+	shared := sharedNames(s.places())
 	stacks, alone := prepared.Split(s.rows)
 
 	out := make([]tui.Section, 0, len(stacks)+2)
@@ -309,7 +312,7 @@ func (s *reviewsScreen) sections() []tui.Section {
 	for i := range stacks {
 		rows := make([]tui.Row, 0, len(stacks[i].Rows))
 		for j := range stacks[i].Rows {
-			rows = append(rows, s.reviewRow(&stacks[i].Rows[j], now))
+			rows = append(rows, s.reviewRow(&stacks[i].Rows[j], shared, now))
 		}
 
 		out = append(out, tui.Section{Name: stackName(&stacks[i]), Rows: rows})
@@ -330,7 +333,7 @@ func (s *reviewsScreen) sections() []tui.Section {
 
 	hereRows := make([]tui.Row, 0, len(here))
 	for i := range here {
-		hereRows = append(hereRows, s.reviewRow(&here[i], now))
+		hereRows = append(hereRows, s.reviewRow(&here[i], shared, now))
 	}
 
 	out = append(out, tui.Section{Name: wordStaged, Rows: hereRows})
@@ -338,7 +341,7 @@ func (s *reviewsScreen) sections() []tui.Section {
 	if len(away) > 0 {
 		awayRows := make([]tui.Row, 0, len(away))
 		for i := range away {
-			awayRows = append(awayRows, s.reviewRow(&away[i], now))
+			awayRows = append(awayRows, s.reviewRow(&away[i], shared, now))
 		}
 
 		out = append(out, tui.Section{Name: "left in a working copy", Rows: awayRows})
@@ -380,28 +383,18 @@ func stackName(st *prepared.Stack) string {
 	return "stacked onto " + st.Onto + ", bottom first"
 }
 
-func (s *reviewsScreen) reviewRow(r *prepared.Review, now time.Time) tui.Row {
-	state := prepared.State(r)
-	word, tone := s.remoteWord(r)
-
+func (s *reviewsScreen) reviewRow(r *prepared.Review, shared map[string]bool, now time.Time) tui.Row {
 	return tui.Row{
 		// The key names the repository as well as the number, since the same
 		// number in two repositories is two rows.
-		Key:   r.Where(),
-		Left:  r.Where(),
-		Repo:  r.Repository,
-		Mid:   state,
-		Tone:  stateTone(state),
-		Age:   humanize.Ago(r.Modified, now),
-		Tail:  s.tail(r),
-		Under: title(r),
-		// A review with a draft in it is the one to come back to, which is
-		// what the unread mark means on this screen.
-		Unread:     r.Blocked() || r.Broken != "",
-		Remote:     word,
-		RemoteTone: tone,
-		Agent:      s.agentWord(r),
-		AgentTone:  s.agentTone(r),
+		Key:    r.Where(),
+		Repo:   r.Repository,
+		Unread: r.Blocked() || r.Broken != "",
+		// A pull request the forge has closed or merged makes the staged work
+		// moot, so the row recedes.
+		Dim:   s.rank(r) == deadLast,
+		Cells: s.reviewCells(r, shared, now),
+		About: s.reviewAbout(r, now),
 	}
 }
 
@@ -421,66 +414,67 @@ func (s *reviewsScreen) agentWord(r *prepared.Review) string {
 	return "agent " + live.State
 }
 
-// agentTone is how loud the session's state is: blocked is the one asking to
+// agentRole is how loud the session's state is: blocked is the one asking to
 // be answered, done is work that landed, and the rest say a run is in motion.
-func (s *reviewsScreen) agentTone(r *prepared.Review) tui.Tone {
+func (s *reviewsScreen) agentRole(r *prepared.Review) tui.Role {
 	live, ok := s.live[r.Agent.Session]
 	if !ok {
-		return tui.ToneOrdinary
+		return tui.RoleCell
 	}
 
 	switch live.State {
 	case agents.Blocked:
-		return tui.ToneWarn
+		return tui.RoleWarn
 	case agents.Done:
-		return tui.ToneGood
+		return tui.RoleGood
 	default:
-		return tui.ToneMuted
+		return tui.RoleMuted
 	}
 }
 
-// stateTone is how loud the state word is: a review that can post is the good
+// stateRole is how loud the state word is: a review that can post is the good
 // news, one holding a draft is the decision to make, and one that cannot be
 // read is the problem.
-func stateTone(state string) tui.Tone {
+func stateRole(state string) tui.Role {
 	switch state {
 	case prepared.StateReady:
-		return tui.ToneGood
+		return tui.RoleGood
 	case prepared.StateBlocked:
-		return tui.ToneWarn
+		return tui.RoleWarn
 	case prepared.StateUnreadable:
-		return tui.ToneBad
+		return tui.RoleBad
 	default:
-		return tui.ToneMuted
+		return tui.RoleMuted
 	}
 }
 
 // remoteWord is what the forge says of the row and how loud it should say it:
 // a dead pull request makes the staged work moot, and a merge draws in the
 // forge's own color for it.
-func (s *reviewsScreen) remoteWord(r *prepared.Review) (string, tui.Tone) {
+func (s *reviewsScreen) remoteWord(r *prepared.Review) (string, tui.Role) {
 	state, ok := s.remote[r.Where()]
 	if !ok {
-		return "", tui.ToneOrdinary
+		return "", tui.RoleCell
 	}
 
 	switch {
 	case state.Merged():
-		return state.Word(), tui.ToneMerged
+		return state.Word(), tui.RoleMerged
 	case state.Closed():
-		return state.Word(), tui.ToneBad
+		return state.Word(), tui.RoleBad
 	case state.Mine == "APPROVED":
-		return state.Word(), tui.ToneGood
+		return state.Word(), tui.RoleGood
 	default:
-		return state.Word(), tui.ToneMuted
+		return state.Word(), tui.RoleMuted
 	}
 }
 
-// tail is what the review carries, or why it could not be read, with whether
-// this directory is standing on it.
+// tail is what the review carries, with whether this directory is standing on
+// it. A review that could not be read carries nothing: the row says why where
+// its title would be.
 func (s *reviewsScreen) tail(r *prepared.Review) string {
 	if r.Broken != "" {
-		return r.Broken
+		return ""
 	}
 
 	parts := []string{prepared.Holds(r)}

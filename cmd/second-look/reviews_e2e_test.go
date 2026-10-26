@@ -138,7 +138,8 @@ func TestReviewsScreen(t *testing.T) {
 	sc := openReview(t, s, dir, "reviews")
 	sc.await("3 staged")
 	sc.await("left in a working copy")
-	sc.await("KyleKing/second-look#2")
+	sc.await("second-look#2")
+	sc.await("✗ unreadable")
 
 	// A file that could not be read names no repository, so nothing could move it
 	// into the store and it lists as a leftover. Choosing it reports the reason
@@ -318,13 +319,13 @@ func TestAStagedRowSaysWhatItsAgentIsDoing(t *testing.T) {
 		name    string
 		session string
 		want    string
-		tone    tui.Tone
+		tone    tui.Role
 	}{
-		{name: "asking a question", session: "sess-blocked", want: "agent blocked", tone: tui.ToneWarn},
-		{name: "work waiting to be read", session: "sess-done", want: "agent done", tone: tui.ToneGood},
-		{name: "still running", session: "sess-busy", want: "agent busy", tone: tui.ToneMuted},
-		{name: "ended", session: "sess-gone", want: "", tone: tui.ToneOrdinary},
-		{name: "none recorded", want: "", tone: tui.ToneOrdinary},
+		{name: "asking a question", session: "sess-blocked", want: "agent blocked", tone: tui.RoleWarn},
+		{name: "work waiting to be read", session: "sess-done", want: "agent done", tone: tui.RoleGood},
+		{name: "still running", session: "sess-busy", want: "agent busy", tone: tui.RoleMuted},
+		{name: "ended", session: "sess-gone", want: "", tone: tui.RoleCell},
+		{name: "none recorded", want: "", tone: tui.RoleCell},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

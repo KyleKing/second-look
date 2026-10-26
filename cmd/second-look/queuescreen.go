@@ -103,7 +103,7 @@ func queueOnce(
 			Name:     wordStaged,
 			Sections: rv.sections, Act: rv.act, State: rv.state,
 			Hints: reviewsHints, Help: reviewsHelp, Loader: rv, Rest: rv.restedOn,
-			Badge: rv.badge,
+			Badge: rv.badge, Columns: rv.columns,
 		},
 	}, at).
 		WithLabeling(labeling(".")).

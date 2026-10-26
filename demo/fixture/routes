@@ -15,7 +15,7 @@ search prs --reviewed-by --merged    search-merged.json
 search prs --reviewed-by             search-open.json
 api notifications                    notifications.json
 api graphql ids[]=                   facts.json
-api graphql -F pr=                   pr-state.json
+api graphql -F p0=                   pr-state.json
 api graphql -F q=                    conversations.json
 api graphql name= number=            people-involved.json
 api graphql name=                    people-recent.json
