@@ -15,7 +15,7 @@ require (
 	github.com/charmbracelet/x/exp/golden v0.0.0-20260830003929-9f48cc723c1c
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/creack/pty v1.1.24
-	github.com/kyleking/aragonite v0.22.0
+	github.com/kyleking/aragonite v0.24.0
 	github.com/lucasb-eyer/go-colorful v1.4.1
 	golang.org/x/sync v0.23.0
 	golang.org/x/sys v0.48.0
@@ -37,6 +37,3 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
 )
-
-// Removed when aragonite v0.23.0 is tagged.
-replace github.com/kyleking/aragonite => ../aragonite
