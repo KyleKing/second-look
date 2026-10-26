@@ -44,6 +44,6 @@ func Split(records map[string]Record, rows []PullRequest, now time.Time) ([]Pull
 }
 
 // running reports checks that have not finished. It exists because a check suite
-// ending may not move updatedAt; retire it once the step 3 probe in
-// docs/plans/queue-loading.md shows that it does.
+// ending may not move updatedAt; retire it once a probe on a pull request with a
+// running check shows that it does.
 func (f *Facts) running() bool { return f.Checks == "PENDING" || f.Checks == "EXPECTED" }

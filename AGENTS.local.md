@@ -78,14 +78,21 @@ process, so the plain profile reads `internal/get` as 0%. `TestMain` builds the 
 `mise run test:coverage-min` collects both halves as covdata directories and merges them,
 which is the only format `go tool covdata merge` takes.
 
-## The README recording
+## The README recordings
 
-`mise run demo` builds the binary and runs `demo/demo.tape` through VHS. The tape drives
-`demo/run.sh`, which copies `demo/fixture/.second-look` into a throwaway checkout and puts
-`demo/bin/gh` ahead of the real one. That stand-in answers the one `pr view` the screen makes
-and refuses everything else, so a recording reaches no network and touches no real review.
-The gif is committed, so regenerate it when the screen changes shape, and keep the tape's
-sleeps so each frame is readable.
+`mise run demo` builds the binary, runs every `demo/*.tape` through VHS, and shrinks each
+gif with ffmpeg. `triage.tape` and `reading.tape` write the two gifs in the README, and
+`stills.tape` writes `docs/images/outline.png` and `docs/images/calls.png`. The first half
+of each drives `demo/scene.sh`, which puts `demo/forge/gh` ahead of the real one. That
+stand-in answers from seed files and refuses anything unrouted, so a recording reaches no
+network, needs no auth, and cannot touch a real review. The second half of `reading.tape`
+and all of `stills.tape` run `second-look local -r` against this repository's own commits
+(`8cc3241`, `9066a8f`), so they need gopls on `PATH` and a clone that still holds those
+commits. Public fixture data and this repository's history only: a recording of a work
+repository would publish its names.
+
+The gifs and stills are committed, so regenerate them whenever the screen changes shape.
+Keep the tapes' sleeps: a frame nobody can read is not a demo.
 
 ## `internal/ghmd`
 
@@ -102,8 +109,10 @@ worth having here.
 with no argument lists them. A scene names its argv in `scene.conf` and brings only what it
 changes about the shared fixture: `review.toml`, `threads.json`, extra `gh` routes and their
 seeds, and `diff/<sha>.patch` when it compares against an earlier round (`rounds`).
+A scene that opens on a snapshot (`inbox-reorder`) writes it from `seed.sh` with `demo/seedsnap`,
+which reverses the fixture's buckets so the refresh has rows to move.
 
-`demo/bin/gh` is the forge every scene runs against. Its `routes` table maps the tokens a call
+`demo/forge/gh` is the forge every scene runs against. Its `routes` table maps the tokens a call
 must carry to the seed file that answers it. A token must start an argument, because
 substring matching anywhere in the call read `--review-requested` as "view" and routed
 the inbox's searches to the pull request. A seed named `.err` goes to stderr with a non-zero
@@ -151,7 +160,7 @@ Two invariants in `lsp` each cost a session and each have a failing test without
 
 The suite and demo turn the pass off like a laptop without a server: a `[[server]]` override
 claims the extensions and names a command nothing has (`settle` in `e2e_test.go`, and a
-written config in `demo/run.sh` and `demo/scene.sh`). A configured server that is not
+written config in `demo/scene.sh`). A configured server that is not
 installed disables its extensions instead of falling back to another. Coverage is a stub
 server in `internal/diag/lsp` and a real gopls in `cmd/second-look/probe_test.go`, which skips
 without it.
@@ -221,7 +230,7 @@ Three harness rules each cost a session:
 - `await` searches the whole buffer, so across a screen that closes and reopens it answers
   from the first draw and the next keystroke lands in a program that has not started. Take a
   `mark()` and use `awaitFrom` across any hand-off that returns to a screen
-- Queue rows tail-cut their `Left` cell, so `kyleking/aragonite#100` can render as
+- The ref column trims from the left, so `kyleking/aragonite#100` can render as
   `aragonite#100` at a narrow width. Await the substring that survives the narrowest frame
   the test drives
 - A status that changes in place is never in the stream whole. A redraw writes only
