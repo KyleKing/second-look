@@ -136,7 +136,7 @@ func TestReviewsScreen(t *testing.T) {
 	}))
 
 	sc := openReview(t, s, dir, "reviews")
-	sc.await("3 staged")
+	sc.await("staged")
 	sc.await("left in a working copy")
 	sc.await("second-look#2")
 	sc.await("✗ unreadable")

@@ -653,7 +653,7 @@ func TestTabsLoadOnceAndKeepWhereEachWasLeft(t *testing.T) {
 
 	// Leave the cursor somewhere the other tab cannot be confused with.
 	l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
-	shows(t, l, []string{"1 conversations", "2 inbox"}, nil)
+	shows(t, l, []string{"conversations", "inbox"}, nil)
 
 	if got := l.CursorKey(); got != "T2" {
 		t.Fatalf("the cursor sits on %q, want the second row", got)

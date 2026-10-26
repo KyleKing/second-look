@@ -1,5 +1,5 @@
- second-look   1 inbox 4    2 other 2                                                                  sorted by triage 
-───────────────━━━━━━━━━━───────────────────────────────────────────────────────────────────────────────────────────────
+ second-look   inbox 4    other 2                                                                      sorted by triage 
+───────────────━━━━━━━━─────────────────────────────────────────────────────────────────────────────────────────────────
   ready to merge  1
   a#1         feat(inbox): order the queue by lane               kyleking      2d    +57    -0  ✓ approved             
 

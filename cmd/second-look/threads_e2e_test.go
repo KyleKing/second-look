@@ -328,7 +328,7 @@ func TestThreadsScreen(t *testing.T) {
 	// it on macOS: setting only HOME leaves the marks under the harness's own
 	// config directory there, where nothing looking under home finds them.
 	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "threads")
-	sc.await("2 conversations")
+	sc.await("conversations")
 	sc.await(conversations.BucketNew)
 	sc.await("a.go:12")
 

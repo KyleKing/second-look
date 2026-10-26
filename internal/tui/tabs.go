@@ -251,7 +251,7 @@ func (l *List) tabStrip() (string, stretch) {
 			chip = l.styles.badgeOn
 		}
 
-		part := l.styles.rungs.mark.dim.Render(strconv.Itoa(i+1)) + " " + name.Render(l.tabs[i].Name)
+		part := name.Render(l.tabs[i].Name)
 
 		if l.tabs[i].Badge != nil {
 			if b := l.tabs[i].Badge(); b.Label != "" {
