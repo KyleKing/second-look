@@ -365,7 +365,7 @@ func (m *Model) listLines(p listPane, w, h int) []string {
 			continue
 		}
 
-		out = append(out, lightLine(m.styles.cursor.Render(cursorBar)+text, w, m.styles.selection.GetBackground()))
+		out = append(out, litLine(" "+text, w, m.styles.row))
 	}
 
 	return block(out, h, w)

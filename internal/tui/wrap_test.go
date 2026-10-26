@@ -76,14 +76,7 @@ func TestWrapKeepsTheCursorRowOnScreen(t *testing.T) {
 		t.Fatalf("the last row is not drawn:\n%s", frame)
 	}
 
-	bar := -1
-	for i, line := range strings.Split(frame, "\n") {
-		if strings.Contains(line, "▌") {
-			bar = i
-		}
-	}
-
-	if bar < 0 {
+	if cursorText(m) == "" {
 		t.Errorf("the cursor's row is nowhere on the frame:\n%s", frame)
 	}
 }

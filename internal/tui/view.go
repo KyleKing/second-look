@@ -605,16 +605,6 @@ func (m *Model) rowLines() []string {
 	return alongside(out[:h], bar, m.styles, m.diffWidth())
 }
 
-// cursorBar is the column every row spends on saying whether the cursor is on
-// it. It is a glyph rather than a reversed row, so a wide terminal does not
-// answer a keystroke with a bar of inverted text across it.
-const cursorBar = "▌"
-
-// rangeBar is the same column for a row the open range covers. It is thinner
-// rather than paler, since the palette a terminal is on may quantize the two
-// colors into one and leave the range invisible.
-const rangeBar = "▏"
-
 func (m *Model) renderRow(i, width int) []string {
 	r := m.screen.rows[i]
 	r.current = i == m.cursor
@@ -627,19 +617,23 @@ func (m *Model) renderRow(i, width int) []string {
 	out := make([]string, len(bodies))
 
 	for j, body := range bodies {
-		switch {
-		case j > 0:
-			out[j] = " " + body
-		case i == m.cursor:
-			out[j] = m.styles.cursor.Render(cursorBar) + body
-		case m.inRange(i):
-			out[j] = m.styles.selected.Render(rangeBar) + body
-		default:
-			out[j] = " " + body
-		}
+		out[j] = m.tinted(i, " "+body, width+1)
 	}
 
 	return out
+}
+
+// tinted draws a row's line in the face its place calls for: the cursor's, a
+// covered range's, or none.
+func (m *Model) tinted(i int, line string, width int) string {
+	switch {
+	case i == m.cursor:
+		return litLine(line, width, m.styles.row)
+	case m.inRange(i):
+		return litLine(line, width, m.styles.span)
+	}
+
+	return line
 }
 
 // rowBodies is the row without the column that says where the cursor is, one

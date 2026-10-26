@@ -13,6 +13,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/tui/handoff"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/pane"
@@ -639,6 +640,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.rebuild()
+
+		return m, nil
+	case tea.ColorProfileMsg:
+		if msg.Profile <= colorprofile.ASCII {
+			m.styles.monochrome()
+		}
 
 		return m, nil
 	case tea.PasteMsg:

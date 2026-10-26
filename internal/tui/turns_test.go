@@ -35,10 +35,8 @@ func onto(t *testing.T, m *tui.Model, want string) {
 	const give = 300
 
 	for range give {
-		for _, l := range strings.Split(plain(m.Frame()), "\n") {
-			if strings.HasPrefix(l, "▌") && strings.Contains(l, want) {
-				return
-			}
+		if strings.Contains(cursorText(m), want) {
+			return
 		}
 
 		press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})

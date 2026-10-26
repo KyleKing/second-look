@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"image/color"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -40,6 +41,14 @@ func (m *Model) CommentStatus(i int) string { return m.review.Comments[i].Status
 // CursorRow is which row the cursor is on, so a test can check where a motion
 // landed rather than inferring it from the frame.
 func (m *Model) CursorRow() int { return m.cursor }
+
+// CursorFace is the escape that opens the face of the row under the cursor, so
+// a test can tell which frame lines the cursor is on.
+func (m *Model) CursorFace() string {
+	on, _, _ := strings.Cut(m.styles.row.Render("x"), "x")
+
+	return on
+}
 
 // CursorFile is the file the row under the cursor belongs to.
 func (m *Model) CursorFile() string { return m.cursorPath() }

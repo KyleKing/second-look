@@ -6,7 +6,7 @@ vcs ─────────────────────────�
   14       first := 1                                                                                                                       
   15 -     lines := split(r)                                                                                                                
   15 +     lines, err := split(r)                                                                                                           
-▌ 16 +     if err != nil {                                                                                                                  
+  16 +     if err != nil {                                                                                                                  
  
        ╭─ ✎ you asked ──────────────────────────────────────────────────────────── diff.go:15-16 ─╮
        │ why can split fail?                                                                      │

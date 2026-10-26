@@ -7,7 +7,7 @@ vcs ●────────────────────────�
   15 -     lines := split(r)                                                                                            
   15 +     lines, err := split(r)                                                                                       
        ╭─ ⇢ calls · Parse · internal/vcs/diff.go:12 ────────────────────── 2 callers · 7 callees ─╮
-▌      │                                ┌── ›split        internal/vcs/diff.go:40                 │
+       │                                ┌── ›split        internal/vcs/diff.go:40                 │                     
        │                                ├──  Join ×2      strings                                 │
        │  Load       ──┬──▶ Parse ✎ ◆ ──┼──  backoff      internal/vcs/diff.go:60                 │
        │  Run ×3     ──┘                ├──  fetch        internal/vcs/diff.go:70                 │

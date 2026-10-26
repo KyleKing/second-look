@@ -1,6 +1,6 @@
 kyleking/jj-diff #42    2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
 vcs ●───────────────────────────────────────────────────────────────────┊─  code
-▌
+                                                                                
  ⇢ internal/vcs  2 files · 2 hunks
      internal/vcs/diff.go ──────────────────────────────────────────────────────
        line 14  func Parse(r io.Reader) ([]Hunk, error) {

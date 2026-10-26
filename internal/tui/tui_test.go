@@ -3012,8 +3012,8 @@ func TestPeekScrollsWithoutMovingTheCursor(t *testing.T) {
 		t.Errorf("j after a peek landed on row %d, want %d", got, was+1)
 	}
 
-	if got := plain(m.Frame()); !strings.Contains(got, "\n▌") {
-		t.Errorf("the frame did not come back to the cursor:\n%s", got)
+	if cursorText(m) == "" {
+		t.Errorf("the frame did not come back to the cursor:\n%s", plain(m.Frame()))
 	}
 }
 
@@ -3297,12 +3297,9 @@ func TestTabAtTheEdgeSaysThereIsNothingFurther(t *testing.T) {
 
 // cursorRow is which line of the frame carries the cursor, counting the body
 // from zero, or -1 where the frame does not draw it.
-func cursorRow(frame string) int {
-	body := strings.Split(plain(frame), "\n")
-	for i, line := range body {
-		if strings.HasPrefix(line, "▌") {
-			return i - 2
-		}
+func cursorRow(m *tui.Model) int {
+	if lines := cursorLines(m); len(lines) > 0 {
+		return lines[0].at - 2
 	}
 
 	return -1
@@ -3327,7 +3324,7 @@ func TestTheFrameCanBePlacedAroundTheCursor(t *testing.T) {
 		pressKey(t, m, 'z')
 		pressKey(t, m, second)
 
-		return cursorRow(m.Frame())
+		return cursorRow(m)
 	}
 
 	top, middle, bottom := place('t'), place('z'), place('b')
@@ -3672,7 +3669,7 @@ func TestTheEndOfAReviewHasRoomBelowIt(t *testing.T) {
 			// The footer is the last line, so the blank room is above it. A row
 			// with nothing in it still carries the scrollbar's track.
 			blank := 0
-			for i := len(lines) - 2; i > 0 && strings.Trim(lines[i], " │┃▌") == ""; i-- {
+			for i := len(lines) - 2; i > 0 && strings.Trim(lines[i], " │┃") == ""; i-- {
 				blank++
 			}
 

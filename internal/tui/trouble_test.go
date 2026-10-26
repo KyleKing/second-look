@@ -268,12 +268,30 @@ func TestHoverShowsWhatTheNamesAre(t *testing.T) {
 // column each one starts at.
 const splitLine = "lines, err := split(r)"
 
-// cursorText is the frame line the cursor bar is on.
-func cursorText(m *tui.Model) string {
-	for _, line := range strings.Split(plain(m.Frame()), "\n") {
-		if strings.HasPrefix(line, "▌") {
-			return line
+type cursorLine struct {
+	at   int
+	text string
+}
+
+// cursorLines are the frame lines the cursor's row is drawn on, top down.
+func cursorLines(m *tui.Model) []cursorLine {
+	on := m.CursorFace()
+
+	var out []cursorLine
+
+	for i, line := range strings.Split(m.Frame(), "\n") {
+		if strings.HasPrefix(line, on) {
+			out = append(out, cursorLine{at: i, text: plain(line)})
 		}
+	}
+
+	return out
+}
+
+// cursorText is the first frame line the cursor's row is on.
+func cursorText(m *tui.Model) string {
+	if lines := cursorLines(m); len(lines) > 0 {
+		return lines[0].text
 	}
 
 	return ""

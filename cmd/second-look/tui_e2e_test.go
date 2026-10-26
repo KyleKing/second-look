@@ -294,6 +294,44 @@ func (s *screen) reversedRows() []int {
 	return rows
 }
 
+// tintedRows are the rows whose first cell has a background, which is where the
+// cursor's tint begins.
+func (s *screen) tintedRows() []int {
+	s.termMu.Lock()
+	defer s.termMu.Unlock()
+
+	var rows []int
+
+	for y := range s.term.Height() {
+		if c := s.term.CellAt(0, y); c != nil && c.Style.Bg != nil {
+			rows = append(rows, y)
+		}
+	}
+
+	return rows
+}
+
+// tintSpan is how many cells from the left edge of row y share the first
+// cell's background.
+func (s *screen) tintSpan(y int) int {
+	s.termMu.Lock()
+	defer s.termMu.Unlock()
+
+	first := s.term.CellAt(0, y)
+	n := 0
+
+	for x := range s.term.Width() {
+		c := s.term.CellAt(x, y)
+		if c == nil || first == nil || c.Style.Bg != first.Style.Bg {
+			break
+		}
+
+		n++
+	}
+
+	return n
+}
+
 // frame is what the terminal is showing now, one string per row.
 func (s *screen) frame() []string {
 	s.termMu.Lock()
@@ -804,6 +842,70 @@ func TestReviewEsc_OpensTheQueueFromADirectReview(t *testing.T) {
 			}
 
 			requireTerminalGivenBack(t, sc.raw())
+		})
+	}
+}
+
+// The cursor's row is one tint from the margin to the cell before the
+// scrollbar, so it reads as a bar across the screen at either size.
+func TestReviewCursorRowIsTintedEdgeToEdge(t *testing.T) {
+	t.Parallel()
+
+	for _, sz := range queueSizes {
+		t.Run(fmt.Sprintf("%dx%d", sz.cols, sz.rows), func(t *testing.T) {
+			t.Parallel()
+
+			dir, sha := scratchRepo(t, headBranch)
+			s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
+			seedReview(t, dir, sha)
+
+			sc := openAt(t, sz, s, dir, "2")
+			sc.await("testdata/fixture/sample.go")
+
+			for range 3 {
+				sc.press("j")
+			}
+
+			sc.awaitFrame("one tinted row", func([]string) bool { return len(sc.tintedRows()) == 1 })
+
+			y := sc.tintedRows()[0]
+			if got := sc.tintSpan(y); got != sz.cols-1 {
+				t.Errorf("the tint on row %d covers %d cells, want %d:\n%s",
+					y, got, sz.cols-1, strings.Join(sc.frame(), "\n"))
+			}
+
+			sc.press("q")
+			sc.wait()
+		})
+	}
+}
+
+// With NO_COLOR set a tint cannot mark the cursor, so its row is the one reversed
+// row, wherever the cursor has moved and at both sizes.
+func TestReviewCursorRowIsReversedUnderNOCOLOR(t *testing.T) {
+	t.Parallel()
+
+	for _, sz := range queueSizes {
+		t.Run(fmt.Sprintf("%dx%d", sz.cols, sz.rows), func(t *testing.T) {
+			t.Parallel()
+
+			dir, sha := scratchRepo(t, headBranch)
+			s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
+			seedReview(t, dir, sha)
+
+			sc := openAt(t, sz, s, dir, "NO_COLOR=1", "2")
+			sc.await("testdata/fixture/sample.go")
+
+			requireNoColor(t, sc.raw())
+
+			for range 3 {
+				sc.press("j")
+			}
+
+			sc.awaitFrame("one reversed row", func([]string) bool { return len(sc.reversedRows()) == 1 })
+
+			sc.press("q")
+			sc.wait()
 		})
 	}
 }

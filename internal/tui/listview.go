@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"image/color"
 	"slices"
 	"strconv"
 	"strings"
@@ -247,11 +246,6 @@ func laneCount(s *Section) string {
 	}
 
 	return strconv.Itoa(len(s.Rows))
-}
-
-// lightLine paints text's background to width cells.
-func lightLine(text string, width int, bg color.Color) string {
-	return litLine(text, width, lipgloss.NewStyle().Background(bg))
 }
 
 // litLine draws text to width cells in face. A face inside text ends with a

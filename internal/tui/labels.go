@@ -199,8 +199,12 @@ func (p *labelPicker) prompt(s styles, width int) string {
 	return cut(head+p.input.View()+tail, width)
 }
 
-func (p *labelPicker) lines(s styles) []string {
+// lines are the picker's rows and which of them the cursor is on, or -1 where
+// it is on none.
+func (p *labelPicker) lines(s styles) ([]string, int) {
 	var out []string
+
+	at := -1
 
 	switch shown := p.shown(); {
 	case p.err != "":
@@ -211,25 +215,26 @@ func (p *labelPicker) lines(s styles) []string {
 		out = append(out, s.note.Render("no label matches"))
 	default:
 		for i, l := range shown {
-			out = append(out, p.row(s, l, i == p.cursor))
+			out = append(out, p.row(s, l))
+
+			if i == p.cursor {
+				at = i
+			}
 		}
 	}
 
-	return out
+	return out, at
 }
 
-func (p *labelPicker) row(s styles, l labels.Label, cursor bool) string {
-	bar, mark := " ", "  "
-	if cursor {
-		bar = s.cursor.Render(cursorBar)
-	}
+func (p *labelPicker) row(s styles, l labels.Label) string {
+	mark := "  "
 
 	if p.set[l.Name] {
 		mark = s.ok.Render("✓") + " "
 	}
 
 	swatch := lipgloss.NewStyle().Foreground(lipgloss.Color("#" + l.Color)).Render("●")
-	line := bar + mark + swatch + " " + l.Name
+	line := " " + mark + swatch + " " + l.Name
 
 	if l.Description != "" {
 		line += "  " + s.note.Render(cut(l.Description, descriptionRoom))
@@ -239,7 +244,7 @@ func (p *labelPicker) row(s styles, l labels.Label, cursor bool) string {
 }
 
 func (p *labelPicker) box(s styles, body []string, width int) []string {
-	rows := p.lines(s)
+	rows, at := p.lines(s)
 	if p.note != "" {
 		face := s.note
 		if p.noteFailed {
@@ -247,6 +252,15 @@ func (p *labelPicker) box(s styles, body []string, width int) []string {
 		}
 
 		rows = append(rows, face.Render(cut(p.note, width-boxMargin)))
+	}
+
+	if at >= 0 {
+		room := 0
+		for _, r := range rows {
+			room = max(room, textWidth(r))
+		}
+
+		rows[at] = litLine(rows[at], room, s.row)
 	}
 
 	height := min(len(rows), labelRows)

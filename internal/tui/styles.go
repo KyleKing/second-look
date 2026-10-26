@@ -33,36 +33,39 @@ func accent(p theme.Palette) color.Color { return p.Lavender }
 type styles struct {
 	// palette is kept so the rich renderer can derive faces the shared skin has
 	// no use for: a band behind code is a background, and skin carries none.
-	palette   theme.Palette
-	title     lipgloss.Style
-	subtitle  lipgloss.Style
-	file      lipgloss.Style
-	hunk      lipgloss.Style
-	add       lipgloss.Style
-	remove    lipgloss.Style
-	context   lipgloss.Style
-	behind    lipgloss.Style
-	number    lipgloss.Style
-	cursor    lipgloss.Style
-	selected  lipgloss.Style
-	selection lipgloss.Style
-	rail      lipgloss.Style
-	body      lipgloss.Style
-	note      lipgloss.Style
-	footer    lipgloss.Style
-	head      lipgloss.Style
-	key       lipgloss.Style
-	warn      lipgloss.Style
-	fail      lipgloss.Style
-	ok        lipgloss.Style
-	merged    lipgloss.Style
-	priority  lipgloss.Style
+	palette  theme.Palette
+	title    lipgloss.Style
+	subtitle lipgloss.Style
+	file     lipgloss.Style
+	hunk     lipgloss.Style
+	add      lipgloss.Style
+	remove   lipgloss.Style
+	context  lipgloss.Style
+	behind   lipgloss.Style
+	number   lipgloss.Style
+	cursor   lipgloss.Style
+	selected lipgloss.Style
+	rail     lipgloss.Style
+	body     lipgloss.Style
+	note     lipgloss.Style
+	footer   lipgloss.Style
+	head     lipgloss.Style
+	key      lipgloss.Style
+	warn     lipgloss.Style
+	fail     lipgloss.Style
+	ok       lipgloss.Style
+	merged   lipgloss.Style
+	priority lipgloss.Style
 	// placeholder draws the dot standing in for a fact not yet known. It is
 	// decoration, so it is the one queue face the contrast test does not measure.
 	placeholder lipgloss.Style
 	// band is the background behind the row under the cursor, and nothing else:
 	// a face drawn over it supplies the foreground.
 	band lipgloss.Style
+	// row is the face of the whole row under the cursor, and span the lighter
+	// one of the rows an open range covers. Both stay distinguishable where
+	// color cannot be drawn, because a tint has nothing to show there.
+	row, span lipgloss.Style
 	// panel is the background of the inspector and the footer beneath it.
 	panel lipgloss.Style
 	// hintKey and hintWord are the footer's two faces, drawn on the panel.
@@ -126,7 +129,6 @@ func newStyles() styles {
 		// title's own accent and is lost in a screen already full of them.
 		cursor:       base.Background(accent(p)).Foreground(p.Base).Bold(true),
 		selected:     sk.Accent,
-		selection:    sk.Selection,
 		rail:         sk.Accent,
 		body:         sk.Body,
 		note:         sk.Muted.Italic(true),
@@ -140,6 +142,8 @@ func newStyles() styles {
 		priority:     base.Foreground(p.Peach).Bold(true),
 		placeholder:  base.Foreground(p.Overlay0),
 		band:         sk.Band,
+		row:          sk.Band,
+		span:         rangeFace(p, sk),
 		panel:        base.Background(p.Mantle),
 		hintKey:      base.Foreground(accent(p)),
 		hintWord:     base.Foreground(p.Overlay1),
@@ -162,6 +166,24 @@ func newStyles() styles {
 			question:  base.Foreground(p.Sky),
 		},
 	}
+}
+
+// spanShare is how much of the accent a range's rows hold, half what the
+// cursor's band does.
+const spanShare = 0.08
+
+func rangeFace(p theme.Palette, sk skin.Skin) lipgloss.Style {
+	if sk.Band.GetReverse() {
+		return lipgloss.NewStyle().Underline(true)
+	}
+
+	return lipgloss.NewStyle().Background(theme.Mix(p.Base, p.Lavender, spanShare))
+}
+
+// monochrome swaps the row faces for ones a terminal with no color still draws.
+func (s *styles) monochrome() {
+	s.row = lipgloss.NewStyle().Reverse(true)
+	s.span = lipgloss.NewStyle().Underline(true)
 }
 
 func (s styles) forSeverity(name string) lipgloss.Style {

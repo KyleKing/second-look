@@ -7,7 +7,7 @@ vcs ●────────────────────────�
   15 -     lines := split(r)                                                                                                                                                                            
   15 +     lines, err := split(r)                                                                                                                                                                       
        ╭─ ⇢ split · 2 references ─────────────────────────────────────────────────────────────── ─╮
-▌      │ io/read.go:3  // split reads r into fields.                                              │
+       │ io/read.go:3  // split reads r into fields.                                              │                                                                                                     
        │ io/read.go:4  func split(r io.Reader) ([]string, error) {                                │
        ╰─ [enter] open · [j/k] · [esc] close ─────────────────────────────────────────────────────╯
   16 +     if err != nil {                                                                                                                                                                              

@@ -3,7 +3,7 @@ kyleking/jj-diff #42                                                            
  CHAPTERS · 3 of 4 · 1 read · 1 to judge · 2 of 6 lines folded                             │  CHAPTER 3 OF 4 · read                                                                                     
    ◆ the lock's caller               ─             1 to judge  read     1 file       +1 −0 │  ◆ core                                                                                                    
    ◆ api                             ─             1 to judge  read     1 file       +1 −1 │  ◆ agent · part of locking                                                                                 
-▌✓ ◆ core                            ━                         read     1 file       +1 −0 │                                                                                                            
+ ✓ ◆ core                            ━                         read     1 file       +1 −0 │                                                                                                            
    § gen                                                       fold     1 file    2 folded │  FILES · 1                                                                                                 
                                                                                            │  ✓ core/lock.go              1 hunk    +1 −0                                                               
                                                                                            │                                                                                                            

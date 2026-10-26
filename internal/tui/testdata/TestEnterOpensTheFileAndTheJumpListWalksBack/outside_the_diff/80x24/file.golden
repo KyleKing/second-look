@@ -9,7 +9,7 @@ vcs ─────────────────────────�
    9   line 9 of io/read.go                                                     
   10   line 10 of io/read.go                                                    
   11   line 11 of io/read.go                                                    
-▌ 12   line 12 of io/read.go                                                    
+  12   line 12 of io/read.go                                                    
   13   line 13 of io/read.go                                                    
   14   line 14 of io/read.go                                                    
   15       lines, err := split(r)                                               

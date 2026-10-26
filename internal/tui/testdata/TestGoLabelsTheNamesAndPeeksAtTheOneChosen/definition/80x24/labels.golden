@@ -5,7 +5,7 @@ vcs ─────────────────────────�
        func Parse(r io.Reader) ([]Hunk, error) {
   14       first := 1                                                           
   15 -     lines := split(r)                                                    
-▌ 15 +     aines, srr := dplit(f)                                               
+  15 +     aines, srr := dplit(f)                                               
   16 +     if err != nil {                                                      
   17       last := 4                                                            
      internal/vcs/git.go ───────────────────────────────────────────────────────

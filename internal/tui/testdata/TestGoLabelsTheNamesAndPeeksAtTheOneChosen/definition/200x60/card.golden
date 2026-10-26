@@ -9,7 +9,7 @@ vcs ●────────────────────────�
        ╭─ ⇢ split · io/read.go:4 ─────────────────────────────────────────────────────────────── ─╮
        │   2                                                                                      │
        │   3  // split reads r into fields.                                                       │
-▌      │ › 4  func split(r io.Reader) ([]string, error) {                                         │
+       │ › 4  func split(r io.Reader) ([]string, error) {                                         │                                                                                                     
        │   5      return fields(string(readAll(r))), nil                                          │
        │   6  }                                                                                   │
        │   7                                                                                      │

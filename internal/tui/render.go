@@ -385,12 +385,16 @@ func (m *Model) bandOf(r row, l diff.Line) (color.Color, bool) {
 		return band, banded
 	}
 
-	selection := m.styles.selection.GetBackground()
-	if !banded {
-		return selection, true
+	row := m.styles.row.GetBackground()
+	if _, none := row.(lipgloss.NoColor); none {
+		return band, banded
 	}
 
-	return theme.Mix(band, selection, selectedShare), true
+	if !banded {
+		return row, true
+	}
+
+	return theme.Mix(band, row, selectedShare), true
 }
 
 // selectedShare is how far a band moves toward the selection under the cursor.

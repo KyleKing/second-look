@@ -5,7 +5,7 @@ vcs ─────────────────────────�
        func Parse(r io.Reader) ([]Hunk, error) {                                                                       ┃
   14       first := 1                                                                                                  ┃
                                                                                                                        ┃
-▌      ╭─ ◐ draft · question ──────────────────────────────────────────────────────── diff.go:14 ─╮                    ┃
+       ╭─ ◐ draft · question ──────────────────────────────────────────────────────── diff.go:14 ─╮                    ┃
        │ Is first still 1 after the change?                                                       │                    ┃
        │ note  Unverified: I have not read the caller.                                            │                    ┃
        ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯                    ┃
