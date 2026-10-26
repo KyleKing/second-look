@@ -1062,13 +1062,18 @@ func (s *inboxScreen) rows(items []inbox.PullRequest, lane inbox.Lane, now time.
 		p := &items[j]
 		key := keyOf(p)
 		k := s.local[key]
+		stacked := !s.configured && k.Stack.Size > 0 && k.Lane > lane
+
+		if stacked && k.Short == "" && !p.Draft {
+			k.Glyph, k.Short, k.Long, k.Tone = "○", k.Lane.String(), k.Lane.String(), inbox.ToneMuted
+		}
 
 		rows = append(rows, tui.Row{
 			Key:   key,
 			Repo:  p.Repository,
 			Cells: s.cells(p, k, shared, now),
 			About: about(p, k, now),
-			Dim:   waits || (!s.configured && k.Stack.Size > 0 && k.Lane > lane),
+			Dim:   waits || stacked,
 			Stale: s.stale[key],
 		})
 	}
