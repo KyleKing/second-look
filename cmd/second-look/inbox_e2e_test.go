@@ -854,3 +854,81 @@ func isColorParam(p string) bool {
 
 	return false
 }
+
+// A row recedes when nothing is asked of the reader: a waiting or merged row,
+// and a stack member whose own lane is behind the stack's. The last says why in
+// its status, since a grey row in an action lane would otherwise say nothing.
+func TestTheQueueRecedesRowsThatAskNothingOfTheReader(t *testing.T) {
+	t.Parallel()
+
+	stacked := func(lane inbox.Lane, short string) inbox.Known {
+		return inbox.Known{
+			Judgement: inbox.Judgement{Lane: lane, Short: short},
+			Stack:     inbox.Stack{ID: "o/r#1", Position: 2, Size: 2},
+		}
+	}
+
+	for _, tc := range []struct {
+		name   string
+		lane   inbox.Lane
+		known  inbox.Known
+		dim    bool
+		status string
+	}{
+		{name: "needs action", lane: inbox.LaneBack},
+		{name: "waiting", lane: inbox.LaneWaiting, dim: true},
+		{name: "merged", lane: inbox.LaneMerged, dim: true},
+		{
+			name: "stacked behind a later lane", lane: inbox.LaneBack,
+			known: stacked(inbox.LaneWaiting, ""), dim: true, status: "waiting on others",
+		},
+		{
+			name: "stacked behind a later lane with its own status", lane: inbox.LaneBack,
+			known: stacked(inbox.LaneWaiting, "pushed"), dim: true,
+		},
+		{name: "stacked in an earlier lane", lane: inbox.LaneBack, known: stacked(inbox.LaneReady, "")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := inbox.PullRequest{Repository: "o/r", Number: 2, Title: "fix: a thing"}
+			known := map[string]inbox.Known{artifact.RatingKey("o/r", 2): tc.known}
+			rows := main.QueueRows([]inbox.PullRequest{p}, tc.lane, known)
+			said := main.WordsOf(rows[0].Cells["status"].Spans)
+
+			if rows[0].Dim != tc.dim {
+				t.Errorf("Dim is %v, want %v", rows[0].Dim, tc.dim)
+			}
+
+			if tc.status != "" && !strings.Contains(said, tc.status) {
+				t.Errorf("the status says %q, want it to name %q", said, tc.status)
+			}
+		})
+	}
+}
+
+// The commit prefix is on the row only where the title column can spare it,
+// since the inspector spells it out. The frame is drawn across the breakpoint.
+func TestTheQueueKeepsTheCommitPrefixOffANarrowTitleColumn(t *testing.T) {
+	t.Parallel()
+
+	lanes := []inbox.Bucket{{Name: "back to you", Items: []inbox.PullRequest{
+		{Repository: "o/r", Number: 2, Title: "refactor(forge): move the pull request type out of the module"},
+	}}}
+
+	for _, tc := range []struct {
+		width  int
+		prefix bool
+	}{{80, false}, {100, true}, {160, true}} {
+		t.Run(strconv.Itoa(tc.width), func(t *testing.T) {
+			t.Parallel()
+
+			rows := strings.SplitN(main.QueueFrame(lanes, tc.width, 24), "\n", 8)
+			got := strings.Contains(strings.Join(rows[:6], "\n"), "refactor(forge)")
+
+			if got != tc.prefix {
+				t.Errorf("the prefix is drawn on the row = %v, want %v:\n%s", got, tc.prefix, strings.Join(rows, "\n"))
+			}
+		})
+	}
+}

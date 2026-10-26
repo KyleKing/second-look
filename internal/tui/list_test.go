@@ -3,6 +3,7 @@ package tui_test
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -1426,6 +1427,111 @@ func TestAWordFiltersGridRowsByTheirCellsAndInspector(t *testing.T) {
 			typeList(l, tc.query)
 
 			shows(t, l, tc.want, tc.gone)
+		})
+	}
+}
+
+// sgrSequence matches one select-graphic-rendition sequence.
+var sgrSequence = regexp.MustCompile(`\x1b\[([0-9;]*)m`)
+
+// isFaint reports a faint attribute in line, skipping the arguments of an
+// extended color, whose own "2" selects a truecolor form.
+func isFaint(line string) bool {
+	for _, m := range sgrSequence.FindAllStringSubmatch(line, -1) {
+		params := strings.Split(m[1], ";")
+
+		for i := 0; i < len(params); i++ {
+			switch params[i] {
+			case "2":
+				return true
+			case "38", "48":
+				if i+1 < len(params) && params[i+1] == "5" {
+					i += 2
+				} else {
+					i += 4
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// Without color a waiting row and the label of a quiet lane are faint, which is
+// all that tells them from a row that asks something of the reader.
+func TestWaitingRowsAreFaintWhereThereIsNoColor(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		profile colorprofile.Profile
+		faint   bool
+	}{
+		{colorprofile.ASCII, true},
+		{colorprofile.TrueColor, false},
+	} {
+		t.Run(tc.profile.String(), func(t *testing.T) {
+			t.Parallel()
+
+			l := tui.NewTabs([]tui.Tab{{Name: "inbox", Sections: lanes, Columns: laneColumns}}, 0)
+			l.Update(tea.ColorProfileMsg{Profile: tc.profile})
+			l.Update(tea.WindowSizeMsg{Width: 120, Height: 34})
+
+			for _, line := range panelless(l.ListFrame()) {
+				quiet := strings.Contains(line, "waiting on others") || strings.Contains(line, "say why")
+				loud := strings.Contains(line, "a hotfix") || strings.Contains(line, "new for you")
+
+				if got := isFaint(line); quiet && got != tc.faint {
+					t.Errorf("a quiet line is faint = %v, want %v: %q", got, tc.faint, line)
+				}
+
+				if loud && isFaint(line) {
+					t.Errorf("a line that asks something of the reader is faint: %q", line)
+				}
+			}
+		})
+	}
+}
+
+// The inspector gives way in the order ref, prefix, subject. The row above it
+// already shows the ref and the prefix, so the subject is the last thing cut.
+func TestTheInspectorKeepsTheSubjectWholeBeforeItsRefAndPrefix(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		subject      string
+		prefix, ref  bool
+		subjectWhole bool
+	}{
+		{"room for everything", strings.Repeat("a", 40), true, true, true},
+		{"room for the prefix", strings.Repeat("b", 68), true, false, true},
+		{"room for the subject", strings.Repeat("c", 76), false, false, true},
+		{"cut to fit", strings.Repeat("d", 90), false, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			row := gridRow("o/c#3", "", " ", "chore: ", tc.subject, "sam", "4d", tui.Pending(), tui.Pending(), false)
+			l := tui.NewTabs([]tui.Tab{{
+				Name: "inbox", Columns: laneColumns,
+				Sections: func() []tui.Section { return []tui.Section{{Name: "new for you", Rows: []tui.Row{row}}} },
+			}}, 0)
+			l.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+			lines := strings.Split(xansi.Strip(l.ListFrame()), "\n")
+			inspector := lines[len(lines)-3]
+
+			if got := strings.Contains(inspector, tc.subject); got != tc.subjectWhole {
+				t.Errorf("the subject is whole = %v, want %v:\n%s", got, tc.subjectWhole, strings.Join(lines, "\n"))
+			}
+
+			if got := strings.Contains(inspector, "chore"); got != tc.prefix {
+				t.Errorf("the prefix is drawn = %v, want %v: %q", got, tc.prefix, inspector)
+			}
+
+			if got := strings.Contains(inspector, "o/c#3"); got != tc.ref {
+				t.Errorf("the ref is drawn = %v, want %v: %q", got, tc.ref, inspector)
+			}
 		})
 	}
 }

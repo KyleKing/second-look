@@ -410,3 +410,34 @@ func TestTheNextReviewAfterAPostPrefersTheSameRepository(t *testing.T) {
 		t.Error("a review that cannot be read was offered as the next one")
 	}
 }
+
+// A blocked review has its own glyph, so the unreadable one keeps the cross and
+// neither borrows the conversations tab's unread mark.
+func TestAStagedRowMarksWhyItCannotPost(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		review prepared.Review
+		glyph  string
+	}{
+		{"ready", prepared.Review{Repository: "a/b", Number: 1, Ready: 1}, "✓"},
+		{"blocked", prepared.Review{Repository: "a/b", Number: 2, Draft: 1}, "⊘"},
+		{"unreadable", prepared.Review{Repository: "a/b", Number: 3, Broken: "nope"}, "✗"},
+		{"empty", prepared.Review{Repository: "a/b", Number: 4}, "○"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cells := main.StagedCells(tc.review)
+
+			if got := cells["status"].Spans[0].Text; got != tc.glyph {
+				t.Errorf("the status glyph is %q, want %q", got, tc.glyph)
+			}
+
+			if strings.Contains(main.WordsOf(cells["title"].Spans), "●") {
+				t.Error("the title carries the unread mark")
+			}
+		})
+	}
+}

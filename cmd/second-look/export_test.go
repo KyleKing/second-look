@@ -4,6 +4,10 @@ import (
 	"context"
 	"io"
 	"strings"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 
 	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/blob"
@@ -160,3 +164,31 @@ func plainWords(spans []tui.Span) string {
 
 	return b.String()
 }
+
+// QueueRows is the rows the inbox draws for items in lane, given what this
+// laptop holds for each.
+func QueueRows(items []inbox.PullRequest, lane inbox.Lane, known map[string]inbox.Known) []tui.Row {
+	s := &inboxScreen{local: known}
+
+	return s.rows(items, lane, time.Now())
+}
+
+// QueueFrame is the inbox's list, stripped of styling, drawn on a terminal of
+// width by height.
+func QueueFrame(lanes []inbox.Bucket, width, height int) string {
+	s := &inboxScreen{lanes: lanes}
+	l := tui.NewTabs([]tui.Tab{s.tab()}, 0)
+	l.Update(tea.WindowSizeMsg{Width: width, Height: height})
+
+	return xansi.Strip(l.View().Content)
+}
+
+// StagedCells is the grid cells of one staged review.
+func StagedCells(review prepared.Review) map[string]tui.Cell {
+	s := &reviewsScreen{rows: []prepared.Review{review}}
+
+	return s.reviewCells(&s.rows[0], nil, time.Now())
+}
+
+// WordsOf is the plain text of a cell's spans.
+func WordsOf(spans []tui.Span) string { return plainWords(spans) }
