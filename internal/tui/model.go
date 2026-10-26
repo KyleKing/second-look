@@ -1224,7 +1224,9 @@ func (m *Model) leaves(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 
-		return func() tea.Msg { return leftMsg{} }, true
+		esc := msg.String() == escKey
+
+		return func() tea.Msg { return leftMsg{esc: esc} }, true
 	case m.posted && key.Matches(msg, m.keys.Accept):
 		m.next = true
 

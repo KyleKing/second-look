@@ -398,6 +398,7 @@ func (m *Model) hints() []keyhint.Hint {
 		{Key: "i", What: "context", Priority: shedFirst},
 		{Key: "S", What: "submit", Priority: shedLast},
 		{Key: "?", What: "help", Priority: shedLast},
+		{Key: escKey, What: "queue", Priority: shedFirst},
 		{Key: "q", What: quitWord, Priority: shedLast},
 	}
 
@@ -407,6 +408,7 @@ func (m *Model) hints() []keyhint.Hint {
 	}
 
 	if m.view == viewFile {
+		out = slices.DeleteFunc(out, func(h keyhint.Hint) bool { return h.Key == escKey })
 		out = append([]keyhint.Hint{{Key: escKey, What: "back", Priority: shedLast}}, out...)
 	}
 

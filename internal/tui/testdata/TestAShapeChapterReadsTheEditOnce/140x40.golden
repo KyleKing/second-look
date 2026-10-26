@@ -37,4 +37,4 @@ the same edit i… ───●────────────────�
    5     return <CardFBody id={id} />                                                                                                      │
                                                                                                                                            │
  ⇢ (root)  1 file · 1 hunk                                                                                                                 │
- j/k line   ] go to   c code   m mark   e write   a add   i context   S submit   ? help   q quit
+ j/k line   ] go to   c code   m mark   e write   a add   i context   S submit   ? help   esc queue   q quit

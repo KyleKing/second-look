@@ -205,18 +205,24 @@ func TestShellQuitsForACheckout(t *testing.T) {
 }
 
 // A review named on the command line has no queue behind it, so leaving it ends
-// the program rather than dropping into a screen that is not there. Esc then q
-// typed quickly arrives as alt+q, and closes the legend and leaves all the same.
+// the program rather than dropping into a screen that is not there. Esc asks for
+// the queue in the Outcome, but only once the legend it would close is down. Esc
+// then q typed quickly arrives as alt+q, and closes the legend and leaves all the same.
 func TestReviewShellQuitsWithNothingBehindIt(t *testing.T) {
 	t.Parallel()
+
+	esc, altQ := tea.KeyPressMsg{Code: tea.KeyEscape}, tea.KeyPressMsg{Code: 'q', Mod: tea.ModAlt}
 
 	for _, tc := range []struct {
 		name  string
 		first []tea.KeyPressMsg
 		quit  tea.KeyPressMsg
+		queue bool
 	}{
-		{"q", nil, letter('q')},
-		{"esc then q from the legend", []tea.KeyPressMsg{letter('?')}, tea.KeyPressMsg{Code: 'q', Mod: tea.ModAlt}},
+		{"q", nil, letter('q'), false},
+		{"esc then q from the legend", []tea.KeyPressMsg{letter('?')}, altQ, false},
+		{"esc asks for the queue", nil, esc, true},
+		{"esc after the legend closed", []tea.KeyPressMsg{letter('?'), esc}, esc, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -232,11 +238,17 @@ func TestReviewShellQuitsWithNothingBehindIt(t *testing.T) {
 			}
 
 			for _, k := range tc.first {
-				sendTo(t, s, k)
+				if sendTo(t, s, k) {
+					t.Fatalf("%s left the program before %s was pressed", tc.name, tc.quit.String())
+				}
 			}
 
 			if quit := sendTo(t, s, tc.quit); !quit {
 				t.Errorf("%s did not leave the program:\n%s", tc.name, plain(s.Frame()))
+			}
+
+			if got := s.Outcome().Queue; got != tc.queue {
+				t.Errorf("%s: Outcome.Queue = %v, want %v", tc.name, got, tc.queue)
 			}
 		})
 	}

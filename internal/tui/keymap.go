@@ -335,6 +335,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "D", What: "delete the branch"},
 		{What: "leaving", Head: true},
 		{Key: "?/esc", What: "this, or back"},
+		{Key: escKey, What: "the queue, once nothing else is open"},
 		{Key: "ctrl+\\", What: "end a pane"},
 		{Key: "q", What: quitWord},
 	}

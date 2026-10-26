@@ -21,4 +21,4 @@ vcs ●────────────────────────�
   17       last := 4                                                   │            search to hunks not yet read      ││
      internal/vcs/git.go ──────────────────────────────────────────────│ what is shown                                ││
        func Head() string {                                            ╰ · · ·────────────────────────────────────────╯│
- j/k line   ] go to   c code   m mark   e write   a add   i context   S submit   ? help   q quit
+ j/k line   ] go to   c code   m mark   e write   a add   i context   S submit   ? help   esc queue   q quit

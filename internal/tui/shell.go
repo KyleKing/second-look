@@ -51,6 +51,9 @@ type Shell struct {
 	// failure is what a screen the shell has already left could not finish,
 	// which a footer the alternate screen took with it is not.
 	failure error
+	// queue is set when a review with no queue behind it was left with esc,
+	// which the caller answers by opening the queue.
+	queue bool
 	// j is the usage journal, nil-safe everywhere it is read.
 	j *journal.J
 }
@@ -63,7 +66,8 @@ func NewShell(ctx context.Context, l *List, open Handoff) *Shell {
 
 // NewReviewShell is the same shell holding one review and no queue, which is
 // what a pull request named on the command line opens. Leaving the review ends
-// the program, there being nothing behind it.
+// the program, there being nothing behind it, and reports through Outcome.Queue
+// when esc was the key so the caller can open the queue.
 func NewReviewShell(ctx context.Context, m *Model) *Shell {
 	return &Shell{ctx: ctx, review: m, at: modeReview, width: minWidth, height: startHeight}
 }
@@ -84,8 +88,9 @@ func (s *Shell) WithJournal(j *journal.J) *Shell {
 type chosenMsg struct{}
 
 // leftMsg is the review screen asking for whatever is behind it. Whether that
-// ends the program is the shell's decision rather than the screen's.
-type leftMsg struct{}
+// ends the program is the shell's decision rather than the screen's. Esc is set
+// when esc asked, which names the queue where q names the exit.
+type leftMsg struct{ esc bool }
 
 // openedMsg is what the open answered with.
 type openedMsg struct {
@@ -121,7 +126,7 @@ func (s *Shell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return s, cmd
 	case leftMsg:
-		cmd := s.back()
+		cmd := s.back(msg.esc)
 
 		return s, cmd
 	case tea.KeyPressMsg:
@@ -247,7 +252,7 @@ func (s *Shell) opened(msg openedMsg) tea.Cmd {
 
 // back leaves the review for the queue behind it, which is the queue that was
 // there: nothing is searched again and the filter is where it was left.
-func (s *Shell) back() tea.Cmd {
+func (s *Shell) back(esc bool) tea.Cmd {
 	// A submit that failed is not un-failed by the next review going well, so
 	// it is kept for the exit code as well as said once in the queue's footer.
 	failed := s.review.failure
@@ -258,6 +263,8 @@ func (s *Shell) back() tea.Cmd {
 	s.j.Since("shell", "leave", s.review.built)
 
 	if s.list == nil {
+		s.queue = esc
+
 		return tea.Quit
 	}
 
@@ -288,7 +295,7 @@ func (s *Shell) Outcome() Outcome {
 		return Outcome{}
 	}
 
-	return Outcome{Checkout: s.review.checkout, Next: s.review.next}
+	return Outcome{Checkout: s.review.checkout, Next: s.review.next, Queue: s.queue}
 }
 
 // Failure is the action that did not complete, so a submit that failed reaches

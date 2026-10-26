@@ -50,6 +50,9 @@ type Outcome struct {
 	// one staged. Twenty-five reviews is one sitting, and stopping to find the
 	// next row by hand is what makes it feel like twenty-five errands.
 	Next bool
+	// Queue reports that a review opened with no queue behind it was left with
+	// esc, which asks for the queue rather than the exit.
+	Queue bool
 }
 
 // Sender posts one comment on its own, outside any review. It is a separate

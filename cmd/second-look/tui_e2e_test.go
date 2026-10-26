@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -732,7 +733,6 @@ func TestReviewScreenQuitsWithoutPosting(t *testing.T) {
 		keys string
 	}{
 		{"q", "q"},
-		{"esc", "\x1b"},
 		{"ctrl-c", "\x03"},
 	} {
 		t.Run(quit.name, func(t *testing.T) {
@@ -752,6 +752,55 @@ func TestReviewScreenQuitsWithoutPosting(t *testing.T) {
 
 			if _, err := os.Stat(artifact.Path(stored(t, dir), 2)); err != nil {
 				t.Error("quitting removed the prepared review")
+			}
+
+			requireTerminalGivenBack(t, sc.raw())
+		})
+	}
+}
+
+// reviewThenInbox is a review's reads followed by the inbox's, which is what a
+// review opened from the command line costs once esc asks for the queue.
+func reviewThenInbox(t *testing.T, sha string) string {
+	t.Helper()
+
+	c, err := ghcassette.Load(withCommits(t, openCassette(t, sha)))
+	if err != nil {
+		t.Fatalf("loading the review's reads: %v", err)
+	}
+
+	c.Interactions = append(c.Interactions, onScreen(t).Interactions...)
+
+	path := filepath.Join(t.TempDir(), "review-then-inbox.golden")
+	if err := ghcassette.Save(path, c); err != nil {
+		t.Fatalf("writing the derived cassette: %v", err)
+	}
+
+	return path
+}
+
+// A review opened by naming it has no queue behind it, and esc asks for one: the
+// inbox opens, and q from there ends the session with the terminal given back.
+func TestReviewEsc_OpensTheQueueFromADirectReview(t *testing.T) {
+	t.Parallel()
+
+	for _, sz := range queueSizes {
+		t.Run(fmt.Sprintf("%dx%d", sz.cols, sz.rows), func(t *testing.T) {
+			t.Parallel()
+
+			dir, sha := scratchRepo(t, headBranch)
+			s := ghcassette.Replay(t, reviewThenInbox(t, sha))
+			seedReview(t, dir, sha)
+
+			sc := openAt(t, sz, s, dir, "2")
+			at := sc.awaitFrom(0, "testdata/fixture/sample.go")
+
+			sc.press("\x1b")
+			sc.awaitFrom(at, "gh-sweep#102")
+			sc.press("q")
+
+			if code := sc.wait(); code != 0 {
+				t.Fatalf("leaving the queue exited %d:\n%s", code, sc.text())
 			}
 
 			requireTerminalGivenBack(t, sc.raw())

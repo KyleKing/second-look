@@ -341,6 +341,10 @@ func afterReview(
 			t, land = next, 0
 		}
 
+		if out.Queue {
+			return openQueue(ctx, tabInbox, stdin, stdout)
+		}
+
 		if !out.Checkout && !out.Next {
 			return nil
 		}
