@@ -1,4 +1,4 @@
- second-look                                                                                           sorted by triage 
+second-look                                                                                             sorted by triage
 ─────────────────────────────────────────╭─ keys ─────────────────────────────────────────────────────────────────────╮─
   new since you looked  2                │ j/k, ctrl+u/d, g/G  move, half page, top and bottom                        │
   kyleking/tlr#118    ● good catch, pushe│      ctrl+e/ctrl+y  scroll without moving the cursor                       │ 
@@ -15,6 +15,6 @@
                                          │             q, esc  leave                                                  │
                                          │                                                                            │
                                          │                     ● marks a conversation that moved since you last read  │
- good catch, pushed a defer  kyleking/tlr│                     it.                                                    │ 
- 2h                                      ╰────────────────────────────────────────────────────────────────────────────╯ 
- enter read   space mark read   r reply   R resolve   o GitHub   tab group   / filter   ? help   q quit                 
+good catch, pushed a defer  kyleking/tlr#│                     it.                                                    │ 
+2h                                       ╰────────────────────────────────────────────────────────────────────────────╯ 
+enter read   space mark read   r reply   R resolve   o GitHub   tab group   / filter   ? help   q quit                  

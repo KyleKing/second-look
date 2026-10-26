@@ -312,7 +312,7 @@ func Readings() []Reading {
 	}
 
 	for name, c := range map[string]*lipgloss.Style{
-		"badge": &st.badge, "badge active": &st.badgeOn, "badge blocked": &st.badgeBlocked,
+		"badge": &st.skin.Badge, "badge active": &st.skin.BadgeActive,
 	} {
 		add(name, c.GetForeground(), c.GetBackground())
 	}

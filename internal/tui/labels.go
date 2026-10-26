@@ -8,6 +8,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/overlay"
 
 	"github.com/kyleking/second-look/internal/labels"
@@ -260,7 +261,7 @@ func (p *labelPicker) box(s styles, body []string, width int) []string {
 			room = max(room, textWidth(r))
 		}
 
-		rows[at] = litLine(rows[at], room, s.row)
+		rows[at] = frame.Lit(rows[at], room, s.row)
 	}
 
 	height := min(len(rows), labelRows)
@@ -365,8 +366,8 @@ func (l *List) applyLabelSet(msg labelSetMsg) {
 	l.say(oneLine(msg.err), true)
 }
 
-func (l *List) labelOver(frame string) string {
-	lines := strings.Split(frame, "\n")
+func (l *List) labelOver(screen string) string {
+	lines := strings.Split(screen, "\n")
 	last := len(lines) - 1
 
 	return strings.Join(append(l.labeler.box(l.styles, lines[:last], l.width), lines[last]), "\n")

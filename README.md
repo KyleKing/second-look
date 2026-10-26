@@ -64,6 +64,8 @@ second-look kyleking/second-look#10  # or any pull request, no clone needed
 second-look local                    # review your own unpushed change before it goes up
 ```
 
+A click puts the cursor on a row or switches to a tab, and the wheel moves the cursor. The screen holds the mouse to do that, so hold shift (option in some terminals) to select text.
+
 Agents like Claude Code use second-look through a skill that the binary prints, which you can install with:
 
 ```bash

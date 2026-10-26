@@ -1,4 +1,4 @@
- second-look              ╭─ keys ────────────────────────────────────────────╮ 
+second-look               ╭─ keys ────────────────────────────────────────────╮e
 ──────────────────────────│ j/k, ctrl+u/d, g/G  move, half page, top and      │─
   new since you looked  2 │                     bottom                        │
   kyleking/tlr#118    ● go│      ctrl+e/ctrl+y  scroll without moving the     │ 
@@ -15,6 +15,6 @@
                           │                  R  resolve the thread, or        │
                           │                     thumbs-up what cannot be      │
                           │                     resolved                      │
- good catch, pushed a defe│                  o  open it on GitHub             │ 
- alice · internal/pool/poo╰ · · ·─────────────────────────────────────────────╯ 
- enter read   space mark read   r reply   R resolve   o GitHub   ? help         
+good catch, pushed a defer│                  o  open it on GitHub             │ 
+alice · internal/pool/pool╰ · · ·─────────────────────────────────────────────╯ 
+enter read   space mark read   r reply   R resolve   o GitHub   ? help          

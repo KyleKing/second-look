@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/tui/handoff"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/overlay"
 	"github.com/kyleking/aragonite/tui/pane"
 
 	"github.com/kyleking/second-look/internal/acp"
@@ -296,6 +297,10 @@ type Model struct {
 	// helpAt is how far the legend is scrolled, which a short frame needs
 	// because the keys that leave it are at the bottom of it.
 	helpAt int
+	// helpRect is where the legend was last drawn, and lineRows the row each
+	// body line drew, which is what a click is read against.
+	helpRect overlay.Rect
+	lineRows []int
 	// helpPath is which page of the legend is open: the keys taken to reach
 	// it, empty at the root.
 	helpPath []string
@@ -661,6 +666,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case tea.MouseWheelMsg:
 		m.wheel(msg)
+
+		return m, nil
+	case tea.MouseClickMsg:
+		m.click(msg.Mouse())
 
 		return m, nil
 	case tea.KeyPressMsg:
@@ -1032,8 +1041,7 @@ func (m *Model) redo(c change) (tea.Model, tea.Cmd) {
 	return m.complete(c.key)
 }
 
-// wheel moves whichever overlay is up, since the mouse is only captured while
-// one is.
+// wheel moves whichever overlay is up, and the cursor when none is.
 func (m *Model) wheel(msg tea.MouseWheelMsg) {
 	step := wheelStep
 
@@ -1052,7 +1060,47 @@ func (m *Model) wheel(msg tea.MouseWheelMsg) {
 		m.aboutAt = clamp(m.aboutAt+step, len(m.aboutText(m.width))-m.viewHeight())
 	case m.outline.open:
 		m.outlineStep(step / wheelStep)
+	case m.quiet():
+		m.moveBy(step)
+		m.follow()
 	}
+}
+
+// quiet is no overlay, prompt, editor, or pane holding the screen, which is
+// when the mouse may move the cursor.
+func (m *Model) quiet() bool {
+	return !m.help && !m.aboutOpen && !m.outline.open && m.showing == nil &&
+		m.labeler == nil && m.editing == nil && m.pane == nil && !m.agentOpen
+}
+
+// click closes the legend from outside it, and puts the cursor on the row
+// clicked on, read against the lines rowLines last drew.
+func (m *Model) click(at tea.Mouse) {
+	if m.help {
+		if !m.helpRect.Contains(at.X, at.Y) {
+			m.help = false
+		}
+
+		return
+	}
+
+	if at.Button != tea.MouseLeft || !m.quiet() || (m.tourWide() && at.X <= railCols) {
+		return
+	}
+
+	y := at.Y - headerRows
+	if y < 0 || y >= len(m.lineRows) {
+		return
+	}
+
+	i := m.lineRows[y]
+	if i < 0 || i >= len(m.screen.rows) || passed(m.screen.rows[i]) {
+		return
+	}
+
+	m.cursor = i
+	m.say("", false)
+	m.follow()
 }
 
 // readHelp walks the legend's pages and closes it, and swallows everything

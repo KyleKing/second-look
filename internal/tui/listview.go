@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
 	"github.com/kyleking/aragonite/tui/table"
@@ -18,9 +18,7 @@ import (
 func (l *List) View() tea.View {
 	v := tea.NewView(l.render())
 	v.AltScreen = true
-	if l.help {
-		v.MouseMode = tea.MouseModeCellMotion
-	}
+	v.MouseMode = tea.MouseModeCellMotion
 
 	return v
 }
@@ -31,100 +29,82 @@ func (l *List) render() string {
 			strconv.Itoa(minWidth) + "x" + strconv.Itoa(minHeight) + " is the minimum"
 	}
 
-	var b strings.Builder
+	f := l.frame()
+	f.Body = strings.Split(l.bodyView(), "\n")
+	f.Panel = l.inspector()
+	f.Hints = l.footerHints()
 
-	b.WriteString(l.header())
-	b.WriteByte('\n')
-	b.WriteString(l.rule())
-	b.WriteByte('\n')
-	b.WriteString(l.bodyView())
-	b.WriteByte('\n')
-	b.WriteString(l.panel())
+	lines := strings.Split(frame.Render(l.styles.skin, f, l.width, l.height), "\n")
+	if over := l.footerOver(); over != "" {
+		lines[len(lines)-1] = frame.Lit(over, l.width, l.styles.panel)
+	}
 
-	frame := b.String()
 	if l.help {
-		frame = l.helpOver(frame)
+		lines = l.helpOver(lines)
 	}
 
+	out := strings.Join(lines, "\n")
 	if l.labeler != nil {
-		frame = l.labelOver(frame)
+		out = l.labelOver(out)
 	}
 
-	return frame
+	return out
 }
 
-// header is the first of the header's two lines: the program's name, the tabs,
-// and on the right what changes how to read the list. A narrowing filter or a
-// focused repository takes the right side, since a queue that is quiet for the
-// wrong reason is the worst thing narrowing it can do.
-func (l *List) header() string {
-	left, _ := l.lead()
-	right := l.right()
-
-	gap := l.width - textWidth(left) - textWidth(right)
-	if right == "" || gap < 1 {
-		return cut(left, l.width)
+// frame is the chrome around the rows: the program's name, the tabs, on the
+// right what changes how to read the list, and on the rule under them what is
+// narrowing the rows. Its Panel holds the inspector's height, so the geometry a
+// click is read against is the one drawn.
+func (l *List) frame() frame.Frame {
+	return frame.Frame{
+		Title: l.title,
+		Strip: true,
+		Tabs:  l.frameTabs(),
+		Facts: l.facts(),
+		Note:  l.note(),
+		Panel: make([]string, l.inspectorRows()),
 	}
-
-	return left + strings.Repeat(" ", gap) + right
 }
 
-// lead is the header's left side and the cells the active tab spans in it.
-func (l *List) lead() (string, stretch) {
-	text := " " + l.styles.title.Render(l.title)
-
-	strip, at := l.tabStrip()
-	if strip == "" {
-		return text, stretch{}
-	}
-
-	offset := textWidth(text) + len(tabGap)
-
-	return text + tabGap + strip, stretch{from: offset + at.from, to: offset + at.to}
-}
-
-func (l *List) right() string {
+// facts is the header's right side. A narrowing filter or a focused repository
+// takes it, since a queue that is quiet for the wrong reason is the worst thing
+// narrowing it can do.
+func (l *List) facts() []frame.Fact {
 	if l.focused != "" || l.filter.on() {
-		var parts []string
+		var out []frame.Fact
 
 		if l.focused != "" {
-			parts = append(parts, l.styles.file.Render(l.focused))
+			out = append(out, frame.Fact{Text: l.focused, Tone: frame.Accent})
 
 			if l.focusNote != "" {
-				parts = append(parts, l.styles.subtitle.Render(l.focusNote))
+				out = append(out, frame.Fact{Text: l.focusNote})
 			}
 		}
 
-		parts = append(parts, l.styles.subtitle.Render(l.counted()))
-
-		return strings.Join(parts, "  ") + " "
+		return append(out, frame.Fact{Text: l.counted()})
 	}
 
 	if l.state == nil {
-		return ""
+		return nil
 	}
 
 	s := l.state()
 	if s.Text == "" {
-		return ""
+		return nil
 	}
 
-	face := l.styles.subtitle
+	tone := frame.Muted
 	if s.Busy {
-		face = l.styles.warn
+		tone = frame.Warning
 	}
 
-	return face.Render(s.Text + " ")
+	return []frame.Fact{{Text: s.Text, Tone: tone}}
 }
 
-// ruleGap is the cells kept between the underline and the words on its right.
-const ruleGap = 2
-
-// rule is the header's second line: a hairline with the active tab marked by a
-// heavier line under it, and on the right what is narrowing the rows. The
-// section yields to the filter, since it is the one part of the line a reader
-// can recover by looking at the rows under it.
-func (l *List) rule() string {
+// note is the rule's right end: the filter, then the heading scrolled past. The
+// section yields to the filter, since it is the part a reader can recover by
+// looking at the rows under it.
+func (l *List) note() string {
 	var words []string
 
 	if l.filter.on() {
@@ -135,28 +115,7 @@ func (l *List) rule() string {
 		words = append(words, section)
 	}
 
-	_, under := l.lead()
-
-	// The rule never runs under the words, so what is cut is the line.
-	tail := ""
-	room := l.width
-
-	if len(words) > 0 {
-		tail = " " + l.styles.hunk.Render(cut(strings.Join(words, " · "), max(1, l.width-under.to-ruleGap))) + " "
-		room = l.width - textWidth(tail)
-	}
-
-	var b strings.Builder
-
-	edge := min(under.from, room)
-	b.WriteString(l.styles.hairline.Render(strings.Repeat("─", edge)))
-
-	heavy := max(0, min(under.to, room)-edge)
-	b.WriteString(l.styles.rail.Render(strings.Repeat("━", heavy)))
-	b.WriteString(l.styles.hairline.Render(strings.Repeat("─", max(0, room-edge-heavy))))
-	b.WriteString(tail)
-
-	return b.String()
+	return strings.Join(words, " · ")
 }
 
 // section is the heading the cursor sits under, and only once that heading has
@@ -248,23 +207,9 @@ func laneCount(s *Section) string {
 	return strconv.Itoa(len(s.Rows))
 }
 
-// litLine draws text to width cells in face. A face inside text ends with a
-// reset that would drop it, so each reset restores it.
-func litLine(text string, width int, face lipgloss.Style) string {
-	on, _, _ := strings.Cut(face.Render("x"), "x")
-
-	if over := width - textWidth(text); over > 0 {
-		text += strings.Repeat(" ", over)
-	}
-
-	for _, reset := range []string{"\x1b[m", "\x1b[0m"} {
-		text = strings.ReplaceAll(text, reset, reset+on)
-	}
-
-	return on + text + "\x1b[m"
-}
-
-func (l *List) footer() string {
+// footerOver is what takes the footer's whole line instead of the keys: the
+// label picker, the filter being typed, or a status message.
+func (l *List) footerOver() string {
 	if l.labeler != nil {
 		return l.labeler.prompt(l.styles, l.width)
 	}
@@ -279,9 +224,13 @@ func (l *List) footer() string {
 			style = l.styles.fail
 		}
 
-		return style.Render(cut(" "+l.status, l.width))
+		return style.Render(cut(l.status, l.width))
 	}
 
+	return ""
+}
+
+func (l *List) footerHints() []keyhint.Hint {
 	pairs := l.hints
 	if pairs == nil {
 		pairs = [][2]string{
@@ -309,13 +258,13 @@ func (l *List) footer() string {
 		}
 	}
 
-	return " " + keyhint.Fit(footerStyles(l.styles), hints, l.width-1)
+	return hints
 }
 
 // helpOver floats the legend over the list's bottom corner, the same window
 // the review screen's legend and a waiting chord draw. A key anywhere closes
 // it, so it borrows the screen rather than replacing it.
-func (l *List) helpOver(frame string) string {
+func (l *List) helpOver(lines []string) []string {
 	hints := l.helpLines
 	if hints == nil {
 		hints = defaultListHelp()
@@ -326,14 +275,10 @@ func (l *List) helpOver(frame string) string {
 	l.helpAt = min(l.helpAt, max(0, len(rows)-inner))
 	box := overlay.Box(boxStyles(l.styles), "keys", rows, inner, l.helpAt)
 
-	lines := strings.Split(frame, "\n")
-	for len(lines) < l.height {
-		lines = append(lines, "")
-	}
+	x, y := l.width-textWidth(box[0])-1, max(0, l.height-len(box)-1)
+	l.helpBox = overlay.At(box, x, y)
 
-	y := max(0, l.height-len(box)-1)
-
-	return strings.Join(overlay.Blit(lines[:l.height], box, l.width-textWidth(box[0])-1, y), "\n")
+	return overlay.Blit(lines, box, x, y)
 }
 
 func defaultListHelp() [][2]string {

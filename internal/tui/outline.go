@@ -8,6 +8,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/keyhint"
 
 	"github.com/kyleking/second-look/internal/diff"
@@ -365,7 +366,7 @@ func (m *Model) listLines(p listPane, w, h int) []string {
 			continue
 		}
 
-		out = append(out, litLine(" "+text, w, m.styles.row))
+		out = append(out, frame.Lit(" "+text, w, m.styles.row))
 	}
 
 	return block(out, h, w)

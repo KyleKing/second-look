@@ -11,10 +11,6 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 )
 
-// staleChipShare is how much of the accent the active tab's chip keeps while its
-// count is a snapshot's.
-const staleChipShare = 0.55
-
 // tintShare is how much of the accent a flashing row's background holds at each
 // step, from the settled row up. The first is kept under the selection band's
 // share so a flash never reads as a second selection.
@@ -74,17 +70,11 @@ type styles struct {
 	// rungs are the faces a queue row is drawn in, each as a pair: dim on the
 	// frame's background and lit on the band.
 	rungs ladder
-	// Chips and rules for the queue's header and lane headings.
-	badge        lipgloss.Style
-	badgeOn      lipgloss.Style
-	badgeBlocked lipgloss.Style
 	// tint is a row's background at each step of its flash, indexed by Row.Flash.
 	tint [flashSteps + 1]lipgloss.Style
-	// badgeStale and badgeOnStale are the chips for a count read off a snapshot.
-	badgeStale   lipgloss.Style
-	badgeOnStale lipgloss.Style
-	hairline     lipgloss.Style
-	lanes        laneFaces
+	// skin is what the queue's frame is drawn with.
+	skin  skin.Skin
+	lanes laneFaces
 	// Card faces, until aragonite's skin.Edge and skin.Card carry this contrast.
 	edge      lipgloss.Style
 	agentEdge lipgloss.Style
@@ -127,37 +117,32 @@ func newStyles() styles {
 		// The cursor is drawn as a solid chip rather than sk.Cursor's bold text,
 		// since a single lavender character reads the same as the rail and the
 		// title's own accent and is lost in a screen already full of them.
-		cursor:       base.Background(accent(p)).Foreground(p.Base).Bold(true),
-		selected:     sk.Accent,
-		rail:         sk.Accent,
-		body:         sk.Body,
-		note:         sk.Muted.Italic(true),
-		footer:       sk.Subtitle,
-		head:         sk.Heading,
-		key:          sk.Key,
-		warn:         sk.Warning,
-		fail:         sk.Error,
-		ok:           sk.Success,
-		merged:       base.Foreground(p.Mauve),
-		priority:     base.Foreground(p.Peach).Bold(true),
-		placeholder:  base.Foreground(p.Overlay0),
-		band:         sk.Band,
-		row:          sk.Band,
-		span:         rangeFace(p, sk),
-		panel:        base.Background(p.Mantle),
-		hintKey:      base.Foreground(accent(p)),
-		hintWord:     base.Foreground(p.Overlay1),
-		rungs:        newLadder(p, accent(p)),
-		badge:        sk.Badge,
-		badgeOn:      sk.BadgeActive,
-		badgeBlocked: sk.Badge.Foreground(p.Red),
-		badgeStale:   sk.Badge.Foreground(p.Overlay0).Bold(false),
-		badgeOnStale: sk.BadgeActive.Background(theme.Mix(p.Base, accent(p), staleChipShare)).Bold(false),
-		hairline:     sk.Hairline,
-		lanes:        newLaneFaces(p),
-		edge:         base.Foreground(p.Overlay2),
-		agentEdge:    base.Foreground(p.Mauve),
-		fill:         p.Surface0,
+		cursor:      base.Background(accent(p)).Foreground(p.Base).Bold(true),
+		selected:    sk.Accent,
+		rail:        sk.Accent,
+		body:        sk.Body,
+		note:        sk.Muted.Italic(true),
+		footer:      sk.Subtitle,
+		head:        sk.Heading,
+		key:         sk.Key,
+		warn:        sk.Warning,
+		fail:        sk.Error,
+		ok:          sk.Success,
+		merged:      base.Foreground(p.Mauve),
+		priority:    base.Foreground(p.Peach).Bold(true),
+		placeholder: base.Foreground(p.Overlay0),
+		band:        sk.Band,
+		row:         sk.Band,
+		span:        rangeFace(p, sk),
+		panel:       sk.Panel,
+		hintKey:     base.Foreground(accent(p)),
+		hintWord:    base.Foreground(p.Overlay1),
+		rungs:       newLadder(p, accent(p)),
+		skin:        sk,
+		lanes:       newLaneFaces(p),
+		edge:        base.Foreground(p.Overlay2),
+		agentEdge:   base.Foreground(p.Mauve),
+		fill:        p.Surface0,
 		severity: map[string]lipgloss.Style{
 			"blocker": base.Foreground(p.Red).Bold(true),
 			"major":   base.Foreground(p.Peach).Bold(true),

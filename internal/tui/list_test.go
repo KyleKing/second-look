@@ -233,8 +233,8 @@ func TestTheCursorRowIsReversedWhereThereIsNoColor(t *testing.T) {
 }
 
 // The legend answers the wheel the way the review's does: it scrolls rather
-// than closing, since a wheel tick is not a key, and it gives the mouse back
-// when the box closes.
+// than closing, since a wheel tick is not a key, and a click outside it closes
+// it.
 func TestListHelpScrollsOnTheWheel(t *testing.T) {
 	t.Parallel()
 
@@ -258,10 +258,42 @@ func TestListHelpScrollsOnTheWheel(t *testing.T) {
 		t.Errorf("the wheel did not reach the legend's tail:\n%s", got)
 	}
 
-	l.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	l.Update(tea.MouseClickMsg{X: 1, Y: 1, Button: tea.MouseLeft})
 
-	if mode := l.View().MouseMode; mode != tea.MouseModeNone {
-		t.Errorf("the closed legend still captures the mouse: %v", mode)
+	if got := plain(l.ListFrame()); strings.Contains(got, "leave") {
+		t.Errorf("a click outside the legend did not close it:\n%s", got)
+	}
+}
+
+// A click puts the cursor on the row under it and switches to the tab under
+// it, read against the same geometry the frame was drawn with.
+func TestListAnswersAClick(t *testing.T) {
+	t.Parallel()
+
+	l := tui.NewTabs([]tui.Tab{
+		{Name: "inbox", Sections: lanes, Columns: laneColumns},
+		{Name: "staged", Sections: lanes, Columns: laneColumns},
+	}, 0)
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+
+	lines := strings.Split(plain(l.ListFrame()), "\n")
+	at := slices.IndexFunc(lines, func(s string) bool { return strings.Contains(s, "d#4") })
+
+	if at < 0 {
+		t.Fatalf("no row to click:\n%s", strings.Join(lines, "\n"))
+	}
+
+	l.Update(tea.MouseClickMsg{X: 4, Y: at, Button: tea.MouseLeft})
+
+	if got := l.CursorKey(); !strings.Contains(got, "#4") {
+		t.Errorf("a click on the d#4 row put the cursor on %q", got)
+	}
+
+	l.Update(tea.MouseClickMsg{X: strings.Index(lines[0], "staged"), Y: 0, Button: tea.MouseLeft})
+
+	if got := plain(l.ListFrame()); !strings.Contains(strings.Split(got, "\n")[1], "━") ||
+		strings.Index(strings.Split(got, "\n")[1], "━") < strings.Index(lines[0], "staged") {
+		t.Errorf("a click on the staged tab did not switch to it:\n%s", got)
 	}
 }
 
@@ -1275,7 +1307,7 @@ func TestTheFooterShedsWholeHintsByPriority(t *testing.T) {
 				}
 			}
 
-			if want := " " + strings.Join(drawn, "   "); footer != want {
+			if want := strings.Join(drawn, "   "); footer != want {
 				t.Fatalf("the footer is %q, want whole hints only: %q", footer, want)
 			}
 

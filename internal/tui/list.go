@@ -7,6 +7,8 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/kyleking/aragonite/tui/frame"
+	"github.com/kyleking/aragonite/tui/overlay"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/second-look/internal/labels"
@@ -257,10 +259,12 @@ type List struct {
 	// reversed because no band can be.
 	mono bool
 
-	status  string
-	failed  bool
-	help    bool
-	helpAt  int
+	status string
+	failed bool
+	help   bool
+	helpAt int
+	// helpBox is where the legend was last drawn, which a click is read against.
+	helpBox overlay.Rect
 	chosen  string
 	failure error
 }
@@ -356,10 +360,10 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		l.rebuild()
 
 		return l, nil
-	case tea.MouseWheelMsg:
-		l.wheel(msg)
+	case tea.MouseMsg:
+		cmd := l.mouse(msg)
 
-		return l, nil
+		return l, cmd
 	case tea.ColorProfileMsg:
 		l.setProfile(msg.Profile)
 
@@ -427,19 +431,74 @@ func (l *List) loaders() []Loader {
 	return out
 }
 
-// wheel scrolls the legend while it is up. A wheel tick is not a key, so the
-// legend's any-key-closes does not answer it.
-func (l *List) wheel(msg tea.MouseWheelMsg) {
-	if !l.help {
-		return
+func (l *List) mouse(msg tea.MouseMsg) tea.Cmd {
+	switch msg := msg.(type) {
+	case tea.MouseWheelMsg:
+		return l.wheel(msg)
+	case tea.MouseClickMsg:
+		return l.click(msg.Mouse())
 	}
+
+	return nil
+}
+
+// wheel scrolls the legend while it is up, and moves the cursor otherwise. A
+// wheel tick is not a key, so the legend's any-key-closes does not answer it.
+func (l *List) wheel(msg tea.MouseWheelMsg) tea.Cmd {
+	step := 0
 
 	switch msg.Button {
 	case tea.MouseWheelUp:
-		l.helpAt = max(0, l.helpAt-wheelStep)
+		step = -wheelStep
 	case tea.MouseWheelDown:
-		l.helpAt += wheelStep
+		step = wheelStep
 	}
+
+	if l.help {
+		l.helpAt = max(0, l.helpAt+step)
+
+		return nil
+	}
+
+	if step == 0 || l.labeler != nil || l.filter.typing {
+		return nil
+	}
+
+	l.move(step)
+
+	return l.rest()
+}
+
+// click closes the legend from outside it, switches to a tab clicked on, and
+// puts the cursor on a row clicked on. A prompt in the footer keeps the screen.
+func (l *List) click(m tea.Mouse) tea.Cmd {
+	if l.help {
+		if !l.helpBox.Contains(m.X, m.Y) {
+			l.help = false
+		}
+
+		return nil
+	}
+
+	if m.Button != tea.MouseLeft || l.labeler != nil || l.filter.typing {
+		return nil
+	}
+
+	f := l.frame()
+
+	if at, ok := frame.TabAt(l.styles.skin, f, l.width, m.X, m.Y); ok {
+		return l.switchTo(at)
+	}
+
+	row, ok := frame.BodyRow(f, l.height, m.Y)
+	if !ok || l.offset+row >= len(l.lines) || !l.selectable(l.offset+row) {
+		return nil
+	}
+
+	l.cursor = l.offset + row
+	l.scroll()
+
+	return l.rest()
 }
 
 // readHelp answers a key while the legend is up: the scroll keys move inside
@@ -761,7 +820,7 @@ func (l *List) half() int {
 // visible is how many lines the frame has for rows, after the header and the
 // panel pinned to the bottom.
 func (l *List) visible() int {
-	return max(0, l.height-headerRows-l.panelRows())
+	return frame.Rows(l.frame(), l.height)
 }
 
 func abs(n int) int {

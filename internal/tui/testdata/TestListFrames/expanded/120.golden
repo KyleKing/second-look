@@ -1,4 +1,4 @@
- second-look                                                                                           sorted by triage 
+second-look                                                                                             sorted by triage
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   new since you looked  2
   kyleking/tlr#118    ● good catch, pushed a defer                 …ol/pool.go:42  alice         2h  2 replies          
@@ -15,6 +15,6 @@
 
 
 
- good catch, pushed a defer  kyleking/tlr#118                                                                           
- 2h                                                                                                                     
- enter read   space mark read   r reply   R resolve   o GitHub   tab group   / filter   ? help   q quit                 
+good catch, pushed a defer  kyleking/tlr#118                                                                            
+2h                                                                                                                      
+enter read   space mark read   r reply   R resolve   o GitHub   tab group   / filter   ? help   q quit                  

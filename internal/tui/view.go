@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
 
@@ -31,11 +32,9 @@ func (m *Model) View() tea.View {
 	v := tea.NewView(m.render())
 	v.AltScreen = true
 
-	// The mouse is captured only while an overlay can scroll, so drag-select
-	// keeps working the rest of the time.
-	if m.help || m.aboutOpen || m.outline.open {
-		v.MouseMode = tea.MouseModeCellMotion
-	}
+	// Capturing the mouse leaves drag-select to shift or option, which is the
+	// price of a click moving the cursor.
+	v.MouseMode = tea.MouseModeCellMotion
 
 	return v
 }
@@ -546,8 +545,10 @@ func (m *Model) helpBox(body []string) []string {
 		title = strings.Join(m.helpPath, " then ") + " then"
 	}
 	box := overlay.Box(boxStyles(m.styles), title, rows, inner, m.helpAt)
+	x, y := m.width-textWidth(box[0])-1, h-len(box)
+	m.helpRect = overlay.At(box, x, y+headerRows)
 
-	return overlay.Blit(body, box, m.width-textWidth(box[0])-1, h-len(box))
+	return overlay.Blit(body, box, x, y)
 }
 
 // waitLines lays the page a waiting chord accepts over the diff's bottom
@@ -574,12 +575,15 @@ func (m *Model) rowLines() []string {
 	width := bodyWidth(m.diffWidth(), bar)
 
 	out := make([]string, 0, h)
+	m.lineRows = m.lineRows[:0]
 
 	if head, ok := m.pinned(width); ok {
 		out = append(out, head)
 	}
 
 	for i := m.offset; i < len(m.screen.rows) && len(out) < h; i++ {
+		m.lineRows = rowsTo(m.lineRows, len(out), -1)
+
 		if m.editingHere(i) {
 			if m.answering() {
 				out = append(out, m.answeredLines(i, h-len(out), width)...)
@@ -595,17 +599,29 @@ func (m *Model) rowLines() []string {
 		}
 
 		out = append(out, m.renderRow(i, width)...)
+		m.lineRows = rowsTo(m.lineRows, len(out), i)
 
 		if m.editingUnder(i) {
 			out = append(out, m.editorLines()...)
 		}
 	}
 
+	m.lineRows = rowsTo(m.lineRows, h, -1)[:h]
+
 	for len(out) < h {
 		out = append(out, "")
 	}
 
 	return alongside(out[:h], bar, m.styles, m.diffWidth())
+}
+
+// rowsTo pads lines, the row each drawn line belongs to, out to n entries of row.
+func rowsTo(lines []int, n, row int) []int {
+	for len(lines) < n {
+		lines = append(lines, row)
+	}
+
+	return lines
 }
 
 func (m *Model) renderRow(i, width int) []string {
@@ -631,9 +647,9 @@ func (m *Model) renderRow(i, width int) []string {
 func (m *Model) tinted(i int, line string, width int) string {
 	switch {
 	case i == m.cursor:
-		return litLine(line, width, m.styles.row)
+		return frame.Lit(line, width, m.styles.row)
 	case m.inRange(i):
-		return litLine(line, width, m.styles.span)
+		return frame.Lit(line, width, m.styles.span)
 	}
 
 	return line

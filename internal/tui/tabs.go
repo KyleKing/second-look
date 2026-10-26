@@ -2,10 +2,10 @@ package tui
 
 import (
 	"strconv"
-	"strings"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/second-look/internal/labels"
@@ -223,59 +223,23 @@ func (l *List) tabKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	return nil, false
 }
 
-// stretch is the columns of a line a thing covers.
-type stretch struct{ from, to int }
-
-// tabGap separates one tab from the next.
-const tabGap = "   "
-
-// tabStrip is the tabs on the header line: each a digit, a name, and a count
-// chip. It also says which cells the active tab spans, so the rule below can
-// underline it.
-func (l *List) tabStrip() (string, stretch) {
+// frameTabs is the strip: each tab's name and count chip. One tab is a screen
+// rather than a set of them, so it draws none.
+func (l *List) frameTabs() []frame.Tab {
 	if len(l.tabs) < several {
-		return "", stretch{}
+		return nil
 	}
 
-	parts := make([]string, 0, len(l.tabs))
-	col := 0
-	var active stretch
+	out := make([]frame.Tab, len(l.tabs))
 
 	for i := range l.tabs {
-		on := i == l.at
-		name := l.styles.rungs.cell.dim
-		chip := l.styles.badge
-
-		if on {
-			name = l.styles.rungs.title.dim
-			chip = l.styles.badgeOn
-		}
-
-		part := name.Render(l.tabs[i].Name)
+		out[i] = frame.Tab{Label: l.tabs[i].Name, Active: i == l.at}
 
 		if l.tabs[i].Badge != nil {
-			if b := l.tabs[i].Badge(); b.Label != "" {
-				switch {
-				case b.Stale && on:
-					chip = l.styles.badgeOnStale
-				case b.Stale:
-					chip = l.styles.badgeStale
-				case b.Alert && !on:
-					chip = l.styles.badgeBlocked
-				}
-
-				part += chip.Render(b.Label)
-			}
+			b := l.tabs[i].Badge()
+			out[i].Count, out[i].Alert, out[i].Stale = b.Label, b.Alert, b.Stale
 		}
-
-		if on {
-			active = stretch{from: col, to: col + textWidth(part)}
-		}
-
-		col += textWidth(part) + len(tabGap)
-
-		parts = append(parts, part)
 	}
 
-	return strings.Join(parts, tabGap), active
+	return out
 }

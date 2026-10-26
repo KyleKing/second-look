@@ -3080,8 +3080,23 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 		t.Errorf("escape did not close the legend:\n%s", got)
 	}
 
-	if mode := m.View().MouseMode; mode != tea.MouseModeNone {
-		t.Errorf("the closed legend still captures the mouse: %v", mode)
+	// A click outside the legend closes it, and a click on a row then puts the
+	// cursor on it.
+	press(t, m, tea.KeyPressMsg{Code: '?', Text: "?"})
+	m.Update(tea.MouseClickMsg{X: 0, Y: 0, Button: tea.MouseLeft})
+
+	if got := plain(m.Frame()); strings.Contains(got, "a line") {
+		t.Errorf("a click outside the legend did not close it:\n%s", got)
+	}
+
+	const clickY = 6
+
+	was := m.CursorRow()
+	m.Update(tea.MouseClickMsg{X: 10, Y: clickY, Button: tea.MouseLeft})
+
+	line := strings.Split(plain(m.Frame()), "\n")[clickY]
+	if m.CursorRow() == was || !strings.Contains(line, strings.TrimSpace(m.CursorText())) {
+		t.Errorf("a click on %q left the cursor on row %d: %q", line, m.CursorRow(), m.CursorText())
 	}
 }
 

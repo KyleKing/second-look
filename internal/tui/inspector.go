@@ -49,26 +49,11 @@ func (l *List) inspectorRows() int {
 	return inspectorFull
 }
 
-// panelRows is the inspector and the footer, which share one band at the bottom
-// of the frame, so the body is the same height whatever the cursor is on.
-func (l *List) panelRows() int { return l.inspectorRows() + 1 }
-
-// panel is the bottom band: the inspector, then the footer, each to the full
-// width on the panel's own background.
-func (l *List) panel() string {
-	lines := l.inspector()
-	lines = append(lines, litLine(l.footer(), l.width, l.styles.panel))
-
-	return strings.Join(lines, "\n")
-}
-
 // inspector draws the row under the cursor, one line per inspectorRows.
 func (l *List) inspector() []string {
 	row := l.current()
 	if row == nil {
-		blank := litLine("", l.width, l.styles.panel)
-
-		return slices.Repeat([]string{blank}, l.inspectorRows())
+		return make([]string, l.inspectorRows())
 	}
 
 	about := aboutRow(row)
@@ -84,7 +69,7 @@ func (l *List) inspector() []string {
 // titleLine keeps the subject whole for as long as it can: the ref goes first
 // and the prefix second, since the row already shows both.
 func (l *List) titleLine(a *About) []Span {
-	room := l.width - 1
+	room := l.width
 
 	for _, rest := range titleRests(a) {
 		if textWidth(a.Subject) <= room-spansWidth(rest) {
@@ -140,9 +125,7 @@ func (l *List) panelLine(spans []Span) string {
 
 	var b strings.Builder
 
-	b.WriteString(face.Render(" "))
-
-	room := l.width - 1
+	room := l.width
 
 	for _, s := range spans {
 		if room <= 0 {
