@@ -338,6 +338,15 @@ func (l *List) Init() tea.Cmd {
 	return tea.Batch(cmd, l.rest())
 }
 
+// setProfile is where the terminal's color support reaches the list: with none,
+// rows are marked by attribute rather than by color.
+func (l *List) setProfile(p colorprofile.Profile) {
+	l.mono = p <= colorprofile.ASCII
+	if l.mono {
+		l.styles.monochrome()
+	}
+}
+
 // Update handles a keypress or a resize. Everything else is the caller's, which
 // is why the screen holds no context and starts no work of its own.
 func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -352,10 +361,7 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return l, nil
 	case tea.ColorProfileMsg:
-		l.mono = msg.Profile <= colorprofile.ASCII
-		if l.mono {
-			l.styles.monochrome()
-		}
+		l.setProfile(msg.Profile)
 
 		return l, nil
 	case tea.KeyPressMsg:
