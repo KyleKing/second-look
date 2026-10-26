@@ -58,8 +58,7 @@ func (s *reviewsScreen) places() []place {
 	return out
 }
 
-// reviewCells is one staged review on the grid. A review with a draft in it is
-// the one to come back to, which is what the mark means on this screen.
+// reviewCells is one staged review on the grid.
 func (s *reviewsScreen) reviewCells(
 	r *prepared.Review, shared map[string]bool, now time.Time,
 ) map[string]tui.Cell {
@@ -77,11 +76,11 @@ func (s *reviewsScreen) reviewCells(
 	}
 }
 
-// titleCell is what the pull request is called, behind the mark. A review that
-// could not be read says why where its title would be, and one whose title was
-// never cached draws the placeholder.
+// titleCell is what the pull request is called. A review that could not be read
+// says why where its title would be, and one whose title was never cached draws
+// the placeholder.
 func titleCell(r *prepared.Review) tui.Cell {
-	lead := unreadMark(r.Blocked() || r.Broken != "")
+	lead := tui.Span{Text: " ", Role: tui.RoleCell}
 
 	switch name := title(r); {
 	case r.Broken != "":
@@ -116,7 +115,9 @@ func stateGlyph(state string) string {
 	switch state {
 	case prepared.StateReady:
 		return "✓"
-	case prepared.StateBlocked, prepared.StateUnreadable:
+	case prepared.StateBlocked:
+		return "⊘"
+	case prepared.StateUnreadable:
 		return "✗"
 	default:
 		return "○"
