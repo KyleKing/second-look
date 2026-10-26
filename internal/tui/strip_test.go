@@ -3,6 +3,7 @@ package tui_test
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -63,7 +64,7 @@ func TestTheStripFollowsWhatIsRead(t *testing.T) {
 		t.Errorf("an unread diff draws read segments, or no divider between its files: %q", got)
 	}
 
-	go2(t, m, ']', 'h')
+	pressKey(t, m, 'j')
 	press(t, m, tea.KeyPressMsg{Code: ' ', Text: " "})
 
 	if got := headerLine(m); !strings.Contains(got, "━") {
@@ -148,5 +149,52 @@ func TestTheStripCollapsesToDirectories(t *testing.T) {
 				t.Errorf("%d files: no label for %s: %q", tc.n, dir, line)
 			}
 		}
+	}
+}
+
+// skewed is one big file among many one-line ones, so the one-line files
+// are each given a single cell.
+func skewed(small int) string {
+	var b strings.Builder
+
+	for i := range small {
+		fmt.Fprintf(&b, "diff --git a/x/s%[1]d.go b/x/s%[1]d.go\n--- a/x/s%[1]d.go\n+++ b/x/s%[1]d.go\n"+
+			"@@ -1 +1 @@\n-old\n+new\n", i)
+	}
+
+	b.WriteString("diff --git a/x/big.go b/x/big.go\n--- a/x/big.go\n+++ b/x/big.go\n@@ -0,0 +1,100 @@\n")
+
+	for range 100 {
+		b.WriteString("+line\n")
+	}
+
+	return b.String()
+}
+
+// The mark stands in the strip on the opening frame and after the cursor
+// moves, even where the file under it is given one cell.
+func TestTheStripMarksTheCursorAtEveryWidth(t *testing.T) {
+	t.Parallel()
+
+	for _, width := range []int{80, 96, 100, 104, 120} {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
+			m, _, _ := fixtureWith(t, skewed(30))
+			resize(m, width, 30)
+			pressKey(t, m, 'p')
+
+			if line := headerLine(m); !strings.Contains(line, "●") {
+				t.Errorf("no mark on the opening frame: %q", line)
+			}
+
+			for range 90 {
+				pressKey(t, m, 'j')
+
+				if line := headerLine(m); !strings.Contains(line, "●") {
+					t.Errorf("no mark after moving: %q", line)
+				}
+			}
+		})
 	}
 }

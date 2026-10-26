@@ -82,6 +82,10 @@ func (m *Model) readFiles() map[string]bool {
 
 func (m *Model) strip(files []fileStat, room int) string {
 	read, current := m.readFiles(), m.cursorPath()
+	if current == "" && len(files) > 0 {
+		current = files[0].path
+	}
+
 	dirs := directories(files)
 	here := inFile{
 		path:  current,
@@ -287,11 +291,11 @@ func (m *Model) draw(cs []cluster, widths []int, labels bool) string {
 // segment draws a segment, with a mark on the lit one where the cursor stands in it.
 func (m *Model) segment(s seg, width int) string {
 	line := m.face(s)
-	if !s.marked || width < 2 {
+	if !s.marked {
 		return line.Render(strings.Repeat(stripGlyph(s), width))
 	}
 
-	k := min(width-1, int(s.at*float64(width)))
+	k := max(0, min(width-1, int(s.at*float64(width))))
 
 	return line.Render(strings.Repeat(stripGlyph(s), k)) + m.styles.cursor.Render(stripMark) +
 		line.Render(strings.Repeat(stripGlyph(s), width-k-1))
