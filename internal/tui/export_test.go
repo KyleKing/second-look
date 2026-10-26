@@ -336,3 +336,20 @@ func (l *List) Held() bool { return l.held }
 
 // Shifts is which rows the last refresh moved.
 func (l *List) Shifts() map[string]Move { return l.shifts }
+
+// FlashTick is one step of the decay for the refresh numbered gen.
+//
+//nolint:ireturn // the message type is unexported
+func FlashTick(gen int) tea.Msg { return flashMsg{gen: gen} }
+
+// FlashGen is the number the last flash gave its tick.
+func (l *List) FlashGen() int { return l.flashGen }
+
+// Flash is the step a row is at, 0 where it is settled.
+func (l *List) Flash(key string) uint8 { return l.flash[key] }
+
+// Flashing is how many rows are not settled.
+func (l *List) Flashing() int { return len(l.flash) }
+
+// FlashMark is the glyph a flashing row carries where there is no color.
+const FlashMark = flashMark

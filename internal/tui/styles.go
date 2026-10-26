@@ -15,6 +15,11 @@ import (
 // count is a snapshot's.
 const staleChipShare = 0.55
 
+// tintShare is how much of the accent a flashing row's background holds at each
+// step, from the settled row up. The first is kept under the selection band's
+// share so a flash never reads as a second selection.
+var tintShare = [flashSteps + 1]float64{0, 0.03, 0.055, 0.08, 0.11}
+
 // accent is the one color that says which of these tools you are looking at.
 // Lavender is second-look's: it draws the cursor and the rail a comment hangs
 // off, which are the two things this screen is steered by.
@@ -70,6 +75,8 @@ type styles struct {
 	badge        lipgloss.Style
 	badgeOn      lipgloss.Style
 	badgeBlocked lipgloss.Style
+	// tint is a row's background at each step of its flash, indexed by Row.Flash.
+	tint [flashSteps + 1]lipgloss.Style
 	// badgeStale and badgeOnStale are the chips for a count read off a snapshot.
 	badgeStale   lipgloss.Style
 	badgeOnStale lipgloss.Style
@@ -93,7 +100,13 @@ func newStyles() styles {
 	sk := skin.New(p, accent(p))
 	base := lipgloss.NewStyle()
 
+	var tint [flashSteps + 1]lipgloss.Style
+	for step := 1; step <= flashSteps; step++ {
+		tint[step] = base.Background(theme.Mix(p.Base, accent(p), tintShare[step]))
+	}
+
 	return styles{
+		tint:     tint,
 		palette:  p,
 		title:    sk.Title,
 		subtitle: sk.Subtitle,

@@ -74,6 +74,10 @@ type Row struct {
 	// Stale marks a row drawn from a snapshot that the forge has not confirmed
 	// this run. It recedes the cells that carry Fact and nothing else.
 	Stale bool
+	// Flash is the row having moved lane or rank, or being new since the last
+	// order drawn: 0 is settled and 1 to 4 is the step it has decayed to. The
+	// screen sets it and the row draws it.
+	Flash uint8
 	// Cells is the row on a grid, keyed by the Key of the column each fills. It
 	// is read only where the tab names Columns, and a row carrying none there
 	// draws nothing in them.
@@ -285,6 +289,12 @@ type List struct {
 	held     bool
 	baseline []Place
 	shifts   map[string]Move
+	// flash is each moved row's step and flashGen numbers the tick decaying
+	// them, so a tick from an earlier refresh is dropped. armed says the tab has
+	// drawn a snapshot, which is what an order is later compared against.
+	flash    map[string]uint8
+	flashGen int
+	armed    bool
 
 	keys   keyMap
 	list   listKeys
@@ -487,6 +497,10 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := l.idle()
 
 		return l, cmd
+	case flashMsg:
+		cmd := l.decay(msg.gen)
+
+		return l, cmd
 	case restMsg:
 		cmd := l.settled(msg.at)
 
@@ -633,6 +647,7 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// A screen that fills in as its searches answer re-runs them itself, since
 	// the row under the cursor has nothing to do with reading the queue again.
 	if l.loader != nil && key.Matches(msg, l.list.Refresh) {
+		l.armed = true
 		cmd := l.loader.Start()
 		l.status, l.failed = "", false
 
@@ -1037,6 +1052,8 @@ func (l *List) rebuild() {
 	l.lines = l.lines[:0]
 	l.shown = l.filter.narrow(keepFocused(l.focused, l.sections()))
 	l.baseline = placesOf(l.shown)
+	l.armed = l.armed || anyStale(l.shown)
+	l.stamp()
 
 	for i := range l.shown {
 		l.appendSection(i, &l.shown[i])

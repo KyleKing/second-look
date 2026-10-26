@@ -1,0 +1,2 @@
+# The label picker sets a label on whichever row the cursor is on.
+api /repos/ labeled.json

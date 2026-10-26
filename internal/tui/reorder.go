@@ -152,9 +152,7 @@ func (l *List) apply() tea.Cmd {
 		return holdFor(wait)
 	}
 
-	l.refresh()
-
-	return nil
+	return l.refresh()
 }
 
 // idle answers the wait running out, and waits again where a key came meanwhile.
@@ -164,15 +162,96 @@ func (l *List) idle() tea.Cmd {
 	}
 
 	l.held = false
-	l.refresh()
 
-	return l.rest()
+	return tea.Batch(l.refresh(), l.rest())
 }
 
-// refresh redraws from what the loaders hold and notes which rows moved.
-func (l *List) refresh() {
-	was := l.baseline
+// refresh redraws from what the loaders hold and flashes the rows that moved.
+// Only a tab that drew a snapshot has an order to compare against: one opened
+// cold fills in from nothing, and nothing moved.
+func (l *List) refresh() tea.Cmd {
+	was, armed := l.baseline, l.armed
 
 	l.rebuild()
 	l.shifts = Moves(was, l.baseline)
+
+	if !armed || len(was) == 0 || len(l.shifts) == 0 {
+		return nil
+	}
+
+	if l.flash == nil {
+		l.flash = map[string]uint8{}
+	}
+
+	for key := range l.shifts {
+		l.flash[key] = flashSteps
+	}
+
+	l.stamp()
+	l.flashGen++
+
+	return flashAfter(l.flashGen)
+}
+
+// flashSteps is how many ticks a moved row stays marked, and flashEvery is the
+// time between them: about 600 ms in all.
+const (
+	flashSteps = 4
+	flashEvery = 150 * time.Millisecond
+)
+
+// flashMsg is one step of the decay. A tick carrying an earlier gen belongs to a
+// refresh that a later one replaced.
+type flashMsg struct{ gen int }
+
+func flashAfter(gen int) tea.Cmd {
+	return tea.Tick(flashEvery, func(time.Time) tea.Msg { return flashMsg{gen: gen} })
+}
+
+// decay takes one step off every flashing row and asks for the next tick only
+// while one is left.
+func (l *List) decay(gen int) tea.Cmd {
+	if gen != l.flashGen {
+		return nil
+	}
+
+	for key, step := range l.flash {
+		if step <= 1 {
+			delete(l.flash, key)
+
+			continue
+		}
+
+		l.flash[key] = step - 1
+	}
+
+	l.stamp()
+
+	if len(l.flash) == 0 {
+		return nil
+	}
+
+	return flashAfter(gen)
+}
+
+// stamp copies each row's step onto the row drawn.
+func (l *List) stamp() {
+	for i := range l.shown {
+		for j := range l.shown[i].Rows {
+			r := &l.shown[i].Rows[j]
+			r.Flash = l.flash[r.Key]
+		}
+	}
+}
+
+func anyStale(sections []Section) bool {
+	for i := range sections {
+		for j := range sections[i].Rows {
+			if sections[i].Rows[j].Stale {
+				return true
+			}
+		}
+	}
+
+	return false
 }

@@ -55,11 +55,13 @@ type Cell struct {
 // places it.
 func Pending() Cell { return Cell{Spans: []Span{{Text: pendingMark, Role: RolePending}}} }
 
-// pendingMark stands in for a fact not yet known, and gridMargin is what a grid
-// row spends left of its first column.
+// pendingMark stands in for a fact not yet known, gridMargin is what a grid row
+// spends left of its first column, and flashMark takes the place of a flashing
+// row's tint where the terminal has no color.
 const (
 	pendingMark = "·"
 	gridMargin  = 2
+	flashMark   = "*"
 )
 
 // role is the face a span draws in. A row that is waiting on somebody else
@@ -149,9 +151,19 @@ func (l *List) gridLine(i int, lay table.Layout, reach int) string {
 	lit := i == l.cursor
 	face := l.bandFace(lit)
 
+	tinted := !lit && !l.mono && row.Flash > 0
+	if tinted {
+		face = l.styles.tint[min(row.Flash, flashSteps)]
+	}
+
 	var b strings.Builder
 
-	b.WriteString(face.Render(strings.Repeat(" ", gridMargin)))
+	margin := strings.Repeat(" ", gridMargin)
+	if l.mono && row.Flash > 0 {
+		margin = flashMark + " "
+	}
+
+	b.WriteString(face.Render(margin))
 
 	gutter := face.Render(strings.Repeat(" ", table.Gutter))
 
@@ -171,7 +183,7 @@ func (l *List) gridLine(i int, lay table.Layout, reach int) string {
 		b.WriteString(l.fit(spans, c, w, row.Dim || (row.Stale && cell.Fact), lit, face))
 	}
 
-	if over := reach - gridMargin - lay.Total(); lit && over > 0 {
+	if over := reach - gridMargin - lay.Total(); (lit || tinted) && over > 0 {
 		b.WriteString(face.Render(strings.Repeat(" ", over)))
 	}
 

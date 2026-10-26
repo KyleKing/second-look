@@ -86,6 +86,7 @@ type view struct {
 	status   string
 	failed   bool
 	started  bool
+	armed    bool
 }
 
 // NewTabs builds a list screen with more than one queue in it, opening on the
@@ -128,7 +129,7 @@ func (l *List) adopt() {
 	l.labeled, l.relabel = t.Labeled, t.Relabel
 
 	v := &l.views[l.at]
-	l.cursor, l.offset, l.touched = v.cursor, v.offset, v.touched
+	l.cursor, l.offset, l.touched, l.armed = v.cursor, v.offset, v.touched, v.armed
 	l.expanded, l.filter = v.expanded, v.filter
 	l.status, l.failed = v.status, v.failed
 }
@@ -144,7 +145,7 @@ func (l *List) remember() {
 	}
 
 	v := &l.views[l.at]
-	v.cursor, v.offset, v.touched = l.cursor, l.offset, l.touched
+	v.cursor, v.offset, v.touched, v.armed = l.cursor, l.offset, l.touched, l.armed
 	v.expanded, v.filter = l.expanded, l.filter
 	v.status, v.failed = l.status, l.failed
 }
@@ -176,6 +177,7 @@ func (l *List) switchTo(at int) tea.Cmd {
 	l.remember()
 	l.at = at
 	l.adopt()
+	l.flash, l.flashGen = nil, l.flashGen+1
 
 	v := l.leftAt()
 
