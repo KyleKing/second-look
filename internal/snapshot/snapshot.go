@@ -8,6 +8,8 @@
 package snapshot
 
 import (
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/kyleking/aragonite/cache"
@@ -160,6 +162,39 @@ func (s *Store) Inbox() (Inbox, time.Duration, bool) { return s.inbox.load() }
 func (s *Store) SaveInbox(viewer string, v Inbox) {
 	v.Header = Header{Version: schema, Viewer: viewer}
 	s.inbox.save(v)
+}
+
+// Evict forgets a pull request the reader acted on: its row and facts in the
+// inbox, and its conversations and record in the conversation queue. The next
+// open then paints no row for it, and whatever the read finds is drawn as new
+// rather than as it stood before the action.
+func (s *Store) Evict(repository string, number int) {
+	key := conversations.KeyOf(repository, number)
+
+	isIt := func(r Row) bool { return r.Repository == repository && r.Number == number }
+	isItsConversation := func(c conversations.Conversation) bool {
+		return c.Repository == repository && c.Number == number
+	}
+
+	if v, _, ok := s.inbox.load(); ok {
+		for i := range v.Buckets {
+			v.Buckets[i].Items = slices.DeleteFunc(slices.Clone(v.Buckets[i].Items), isIt)
+		}
+
+		v.Facts = maps.Clone(v.Facts)
+		delete(v.Facts, key)
+
+		s.SaveInbox(v.Viewer, v)
+	}
+
+	if v, _, ok := s.conversations.load(); ok {
+		v.Queue.Conversations = slices.DeleteFunc(slices.Clone(v.Queue.Conversations), isItsConversation)
+
+		v.Records = maps.Clone(v.Records)
+		delete(v.Records, key)
+
+		s.SaveConversations(v)
+	}
 }
 
 // DropInbox makes the inbox snapshot read as absent, in memory and on disk.

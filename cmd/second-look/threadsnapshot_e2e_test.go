@@ -12,6 +12,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/conversations"
 	"github.com/kyleking/second-look/internal/notice"
+	"github.com/kyleking/second-look/internal/resolve"
 	"github.com/kyleking/second-look/internal/snapshot"
 )
 
@@ -189,4 +190,75 @@ func TestARefusedNotificationStreamIsNotAskedForAgainWithinADay(t *testing.T) {
 		Args: notice.Args(), Stderr: "gh: Not Found (HTTP 404)", Exit: 1,
 	})
 	run(light)
+}
+
+// Resolving a thread takes it out of what the next open paints, and drops the
+// pull request's record so the next read fetches it again rather than trusting
+// what it held.
+func TestResolvingAThreadLeavesItOutOfTheNextOpen(t *testing.T) {
+	t.Parallel()
+
+	home := quietHome(t)
+	q := readQueueFixture(t)
+
+	read, err := conversations.Decode([]byte(q.heavy(t, q.ids()...)))
+	if err != nil {
+		t.Fatalf("decoding the queue fixture: %v", err)
+	}
+
+	var leaks *conversations.Conversation
+
+	for i := range read.Conversations {
+		if read.Conversations[i].Anchor() == "a.go:12" {
+			leaks = &read.Conversations[i]
+		}
+	}
+
+	if leaks == nil {
+		t.Fatal("the fixture holds no thread at a.go:12")
+	}
+
+	interactions := append(queueInteractions(t),
+		ghcassette.Interaction{Args: resolve.ThreadArgs(leaks.ThreadID)},
+		ghcassette.Interaction{Args: resolve.ReactArgs(leaks.First().NodeID)},
+	)
+
+	cassette := filepath.Join(t.TempDir(), "threads.golden")
+	if err := ghcassette.Save(cassette, &ghcassette.Cassette{Interactions: interactions}); err != nil {
+		t.Fatalf("writing the cassette: %v", err)
+	}
+
+	s := ghcassette.Replay(t, cassette)
+	sc := openReview(t, s, t.TempDir(),
+		"HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "XDG_CACHE_HOME="+home+"/.cache", "threads")
+
+	sc.await("this leaks")
+	sc.press("/this leaks")
+	sc.press("\r")
+	sc.press("R")
+	sc.await("resolved")
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("the queue exited %d:\n%s", code, sc.text())
+	}
+
+	got, _, ok := snapshotsIn(home, time.Now).Conversations()
+	if !ok {
+		t.Fatal("the run left no snapshot")
+	}
+
+	for i := range got.Queue.Conversations {
+		if got.Queue.Conversations[i].ThreadID == leaks.ThreadID {
+			t.Error("the snapshot still holds the thread that was resolved")
+		}
+	}
+
+	if _, held := got.Records[conversations.KeyOf(leaks.Repository, leaks.Number)]; held {
+		t.Error("the snapshot still vouches for the pull request the thread was resolved on")
+	}
+
+	if len(got.Queue.Conversations) == 0 {
+		t.Error("resolving one thread emptied the snapshot")
+	}
 }

@@ -210,7 +210,7 @@ func (s *inboxScreen) tab() tui.Tab {
 // perform runs what the screen closed for. A failure is reported and the queue
 // comes back, because a checkout that could not move or an editor that was
 // closed empty is not a reason to lose the queue.
-func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer) error {
+func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer, did *touched) error {
 	var err error
 
 	switch h.act {
@@ -224,6 +224,10 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer)
 	}
 
 	if err == nil {
+		if h.act == tui.ActComment {
+			did.addRef(h.at.owner, h.at.repo, h.at.number)
+		}
+
 		return nil
 	}
 
@@ -1334,7 +1338,33 @@ func (s *inboxScreen) approve(key string, at ref) (string, bool, error) {
 		return "", false, fmt.Errorf("approving %s: %w", key, err)
 	}
 
+	s.evict(key, at)
+
 	return "approved " + key, false, nil
+}
+
+// evict takes a pull request the reader acted on out of the rows and out of
+// what the next open paints, so nothing draws it as it stood before the action.
+// The next search brings it back in the lane it now belongs in.
+func (s *inboxScreen) evict(key string, at ref) {
+	for i := range s.buckets {
+		s.buckets[i].Items = slices.DeleteFunc(s.buckets[i].Items, func(p inbox.PullRequest) bool {
+			return keyOf(&p) == key
+		})
+	}
+
+	delete(s.records, key)
+	delete(s.facts, key)
+	delete(s.stale, key)
+	s.regroup()
+	s.forget(at)
+}
+
+// forget keeps the next open from painting a pull request the reader acted on.
+func (s *inboxScreen) forget(at ref) {
+	if s.snaps != nil {
+		s.snaps.Evict(at.owner+"/"+at.repo, at.number)
+	}
 }
 
 // merge takes the key twice, like approve. Only a pull request of yours in the
@@ -1362,6 +1392,7 @@ func (s *inboxScreen) merge(key string, at ref) (string, bool, error) {
 
 	inbox.MarkMerged(s.buckets, key)
 	s.regroup()
+	s.forget(at)
 
 	return "merged " + key, false, nil
 }

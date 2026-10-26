@@ -315,6 +315,14 @@ step 1.
    refetch that one PR. Files: `inboxscreen.go`, `threadsscreen.go`, `perform`.
    Tests: cassette for a single-id refetch after a merge. Risk: medium (touches
    every action path).
+
+   Built as eviction rather than a refetch of the one pull request. An approve, a
+   merge, a comment, and anything the review screen sends (a submit, a single
+   comment, a merge, a reaction) evict that pull request from both snapshots, and
+   an approve also takes its row off the screen. A resolve and a notification done
+   or unsubscribed rewrite the conversation snapshot without the item, and a
+   resolve drops the pull request's record so the next read fetches it. The next
+   search brings an evicted row back in the lane it now belongs in.
 10. Optional: notifications conditional requests. Store `ETag` and `Last-Modified`
     in the conversations snapshot, send them with `gh api -i -H`, treat `304` as
     unchanged. My token gets a 404, so this needs a working token or a hand-written

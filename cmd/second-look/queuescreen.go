@@ -59,36 +59,9 @@ func openQueue(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) e
 func queueOnce(
 	ctx context.Context, snaps *snapshot.Store, at int, where tui.Resume, stdin io.Reader, stdout io.Writer,
 ) (int, tui.Resume, error) {
-	cfg, err := configured(os.Stderr)
+	in, th, rv, err := queueScreens(ctx, snaps)
 	if err != nil {
 		return -1, where, err
-	}
-
-	in := &inboxScreen{
-		ctx:        ctx,
-		snaps:      snaps,
-		configured: len(cfg.Sections) > 0,
-		ahead:      keepAhead(cfg),
-		priority:   cfg.PriorityLabels(),
-		plan:       func() []inbox.Bucket { return planQueue(cfg) },
-	}
-
-	th, err := newThreadsScreen(ctx, snaps)
-	if err != nil {
-		return -1, where, err
-	}
-
-	rows, err := staged()
-	if err != nil {
-		return -1, where, err
-	}
-
-	rv := &reviewsScreen{
-		ctx:   ctx,
-		rows:  rows,
-		here:  currentRepo(ctx),
-		head:  currentHead(ctx),
-		probe: cfg.ListAgents,
 	}
 
 	list := tui.NewTabs([]tui.Tab{
@@ -117,6 +90,7 @@ func queueOnce(
 	var (
 		opened get.Target
 		log    strings.Builder
+		did    touched
 	)
 
 	out, runErr := tui.RunShell(tui.NewShell(ctx, list, func() tui.Reviewer {
@@ -133,7 +107,7 @@ func queueOnce(
 
 			opened = adoptLease(ctx, t)
 
-			return reviewScreen(ctx, opened, &log, 0)
+			return reviewScreen(ctx, opened, &log, 0, &did)
 		}
 	}).WithJournal(journal.Open()))
 
@@ -154,12 +128,55 @@ func queueOnce(
 	left := list.Where()
 
 	if out.Checkout || out.Next {
-		return list.Tab(), left, afterReview(ctx, opened, out, stdin, stdout, 0)
+		err := afterReview(ctx, opened, out, stdin, stdout, 0, &did)
+		did.evict(snaps)
+
+		return list.Tab(), left, err
 	}
 
-	next, err := afterQueue(ctx, list.Tab(), in, th, rv, stdin, stdout)
+	next, err := afterQueue(ctx, list.Tab(), in, th, rv, stdin, stdout, &did)
+	did.evict(snaps)
 
 	return next, left, err
+}
+
+// queueScreens builds the three tabs' screens. The inbox and the staged list
+// read the config, which has nowhere to be reported once the alternate screen is
+// up, so a config that will not read stops here.
+func queueScreens(ctx context.Context, snaps *snapshot.Store) (*inboxScreen, *threadsScreen, *reviewsScreen, error) {
+	cfg, err := configured(os.Stderr)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	in := &inboxScreen{
+		ctx:        ctx,
+		snaps:      snaps,
+		configured: len(cfg.Sections) > 0,
+		ahead:      keepAhead(cfg),
+		priority:   cfg.PriorityLabels(),
+		plan:       func() []inbox.Bucket { return planQueue(cfg) },
+	}
+
+	th, err := newThreadsScreen(ctx, snaps)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	rows, err := staged()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	rv := &reviewsScreen{
+		ctx:   ctx,
+		rows:  rows,
+		here:  currentRepo(ctx),
+		head:  currentHead(ctx),
+		probe: cfg.ListAgents,
+	}
+
+	return in, th, rv, nil
 }
 
 // chosen is the row the queue was left on when it was left to read one, taken
@@ -200,7 +217,7 @@ func keepAhead(cfg *config.Config) int {
 // question on stdin or an editor.
 func afterQueue(
 	ctx context.Context, at int, in *inboxScreen, th *threadsScreen, rv *reviewsScreen,
-	stdin io.Reader, stdout io.Writer,
+	stdin io.Reader, stdout io.Writer, did *touched,
 ) (int, error) {
 	switch {
 	case rv.move != nil:
@@ -213,7 +230,7 @@ func afterQueue(
 
 	// A checkout that could not move or an editor closed empty is not a reason
 	// to lose the queue, so the failure is reported and the screen comes back.
-	if err := perform(ctx, in.next, stdin, stdout); err != nil {
+	if err := perform(ctx, in.next, stdin, stdout, did); err != nil {
 		return -1, err
 	}
 

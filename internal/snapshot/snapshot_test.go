@@ -155,6 +155,61 @@ func TestDropAndAccountSwitch(t *testing.T) {
 	}
 }
 
+// Evicting a pull request takes its row, facts, conversations, and record out of
+// what a later process paints, and leaves every other pull request as it was.
+func TestEvictForgetsOnePullRequestAcrossProcesses(t *testing.T) {
+	t.Parallel()
+
+	disk := cache.NewDiskCache(filepath.Join(t.TempDir(), "cache"))
+	clk := &clock{at: epoch}
+	store := snapshot.Open(disk, clk.now)
+
+	in := fixtureInbox()
+	other := inbox.PullRequest{ID: "PR_kwDOinvented2", Repository: "example/gadgets", Number: 3, Updated: epoch}
+	in.Buckets[0].Items = append(in.Buckets[0].Items, snapshot.RowsOf([]inbox.PullRequest{other})...)
+	in.Facts["example/gadgets#3"] = inbox.Record{Updated: epoch, Fetched: epoch}
+	store.SaveInbox("reader", in)
+
+	conv := fixtureConversations()
+	conv.Queue.Conversations = append(conv.Queue.Conversations, conversations.Conversation{
+		Kind: conversations.KindComment, Repository: "example/gadgets", Number: 3,
+		Notes: []conversations.Note{{ID: 2, Author: "someone", Created: epoch}},
+	})
+	conv.Records["example/gadgets#3"] = conversations.Record{Updated: epoch, Fetched: epoch}
+	store.SaveConversations(conv)
+
+	store.Evict("example/widgets", 7)
+
+	later := snapshot.Open(disk, clk.now)
+
+	gotInbox, _, ok := later.Inbox()
+	if !ok || len(gotInbox.Buckets[0].Items) != 1 || gotInbox.Buckets[0].Items[0].Number != 3 {
+		t.Errorf("the inbox rows after the eviction are %+v, want only example/gadgets#3", gotInbox.Buckets)
+	}
+
+	if _, held := gotInbox.Facts["example/widgets#7"]; held {
+		t.Error("the evicted pull request's facts survived")
+	}
+
+	if _, held := gotInbox.Facts["example/gadgets#3"]; !held {
+		t.Error("another pull request's facts were evicted with it")
+	}
+
+	gotConv, _, ok := later.Conversations()
+	if !ok || len(gotConv.Queue.Conversations) != 1 || gotConv.Queue.Conversations[0].Number != 3 {
+		t.Errorf("the conversations after the eviction are %+v, want only example/gadgets#3",
+			gotConv.Queue.Conversations)
+	}
+
+	if _, held := gotConv.Records["example/widgets#7"]; held {
+		t.Error("the evicted pull request's record survived, so the next read would trust what it held")
+	}
+
+	if _, held := gotConv.Records["example/gadgets#3"]; !held {
+		t.Error("another pull request's record was evicted with it")
+	}
+}
+
 func TestSnapshotsAreOwnerOnly(t *testing.T) {
 	t.Parallel()
 

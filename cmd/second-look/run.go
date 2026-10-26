@@ -315,19 +315,19 @@ func adoptLease(ctx context.Context, t get.Target) get.Target {
 // first: the stash question needs stdin, and two programs cannot own the
 // terminal at once.
 func openReview(ctx context.Context, t get.Target, stdin io.Reader, stdout io.Writer, land int64) error {
-	out, err := review(ctx, t, stdout, land)
+	out, err := review(ctx, t, stdout, land, nil)
 	if err != nil {
 		return err
 	}
 
-	return afterReview(ctx, t, out, stdin, stdout, land)
+	return afterReview(ctx, t, out, stdin, stdout, land, nil)
 }
 
 // afterReview performs what a review screen was left for and carries the
 // sitting on from there, which is the same work whether the screen was opened
 // from the command line or from the queue.
 func afterReview(
-	ctx context.Context, t get.Target, out tui.Outcome, stdin io.Reader, stdout io.Writer, land int64,
+	ctx context.Context, t get.Target, out tui.Outcome, stdin io.Reader, stdout io.Writer, land int64, did *touched,
 ) error {
 	for {
 		if out.Next {
@@ -350,7 +350,7 @@ func afterReview(
 			return err
 		}
 
-		if out, err = review(ctx, t, stdout, land); err != nil {
+		if out, err = review(ctx, t, stdout, land, did); err != nil {
 			return err
 		}
 	}
@@ -450,7 +450,7 @@ func refOf(r *prepared.Review) ref {
 // review draws the screen once and reports what it was left through. A pull
 // request named on the command line has no queue behind it, so leaving the
 // screen ends the program.
-func review(ctx context.Context, t get.Target, stdout io.Writer, land int64) (tui.Outcome, error) {
+func review(ctx context.Context, t get.Target, stdout io.Writer, land int64, did *touched) (tui.Outcome, error) {
 	if !term.IsTerminal(os.Stdin.Fd()) && !term.IsTerminal(os.Stdout.Fd()) {
 		return tui.Outcome{}, errNoTerminal
 	}
@@ -460,7 +460,7 @@ func review(ctx context.Context, t get.Target, stdout io.Writer, land int64) (tu
 	// as it happens draws over the frame.
 	var log strings.Builder
 
-	m, err := reviewScreen(ctx, t, &log, land)
+	m, err := reviewScreen(ctx, t, &log, land, did)
 	if err != nil {
 		return tui.Outcome{}, err
 	}
@@ -484,7 +484,9 @@ func review(ctx context.Context, t get.Target, stdout io.Writer, land int64) (tu
 // reviewScreen builds the review screen for a target. The log collects what a
 // post writes, which the caller hands to the scrollback once the terminal is
 // back.
-func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land int64) (*tui.Model, error) {
+func reviewScreen(
+	ctx context.Context, t get.Target, log *strings.Builder, land int64, did *touched,
+) (*tui.Model, error) {
 	opened, err := get.Open(ctx, t)
 	if err != nil {
 		return nil, fmt.Errorf("opening #%d: %w", t.Number, err)
@@ -493,10 +495,10 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 	opts := []tui.Option{
 		tui.WithThreads(opened.Threads), tui.WithAbout(opened.About),
 		tui.WithSeen(opened.Read, opened.SeenPath),
-		tui.WithSender(sender(t, opened.Path, log)), tui.WithTree(tree(opened)),
+		tui.WithSender(sender(t, opened.Path, log, did)), tui.WithTree(tree(opened)),
 		tui.WithRepoDir(opened.Work),
-		tui.WithReactor(reactor(t)),
-		tui.WithMerger(merger(t)), tui.WithStore(t.Store), tui.WithOpener(opener(t)),
+		tui.WithReactor(reactor(t, did)),
+		tui.WithMerger(merger(t, did)), tui.WithStore(t.Store), tui.WithOpener(opener(t)),
 		// A config that will not parse leaves the built-in patterns rather than
 		// stopping a review, the same as it leaves the built-in buckets.
 		tui.WithGenerated(generatedPatterns()), tui.WithPlanRules(planRules(opened.Review)),
@@ -559,7 +561,7 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 	}
 
 	return tui.New(ctx, opened.Review, opened.Diff, opened.Path,
-		submitter(t, opened.Path, log), opts...), nil
+		submitter(t, opened.Path, log, did), opts...), nil
 }
 
 // tree is where the working copy stands, which is what the shell key can use
@@ -578,7 +580,7 @@ func tree(opened *get.Review) tui.Tree {
 // submitter posts from inside the review screen. What it returns is the one
 // line the footer shows, so it stays short enough to survive a narrow frame,
 // and the endpoints it touched go to the log instead.
-func submitter(t get.Target, path string, log io.Writer) tui.Submitter {
+func submitter(t get.Target, path string, log io.Writer, did *touched) tui.Submitter {
 	return func(ctx context.Context, r *artifact.Review) (string, error) {
 		if err := post.Guard(ctx, t.Dir(), t.Remote(), r, log); err != nil {
 			return "", fmt.Errorf("submitting: %w", err)
@@ -588,6 +590,8 @@ func submitter(t get.Target, path string, log io.Writer) tui.Submitter {
 			return "", fmt.Errorf("submitting: %w", err)
 		}
 
+		did.addRef(t.Owner, t.Repo, t.Number)
+
 		return post.Summary(r), nil
 	}
 }
@@ -595,7 +599,7 @@ func submitter(t get.Target, path string, log io.Writer) tui.Submitter {
 // sender posts one comment from inside the review screen. The guard runs first
 // for the same reason it does for a whole review: a comment whose line moved
 // would land on whatever now sits there.
-func sender(t get.Target, path string, log io.Writer) tui.Sender {
+func sender(t get.Target, path string, log io.Writer, did *touched) tui.Sender {
 	return func(ctx context.Context, r *artifact.Review, id string) (string, error) {
 		if err := post.Guard(ctx, t.Dir(), t.Remote(), r, log); err != nil {
 			return "", fmt.Errorf("posting %s: %w", id, err)
@@ -604,6 +608,8 @@ func sender(t get.Target, path string, log io.Writer) tui.Sender {
 		if err := post.One(ctx, post.GH(), path, r, id, log); err != nil {
 			return "", fmt.Errorf("posting %s: %w", id, err)
 		}
+
+		did.addRef(t.Owner, t.Repo, t.Number)
 
 		return "posted " + id + "; it is off the review now", nil
 	}
@@ -761,11 +767,13 @@ var errLocalPost = errors.New(
 // merger squash-merges from inside the review screen, which is the one place
 // the decision has the diff behind it: the key is only reachable after the
 // review is read, and it refuses while anything is still staged.
-func merger(t get.Target) tui.Merger {
+func merger(t get.Target, did *touched) tui.Merger {
 	return func(ctx context.Context, r *artifact.Review) (string, error) {
 		if err := mergePullRequest(ctx, t.Dir(), t.Remote(), r.Number); err != nil {
 			return "", err
 		}
+
+		did.addRef(r.Owner, r.Repo, r.Number)
 
 		// A merged pull request cannot be reviewed again, so what is staged for
 		// it is dead weight rather than unfinished work.
@@ -2094,14 +2102,20 @@ func restager(t get.Target) tui.Restager {
 // reactor leaves an emoji on a comment from inside the review screen. The
 // mutation is addressed by node id, so it needs nothing from the checkout but a
 // directory to run gh in.
-func reactor(t get.Target) tui.Reactor {
+func reactor(t get.Target, did *touched) tui.Reactor {
 	return func(ctx context.Context, nodeID, content string, mine bool) error {
 		e, ok := react.ByContent(content)
 		if !ok {
 			return fmt.Errorf("%w: %s", react.ErrNoSuchEmoji, content)
 		}
 
-		return react.Set(ctx, ghrun.GH(), t.Dir(), nodeID, e, mine)
+		if err := react.Set(ctx, ghrun.GH(), t.Dir(), nodeID, e, mine); err != nil {
+			return fmt.Errorf("reacting: %w", err)
+		}
+
+		did.addRef(t.Owner, t.Repo, t.Number)
+
+		return nil
 	}
 }
 

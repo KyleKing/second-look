@@ -37,6 +37,11 @@ func ThreadArgs(threadID string) []string {
 	return []string{"api", "graphql", "-F", "id=" + threadID, "-f", "query=" + resolveThread}
 }
 
+// ReactArgs is the gh call that leaves the thumbs-up on the comment nodeID names.
+func ReactArgs(nodeID string) []string {
+	return []string{"api", "graphql", "-F", "id=" + nodeID, "-f", "query=" + thumbsUp}
+}
+
 // Thread resolves one review thread and nothing else.
 func Thread(ctx context.Context, r ghrun.Runner, root, threadID string) error {
 	if err := r.Run(ctx, root, ThreadArgs(threadID)...); err != nil {
@@ -86,7 +91,7 @@ func react(ctx context.Context, r ghrun.Runner, root string, c *conversations.Co
 		return fmt.Errorf("%s: %w", c.Where(), ErrNothingToResolve)
 	}
 
-	if err := r.Run(ctx, root, "api", "graphql", "-F", "id="+id, "-f", "query="+thumbsUp); err != nil {
+	if err := r.Run(ctx, root, ReactArgs(id)...); err != nil {
 		return fmt.Errorf("reacting to %s: %w", c.Where(), err)
 	}
 

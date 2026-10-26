@@ -546,6 +546,7 @@ func (s *threadsScreen) actNotice(a tui.Action, n *notice.Thread) (string, bool,
 		}
 
 		s.dropNotice(n.Key())
+		s.keep()
 
 		return "done " + n.Where(), false, nil
 	case tui.ActResolve:
@@ -554,6 +555,7 @@ func (s *threadsScreen) actNotice(a tui.Action, n *notice.Thread) (string, bool,
 		}
 
 		s.dropNotice(n.Key())
+		s.keep()
 
 		return "unsubscribed " + n.Where(), false, nil
 	default:
@@ -583,6 +585,8 @@ func (s *threadsScreen) resolve(c *conversations.Conversation) (string, bool, er
 	}
 
 	s.drop(c.Key())
+	delete(s.records, conversations.KeyOf(c.Repository, c.Number))
+	s.keep()
 
 	return status, false, nil
 }

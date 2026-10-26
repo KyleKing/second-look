@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kyleking/aragonite/ghcassette"
 
@@ -337,7 +338,8 @@ func TestInboxScreenApprovesOnTheSecondPress(t *testing.T) {
 	s := ghcassette.Replay(t, withApprove(t))
 	home := quietHome(t)
 
-	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
+	sc := openReview(t, s, t.TempDir(),
+		"HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "XDG_CACHE_HOME="+home+"/.cache", "inbox")
 	sc.await("aragonite#100")
 
 	sc.press("/aragonite#100")
@@ -355,6 +357,40 @@ func TestInboxScreenApprovesOnTheSecondPress(t *testing.T) {
 	sc.wait()
 
 	s.RequireAllPlayed(t)
+	requireEvicted(t, home, "kyleking/aragonite", 100)
+}
+
+// requireEvicted fails when the inbox snapshot a run left still holds a row or a
+// fact for the pull request, which would paint it as it stood before the reader
+// acted on it.
+func requireEvicted(t *testing.T, home, repository string, number int) {
+	t.Helper()
+
+	got, _, ok := snapshotsIn(home, time.Now).Inbox()
+	if !ok {
+		t.Fatal("the run left no inbox snapshot")
+	}
+
+	rows := 0
+
+	for i := range got.Buckets {
+		for j := range got.Buckets[i].Items {
+			r := &got.Buckets[i].Items[j]
+			rows++
+
+			if r.Repository == repository && r.Number == number {
+				t.Errorf("the snapshot still paints %s#%d", repository, number)
+			}
+		}
+	}
+
+	if rows == 0 {
+		t.Error("the snapshot holds no rows at all, so it proves nothing about the one evicted")
+	}
+
+	if _, held := got.Facts[fmt.Sprintf("%s#%d", repository, number)]; held {
+		t.Errorf("the snapshot still holds the facts read for %s#%d", repository, number)
+	}
 }
 
 // withApprove is the three searches plus the approval the second A sends. The
@@ -395,7 +431,8 @@ func TestInboxScreenMergesOnTheSecondPress(t *testing.T) {
 	s := ghcassette.Replay(t, path)
 	home := quietHome(t)
 
-	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
+	sc := openReview(t, s, t.TempDir(),
+		"HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "XDG_CACHE_HOME="+home+"/.cache", "inbox")
 	sc.await("approved")
 
 	sc.press("/aragonite#130")
@@ -410,6 +447,7 @@ func TestInboxScreenMergesOnTheSecondPress(t *testing.T) {
 	sc.wait()
 
 	s.RequireAllPlayed(t)
+	requireEvicted(t, home, "kyleking/aragonite", 130)
 }
 
 // TestInboxScreenCommentsThroughTheEditor is the one verb that leaves the screen
