@@ -3835,10 +3835,10 @@ func TestTheHeaderKeepsTheTitleAndDropsCountsFirst(t *testing.T) {
 
 	tests := []struct {
 		width, height int
-		whole         bool
+		facts, whole  bool
 	}{
-		{width: 80, height: 24},
-		{width: 200, height: 60, whole: true},
+		{width: 80, height: 24, facts: true},
+		{width: 200, height: 60, facts: true, whole: true},
 	}
 
 	for _, tc := range tests {
@@ -3866,8 +3866,8 @@ func TestTheHeaderKeepsTheTitleAndDropsCountsFirst(t *testing.T) {
 				t.Errorf("the title was cut under its floor: %q", head)
 			}
 
-			if got := strings.Contains(head, "octocat · 2 files · +2 −1"); got != tc.whole {
-				t.Errorf("author and size drawn = %v at %d columns, want %v: %q", got, tc.width, tc.whole, head)
+			if got := strings.Contains(head, "octocat · 2 files · +2 −1"); got != tc.facts {
+				t.Errorf("author and size drawn = %v at %d columns, want %v: %q", got, tc.width, tc.facts, head)
 			}
 
 			if tc.whole && !strings.Contains(head, title) {

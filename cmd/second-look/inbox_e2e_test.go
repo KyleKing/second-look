@@ -217,7 +217,7 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	sc.press("/aragonite#100")
 	sc.press("\r")
 	sc.press("\r")
-	sc.await("kyleking/aragonite #100")
+	sc.await("no clone")
 
 	// The palette is Ink whatever the terminal is, so nothing asks for the
 	// background, and a query against the program's own reader would deadlock.

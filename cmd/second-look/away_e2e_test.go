@@ -79,7 +79,7 @@ func TestReviewScreenWithNoCheckoutRefusesAShell(t *testing.T) {
 
 	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config",
 		"KyleKing/second-look#2")
-	sc.await("KyleKing/second-look #2")
+	sc.await("second-look#2")
 
 	sc.press("!")
 	sc.await("C claims the best clone")

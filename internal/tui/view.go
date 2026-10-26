@@ -96,7 +96,7 @@ func (m *Model) paneLines() []string {
 // and a local review by what it is diffing.
 func (m *Model) name() string {
 	if !m.review.Local {
-		return fmt.Sprintf("%s/%s #%d", m.review.Owner, m.review.Repo, m.review.Number)
+		return fmt.Sprintf("%s#%d", m.review.Repo, m.review.Number)
 	}
 
 	name := m.review.Repo
