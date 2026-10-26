@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -134,31 +133,22 @@ func (s *reviewsScreen) askAll() tea.Cmd {
 
 	ctx := s.ctx
 
+	refs := make([]prstate.Ref, 0, len(rows))
+	for i := range rows {
+		refs = append(refs, prstate.Ref{Repository: rows[i].Repository, Number: rows[i].Number})
+	}
+
 	return func() tea.Msg {
-		states := map[string]prstate.State{}
+		// A review nobody could read leaves the row saying what it knows locally.
+		got, _ := prstate.FetchAll(ctx, ".", refs) //nolint:errcheck // absence is the answer
 
-		var mu sync.Mutex
-
-		var wg sync.WaitGroup
+		states := make(map[string]prstate.State, len(got))
 
 		for i := range rows {
-			wg.Add(1)
-
-			go func() {
-				defer wg.Done()
-
-				got, err := prstate.Fetch(ctx, ".", rows[i].Repository, rows[i].Number)
-				if err != nil {
-					return
-				}
-
-				mu.Lock()
-				states[rows[i].Where()] = got
-				mu.Unlock()
-			}()
+			if state, ok := got[prstate.Ref{Repository: rows[i].Repository, Number: rows[i].Number}]; ok {
+				states[rows[i].Where()] = state
+			}
 		}
-
-		wg.Wait()
 
 		return statesMsg(states)
 	}

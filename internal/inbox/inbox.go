@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/kyleking/aragonite/forge/github"
+
+	"github.com/kyleking/second-look/internal/ghrun"
 )
 
 // Section is one configured query, under the name it is shown by.
@@ -163,6 +165,13 @@ func runAll(ctx context.Context, root string, out []Bucket) []Bucket {
 
 func search(ctx context.Context, root string, tail ...string) ([]PullRequest, error) {
 	args := append([]string{"search", "prs"}, tail...)
+
+	release, err := ghrun.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("starting gh: %w", err)
+	}
+
+	defer release()
 
 	//nolint:gosec // every argument is a constant or an integer from the caller
 	cmd := exec.CommandContext(ctx, "gh", args...)

@@ -78,6 +78,13 @@ func Args() []string {
 
 // Fetch reads the unread stream in one request.
 func Fetch(ctx context.Context, root string) ([]Thread, error) {
+	release, err := ghrun.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("starting gh: %w", err)
+	}
+
+	defer release()
+
 	//nolint:gosec // the arguments are constants
 	cmd := exec.CommandContext(ctx, "gh", Args()...)
 	cmd.Dir = root

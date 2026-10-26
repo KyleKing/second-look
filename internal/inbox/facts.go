@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kyleking/second-look/internal/ghrun"
 )
 
 // Event is something a human did to a pull request, and when.
@@ -131,6 +133,13 @@ func nodeIDs(rows []PullRequest) []string {
 }
 
 func fetchChunk(ctx context.Context, root string, ids []string) (Fetched, error) {
+	release, err := ghrun.Acquire(ctx)
+	if err != nil {
+		return Fetched{}, fmt.Errorf("starting gh: %w", err)
+	}
+
+	defer release()
+
 	//nolint:gosec // the query is a constant and the ids are node ids GitHub returned
 	cmd := exec.CommandContext(ctx, "gh", FactsArgs(ids)...)
 	cmd.Dir = root

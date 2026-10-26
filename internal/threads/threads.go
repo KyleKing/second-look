@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strconv"
+
+	"github.com/kyleking/second-look/internal/ghrun"
 )
 
 // Note is one comment inside a thread.
@@ -149,6 +151,13 @@ const query = `query($owner:String!,$repo:String!,$number:Int!){
 // is what confirms a finding was addressed, and losing it the moment it
 // resolves would take that confirmation with it.
 func Fetch(ctx context.Context, root, owner, repo string, number int) ([]Thread, About, error) {
+	release, err := ghrun.Acquire(ctx)
+	if err != nil {
+		return nil, About{}, fmt.Errorf("starting gh: %w", err)
+	}
+
+	defer release()
+
 	//nolint:gosec // every argument is a constant or a value read off the pull request
 	cmd := exec.CommandContext(ctx, "gh", "api", "graphql",
 		"-F", "owner="+owner, "-F", "repo="+repo, "-F", "number="+strconv.Itoa(number),

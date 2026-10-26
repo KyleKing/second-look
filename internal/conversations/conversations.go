@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kyleking/second-look/internal/ghrun"
 )
 
 // Kind is which of the three surfaces a conversation lives on. It decides what
@@ -222,6 +224,13 @@ func Args(limit int) []string {
 // without knowing who you are, and a per-pull-request round trip would spend a
 // second each on pull requests with nothing in them.
 func Fetch(ctx context.Context, root string, limit int) (*Queue, error) {
+	release, err := ghrun.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("starting gh: %w", err)
+	}
+
+	defer release()
+
 	//nolint:gosec // the query is a constant and the limit is an integer
 	cmd := exec.CommandContext(ctx, "gh", Args(limit)...)
 	cmd.Dir = root

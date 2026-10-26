@@ -15,6 +15,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/kyleking/second-look/internal/ghrun"
 )
 
 // ErrNotARepository reports a name that is not owner/repo, which is the one
@@ -67,13 +69,11 @@ func (s State) Word() string {
 // the fact kept in two places.
 const Query = `query($owner:String!,$repo:String!,$pr:Int!){
   repository(owner:$owner,name:$repo){
-    pullRequest(number:$pr){
-      state
-      reviewDecision
-      viewerLatestReview{state}
-    }
+    pullRequest(number:$pr){` + fields + `}
   }
 }`
+
+const fields = "state reviewDecision viewerLatestReview{state}"
 
 //nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 type response struct {
@@ -100,6 +100,13 @@ func Fetch(ctx context.Context, root, repo string, number int) (State, error) {
 	if !ok {
 		return State{}, fmt.Errorf("%q: %w", repo, ErrNotARepository)
 	}
+
+	release, err := ghrun.Acquire(ctx)
+	if err != nil {
+		return State{}, fmt.Errorf("starting gh: %w", err)
+	}
+
+	defer release()
 
 	//nolint:gosec // every argument is a constant or a value read off the pull request
 	cmd := exec.CommandContext(ctx, "gh", "api", "graphql",

@@ -21,6 +21,24 @@ type Runner interface {
 	Run(ctx context.Context, root string, args ...string) error
 }
 
+// width is how many gh processes may run at once, so three tabs starting
+// together cannot swamp the machine.
+const width = 6
+
+//nolint:gochecknoglobals // the limit is process-wide by design
+var gate = make(chan struct{}, width)
+
+// Acquire takes one of the process-wide gh slots and returns what gives it back.
+// Hold it for the life of one gh process and no longer.
+func Acquire(ctx context.Context) (func(), error) {
+	select {
+	case gate <- struct{}{}:
+		return func() { <-gate }, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("waiting to run gh: %w", ctx.Err())
+	}
+}
+
 type ghRunner struct{}
 
 // GH runs by shelling out to gh.
@@ -40,6 +58,13 @@ func (ghRunner) Run(ctx context.Context, root string, args ...string) error {
 
 // Output is Run for a call whose answer is wanted, which is every read.
 func Output(ctx context.Context, root string, args ...string) ([]byte, error) {
+	release, err := Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer release()
+
 	//nolint:gosec // every argument is a constant or a value read off the pull request
 	cmd := exec.CommandContext(ctx, "gh", args...)
 	cmd.Dir = root
