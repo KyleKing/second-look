@@ -1,3 +1,59 @@
+## v0.37.0 (2026-10-26)
+
+### Feat
+
+- **tui**: draw the queue's chrome through aragonite's frame and answer clicks on rows, tabs, and the legend
+- **tui**: widen the help legend with the frame so its rows stop wrapping at 120 columns
+- **tui**: esc on a review opens the queue
+- **snapshot**: evict a pull request from the snapshot once the reader acts on it
+- **conversations**: paint the last queue and fetch only the pull requests that moved
+- **tui**: draw staged reviews as one line each on the column grid
+- **tui**: draw the conversation queue as one line per thread on the column grid
+- **tui**: open the checkout in gh-repo-dashboard and come back
+- **tui**: tint rows a refresh moved, then let them settle
+- **tui**: hold a refreshed order until the keyboard is idle
+- **tui**: start every tab at open and draw stale counts dim
+- **reviews**: read every staged review's state in one query and gate gh at six
+- **inbox**: read facts only for rows the snapshot cannot vouch for
+- **inbox**: paint the last queue on the first frame and refresh behind it
+- **snapshot**: keep the last queue each tab drew on the disk cache
+- **tui**: fit the footer's keys to the width by priority
+- **tui**: show the row under the cursor in an inspector panel
+- **tui**: mark the cursor row with a full-width band
+- **tui**: draw the inbox as one line per pull request on a column grid
+- **inbox**: give each judgement a glyph, a short word, and a tone
+- **tui**: lane headers read name and count, with a blank between lanes only in tall frames
+- **tui**: one header line of tabs with count chips and an underline rule
+- **tui**: add the queue's faces: band, rung ladder, count chips, hairline
+
+### Fix
+
+- **tui**: draw the outline's selected row facts in the lit muted rung
+- **tui**: spell the review header ref as repo#n like the queue
+- **inbox**: name the lane of a stack-dimmed row in its status
+- **reviews**: mark blocked staged reviews with their own glyph
+- **tui**: size the queue's help legend with the review screen's width
+- **tui**: cap the queue title column and widen the author column
+- **tui**: drop the hotkey digit from the tab strip
+- **tui**: drop the commit prefix from a title column under forty cells
+- **tui**: keep the inspector subject whole before dropping its ref
+- **inbox**: recede merged rows like waiting rows
+- **tui**: dim waiting rows and quiet lane labels when color is off
+- **tui**: keep the file strip's cursor mark on the opening row and in one-cell files
+- **tui**: keep the ref column 15 cells wide so titles start in one column on every tab
+- **tui**: filter grid rows by what their cells and inspector say
+
+### Refactor
+
+- **tui**: move the color profile switch out of list update
+- **tui**: draw the cursor and range as row tints on aragonite v1.0.0
+- **tui**: drop the two-line row fields and the layout that drew them
+- **tui**: fit the review screen's keys with keyhint
+
+### Perf
+
+- **reviews**: read staged states in parallel chunks
+
 ## v0.36.0 (2026-10-25)
 
 ### Feat
