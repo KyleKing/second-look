@@ -353,6 +353,9 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return l, nil
 	case tea.ColorProfileMsg:
 		l.mono = msg.Profile <= colorprofile.ASCII
+		if l.mono {
+			l.styles.monochrome()
+		}
 
 		return l, nil
 	case tea.KeyPressMsg:

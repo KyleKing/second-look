@@ -184,6 +184,9 @@ func rangeFace(p theme.Palette, sk skin.Skin) lipgloss.Style {
 func (s *styles) monochrome() {
 	s.row = lipgloss.NewStyle().Reverse(true)
 	s.span = lipgloss.NewStyle().Underline(true)
+	s.rungs.waiting = rung{dim: s.rungs.waiting.dim.Faint(true), lit: s.rungs.waiting.lit.Faint(true)}
+	s.lanes.quietLabel = s.lanes.quietLabel.Faint(true)
+	s.lanes.quietCount = s.lanes.quietCount.Faint(true)
 }
 
 func (s styles) forSeverity(name string) lipgloss.Style {
