@@ -16,6 +16,22 @@ import (
 // MaxAliases is how many pull requests one batched query asks about.
 const MaxAliases = 50
 
+// parts is how many queries a read is split across, which run side by side.
+const parts = 4
+
+// Split divides refs into the queries FetchAll sends: at most parts of them,
+// each no larger than MaxAliases, so the forge's time on one query (which
+// grows with its aliases) is spent in parallel.
+func Split(refs []Ref) [][]Ref {
+	if len(refs) == 0 {
+		return nil
+	}
+
+	size := min(MaxAliases, (len(refs)+parts-1)/parts)
+
+	return slices.Collect(slices.Chunk(refs, size))
+}
+
 // Ref names one pull request.
 type Ref struct {
 	Repository string
@@ -49,7 +65,7 @@ func BatchArgs(refs []Ref) ([]string, error) {
 	return append(args, "-f", "query="+query), nil
 }
 
-// FetchAll reads every ref's state, one query per MaxAliases refs. A ref the
+// FetchAll reads every ref's state, several queries run in parallel. A ref the
 // forge did not answer for is absent from the result, and the error names why
 // the last failed query did.
 func FetchAll(ctx context.Context, root string, refs []Ref) (map[Ref]State, error) {
@@ -61,7 +77,7 @@ func FetchAll(ctx context.Context, root string, refs []Ref) (map[Ref]State, erro
 		firstErr error
 	)
 
-	for chunk := range slices.Chunk(refs, MaxAliases) {
+	for _, chunk := range Split(refs) {
 		wg.Add(1)
 
 		go func() {

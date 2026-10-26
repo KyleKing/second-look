@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -37,7 +36,7 @@ func cassetteFor(t *testing.T, refs []prstate.Ref) string {
 
 	cassette := &ghcassette.Cassette{}
 
-	for chunk := range slices.Chunk(refs, prstate.MaxAliases) {
+	for _, chunk := range prstate.Split(refs) {
 		args, err := prstate.BatchArgs(chunk)
 		if err != nil {
 			t.Fatal(err)
@@ -55,14 +54,14 @@ func cassetteFor(t *testing.T, refs []prstate.Ref) string {
 	return path
 }
 
-// Reading the state of every staged review is one call per MaxAliases reviews,
+// Reading the state of every staged review is a few parallel calls (none past MaxAliases reviews),
 // not one per review, and every answer lands on the review it was asked about.
 // Replaying in-process sets the environment, which rules out t.Parallel.
 //
 //nolint:paralleltest // ghcassette.Apply sets the process environment
 func TestFetchAllBatchesTheQueryAndKeepsEachAnswerOnItsRef(t *testing.T) {
 	for _, c := range []struct{ refs, calls int }{
-		{45, 1}, {prstate.MaxAliases, 1}, {prstate.MaxAliases + 1, 2}, {2*prstate.MaxAliases + 5, 3},
+		{1, 1}, {45, 4}, {4*prstate.MaxAliases + 5, 5},
 	} {
 		t.Run(fmt.Sprintf("%d reviews", c.refs), func(t *testing.T) {
 			refs := make([]prstate.Ref, 0, c.refs)
