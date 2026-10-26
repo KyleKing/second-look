@@ -18,7 +18,9 @@ flowchart LR
     Q -->|back to you, H| R
 ```
 
-The inbox is ordered to keep the amount of work in progress small. Your own pull requests that are approved and ready to merge come first, then anything waiting on a reply from you, then new review requests (priority labels and pull requests where you are the only human reviewer go to the top). Each finding from a review bot or teammate gets one of four verdicts:
+The queue has three tabs, inbox, conversations, and staged, which `1`, `2`, `3`, `[`, and `]` switch between. Every row is one line on a shared grid, so titles start in the same column on all three, and the row under the cursor is a single tinted band. A line under the list says what the row had no room for, such as the full title, the commit prefix, and who it is waiting on. `esc` on a review opens the queue again, and `B` on a review opens its checkout in [gh-repo-dashboard](https://github.com/KyleKing/gh-repo-dashboard) and returns when you quit it.
+
+The inbox is ordered to keep the amount of work in progress small. Your own pull requests that are approved and ready to merge come first, then anything waiting on a reply from you, then new review requests (priority labels and pull requests where you are the only human reviewer go to the top). Work waiting on somebody else and merged pull requests come last and recede, so the rows that need you are the brightest, and `z` shows the merged lane. Each finding from a review bot or teammate gets one of four verdicts:
 
 | Key | Verdict | What posts |
 | --- | ------- | ---------- |
