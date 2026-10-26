@@ -558,9 +558,9 @@ func (c *counted) Start() tea.Cmd {
 
 func (*counted) Absorb(tea.Msg) (tea.Cmd, bool) { return nil, false }
 
-// The three queues are one program with three tabs. A tab is loaded when it is
-// first looked at, switching back puts the cursor where it was left, and the
-// strip says which one is being read.
+// The three queues are one program with three tabs. Every tab is loaded when
+// the screen opens, switching to one or back to it reads nothing again, the
+// cursor is where it was left, and the strip says which one is being read.
 func TestTabsLoadOnceAndKeepWhereEachWasLeft(t *testing.T) {
 	t.Parallel()
 
@@ -579,10 +579,13 @@ func TestTabsLoadOnceAndKeepWhereEachWasLeft(t *testing.T) {
 		},
 	}, 0)
 	l.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	l.Init()
 
-	if late.starts != 0 {
-		t.Errorf("the tab nobody looked at ran %d search(es)", late.starts)
+	if late.starts != 1 {
+		t.Errorf("the tab nobody looked at ran %d search(es) on opening, want 1", late.starts)
 	}
+
+	l.Init()
 
 	// Leave the cursor somewhere the other tab cannot be confused with.
 	l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
@@ -596,7 +599,7 @@ func TestTabsLoadOnceAndKeepWhereEachWasLeft(t *testing.T) {
 	shows(t, l, []string{"repo#9"}, []string{"kyleking/tlr#118"})
 
 	if late.starts != 1 {
-		t.Errorf("the tab ran %d search(es) on being opened, want 1", late.starts)
+		t.Errorf("the tab ran %d search(es) after being opened, want 1", late.starts)
 	}
 
 	l.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
@@ -610,6 +613,40 @@ func TestTabsLoadOnceAndKeepWhereEachWasLeft(t *testing.T) {
 
 	if late.starts != 1 {
 		t.Errorf("the tab ran %d search(es) in total, want 1", late.starts)
+	}
+}
+
+// A count read from a snapshot is the same text in a dimmer chip, on the tab
+// being read and on one that is not.
+func TestAStaleCountDrawsDimmerThanAFreshOne(t *testing.T) {
+	t.Parallel()
+
+	frame := func(stale bool, at int) string {
+		l := tui.NewTabs([]tui.Tab{
+			{
+				Name: "inbox", Sections: lanes, Columns: laneColumns,
+				Badge: func() tui.Badge { return tui.Badge{Label: "4", Stale: stale} },
+			},
+			{
+				Name: "other", Sections: queue,
+				Badge: func() tui.Badge { return tui.Badge{Label: "2", Stale: stale} },
+			},
+		}, at)
+		l.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+
+		return l.ListFrame()
+	}
+
+	for at := range 2 {
+		fresh, stale := frame(false, at), frame(true, at)
+
+		if plain(fresh) != plain(stale) {
+			t.Errorf("tab %d: the stale count reads differently from the fresh one", at+1)
+		}
+
+		if fresh == stale {
+			t.Errorf("tab %d: the stale count is drawn the same as the fresh one", at+1)
+		}
 	}
 }
 

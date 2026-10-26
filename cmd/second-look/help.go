@@ -300,10 +300,11 @@ NAMING A PULL REQUEST
 
       This screen, the conversations, and the staged reviews are three tabs of
       one screen. Each command opens on its own tab, 1, 2, and 3 pick one, and ]
-      and [ step through them. Every tab keeps its own cursor and filter, and a
-      tab loads when it is first looked at, so opening on one costs what that
-      one costs. Reading a review comes back to the row it was opened from, or
-      to the row that took its place where the review has since posted.
+      and [ step through them. Every tab keeps its own cursor and filter, and
+      every tab starts when the screen opens, so each count is in the strip at
+      once, dim while it is the last visit's. Reading a review comes back to
+      the row it was opened from, or to the row that took its place where the
+      review has since posted.
 
       Each bucket is ordered for triage rather than by recency: what you have
       already started here, then the smallest of what an earlier read rated,

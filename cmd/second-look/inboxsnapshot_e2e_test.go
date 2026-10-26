@@ -47,7 +47,7 @@ func gated(t *testing.T) (string, string) {
 	return dir + string(os.PathListSeparator) + os.Getenv("PATH"), open
 }
 
-// The first frame comes from disk: the rows of the last open are on screen
+// The first frame comes from disk: the rows and the count of the last open are on screen
 // while every gh call is still out, and what the searches then answer replaces
 // them. The snapshot was read as another login, so the read that names this
 // one drops it and writes its own.
@@ -80,6 +80,7 @@ func TestInboxPaintsTheLastQueueBeforeGHAnswers(t *testing.T) {
 
 	sc.await("a row from the last open")
 	sc.await("cached 3h ago")
+	sc.await("inbox 1")
 
 	if err := os.WriteFile(release, nil, 0o600); err != nil {
 		t.Fatal(err)

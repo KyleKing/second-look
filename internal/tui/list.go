@@ -431,6 +431,13 @@ func (l *List) say(status string, failed bool) { l.status, l.failed = status, fa
 // Init lays out the first frame at the assumed size, which the terminal
 // corrects with a resize before anything is drawn.
 func (l *List) Init() tea.Cmd {
+	if len(l.tabs) > 0 {
+		cmd := l.StartAll()
+		l.rebuild()
+
+		return tea.Batch(cmd, l.rest())
+	}
+
 	if l.loader == nil {
 		l.rebuild()
 

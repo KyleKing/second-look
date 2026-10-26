@@ -121,8 +121,8 @@ func broken(t *testing.T, dir string, number int) {
 
 // The staged-review screen on a terminal: the rows are drawn, a file that no
 // longer parses says why rather than opening into an empty review, and the tab
-// it opened on is one of three. The other two are not loaded, which the empty
-// cassette is what proves: a tab nobody switched to makes no request.
+// it opened on is one of three. The other two start as well and find nothing in
+// the empty cassette, which leaves them empty rather than failing the screen.
 func TestReviewsScreen(t *testing.T) {
 	t.Parallel()
 

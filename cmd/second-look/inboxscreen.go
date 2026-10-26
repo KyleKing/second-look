@@ -974,10 +974,12 @@ func (s *inboxScreen) failedSearches() int {
 	return failed
 }
 
-// badge is the tab's count: how much is waiting on you, once the searches have
-// answered.
+// badge is the tab's count: how much is waiting on you. It is the snapshot's
+// until every search has answered, and nothing at all where there is no snapshot
+// to read it from.
 func (s *inboxScreen) badge() tui.Badge {
-	if s.waiting > 0 {
+	waiting := s.waiting > 0
+	if waiting && len(s.stale) == 0 {
 		return tui.Badge{}
 	}
 
@@ -986,7 +988,7 @@ func (s *inboxScreen) badge() tui.Badge {
 		return tui.Badge{}
 	}
 
-	return tui.Badge{Label: strconv.Itoa(rows)}
+	return tui.Badge{Label: strconv.Itoa(rows), Stale: waiting}
 }
 
 // budgetWord says why the order stopped where it did, and when it can be

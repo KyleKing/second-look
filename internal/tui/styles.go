@@ -11,6 +11,10 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 )
 
+// staleChipShare is how much of the accent the active tab's chip keeps while its
+// count is a snapshot's.
+const staleChipShare = 0.55
+
 // accent is the one color that says which of these tools you are looking at.
 // Lavender is second-look's: it draws the cursor and the rail a comment hangs
 // off, which are the two things this screen is steered by.
@@ -66,6 +70,9 @@ type styles struct {
 	badge        lipgloss.Style
 	badgeOn      lipgloss.Style
 	badgeBlocked lipgloss.Style
+	// badgeStale and badgeOnStale are the chips for a count read off a snapshot.
+	badgeStale   lipgloss.Style
+	badgeOnStale lipgloss.Style
 	hairline     lipgloss.Style
 	lanes        laneFaces
 	// Card faces, until aragonite's skin.Edge and skin.Card carry this contrast.
@@ -127,6 +134,8 @@ func newStyles() styles {
 		badge:        sk.Badge,
 		badgeOn:      sk.BadgeActive,
 		badgeBlocked: sk.Badge.Foreground(p.Red),
+		badgeStale:   sk.Badge.Foreground(p.Overlay0).Bold(false),
+		badgeOnStale: sk.BadgeActive.Background(theme.Mix(p.Base, accent(p), staleChipShare)).Bold(false),
 		hairline:     sk.Hairline,
 		lanes:        newLaneFaces(p),
 		edge:         base.Foreground(p.Overlay2),

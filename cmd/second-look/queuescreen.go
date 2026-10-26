@@ -33,8 +33,8 @@ const (
 //
 // They were three programs, which meant three commands to remember and no way
 // to go from a pull request waiting on you to the conversation on it without
-// leaving and starting again. Each tab loads when it is first looked at, so
-// opening on one costs what that one costs.
+// leaving and starting again. Every tab starts when the screen opens, so
+// each count is in the strip before its tab is looked at.
 func openQueue(ctx context.Context, at int, stdin io.Reader, stdout io.Writer) error {
 	var where tui.Resume
 

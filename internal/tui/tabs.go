@@ -41,9 +41,9 @@ type Tab struct {
 	// and it is read on every frame. A column's From is the terminal's width. A tab
 	// with none draws its rows as before.
 	Columns func() []table.Column
-	// Loader fills the tab in as its answers arrive. It is started when the tab
-	// is first looked at rather than when the screen opens, so a queue nobody
-	// switched to costs no requests.
+	// Loader fills the tab in as its answers arrive. Every tab's is started
+	// when the screen opens, so each count is in the strip before its tab is
+	// looked at.
 	Loader Loader
 	// Rest is called with the row the cursor has stopped on, for a tab that
 	// pays for something only the row being looked at needs.
@@ -59,6 +59,9 @@ type Badge struct {
 	Label string
 	// Alert draws the count in red, for a queue holding something blocked.
 	Alert bool
+	// Stale draws the count dim: it was read from a snapshot and its refresh
+	// has not landed, so it is not yet a fact.
+	Stale bool
 }
 
 // State is the header's right-hand text. Busy draws it in the warning color,
@@ -146,7 +149,25 @@ func (l *List) remember() {
 	v.status, v.failed = l.status, l.failed
 }
 
-// switchTo moves to a tab, starting its loader the first time it is looked at.
+// StartAll starts every tab's loader that has not been started, in tab order,
+// so the strip carries every count from the first frame on. A tab is started at
+// most once: switching to it later does not read it again.
+func (l *List) StartAll() tea.Cmd {
+	var cmds []tea.Cmd
+
+	for i := range l.tabs {
+		if l.tabs[i].Loader == nil || l.views[i].started {
+			continue
+		}
+
+		l.views[i].started = true
+		cmds = append(cmds, l.tabs[i].Loader.Start())
+	}
+
+	return tea.Batch(cmds...)
+}
+
+// switchTo moves to a tab, starting its loader if nothing has yet.
 func (l *List) switchTo(at int) tea.Cmd {
 	if at < 0 || at >= len(l.tabs) || at == l.at {
 		return nil
@@ -233,7 +254,12 @@ func (l *List) tabStrip() (string, stretch) {
 
 		if l.tabs[i].Badge != nil {
 			if b := l.tabs[i].Badge(); b.Label != "" {
-				if b.Alert && !on {
+				switch {
+				case b.Stale && on:
+					chip = l.styles.badgeOnStale
+				case b.Stale:
+					chip = l.styles.badgeStale
+				case b.Alert && !on:
 					chip = l.styles.badgeBlocked
 				}
 
