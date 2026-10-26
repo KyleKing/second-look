@@ -38,7 +38,7 @@ func (s *reviewsScreen) columns() []table.Column {
 
 	return []table.Column{
 		refColumn(s.places()),
-		{Key: colTitle, Min: titleFloor, Weight: titleWeight},
+		{Key: colTitle, Min: titleFloor, Max: titleMax, Weight: titleWeight},
 		{Key: colHolds, Min: holds, Max: holds, From: holdsFrom, Align: table.AlignRight},
 		{Key: colAge, Min: ageWidth, Max: ageWidth, Align: table.AlignRight},
 		{Key: colStatus, Min: reviewState, Max: reviewState},

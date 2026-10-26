@@ -35,7 +35,7 @@ const wordStaged = "staged"
 // sign, so the size column holds two of those and the space between them. The
 // long status word needs a cell this wide, and a status never grows past it.
 const (
-	authorWidth = 10
+	authorWidth = 12
 	ageWidth    = 4
 	countWidth  = 5
 	sizeWidth   = 2*countWidth + 1
@@ -44,6 +44,7 @@ const (
 	titleLong   = 40
 	statusMax   = 26
 	titleFloor  = 30
+	titleMax    = 72
 	authorFrom  = 112
 	sizeFrom    = 100
 	titleWeight = 3
@@ -53,7 +54,7 @@ const (
 func (s *inboxScreen) columns() []table.Column {
 	return []table.Column{
 		refColumn(s.places()),
-		{Key: colTitle, Min: titleFloor, Weight: titleWeight},
+		{Key: colTitle, Min: titleFloor, Max: titleMax, Weight: titleWeight},
 		{Key: colAuthor, Min: authorWidth, Max: authorWidth, From: authorFrom},
 		{Key: colAge, Min: ageWidth, Max: ageWidth, Align: table.AlignRight},
 		{Key: colSize, Min: sizeWidth, Max: sizeWidth, From: sizeFrom, Align: table.AlignRight},

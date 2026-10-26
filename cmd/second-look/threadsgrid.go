@@ -27,7 +27,7 @@ const (
 func (s *threadsScreen) columns() []table.Column {
 	return []table.Column{
 		refColumn(s.places()),
-		{Key: colTitle, Min: titleFloor, Weight: titleWeight},
+		{Key: colTitle, Min: titleFloor, Max: titleMax, Weight: titleWeight},
 		{Key: colAnchor, Min: anchorMin, Max: anchorMax, From: anchorFrom, Trim: table.TrimLeft},
 		{Key: colAuthor, Min: authorWidth, Max: authorWidth, From: authorFrom},
 		{Key: colAge, Min: ageWidth, Max: ageWidth, Align: table.AlignRight},
