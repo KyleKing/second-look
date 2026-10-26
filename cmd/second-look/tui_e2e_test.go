@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 	"github.com/kyleking/aragonite/ghcassette"
 
@@ -31,6 +34,30 @@ const (
 	ptyRows = 30
 )
 
+// size is a terminal's width and height in cells.
+type size struct{ cols, rows int }
+
+// winsize is sz as a pty reports it. A terminal's size is far below what the
+// field holds.
+func (sz size) winsize() *pty.Winsize {
+	return &pty.Winsize{Cols: uint16(sz.cols), Rows: uint16(sz.rows)} //nolint:gosec // see above
+}
+
+// emulate is a terminal of sz. It answers the queries it is asked on a pipe
+// nobody else reads, and a write that waits on that pipe would stall the
+// reader, so the pipe is drained. The emulator is never closed, because its
+// Close races its own reader, and the drain ends with the test binary.
+func emulate(sz size) *vt.SafeEmulator {
+	term := vt.NewSafeEmulator(sz.cols, sz.rows)
+
+	go io.Copy(io.Discard, term) //nolint:errcheck // it ends when the emulator closes
+
+	return term
+}
+
+// defaultSize is the terminal a screen test opens on unless it says otherwise.
+var defaultSize = size{ptyCols, ptyRows}
+
 var ansi = regexp.MustCompile(`\x1b\[[0-9;?]*[a-zA-Z]`)
 
 func plain(s string) string { return ansi.ReplaceAllString(s, "") }
@@ -42,6 +69,15 @@ type screen struct {
 	mu  sync.Mutex
 	buf strings.Builder
 	cmd *exec.Cmd
+	// termMu serializes the emulator, whose String reads the screen without
+	// taking the lock its Write holds.
+	termMu sync.Mutex
+	// term is what a terminal would be showing, fed everything the program
+	// writes, so a test can read the frame the reader sees rather than the
+	// stream that drew it. A resize replaces it with an emulator of the new
+	// size, since the library's own resize leaves the old scroll region behind
+	// and panics on the next scroll.
+	term *vt.SafeEmulator
 	// drained closes once everything the screen wrote has been read. A process
 	// that has exited may still have bytes in the pty, so a test asserting on
 	// the last thing it wrote -- the escape that gives the alternate screen
@@ -64,6 +100,13 @@ func (s *screen) raw() string {
 func openReview(t *testing.T, s *ghcassette.Session, dir string, args ...string) *screen {
 	t.Helper()
 
+	return openAt(t, defaultSize, s, dir, args...)
+}
+
+// openAt is openReview on a terminal of the size named.
+func openAt(t *testing.T, sz size, s *ghcassette.Session, dir string, args ...string) *screen {
+	t.Helper()
+
 	env := append(childEnv(t, s, dir), "TERM=xterm-256color")
 
 	for len(args) > 1 && strings.Contains(args[0], "=") {
@@ -75,12 +118,12 @@ func openReview(t *testing.T, s *ghcassette.Session, dir string, args ...string)
 	cmd.Dir = dir
 	cmd.Env = env
 
-	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: ptyCols, Rows: ptyRows})
+	f, err := pty.StartWithSize(cmd, sz.winsize())
 	if err != nil {
 		t.Fatalf("starting the review screen on a pty: %v", err)
 	}
 
-	sc := &screen{t: t, pty: f, cmd: cmd, drained: make(chan struct{})}
+	sc := &screen{t: t, pty: f, cmd: cmd, drained: make(chan struct{}), term: emulate(sz)}
 
 	go sc.drain()
 
@@ -113,6 +156,8 @@ func (s *screen) drain() {
 		s.mu.Lock()
 		s.buf.Write(chunk[:n])
 		s.mu.Unlock()
+
+		s.feed(chunk[:n])
 
 		s.answer(string(chunk[:n]))
 
@@ -198,6 +243,81 @@ func (s *screen) awaitPlayed(session *ghcassette.Session, want int) {
 	}
 
 	s.t.Fatalf("waiting for %d gh calls, saw %d; the screen wrote:\n%s", want, len(session.Played(s.t)), s.text())
+}
+
+// feed shows what the program wrote. A chunk drawn for the old size can land in
+// the emulator of the new one after a resize, and the library panics scrolling
+// a row past its end, so that chunk is dropped: the redraw that follows a
+// resize paints the whole frame again.
+func (s *screen) feed(chunk []byte) {
+	s.termMu.Lock()
+	defer s.termMu.Unlock()
+
+	defer func() { _ = recover() }() //nolint:errcheck // see above
+
+	_, _ = s.term.Write(chunk) //nolint:errcheck // the emulator only fails once it is closed
+}
+
+// resize changes the terminal's size the way a window does: the pty's size
+// changes and the program is signaled, so it redraws for the new one.
+func (s *screen) resize(sz size) {
+	s.t.Helper()
+
+	if err := pty.Setsize(s.pty, sz.winsize()); err != nil {
+		s.t.Fatalf("resizing the terminal to %dx%d: %v", sz.cols, sz.rows, err)
+	}
+
+	s.termMu.Lock()
+	defer s.termMu.Unlock()
+
+	s.term = emulate(sz)
+}
+
+// reversedRows is the rows of the terminal with a reversed cell in them.
+func (s *screen) reversedRows() []int {
+	s.termMu.Lock()
+	defer s.termMu.Unlock()
+
+	var rows []int
+
+	for y := range s.term.Height() {
+		for x := range s.term.Width() {
+			if c := s.term.CellAt(x, y); c != nil && c.Style.Attrs&uv.AttrReverse != 0 {
+				rows = append(rows, y)
+
+				break
+			}
+		}
+	}
+
+	return rows
+}
+
+// frame is what the terminal is showing now, one string per row.
+func (s *screen) frame() []string {
+	s.termMu.Lock()
+	defer s.termMu.Unlock()
+
+	return strings.Split(s.term.String(), "\n")
+}
+
+// awaitFrame blocks until the terminal shows a frame want accepts, and fails
+// with that frame when it never does.
+func (s *screen) awaitFrame(what string, want func(frame []string) bool) []string {
+	s.t.Helper()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if frame := s.frame(); want(frame) {
+			return frame
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	s.t.Fatalf("waiting for %s; the terminal showed:\n%s", what, strings.Join(s.frame(), "\n"))
+
+	return nil
 }
 
 func (s *screen) press(keys string) {
@@ -634,12 +754,45 @@ func TestReviewScreenQuitsWithoutPosting(t *testing.T) {
 				t.Error("quitting removed the prepared review")
 			}
 
-			// Every quit path has to give the alternate screen back, or the
-			// terminal is left showing a frame nobody can scroll out of.
-			if !strings.Contains(sc.raw(), "\x1b[?1049l") {
-				t.Error("the alternate screen was not restored")
-			}
+			requireTerminalGivenBack(t, sc.raw())
 		})
+	}
+}
+
+// privateMode matches a DEC private mode being set or reset, which is how a
+// program takes the alternate screen, hides the cursor, and asks for the mouse
+// and for pasted text to be marked.
+var privateMode = regexp.MustCompile(`\x1b\[\?(\d+)([hl])`)
+
+// requireTerminalGivenBack fails unless what a program wrote leaves the
+// terminal as it found it. Every quit path has to leave the alternate screen,
+// or the terminal is left showing a frame nobody can scroll out of, show the
+// cursor again, and turn off each input mode it turned on.
+func requireTerminalGivenBack(t *testing.T, raw string) {
+	t.Helper()
+
+	const (
+		altScreen = "1049"
+		cursor    = "25"
+	)
+
+	last := map[string]string{}
+	for _, m := range privateMode.FindAllStringSubmatch(raw, -1) {
+		last[m[1]] = m[2]
+	}
+
+	if last[altScreen] != "l" {
+		t.Error("the alternate screen was not restored")
+	}
+
+	if got, hid := last[cursor]; hid && got != "h" {
+		t.Error("the cursor was left hidden")
+	}
+
+	for mode, state := range last {
+		if mode != cursor && state == "h" {
+			t.Errorf("private mode %s was turned on and left on", mode)
+		}
 	}
 }
 

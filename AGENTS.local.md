@@ -206,6 +206,14 @@ seconds when two suites run at once (`hk check --all` runs `ci` and `verify-rele
 concurrently). Add any new capability query to `answers` in that file and leave the deadline
 alone, since an unanswered one brings the stall back.
 
+`screen.frame()` is what a terminal would be showing, from a `charmbracelet/x/vt` emulator
+fed everything the program writes. A test of a resize, a column that should be gone, or a
+reversed row reads the frame and not the stream that drew it. `screen.resize` changes the
+pty and replaces the emulator with one of the new size, because the library's own resize
+leaves the old scroll region behind and panics on the next scroll. After a resize wait with
+`awaitFrame` on something only the new size draws, such as the footer on the last row, since
+the old frame stays on screen until the redraw lands.
+
 Three harness rules each cost a session:
 
 - `wait` waits for the reader as well as the exit, because an exited process may still have

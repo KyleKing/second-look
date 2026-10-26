@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -643,4 +645,212 @@ func TestInboxScreenLabelsAPullRequest(t *testing.T) {
 	sc.wait()
 
 	s.RequireAllPlayed(t)
+}
+
+// onScreenPath is onScreen saved where a replay reads it.
+func onScreenPath(t *testing.T) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "inbox-on-screen.golden")
+	if err := ghcassette.Save(path, onScreen(t)); err != nil {
+		t.Fatalf("writing the derived cassette: %v", err)
+	}
+
+	return path
+}
+
+// The terminal sizes the queue is driven at: the smallest it draws rows in and
+// a roomy one, either side of the breakpoint that decides which columns show.
+var queueSizes = []size{{80, 24}, {120, 40}}
+
+// openQueueAt opens the inbox on a terminal of sz and waits for its rows.
+func openQueueAt(t *testing.T, sz size, env ...string) *screen {
+	t.Helper()
+
+	home := quietHome(t)
+	s := ghcassette.Replay(t, onScreenPath(t))
+
+	args := append([]string{"HOME=" + home, "XDG_CONFIG_HOME=" + home + "/.config"}, env...)
+	sc := openAt(t, sz, s, t.TempDir(), append(args, "inbox")...)
+
+	sc.awaitFrame("the queue's rows", func(frame []string) bool {
+		return strings.Contains(strings.Join(frame, "\n"), "gh-sweep#102")
+	})
+
+	return sc
+}
+
+// The terminal is resized under a running queue the way a window is dragged.
+// What the reader is left with is the frame for the new size and nothing of the
+// old one: a column the narrower frame has no room for is gone rather than
+// drawn over, and a terminal below the minimum says so and comes back.
+func TestTheQueueRedrawsWhenTheTerminalResizes(t *testing.T) {
+	t.Parallel()
+
+	// dependabot is an author, which the grid shows from 112 columns.
+	const author = "dependabot"
+
+	for _, tc := range []struct {
+		name  string
+		from  size
+		steps []size
+		shows bool
+	}{
+		{"narrower", size{120, 40}, []size{{80, 24}}, false},
+		{"wider", size{80, 24}, []size{{120, 40}}, true},
+		{"below the minimum and back", size{120, 40}, []size{{60, 8}, {120, 40}}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sc := openQueueAt(t, tc.from)
+
+			for _, step := range tc.steps {
+				sc.resize(step)
+			}
+
+			last := tc.steps[len(tc.steps)-1]
+
+			// The footer is the last row, which only a frame drawn for the new
+			// height has: the old one is still on screen until the redraw lands.
+			frame := sc.awaitFrame("the frame for the new size", func(frame []string) bool {
+				return len(frame) == last.rows && strings.Contains(frame[last.rows-1], "enter review") &&
+					strings.Contains(strings.Join(frame, "\n"), "gh-sweep#102")
+			})
+
+			if got := strings.Contains(strings.Join(frame, "\n"), author); got != tc.shows {
+				t.Errorf("at %dx%d the author column is drawn = %v, want %v:\n%s",
+					last.cols, last.rows, got, tc.shows, strings.Join(frame, "\n"))
+			}
+
+			if !strings.Contains(frame[0], "second-look") {
+				t.Errorf("the header is not the first row:\n%s", strings.Join(frame, "\n"))
+			}
+
+			if !strings.Contains(frame[len(frame)-1], "enter review") {
+				t.Errorf("the footer is not the last row:\n%s", strings.Join(frame, "\n"))
+			}
+
+			sc.press("q")
+			sc.wait()
+		})
+	}
+}
+
+// A terminal below the minimum draws no rows at all, only the way out of it.
+func TestTheQueueSaysWhenTheTerminalIsTooSmall(t *testing.T) {
+	t.Parallel()
+
+	sc := openQueueAt(t, size{120, 40})
+	sc.resize(size{60, 8})
+
+	frame := sc.awaitFrame("the too-small notice", func(frame []string) bool {
+		return strings.Contains(strings.Join(frame, "\n"), "too small")
+	})
+
+	if text := strings.Join(frame, "\n"); strings.Contains(text, "gh-sweep#102") {
+		t.Errorf("rows were drawn into a terminal too small for them:\n%s", text)
+	}
+
+	sc.press("q")
+	sc.wait()
+}
+
+// Every way out of the queue gives the terminal back as it was found, at every
+// size: the alternate screen is left, the cursor is shown, and no input mode the
+// screen turned on is still on, or the shell prompt that follows is unusable.
+func TestTheQueueGivesTheTerminalBackOnEveryQuit(t *testing.T) {
+	t.Parallel()
+
+	for _, sz := range queueSizes {
+		for _, quit := range []struct{ name, keys string }{
+			{"q", "q"}, {"esc", "\x1b"}, {"ctrl-c", "\x03"},
+		} {
+			t.Run(fmt.Sprintf("%s at %dx%d", quit.name, sz.cols, sz.rows), func(t *testing.T) {
+				t.Parallel()
+
+				sc := openQueueAt(t, sz)
+				sc.press(quit.keys)
+
+				if code := sc.wait(); code != 0 {
+					t.Fatalf("quitting exited %d:\n%s", code, sc.text())
+				}
+
+				requireTerminalGivenBack(t, sc.raw())
+			})
+		}
+	}
+}
+
+// With NO_COLOR set the queue draws no color at all, and the row under the
+// cursor, which a band cannot mark, is the one reversed row.
+func TestTheQueueDrawsNoColorUnderNOCOLOR(t *testing.T) {
+	t.Parallel()
+
+	for _, sz := range queueSizes {
+		t.Run(fmt.Sprintf("%dx%d", sz.cols, sz.rows), func(t *testing.T) {
+			t.Parallel()
+
+			sc := openQueueAt(t, sz, "NO_COLOR=1")
+
+			// The rows draw before the batched read sorts them into lanes, and
+			// the cursor moves with its row while it does.
+			sc.awaitFrame("the lanes after the read", func(frame []string) bool {
+				return strings.Contains(strings.Join(frame, "\n"), "ready to merge  1")
+			})
+
+			requireNoColor(t, sc.raw())
+
+			if rows := sc.reversedRows(); len(rows) != 1 {
+				t.Errorf("rows %v are reversed, want exactly one:\n%s", rows, strings.Join(sc.frame(), "\n"))
+			}
+
+			sc.press("q")
+			sc.wait()
+		})
+	}
+}
+
+// requireNoColor fails on any SGR sequence in raw that sets a color.
+func requireNoColor(t *testing.T, raw string) {
+	t.Helper()
+
+	for _, params := range sgrParams(raw) {
+		if slices.ContainsFunc(params, isColorParam) {
+			t.Fatalf("the screen set a color under NO_COLOR: %q", params)
+		}
+	}
+}
+
+// sgrAttr matches a select-graphic-rendition sequence and captures its
+// parameters.
+var sgrAttr = regexp.MustCompile(`\x1b\[([0-9;:]*)m`)
+
+// sgrParams is the parameters of every SGR sequence in raw, split at the
+// separators.
+func sgrParams(raw string) [][]string {
+	found := sgrAttr.FindAllStringSubmatch(raw, -1)
+	out := make([][]string, 0, len(found))
+
+	for _, m := range found {
+		out = append(out, strings.FieldsFunc(m[1], func(r rune) bool { return r == ';' || r == ':' }))
+	}
+
+	return out
+}
+
+// isColorParam reports an SGR parameter that sets a foreground, background, or
+// underline color, which are the ones NO_COLOR rules out.
+func isColorParam(p string) bool {
+	n, err := strconv.Atoi(p)
+	if err != nil {
+		return false
+	}
+
+	switch {
+	case n >= 30 && n <= 38, n >= 40 && n <= 48, n >= 90 && n <= 97, n >= 100 && n <= 107, n == 58:
+		return true
+	}
+
+	return false
 }
