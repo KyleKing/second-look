@@ -1,14 +1,14 @@
- second-look co╭─ keys ───────────────────────────────────────────────────────╮ 
+ second-look   ╭─ keys ───────────────────────────────────────────────────────╮ 
 ───────────────│ j/k, ctrl+u/d, g/G  move, half page, top and bottom          │─
   new since you│      ctrl+e/ctrl+y  scroll without moving the cursor         │
- good catch, pu│       1/2/3, ] / [  the queue to read                        │ 
-        ● kylek│                tab  the next group                           │…
- two questions │                  /  narrow to the rows carrying a word; esc  │
-        ● …g/a-│                     puts them back                           │…
-  waiting on yo│              enter  read the whole conversation, and mark it │
-  awaiting othe│                     read                                     │
- no, that one i│              space  mark read without opening it             │
-          kylek│                  r  reply, staged into the prepared review   │…
+  kyleking/tlr#│       1/2/3, ] / [  the queue to read                        │ 
+  …repository-n│                tab  the next group                           │
+  waiting on yo│                  /  narrow to the rows carrying a word; esc  │
+  awaiting othe│                     puts them back                           │
+  kyleking/wave│              enter  read the whole conversation, and mark it │
+               │                     read                                     │
+               │              space  mark read without opening it             │
+               │                  r  reply, staged into the prepared review   │
                │                  R  resolve the thread, or thumbs-up what    │
                │                     cannot be resolved                       │
                │                  o  open it on GitHub                        │
@@ -16,5 +16,5 @@
                │             q, esc  leave                                    │
                │                                                              │
  good catch, pu│                     ● marks a conversation that moved since  │ 
- internal/pool/╰ · · ·────────────────────────────────────────────────────────╯ 
+ alice · intern╰ · · ·────────────────────────────────────────────────────────╯ 
  enter read   space mark read   r reply   R resolve   o GitHub   ? help         

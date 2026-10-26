@@ -22,40 +22,99 @@ import (
 // rather than taking the screen down.
 var errGHSaidNo = errors.New("gh said no")
 
+// convColumns is the conversation queue's grid, as the screen that owns it
+// declares it.
+func convColumns() []table.Column {
+	return []table.Column{
+		{Key: "ref", Min: 18, Max: 18, Trim: table.TrimLeft},
+		{Key: "title", Min: 30, Weight: 3},
+		{Key: "anchor", Min: 14, Max: 24, From: 100, Trim: table.TrimLeft},
+		{Key: "author", Min: 10, Max: 10, From: 112},
+		{Key: "age", Min: 4, Max: 4, Align: table.AlignRight},
+		{Key: "status", Min: 14, Max: 26, Weight: 1},
+	}
+}
+
+// convRow is one conversation on the grid, with the fields a test cares about:
+// where it is, what it says, who said it, and when.
+type convRow struct {
+	key, repo, ref, title, anchor, author, age, status string
+	kind                                               string
+	unread, dim                                        bool
+	detail                                             []string
+}
+
+func (c convRow) row() tui.Row {
+	lead := " "
+	if c.unread {
+		lead = "●"
+	}
+
+	text := func(role tui.Role, words string) tui.Cell {
+		return tui.Cell{Spans: []tui.Span{sp(role, words)}}
+	}
+
+	return tui.Row{
+		Key: c.key, Repo: c.repo, Kind: c.kind, Unread: c.unread, Dim: c.dim, Detail: c.detail,
+		Cells: map[string]tui.Cell{
+			"ref": text(tui.RoleCell, c.ref),
+			"title": {Spans: []tui.Span{
+				sp(tui.RoleUnread, lead), sp(tui.RoleCell, " "), sp(tui.RoleText, c.title),
+			}},
+			"anchor": text(tui.RoleCell, c.anchor),
+			"author": text(tui.RoleCell, c.author),
+			"age":    text(tui.RoleAge, c.age),
+			"status": text(tui.RoleCell, c.status),
+		},
+		About: &tui.About{
+			Subject: c.title, Ref: c.ref,
+			Facts: []tui.Fact{{Text: c.author, Column: "author"}, {Text: c.anchor, Column: "anchor"}, {Text: c.age}},
+		},
+	}
+}
+
+// rowsOfConvs is the rows of convs.
+func rowsOfConvs(convs ...convRow) []tui.Row {
+	rows := make([]tui.Row, 0, len(convs))
+	for i := range convs {
+		rows = append(rows, convs[i].row())
+	}
+
+	return rows
+}
+
 // queue is a list in every state it can draw: an unread row, a read one, a row
 // that expands, and an empty bucket, whose heading still prints because
 // "nothing is waiting on you" is the answer most worth seeing.
 func queue() []tui.Section {
 	return []tui.Section{
-		{Name: "new since you looked", Rows: []tui.Row{
-			{
-				Key: "T1", Left: "kyleking/tlr#118", Repo: "kyleking/tlr", Mid: "internal/pool/pool.go:42",
-				Age: "2h", Tail: "alice  2 replies  add TTL to the pool",
-				Under: "good catch, pushed a defer", Unread: true,
-				Detail: []string{"you:", "  does this leak on cancel?", "alice:", "  good catch, pushed a defer"},
+		{Name: "new since you looked", Rows: rowsOfConvs(
+			convRow{
+				key: "T1", repo: "kyleking/tlr", ref: "kyleking/tlr#118", anchor: "internal/pool/pool.go:42",
+				age: "2h", author: "alice", status: "2 replies", title: "good catch, pushed a defer",
+				unread: true,
+				detail: []string{"you:", "  does this leak on cancel?", "alice:", "  good catch, pushed a defer"},
 			},
-			{
-				Key: "T2", Left: "kyleking/a-much-longer-repository-name#7",
-				Repo: "kyleking/a-much-longer-repository-name", Mid: "review body",
-				Age: "13h", Tail: "bob  fix the footnote reorder", Under: "two questions inline",
-				Unread: true,
+			convRow{
+				key: "T2", repo: "kyleking/a-much-longer-repository-name", ref: "a-much-longer-repository-name#7",
+				anchor: "review body", age: "13h", author: "bob", title: "two questions inline", unread: true,
 			},
-		}},
+		)},
 		{Name: "waiting on you", Rows: nil},
-		{Name: "awaiting others", Rows: []tui.Row{
-			{
-				Key: "T3", Left: "kyleking/wavez#7", Repo: "kyleking/wavez", Mid: "internal/lease/lease.go:9",
-				Age: "4d", Tail: "KyleKing  scheduler leases", Under: "no, that one is per worker",
-			},
-		}},
+		{Name: "awaiting others", Recedes: true, Rows: rowsOfConvs(convRow{
+			key: "T3", repo: "kyleking/wavez", ref: "kyleking/wavez#7", anchor: "internal/lease/lease.go:9",
+			age: "4d", author: "KyleKing", title: "no, that one is per worker", dim: true,
+		})},
 	}
 }
 
 func list(t *testing.T, act tui.Act) *tui.List {
 	t.Helper()
 
-	l := tui.NewList("second-look conversations", queue, act).
-		WithState(func() tui.State { return tui.State{Text: "sorted by triage"} })
+	l := tui.NewTabs([]tui.Tab{{
+		Name: "conversations", Sections: queue, Act: act, Columns: convColumns,
+		State: func() tui.State { return tui.State{Text: "sorted by triage"} },
+	}}, 0)
 	l.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
 
 	return l
@@ -91,8 +150,8 @@ func TestListFrames(t *testing.T) {
 	}
 }
 
-// The row under the cursor is lit across the frame in the selection tint, its
-// title and the meta line under it alike, and no other row carries a background.
+// The row under the cursor is lit across the frame in the selection tint, and
+// no other row carries a background.
 func TestTheCursorRowIsLit(t *testing.T) {
 	t.Parallel()
 
@@ -113,7 +172,7 @@ func TestTheCursorRowIsLit(t *testing.T) {
 				}
 			}
 
-			want := map[int]bool{3: true, 4: true}
+			want := map[int]bool{3: true}
 			for i := range 8 {
 				if lit[i] != want[i] {
 					t.Errorf("line %d lit = %v, want %v", i, lit[i], want[i])
@@ -326,12 +385,13 @@ func TestListLeavesOnAChoice(t *testing.T) {
 	t.Parallel()
 
 	rows := func() []tui.Section {
-		return []tui.Section{{Name: "staged", Rows: []tui.Row{{Key: "42", Left: "o/r#42", Mid: "ready"}}}}
+		return []tui.Section{{Name: "staged", Rows: rowsOfConvs(convRow{key: "42", ref: "o/r#42", title: "ready"})}}
 	}
 
-	l := tui.NewList("staged", rows, func(_ tui.Action, _ *tui.Row) (string, bool, error) {
-		return "opening #42", true, nil
-	})
+	l := tui.NewTabs([]tui.Tab{{
+		Name: "staged", Sections: rows, Columns: convColumns,
+		Act: func(_ tui.Action, _ *tui.Row) (string, bool, error) { return "opening #42", true, nil },
+	}}, 0)
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 	l.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
@@ -362,17 +422,18 @@ func TestTheHeaderCarriesTheSectionOnceItScrollsOff(t *testing.T) {
 	long := func() []tui.Section {
 		rows := make([]tui.Row, 0, 40)
 		for i := range 40 {
-			rows = append(rows, tui.Row{
-				Key: fmt.Sprintf("T%d", i), Left: fmt.Sprintf("kyleking/tlr#%d", i), Age: "2h",
-			})
+			rows = append(rows, convRow{
+				key: fmt.Sprintf("T%d", i), ref: fmt.Sprintf("kyleking/tlr#%d", i), age: "2h",
+			}.row())
 		}
 
 		return []tui.Section{{Name: "pending your review", Rows: rows}}
 	}
 
-	l := tui.NewList("second-look inbox", long, func(tui.Action, *tui.Row) (string, bool, error) {
-		return "", false, nil
-	})
+	l := tui.NewTabs([]tui.Tab{{
+		Name: "inbox", Sections: long, Columns: convColumns,
+		Act: func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
+	}}, 0)
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
 	if got := plain(l.ListFrame()); strings.Count(got, "pending your review") != 1 {
@@ -406,7 +467,7 @@ func TestTheFilterNarrowsAQueueAndPutsItBack(t *testing.T) {
 	// An author narrows it as readily as a title, and the heading the match sits
 	// under survives so the row is not left standing on its own.
 	typeList(l, "/bob")
-	shows(t, l, []string{"a-much-longer-repository-name#7", "new since you looked"},
+	shows(t, l, []string{"two questions inline", "new since you looked"},
 		[]string{"kyleking/tlr#118"})
 
 	// Escape from the prompt, rather than from a committed filter, does the same.
@@ -487,14 +548,15 @@ func TestAQueueDrawsEachSectionAsItLands(t *testing.T) {
 			{Name: "reviewed, still open", Note: "searching…"},
 		},
 		order: []landed{
-			{1, tui.Section{Name: "reviewed, still open", Rows: []tui.Row{{Key: "B", Left: "repo#2"}}}},
-			{0, tui.Section{Name: "pending your review", Rows: []tui.Row{{Key: "A", Left: "repo#1"}}}},
+			{1, tui.Section{Name: "reviewed, still open", Rows: rowsOfConvs(convRow{key: "B", ref: "repo#2"})}},
+			{0, tui.Section{Name: "pending your review", Rows: rowsOfConvs(convRow{key: "A", ref: "repo#1"})}},
 		},
 	}
 
-	l := tui.NewList("second-look inbox", func() []tui.Section { return feed.shown },
-		func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil }).
-		WithLoader(feed)
+	l := tui.NewTabs([]tui.Tab{{
+		Name: "inbox", Sections: func() []tui.Section { return feed.shown }, Columns: convColumns, Loader: feed,
+		Act: func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
+	}}, 0)
 	l.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 
 	shows(t, l, []string{"pending your review", "searching…"}, []string{"repo#1", "repo#2"})
@@ -521,7 +583,7 @@ func TestQuitLeavesAndEscapeClearsTheFilter(t *testing.T) {
 
 	// The pattern carries a q, which used to cancel the prompt as it was typed.
 	typeList(l, "/questions")
-	shows(t, l, []string{"showing 1 of 3", "a-much-longer-repository-name#7"}, nil)
+	shows(t, l, []string{"showing 1 of 3", "two questions inline"}, nil)
 
 	l.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
@@ -551,7 +613,7 @@ type counted struct {
 
 func (c *counted) Start() tea.Cmd {
 	c.starts++
-	c.rows = []tui.Section{{Name: "answered", Rows: []tui.Row{{Key: "X", Left: "repo#9"}}}}
+	c.rows = []tui.Section{{Name: "answered", Rows: rowsOfConvs(convRow{key: "X", ref: "repo#9"})}}
 
 	return nil
 }
@@ -569,11 +631,13 @@ func TestTabsLoadOnceAndKeepWhereEachWasLeft(t *testing.T) {
 	l := tui.NewTabs([]tui.Tab{
 		{
 			Name:     "conversations",
-			Sections: queue, Act: func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
+			Sections: queue, Columns: convColumns,
+			Act: func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
 		},
 		{
 			Name:     "inbox",
 			Sections: func() []tui.Section { return late.rows },
+			Columns:  convColumns,
 			Act:      func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
 			Loader:   late,
 		},
@@ -628,7 +692,7 @@ func TestAStaleCountDrawsDimmerThanAFreshOne(t *testing.T) {
 				Badge: func() tui.Badge { return tui.Badge{Label: "4", Stale: stale} },
 			},
 			{
-				Name: "other", Sections: queue,
+				Name: "other", Sections: queue, Columns: convColumns,
 				Badge: func() tui.Badge { return tui.Badge{Label: "2", Stale: stale} },
 			},
 		}, at)
@@ -676,129 +740,6 @@ func TestAnActionKeepsTheCursorWhereTheReaderPutIt(t *testing.T) {
 	}
 }
 
-// The rating and the size each get a column of their own rather than being
-// spliced onto the front of the title. A queue re-sorts as ratings land, so a
-// title whose start moved with the numbers beside it jumped sideways under the
-// eye on every answer.
-func TestARatingIsAColumnRatherThanTitleText(t *testing.T) {
-	t.Parallel()
-
-	rated := func() []tui.Section {
-		return []tui.Section{{Name: "pending your review", Rows: []tui.Row{
-			{
-				Key: "A", Left: "o/r#1", Mid: "alice", Age: "2h",
-				Cost: "7", Added: "9", Removed: "2", Tail: "the title",
-			},
-			{Key: "B", Left: "o/r#2", Mid: "bob", Age: "4d", Tail: "the title"},
-			{
-				Key: "C", Left: "o/r#3", Mid: "carol", Age: "1d",
-				Cost: "84", Added: "1.2k", Removed: "340", Tail: "the title",
-			},
-		}}}
-	}
-
-	l := tui.NewList("inbox", rated, nil)
-	l.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
-
-	at := startsOf(l.ListFrame(), "the title")
-
-	if len(at) != 3 {
-		t.Fatalf("found %d titles, want 3:\n%s", len(at), plain(l.ListFrame()))
-	}
-
-	if at[0] != at[1] || at[1] != at[2] {
-		t.Errorf("titles start at columns %v, want one column for all three", at)
-	}
-
-	if !strings.Contains(plain(l.ListFrame()), "84") {
-		t.Error("the rating is not drawn")
-	}
-
-	// The signs line up down the list, which two columns give and one figure
-	// with a space in it does not.
-	if got := startsOf(l.ListFrame(), "-"); len(got) != 2 || got[0] != got[1] {
-		t.Errorf("the removed column starts at %v, want one column for both rows", got)
-	}
-}
-
-// The forge's word and the agent's are columns of their own: a row that does
-// not carry one leaves it blank rather than sliding the words after it left,
-// and a frame with no room hides the longest column behind a count rather
-// than cutting a word in half.
-func TestTrailingWordsKeepTheirColumns(t *testing.T) {
-	t.Parallel()
-
-	rows := func() []tui.Section {
-		return []tui.Section{{Name: "staged", Rows: []tui.Row{
-			{
-				Key: "a", Left: "kyleking/really-quite-long-repo-name#1", Mid: "blocked",
-				Age: "7d", Tail: "2 drafts", Remote: "merged", Agent: "agent blocked",
-			},
-			{
-				Key: "b", Left: "kyleking/really-quite-long-repo-name#2", Mid: "empty",
-				Age: "29d", Tail: "no comments", Remote: "merged",
-			},
-		}}}
-	}
-
-	l := tui.NewList("staged", rows, nil)
-	l.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
-
-	frame := rowsOf(l.ListFrame())
-
-	if at := startsOf(frame, "merged"); len(at) != 2 || at[0] != at[1] {
-		t.Errorf("the forge's word lands at columns %v, want one column for both rows:\n%s", at, frame)
-	}
-
-	// Narrowing hides the tail first and says so; the words still moving keep
-	// their columns.
-	l.Update(tea.WindowSizeMsg{Width: 90, Height: 20})
-	frame = rowsOf(l.ListFrame())
-
-	for _, want := range []string{"…+1", "merged", "agent blocked"} {
-		if !strings.Contains(frame, want) {
-			t.Errorf("the narrow frame is missing %q:\n%s", want, frame)
-		}
-	}
-
-	if strings.Contains(frame, "drafts") || strings.Contains(frame, "comments") {
-		t.Errorf("the hidden column's words still draw:\n%s", frame)
-	}
-}
-
-// A list nothing rates spends no width on the column, the way the scrollbar is
-// only drawn where the content overflows.
-func TestAnUnratedListSpendsNoWidthOnTheColumn(t *testing.T) {
-	t.Parallel()
-
-	l := list(t, nil)
-	l.Update(tea.WindowSizeMsg{Width: 140, Height: 20})
-
-	bare := startsOf(l.ListFrame(), "add TTL to the pool")
-	if len(bare) != 1 {
-		t.Fatalf("the fixture row is drawn %d times, want once", len(bare))
-	}
-
-	withCost := tui.NewList("conversations", func() []tui.Section {
-		rows := queue()
-		rows[0].Rows[0].Cost = "9"
-
-		return rows
-	}, nil)
-	withCost.Update(tea.WindowSizeMsg{Width: 140, Height: 20})
-
-	got := startsOf(withCost.ListFrame(), "add TTL to the pool")
-	if len(got) != 1 || got[0] != bare[0]+len("  9") {
-		t.Errorf("the tail is at %v with a rating and %v without", got, bare)
-	}
-}
-
-// rowsOf is a frame without the panel pinned under it, which repeats the row
-// under the cursor and so is not what a test of the rows is asking about.
-func rowsOf(frame string) string {
-	return strings.Join(panelless(plain(frame)), "\n")
-}
-
 // panelless is a frame's lines above the panel, which keeps its own background
 // in every profile.
 func panelless(frame string) []string {
@@ -807,20 +748,6 @@ func panelless(frame string) []string {
 	lines := strings.Split(frame, "\n")
 
 	return lines[:len(lines)-panelRows]
-}
-
-// startsOf is the column each line of the rows puts want at, measured in cells
-// so a wide glyph is one column rather than the bytes it is written in.
-func startsOf(frame, want string) []int {
-	var out []int
-
-	for _, line := range strings.Split(rowsOf(frame), "\n") {
-		if i := strings.Index(line, want); i >= 0 {
-			out = append(out, utf8.RuneCountInString(line[:i]))
-		}
-	}
-
-	return out
 }
 
 // Ordering a queue by what a diff costs to read means a read per row, which on
@@ -832,12 +759,14 @@ func TestTheCursorStoppingPaysForTheRowUnderIt(t *testing.T) {
 
 	asked := []string{}
 
-	l := tui.NewList("second-look conversations", queue, nil).
-		WithRest(func(key string) tea.Cmd {
+	l := tui.NewTabs([]tui.Tab{{
+		Name: "conversations", Sections: queue, Columns: convColumns,
+		Rest: func(key string) tea.Cmd {
 			asked = append(asked, key)
 
 			return nil
-		})
+		},
+	}}, 0)
 	l.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
 
 	l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
@@ -925,7 +854,7 @@ func TestAQueueComesBackNarrowedTheWayItWasLeft(t *testing.T) {
 // tabsOver is the one tab both resume tests need on each side of the handoff.
 func tabsOver(sections func() []tui.Section) []tui.Tab {
 	return []tui.Tab{{
-		Name: "staged", Sections: sections,
+		Name: "staged", Sections: sections, Columns: convColumns,
 		Act: func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
 	}}
 }
@@ -952,23 +881,25 @@ func focusQueues() []tui.Tab {
 	act := func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil }
 
 	inbox := func() []tui.Section {
-		return []tui.Section{{Name: "waiting on you", Rows: []tui.Row{
-			{Key: "kyleking/tlr#118", Left: "kyleking/tlr#118", Repo: "kyleking/tlr", Tail: "add a TTL"},
-			{Key: "kyleking/wavez#7", Left: "kyleking/wavez#7", Repo: "kyleking/wavez", Tail: "leases"},
-			{Left: "could not be read", Tail: "gh said no"},
-		}}}
+		failed := convRow{ref: "could not be read", title: "gh said no"}.row()
+		failed.Cells["ref"] = tui.Cell{Spans: []tui.Span{sp(tui.RoleCell, "could not be read")}}
+
+		return []tui.Section{{Name: "waiting on you", Rows: append(rowsOfConvs(
+			convRow{key: "kyleking/tlr#118", repo: "kyleking/tlr", ref: "kyleking/tlr#118", title: "add a TTL"},
+			convRow{key: "kyleking/wavez#7", repo: "kyleking/wavez", ref: "kyleking/wavez#7", title: "leases"},
+		), failed)}}
 	}
 
 	staged := func() []tui.Section {
-		return []tui.Section{{Name: "staged", Rows: []tui.Row{
-			{Key: "kyleking/tlr#118", Left: "kyleking/tlr#118", Repo: "kyleking/tlr", Tail: "2 comments"},
-			{Key: "kyleking/other#3", Left: "kyleking/other#3", Repo: "kyleking/other", Tail: "1 comment"},
-		}}}
+		return []tui.Section{{Name: "staged", Rows: rowsOfConvs(
+			convRow{key: "kyleking/tlr#118", repo: "kyleking/tlr", ref: "kyleking/tlr#118", title: "2 comments"},
+			convRow{key: "kyleking/other#3", repo: "kyleking/other", ref: "kyleking/other#3", title: "1 comment"},
+		)}}
 	}
 
 	return []tui.Tab{
-		{Name: "inbox", Sections: inbox, Act: act},
-		{Name: "staged", Sections: staged, Act: act},
+		{Name: "inbox", Sections: inbox, Act: act, Columns: convColumns},
+		{Name: "staged", Sections: staged, Act: act, Columns: convColumns},
 	}
 }
 
@@ -1095,15 +1026,17 @@ func TestTheFilterKeepsOneKindOfRow(t *testing.T) {
 	t.Parallel()
 
 	sections := func() []tui.Section {
-		return []tui.Section{{Name: "your conversations", Rows: []tui.Row{
-			{Key: "a", Left: "kyleking/tlr#118", Kind: "thread", Tail: "alice  add a TTL to the pool"},
-			{Key: "b", Left: "kyleking/tlr#118", Kind: "comment", Tail: "bob  the review body says"},
-			{Key: "c", Left: "kyleking/wavez#7", Kind: "review", Tail: "carol  pool leases"},
-		}}}
+		return []tui.Section{{Name: "your conversations", Rows: rowsOfConvs(
+			convRow{key: "a", ref: "kyleking/tlr#118", kind: "thread", author: "alice", title: "add a TTL to the pool"},
+			convRow{key: "b", ref: "kyleking/tlr#118", kind: "comment", author: "bob", title: "the review body says"},
+			convRow{key: "c", ref: "kyleking/wavez#7", kind: "review", author: "carol", title: "pool leases"},
+		)}}
 	}
 
-	l := tui.NewList("second-look conversations", sections,
-		func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil })
+	l := tui.NewTabs([]tui.Tab{{
+		Name: "conversations", Sections: sections, Columns: convColumns,
+		Act: func(tui.Action, *tui.Row) (string, bool, error) { return "", false, nil },
+	}}, 0)
 	l.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 
 	typeList(l, "/kind:thread")
@@ -1231,7 +1164,7 @@ func lanes() []tui.Section {
 		{Name: "waiting on others", Recedes: true, Rows: []tui.Row{
 			gridRow("o/d#4", "", " ", "docs: ", "say why", "kyleking", "1d", size("+1", "-1"), waits, true),
 		}},
-		{Name: "merged", Fold: true, Recedes: true, Rows: []tui.Row{{Key: "o/e#5", Left: "o/e#5"}}},
+		{Name: "merged", Fold: true, Recedes: true, Rows: rowsOfConvs(convRow{key: "o/e#5", ref: "o/e#5"})},
 	}
 }
 

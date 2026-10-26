@@ -38,8 +38,7 @@ type Tab struct {
 	Badge func() Badge
 	// Columns lays the tab's rows out on a grid, one line each, from each row's
 	// Cells. It is a function because a column's width can follow the rows,
-	// and it is read on every frame. A column's From is the terminal's width. A tab
-	// with none draws its rows as before.
+	// and it is read on every frame. A column's From is the terminal's width.
 	Columns func() []table.Column
 	// Loader fills the tab in as its answers arrive. Every tab's is started
 	// when the screen opens, so each count is in the strip before its tab is

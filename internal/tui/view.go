@@ -948,15 +948,6 @@ func pad(s string, width int) string {
 
 func textWidth(s string) int { return ansi.StringWidth(s) }
 
-// lpad right-aligns within a width, which is how a column of numbers is read.
-func lpad(s string, width int) string {
-	if n := width - textWidth(s); n > 0 {
-		return strings.Repeat(" ", n) + s
-	}
-
-	return s
-}
-
 // words is what the review is carrying, leaving out whatever it carries none
 // of.
 func (c tally) words() []string {

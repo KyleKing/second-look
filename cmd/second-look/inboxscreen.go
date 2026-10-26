@@ -1023,11 +1023,7 @@ func (s *inboxScreen) sections() []tui.Section {
 		b := &s.lanes[i]
 
 		if b.Err != "" && len(b.Items) == 0 {
-			out = append(out, tui.Section{Name: b.Name, Rows: []tui.Row{{
-				Left: "could not be read", Tail: humanize.FirstLine(b.Err),
-				Cells: map[string]tui.Cell{colTitle: plain(
-					"  could not be read: "+humanize.FirstLine(b.Err), tui.RoleText)},
-			}}})
+			out = append(out, tui.Section{Name: b.Name, Rows: []tui.Row{failedRow(b.Err)}})
 
 			continue
 		}
@@ -1046,6 +1042,17 @@ func (s *inboxScreen) sections() []tui.Section {
 	return out
 }
 
+// failedRow stands in for a search that failed, which has no pull request
+// behind it to act on.
+func failedRow(reason string) tui.Row {
+	what := "could not be read: " + humanize.FirstLine(reason)
+
+	return tui.Row{
+		Cells: map[string]tui.Cell{colTitle: plain("  "+what, tui.RoleText)},
+		About: &tui.About{Subject: what},
+	}
+}
+
 func (s *inboxScreen) rows(items []inbox.PullRequest, lane inbox.Lane, now time.Time) []tui.Row {
 	rows := make([]tui.Row, 0, len(items))
 	waits := !s.configured && lane == inbox.LaneWaiting
@@ -1057,49 +1064,16 @@ func (s *inboxScreen) rows(items []inbox.PullRequest, lane inbox.Lane, now time.
 		k := s.local[key]
 
 		rows = append(rows, tui.Row{
-			Key:     key,
-			Left:    key,
-			Repo:    p.Repository,
-			Mid:     humanize.Clip(p.Author, authorCap),
-			Age:     humanize.Ago(p.Updated, now),
-			Cost:    rated(k),
-			Added:   added(k),
-			Removed: removed(k),
-			Who:     k.Who,
-			Why:     k.Why,
-			Tail:    stackWord(k.Stack) + holding(k) + tagged(p) + waiting(p),
-			Under:   p.Title,
-			Branch:  branch(k.Stack),
-			Urgent:  k.Priority,
-			Cells:   s.cells(p, k, shared, now),
-			About:   about(p, k, now),
-			Dim:     waits || (!s.configured && k.Stack.Size > 0 && k.Lane > lane),
-			Stale:   s.stale[key],
+			Key:   key,
+			Repo:  p.Repository,
+			Cells: s.cells(p, k, shared, now),
+			About: about(p, k, now),
+			Dim:   waits || (!s.configured && k.Stack.Size > 0 && k.Lane > lane),
+			Stale: s.stale[key],
 		})
 	}
 
 	return rows
-}
-
-const authorCap = 14
-
-// branch hangs a row above the bottom of its stack off the row before it.
-func branch(st inbox.Stack) string {
-	if !st.Above() {
-		return ""
-	}
-
-	return fmt.Sprintf("  └ %d/%d", st.Position, st.Size)
-}
-
-// stackWord marks the bottom of a stack, since the rows above it say where they
-// are themselves.
-func stackWord(st inbox.Stack) string {
-	if st.Size == 0 || st.Above() {
-		return ""
-	}
-
-	return fmt.Sprintf("stack 1/%d  ", st.Size)
 }
 
 // readFirst names the pull request to read before one stacked above it. A stack
@@ -1124,24 +1098,6 @@ func rated(k inbox.Known) string {
 	}
 
 	return strconv.Itoa(k.Cost)
-}
-
-// added and removed are how many lines the change touched, bare of any sign:
-// the list screen draws that.
-func added(k inbox.Known) string {
-	if !measured(k) {
-		return ""
-	}
-
-	return humanize.Count(k.Added)
-}
-
-func removed(k inbox.Known) string {
-	if !measured(k) {
-		return ""
-	}
-
-	return humanize.Count(k.Removed)
 }
 
 // measured tells a change nobody has read from one that changed no code, since
@@ -1189,14 +1145,6 @@ func holdingWord(k inbox.Known) string {
 	return strings.Join(parts, " ")
 }
 
-func tagged(p *inbox.PullRequest) string {
-	if len(p.Labels) == 0 {
-		return ""
-	}
-
-	return labels.Tags(p.Labels) + "  "
-}
-
 func (s *inboxScreen) labeled(r *tui.Row) (labels.Target, []string, bool) {
 	at, err := parseRef(r.Key)
 	if err != nil {
@@ -1223,15 +1171,6 @@ func (s *inboxScreen) relabel(key, name string, on bool) {
 	s.regroup()
 }
 
-// waiting is what the row says past the columns, which is whether it is a draft.
-func waiting(p *inbox.PullRequest) string {
-	if p.Draft {
-		return "draft"
-	}
-
-	return ""
-}
-
 func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 	// Sorting is about the queue rather than the row the cursor is on, and a
 	// bucket that failed still has one to cycle through.
@@ -1248,7 +1187,7 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 	// A bucket that failed carries one row standing for the failure, which has
 	// no pull request behind it to act on.
 	if row.Key == "" {
-		return "", false, fmt.Errorf("%w: %s", errNoPullRequest, row.Tail)
+		return "", false, fmt.Errorf("%w: %s", errNoPullRequest, row.About.Subject)
 	}
 
 	at, err := parseRef(row.Key)

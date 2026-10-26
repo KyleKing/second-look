@@ -20,9 +20,6 @@ type Row struct {
 	// hands it back with whatever action was pressed and never reads it.
 	Key string
 
-	Left string
-	Mid  string
-	Age  string
 	// Kind is what sort of row this is, matched by a kind: word in the filter.
 	// A queue of conversations holds three kinds, and answering a review thread
 	// is different work from answering a comment on the pull request itself.
@@ -30,44 +27,9 @@ type Row struct {
 	// Repo is the repository the row belongs to, which is what focus narrows
 	// on. A row standing for something other than a pull request carries none.
 	Repo string
-	// Cost is what reading the row is rated, right-aligned in a column of its
-	// own. A list where no row carries one spends no width on it.
-	Cost string
-	// Added and Removed are how many lines the row changed, bare of any sign.
-	// The screen draws the sign in a fixed column and the count right-aligned
-	// after it, so the signs line up down the list and the digits do too.
-	Added   string
-	Removed string
-	// Who and Why are two columns of their own: who a review is waiting on,
-	// and in a few words why the row sits where it does.
-	Who  string
-	Why  string
-	Tail string
-	// Urgent draws a mark before the title, and Dim draws the whole row
-	// receded, for work that is waiting on somebody else.
-	Urgent bool
-	Dim    bool
-	// Under is the row's title: the line a queue is scanned by, drawn first
-	// and left-aligned, with the columns indented below it. A row carrying
-	// none draws its columns as its own line instead.
-	Under string
-	// Branch is drawn muted before the title, which is how a row says it hangs
-	// off the one above it.
-	Branch string
-
-	// Tone is the face the state word and the unread mark are drawn in. Zero
-	// leaves them plain, which is what most of a queue is.
-	Tone Tone
-	// Remote is what the forge says of the row, drawn after the tail in its
-	// own face, since it is the one thing local state cannot know.
-	Remote     string
-	RemoteTone Tone
-	// Agent is what the agent working the review is doing, drawn last in its
-	// own face: a session asking a question is the one thing on the row still
-	// moving.
-	Agent     string
-	AgentTone Tone
-
+	// Dim draws the whole row receded, for work that is waiting on somebody
+	// else.
+	Dim bool
 	// Unread marks a row that has moved since it was last read, which is the
 	// one distinction a queue exists to draw.
 	Unread bool
@@ -78,38 +40,16 @@ type Row struct {
 	// order drawn: 0 is settled and 1 to 4 is the step it has decayed to. The
 	// screen sets it and the row draws it.
 	Flash uint8
-	// Cells is the row on a grid, keyed by the Key of the column each fills. It
-	// is read only where the tab names Columns, and a row carrying none there
-	// draws nothing in them.
+	// Cells is the row on the tab's grid, keyed by the Key of the column each
+	// fills. A column the row carries no cell for draws blank.
 	Cells map[string]Cell
-	// About is what the inspector says of the row. A row carrying none is
-	// described by its other fields.
+	// About is what the inspector says of the row. A row carrying none leaves
+	// it blank.
 	About *About
 	// Detail is the whole conversation, shown when the row is expanded. A list
 	// whose rows carry none is not expandable.
 	Detail []string
 }
-
-// Tone is how loud a word on a row is, mapped to a face by the screen rather
-// than the caller, which knows what it wants to say but not what this
-// terminal's warning looks like.
-type Tone int
-
-const (
-	// ToneOrdinary draws plain text, or the accent where the mark is drawn.
-	ToneOrdinary Tone = iota
-	// ToneGood marks work that is ready to go or already done.
-	ToneGood
-	// ToneWarn marks work that needs a decision.
-	ToneWarn
-	// ToneBad marks work that can no longer do what it was meant for.
-	ToneBad
-	// ToneMuted marks a word worth saying nowhere loudly.
-	ToneMuted
-	// ToneMerged marks work the pull request's merge made moot, drawn in the
-	// forge's own color for a merge.
-	ToneMerged
-)
 
 // Section is a group of rows under a heading. An empty section keeps its
 // heading, because "nothing is waiting on you" is the answer most worth seeing.
@@ -310,8 +250,7 @@ type List struct {
 	tabs  []Tab
 	at    int
 	views []view
-	// columns is the current tab's grid, nil where its rows are drawn on the
-	// older lines.
+	// columns is the current tab's grid.
 	columns func() []table.Column
 
 	// mono is a terminal with no color, where the row under the cursor is drawn
@@ -335,39 +274,8 @@ type listLine struct {
 	section *Section
 	blank   bool
 	row     *Row
-	// under marks the second line of a row, which quotes what was last said.
-	under bool
 	// detail marks a line of an expanded row.
 	detail string
-}
-
-// NewList builds a list screen. The caller keeps ownership of the sections and
-// hands them back on every refresh.
-func NewList(title string, sections func() []Section, act Act) *List {
-	l := &List{
-		title: title, sections: sections, act: act,
-		keys: defaultKeyMap(), list: defaultListKeys(), styles: loadStyles(),
-		width: minWidth, height: startHeight, expanded: map[string]bool{}, filter: newFilter(),
-	}
-	l.rebuild()
-
-	return l
-}
-
-// WithHelp replaces the help overlay's body, so each list documents the keys it
-// actually offers. A pair with no key is a line of prose.
-func (l *List) WithHelp(hints [][2]string) *List {
-	l.helpLines = hints
-
-	return l
-}
-
-// WithHints replaces the keys the footer advertises, so a list that offers no
-// reply does not promise one.
-func (l *List) WithHints(hints [][2]string) *List {
-	l.hints = hints
-
-	return l
 }
 
 // WithLabeling lets l pick labels for the rows whose tab says what they carry.
@@ -377,26 +285,9 @@ func (l *List) WithLabeling(lb Labeling) *List {
 	return l
 }
 
-// WithLoader lets the screen open before its rows exist, filling in as they
-// arrive. Without one a list is built from whatever its provider already has.
-func (l *List) WithLoader(ld Loader) *List {
-	l.loader = ld
-
-	return l
-}
-
 // restMsg is the cursor having held still long enough that what is under it is
 // worth paying for.
 type restMsg struct{ at int }
-
-// WithRest calls back once the cursor has stopped on a row, so a screen can pay
-// for what only the row being looked at needs. Every move restarts the wait, so
-// running the cursor down eighty rows asks for none of them.
-func (l *List) WithRest(on func(row string) tea.Cmd) *List {
-	l.onRest = on
-
-	return l
-}
 
 // settleFor is how long the cursor holds still before what is under it is paid
 // for. Long enough that running down a queue asks for nothing, short enough
@@ -426,14 +317,6 @@ func (l *List) settled(at int) tea.Cmd {
 	return l.onRest(row.Key)
 }
 
-// WithState puts what changes how to read the list in the header's right-hand
-// corner. It is a function because it changes as rows are answered.
-func (l *List) WithState(s func() State) *List {
-	l.state = s
-
-	return l
-}
-
 // Chosen is the row enter was pressed on, empty when the screen was left any
 // other way.
 func (l *List) Chosen() string { return l.chosen }
@@ -449,24 +332,7 @@ func (l *List) say(status string, failed bool) { l.status, l.failed = status, fa
 // Init lays out the first frame at the assumed size, which the terminal
 // corrects with a resize before anything is drawn.
 func (l *List) Init() tea.Cmd {
-	if len(l.tabs) > 0 {
-		cmd := l.StartAll()
-		l.rebuild()
-
-		return tea.Batch(cmd, l.rest())
-	}
-
-	if l.loader == nil {
-		l.rebuild()
-
-		return l.rest()
-	}
-
-	if len(l.views) > 0 {
-		l.views[l.at].started = true
-	}
-
-	cmd := l.loader.Start()
+	cmd := l.StartAll()
 	l.rebuild()
 
 	return tea.Batch(cmd, l.rest())
@@ -541,14 +407,6 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (l *List) loaders() []Loader {
-	if len(l.tabs) == 0 {
-		if l.loader == nil {
-			return nil
-		}
-
-		return []Loader{l.loader}
-	}
-
 	out := make([]Loader, 0, len(l.tabs))
 
 	for i := range l.tabs {
@@ -779,7 +637,7 @@ func (l *List) move(n int) {
 }
 
 func (l *List) selectable(i int) bool {
-	return l.lines[i].row != nil && !l.lines[i].under && l.lines[i].detail == ""
+	return l.lines[i].row != nil && l.lines[i].detail == ""
 }
 
 // to puts the cursor on a line, moving forward to the next selectable one when
@@ -905,144 +763,6 @@ func abs(n int) int {
 	return n
 }
 
-// natural is how wide each column's content wants to be. A zero means no row
-// carries it, which is what a list nothing rates does with the rating.
-type natural struct {
-	left    int
-	mid     int
-	cost    int
-	added   int
-	removed int
-	who     int
-	why     int
-	tail    int
-	urgent  bool
-	remote  int
-	agent   int
-}
-
-// The narrow widths for the two columns that grow towards their contents, the
-// tail's floor, and the age column's fixed width. A wider frame spends its
-// slack on the left column first, because the repository and number are what
-// identify a row; a narrower one cuts words that would otherwise run the row
-// over.
-const (
-	leftNarrow = 34
-	midNarrow  = 48
-	tailFloor  = 10
-	whyFloor   = 12
-	ageWidth   = 5
-)
-
-// natural measures the columns that vary, so rows line up with each other.
-func (l *List) natural() natural {
-	var out natural
-
-	for i := range l.shown {
-		for j := range l.shown[i].Rows {
-			r := &l.shown[i].Rows[j]
-			out.left = max(out.left, textWidth(r.Left))
-			out.mid = max(out.mid, textWidth(r.Mid))
-			out.cost = max(out.cost, textWidth(r.Cost))
-			out.added = max(out.added, textWidth(r.Added))
-			out.removed = max(out.removed, textWidth(r.Removed))
-			out.urgent = out.urgent || r.Urgent
-			out.who = max(out.who, textWidth(r.Who))
-			out.why = max(out.why, textWidth(r.Why))
-			out.tail = max(out.tail, textWidth(r.Tail))
-			out.remote = max(out.remote, textWidth(r.Remote))
-			out.agent = max(out.agent, textWidth(r.Agent))
-		}
-	}
-
-	return out
-}
-
-// metaChrome is what an under-line spends left of the first column: the frame's
-// own space, the indent under the title, and the mark cell.
-const metaChrome = 10
-
-// The meta line's column keys, and the collapse order of the three trailing
-// words: the tail goes first because it is the longest and the most derivable,
-// the forge's word next, and the agent's last because a session wanting an
-// answer is the one thing still moving.
-const (
-	colLeft   = "left"
-	colMid    = "mid"
-	colAge    = "age"
-	colCost   = "cost"
-	colAdd    = "add"
-	colDel    = "del"
-	colWho    = "who"
-	colWhy    = "why"
-	colTail   = "tail"
-	colRemote = "remote"
-	colAgent  = "agent"
-
-	tailPriority   = 1
-	remotePriority = 2
-	agentPriority  = 3
-	delPriority    = 2
-	addPriority    = 3
-	costPriority   = 4
-	whoPriority    = 6
-	whyPriority    = 5
-
-	// LeftGrow is the left column's share of a frame's slack over the mid
-	// column's: the repository and number are what identify a row.
-	leftGrow = 2
-)
-
-// metaLayout resolves the meta line's columns for one frame. The trailing words
-// each keep a column of their own — a row without one pads the cell rather
-// than sliding the words after it left — and a frame with no room to spare
-// hides the least valuable of them behind a count rather than cutting one
-// mid-word.
-func metaLayout(nat natural, width int) table.Layout {
-	cols := []table.Column{
-		{Key: colLeft, Min: min(nat.left, leftNarrow), Max: nat.left, Weight: leftGrow, Trim: table.TrimLeft},
-		{Key: colMid, Min: min(nat.mid, midNarrow), Max: nat.mid, Weight: 1},
-		{Key: colAge, Min: ageWidth},
-	}
-
-	if nat.cost > 0 {
-		cols = append(cols, table.Column{Key: colCost, Min: nat.cost, Align: table.AlignRight, Priority: costPriority})
-	}
-
-	if nat.added > 0 || nat.removed > 0 {
-		cols = append(cols,
-			table.Column{Key: colAdd, Min: nat.added + 1, Priority: addPriority},
-			table.Column{Key: colDel, Min: nat.removed + 1, Priority: delPriority})
-	}
-
-	if nat.who > 0 {
-		cols = append(cols, table.Column{Key: colWho, Min: nat.who, Priority: whoPriority})
-	}
-
-	if nat.why > 0 {
-		cols = append(cols, table.Column{
-			Key: colWhy, Priority: whyPriority, Weight: 1, Min: min(nat.why, whyFloor), Max: nat.why,
-		})
-	}
-
-	if nat.tail > 0 {
-		cols = append(cols, table.Column{
-			Key: colTail, Priority: tailPriority, Weight: 1,
-			Min: min(nat.tail, tailFloor), Max: nat.tail,
-		})
-	}
-
-	if nat.remote > 0 {
-		cols = append(cols, table.Column{Key: colRemote, Min: nat.remote, Priority: remotePriority})
-	}
-
-	if nat.agent > 0 {
-		cols = append(cols, table.Column{Key: colAgent, Min: nat.agent, Priority: agentPriority})
-	}
-
-	return table.Fit(cols, width-metaChrome)
-}
-
 // rebuild lays the sections out as lines. It runs whenever anything that
 // changes the frame changes, so the cursor and the scroll offset always index
 // what is actually on screen.
@@ -1066,7 +786,7 @@ func (l *List) rebuild() {
 	}
 
 	for i, line := range l.lines {
-		if line.row != nil && line.row.Key == was.Key && !line.under && line.detail == "" {
+		if line.row != nil && line.row.Key == was.Key && line.detail == "" {
 			l.cursor = i
 			l.scroll()
 
@@ -1098,10 +818,6 @@ func (l *List) appendSection(i int, s *Section) {
 		row := &s.Rows[j]
 
 		l.lines = append(l.lines, listLine{row: row})
-
-		if row.Under != "" && row.Cells == nil {
-			l.lines = append(l.lines, listLine{row: row, under: true})
-		}
 
 		if !l.expanded[row.Key] {
 			continue

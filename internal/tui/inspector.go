@@ -155,10 +155,6 @@ func spansWidth(spans []Span) int {
 
 // dropped is the grid columns the current width hid.
 func (l *List) dropped() []string {
-	if l.columns == nil {
-		return nil
-	}
-
 	return l.gridLayout(bodyWidth(l.width, scrollbar(l.visible(), len(l.lines), l.offset))).Dropped
 }
 
@@ -166,55 +162,12 @@ func (l *List) gridLayout(width int) table.Layout {
 	return table.FitCompact(l.gridColumns(), width-gridMargin)
 }
 
-// aboutRow is what a row says of itself, or for a row that carries no About,
-// what its fields amount to: the title, then the ref and meta.
+// aboutRow is what a row says of itself, which is nothing where it carries no
+// About.
 func aboutRow(r *Row) About {
-	if r.About != nil {
-		return *r.About
+	if r.About == nil {
+		return About{}
 	}
 
-	subject := r.Under
-	if subject == "" {
-		subject = r.Tail
-	}
-
-	if subject == "" {
-		subject = r.Left
-	}
-
-	a := About{Subject: subject}
-	if subject != r.Left {
-		a.Ref = r.Left
-	}
-
-	a.Facts = []Fact{{Text: r.Mid, Role: toneRole(r.Tone)}, {Text: r.Age}}
-
-	if r.Under != "" {
-		a.Facts = append(a.Facts, Fact{Text: r.Tail})
-	}
-
-	return About{
-		Subject: a.Subject, Ref: a.Ref,
-		Facts: append(a.Facts,
-			Fact{Text: r.Remote, Role: toneRole(r.RemoteTone)},
-			Fact{Text: r.Agent, Role: toneRole(r.AgentTone)}),
-	}
-}
-
-func toneRole(t Tone) Role {
-	switch t {
-	case ToneGood:
-		return RoleGood
-	case ToneWarn:
-		return RoleWarn
-	case ToneBad:
-		return RoleBad
-	case ToneMuted:
-		return RoleMuted
-	case ToneMerged:
-		return RoleMerged
-	case ToneOrdinary:
-	}
-
-	return RoleCell
+	return *r.About
 }

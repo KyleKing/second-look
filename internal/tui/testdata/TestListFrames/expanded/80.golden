@@ -1,20 +1,20 @@
- second-look conversations                                     sorted by triage 
+ second-look                                                   sorted by triage 
 ────────────────────────────────────────────────────────────────────────────────
   new since you looked  2
- good catch, pushed a defer                                                     
-        ● kyleking/tlr#118                    internal/pool/pool.go:42   2h    …
+  kyleking/tlr#118    ● good catch, pushed a defer          2h  2 replies       
          you:
            does this leak on cancel?
          alice:
            good catch, pushed a defer
- two questions inline
-        ● …g/a-much-longer-repository-name#7  review body                13h   …
+  …repository-name#7  ● two questions inline               13h                 
   waiting on you  0
   awaiting others  1
- no, that one is per worker
-          kyleking/wavez#7                    internal/lease/lease.go:9  4d    …
+  kyleking/wavez#7      no, that one is per worker          4d                 
+
+
+
 
 
  good catch, pushed a defer  kyleking/tlr#118                                   
- internal/pool/pool.go:42 · 2h · alice  2 replies  add TTL to the pool          
+ alice · internal/pool/pool.go:42 · 2h                                          
  enter read   space mark read   r reply   R resolve   o GitHub   ? help         
