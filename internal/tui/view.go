@@ -501,10 +501,8 @@ func (m *Model) helpPage() []keyhint.Hint {
 	return marked
 }
 
-// helpWidth is the inner width of a legend's box in a frame that is width cells
-// wide: five eighths of the frame between a floor and a ceiling, so the screen
-// stays a frame around it, which is what makes it a window rather than the
-// screen, and a page of one-line rows fits a wide one without wrapping.
+// helpWidth is the inner width of a legend's box: five eighths of a frame
+// that is width cells wide, between a floor and a ceiling.
 func helpWidth(width int) int {
 	const (
 		floor, ceiling = 44, 76
