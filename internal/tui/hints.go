@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strings"
-
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
 )
@@ -59,44 +57,6 @@ func asHints(hints [][2]string) []keyhint.Hint {
 // the footer brackets them.
 func hintLine(hints [][2]string) string {
 	return keyhint.Line(keyhint.Styles{}, asHints(hints))
-}
-
-// dimLine renders a footer where some keys do not apply where the cursor is.
-// They are drawn dim rather than dropped: a footer whose keys come and go
-// teaches nothing about what the screen offers, and a key that has vanished
-// reads as a key that does not exist.
-//
-// A frame too narrow for the whole line drops the dim ones instead, because a
-// footer cut off mid-word loses the keys that leave the screen.
-func dimLine(s styles, hints []hint, width int) string {
-	line := renderHints(s, hints, false)
-	if textWidth(line)+indent <= width {
-		return line
-	}
-
-	return renderHints(s, hints, true)
-}
-
-func renderHints(s styles, hints []hint, drop bool) string {
-	on := keyhint.Styles{Key: s.key, Text: s.footer}
-	off := keyhint.Styles{Key: s.behind, Text: s.behind}
-
-	out := make([]string, 0, len(hints))
-
-	for _, h := range hints {
-		if h.off && drop {
-			continue
-		}
-
-		face := on
-		if h.off {
-			face = off
-		}
-
-		out = append(out, keyhint.One(face, keyhint.Hint{Key: h.key, What: h.what}))
-	}
-
-	return strings.Join(out, keyhint.Gap)
 }
 
 // footerStyles draws the footer's keys bare: the key in the accent and its word

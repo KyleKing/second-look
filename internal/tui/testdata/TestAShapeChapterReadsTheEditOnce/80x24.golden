@@ -21,4 +21,4 @@ the same edit i… ─●──────────────────�
      ○ cards/RisksCard.tsx:4 · carries “const id = useSuspenseVendor(data => d…│
      ○ hooks/legacy.ts:9 · calls useSuspenseVendor                             │
      ○ cards/CardG.tsx · named like them                                       │
- [j/k] line  ] go to  [c]ode  [i] context  [S]ubmit  [?] help  [q]uit
+ j/k line   ] go to   c code   m mark   i context   S submit   ? help   q quit

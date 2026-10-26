@@ -315,7 +315,7 @@ func (m *Model) footerLines() []string {
 	}
 
 	if m.status == "" {
-		return []string{cut(" "+dimLine(m.styles, m.hints(), m.width), m.width)}
+		return []string{" " + keyhint.Fit(footerStyles(m.styles), m.hints(), m.width-1)}
 	}
 
 	if !m.failed {
@@ -375,42 +375,34 @@ func (m *Model) prompt() string {
 	return cut(head+m.search.input.View()+tail, m.width)
 }
 
-// hint is one footer key and whether it does anything where the cursor is. An
-// inapplicable key is dimmed rather than dropped, so the footer says what the
-// screen offers as well as what it offers here. An 80-column frame has room for
-// neither the whole line nor a truncated one, so it drops the dim ones and
-// quitting stays visible.
-type hint struct {
-	key  string
-	what string
-	off  bool
-}
-
-func (m *Model) hints() []hint {
+// hints are the footer's keys. A key with nothing to act on under the cursor is
+// dimmed rather than dropped, so the footer says what the screen offers as well
+// as what it offers here, and a narrow frame sheds the dim ones first.
+func (m *Model) hints() []keyhint.Hint {
 	if m.outline.open {
 		return m.outlineHints()
 	}
 
-	view := hint{key: "c", what: m.view.next().String()}
+	view := keyhint.Hint{Key: "c", What: m.view.next().String(), Priority: shedFirst}
 	if m.view.next() == viewDiff {
-		view.what = "the diff"
+		view.What = "the diff"
 	}
 
-	out := []hint{
-		{key: walkKeys, what: "line"},
-		{key: "]", what: "go to"},
+	out := []keyhint.Hint{
+		{Key: walkKeys, What: "line", Priority: shedFirst},
+		{Key: "]", What: "go to", Priority: shedLater},
 		view,
-		{key: "m", what: "mark", off: m.current() < 0},
-		{key: "e", what: m.writeWord(), off: !m.canWrite()},
-		{key: "a", what: "add", off: !m.onCode()},
-		{key: "i", what: "context"},
-		{key: "S", what: "submit"},
-		{key: "?", what: "help"},
-		{key: "q", what: quitWord},
+		{Key: "m", What: "mark", Off: m.current() < 0, Priority: shedLater},
+		{Key: "e", What: m.writeWord(), Off: !m.canWrite(), Priority: shedLater},
+		{Key: "a", What: "add", Off: !m.onCode(), Priority: shedLater},
+		{Key: "i", What: "context", Priority: shedFirst},
+		{Key: "S", What: "submit", Priority: shedLast},
+		{Key: "?", What: "help", Priority: shedLast},
+		{Key: "q", What: quitWord, Priority: shedLast},
 	}
 
 	if m.view == viewFile {
-		out = append([]hint{{key: escKey, what: "back"}}, out...)
+		out = append([]keyhint.Hint{{Key: escKey, What: "back", Priority: shedLast}}, out...)
 	}
 
 	return out

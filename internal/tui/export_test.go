@@ -134,8 +134,8 @@ func (m *Model) DimKeys() []string {
 	var out []string
 
 	for _, h := range m.hints() {
-		if h.off {
-			out = append(out, h.key)
+		if h.Off {
+			out = append(out, h.Key)
 		}
 	}
 

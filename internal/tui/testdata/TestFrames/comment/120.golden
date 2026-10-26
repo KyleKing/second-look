@@ -21,4 +21,4 @@ vcs ─────────────────────────�
   17       last := 4                                                                                                   │
      internal/vcs/git.go ──────────────────────────────────────────────────────────────────────────────────────────────│
        func Head() string {                                                                                            │
- [j/k] line  ] go to  [c]ode  [m]ark  [e]dit  [a]dd  [i] context  [S]ubmit  [?] help  [q]uit
+ j/k line   ] go to   c code   m mark   e edit   a add   i context   S submit   ? help   q quit

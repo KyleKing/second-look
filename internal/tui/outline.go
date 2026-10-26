@@ -8,6 +8,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/keyhint"
 
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/humanize"
@@ -612,19 +613,19 @@ func (m *Model) stopsIn(c plan.Chapter) []int {
 	return out
 }
 
-func (m *Model) outlineHints() []hint {
+func (m *Model) outlineHints() []keyhint.Hint {
 	what, other := chapterNoun, "features"
 	if m.outline.features {
 		what, other = featureNoun, "chapters"
 	}
 
-	return []hint{
-		{key: walkKeys, what: what},
-		{key: enterKey, what: openVerb},
-		{key: tabKey, what: other, off: len(m.plan.Features) == 0},
-		{key: escKey, what: "the diff"},
-		{key: "?", what: m.keys.Help.Help().Desc},
-		{key: "q", what: quitWord},
+	return []keyhint.Hint{
+		{Key: walkKeys, What: what, Priority: shedFirst},
+		{Key: enterKey, What: openVerb, Priority: shedLast},
+		{Key: tabKey, What: other, Off: len(m.plan.Features) == 0, Priority: shedLater},
+		{Key: escKey, What: "the diff", Priority: shedLater},
+		{Key: "?", What: m.keys.Help.Help().Desc, Priority: shedLast},
+		{Key: "q", What: quitWord, Priority: shedLast},
 	}
 }
 

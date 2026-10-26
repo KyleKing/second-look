@@ -3586,7 +3586,7 @@ func TestTheFooterDimsTheKeysThatDoNothingHere(t *testing.T) {
 	}
 
 	// Every key is still on the line, which is what dimming is for.
-	if frame := plain(m.Frame()); !strings.Contains(frame, "[a]dd") {
+	if frame := plain(m.Frame()); !strings.Contains(frame, "a add") {
 		t.Errorf("a key that does not apply here left the footer:\n%s", frame)
 	}
 
@@ -3609,7 +3609,7 @@ func TestTheFooterDimsTheKeysThatDoNothingHere(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 40})
 
 	frame := plain(m.Frame())
-	if !strings.Contains(frame, "[q]uit") || strings.Contains(frame, "[m]ark") {
+	if !strings.Contains(frame, "q quit") || strings.Contains(frame, "m mark") {
 		t.Errorf("the narrow footer kept a dim key and lost quit:\n%s", frame)
 	}
 }
