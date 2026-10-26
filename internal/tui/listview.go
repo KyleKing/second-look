@@ -321,9 +321,7 @@ func (l *List) helpOver(frame string) string {
 		hints = defaultListHelp()
 	}
 
-	const listBoxW = 60
-
-	rows := keyhint.Column(legendStyles(l.styles), asHints(hints), min(listBoxW, l.width-boxMargin))
+	rows := keyhint.Column(legendStyles(l.styles), asHints(hints), helpWidth(l.width))
 	inner := min(len(rows), l.height-boxBorder-1)
 	l.helpAt = min(l.helpAt, max(0, len(rows)-inner))
 	box := overlay.Box(boxStyles(l.styles), "keys", rows, inner, l.helpAt)
