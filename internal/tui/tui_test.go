@@ -3614,6 +3614,37 @@ func TestTheFooterDimsTheKeysThatDoNothingHere(t *testing.T) {
 	}
 }
 
+// B hands the terminal to gh-repo-dashboard on the checkout, so a path with a
+// space or a quote must reach it as one argument, and a review with no checkout
+// has nothing to open.
+func TestTheDashboardKeyOpensTheCheckoutAsOneArgument(t *testing.T) {
+	t.Parallel()
+
+	for dir, want := range map[string]string{
+		"/work/repo":        "gh repo-dashboard '/work/repo'",
+		"/work/my repo":     "gh repo-dashboard '/work/my repo'",
+		"/work/it's; $(id)": `gh repo-dashboard '/work/it'\''s; $(id)'`,
+	} {
+		if got, err := tui.DashboardScript(dir); err != nil || got != want {
+			t.Errorf("DashboardScript(%q) = %q, %v; want %q", dir, got, err, want)
+		}
+	}
+
+	bare, _ := fixture(t)
+	if !bare.KeyIsInert("B") || strings.Contains(plain(bare.Frame()), "B branches") {
+		t.Error("without a checkout B is offered")
+	}
+
+	m, _, _ := modelFor(t, &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42, HeadSHA: "a1b2c3d",
+	}, patch, tui.WithRepoDir(t.TempDir()))
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+
+	if m.KeyIsInert("B") || !strings.Contains(plain(m.Frame()), "B branches") {
+		t.Error("with a checkout B is not offered in the footer")
+	}
+}
+
 // The end of a review used to sit against the footer, and an editor opened on
 // the last row was drawn off the bottom of the frame. The frame looks past the
 // last row by a few lines, and by the editor's own height while one is open.

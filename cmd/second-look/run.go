@@ -494,6 +494,7 @@ func reviewScreen(ctx context.Context, t get.Target, log *strings.Builder, land 
 		tui.WithThreads(opened.Threads), tui.WithAbout(opened.About),
 		tui.WithSeen(opened.Read, opened.SeenPath),
 		tui.WithSender(sender(t, opened.Path, log)), tui.WithTree(tree(opened)),
+		tui.WithRepoDir(opened.Work),
 		tui.WithReactor(reactor(t)),
 		tui.WithMerger(merger(t)), tui.WithStore(t.Store), tui.WithOpener(opener(t)),
 		// A config that will not parse leaves the built-in patterns rather than
@@ -693,7 +694,7 @@ func localScreen(ctx context.Context, root string, mode local.Mode, base string)
 	opts := []tui.Option{
 		tui.WithSeen(opened.Read, opened.SeenPath), tui.WithAbout(opened.About),
 		tui.WithTree(tui.TreeOnHead), tui.WithStore(opened.Work),
-		tui.WithWorkRoot(opened.Work),
+		tui.WithWorkRoot(opened.Work), tui.WithRepoDir(opened.Work),
 		tui.WithBlobs(reader.Read), tui.WithHeadSearch(reader.Grep), tui.WithHeadList(reader.List),
 		tui.WithRestage(localRestager(root, mode, base)),
 		tui.WithGenerated(generatedPatterns()), tui.WithPlanRules(planRules(opened.Review)),

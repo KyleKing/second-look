@@ -1,11 +1,13 @@
 package tui
 
 import (
+	"fmt"
 	"image/color"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/handoff"
 	"github.com/kyleking/aragonite/tui/theme"
 )
 
@@ -353,3 +355,13 @@ func (l *List) Flashing() int { return len(l.flash) }
 
 // FlashMark is the glyph a flashing row carries where there is no color.
 const FlashMark = flashMark
+
+// DashboardScript is the shell line B hands the terminal to for a checkout.
+func DashboardScript(dir string) (string, error) {
+	script, err := handoff.Expand(dashboardTemplate, dashboardValues(dir))
+	if err != nil {
+		return "", fmt.Errorf("expanding the dashboard line: %w", err)
+	}
+
+	return script, nil
+}

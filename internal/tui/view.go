@@ -401,6 +401,11 @@ func (m *Model) hints() []keyhint.Hint {
 		{Key: "q", What: quitWord, Priority: shedLast},
 	}
 
+	if m.repoDir != "" {
+		at := slices.IndexFunc(out, func(h keyhint.Hint) bool { return h.Key == "S" })
+		out = slices.Insert(out, at, keyhint.Hint{Key: "B", What: "branches", Priority: shedFirst})
+	}
+
 	if m.view == viewFile {
 		out = append([]keyhint.Hint{{Key: escKey, What: "back", Priority: shedLast}}, out...)
 	}
@@ -445,6 +450,8 @@ func (m *Model) inert(k string) bool {
 		return m.advisor == nil || file == ""
 	case "A":
 		return m.asker == nil && !m.onCode()
+	case "B":
+		return m.repoDir == ""
 	case "T":
 		return m.dispatcher == nil
 	case "X", "K":

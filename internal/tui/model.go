@@ -13,6 +13,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/handoff"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/pane"
 
@@ -82,6 +83,8 @@ type Model struct {
 	// writing into it is the review's business — a local review's own tree —
 	// and empty otherwise, which is what F checks.
 	workRoot string
+	// repoDir is a checkout of the repository, empty where there is none.
+	repoDir string
 	// agentProbe asks what the review's recorded session is doing, and
 	// agentState is its last answer. A session the listing does not name is an
 	// ended run, so the title says nothing rather than a stale word.
@@ -347,6 +350,12 @@ func WithStore(root string) Option {
 // request's checkout is borrowed, not the review's to write in.
 func WithWorkRoot(root string) Option {
 	return func(m *Model) { m.workRoot = root }
+}
+
+// WithRepoDir names a checkout of the repository, which is what B opens
+// gh-repo-dashboard on. Without one the key is dim.
+func WithRepoDir(dir string) Option {
+	return func(m *Model) { m.repoDir = dir }
 }
 
 // WithSeen carries which hunks have already been read, and where to write that
@@ -750,6 +759,8 @@ func (m *Model) childAnswered(msg tea.Msg) (tea.Cmd, bool) {
 		}
 	case pane.GoneMsg:
 		return m.paneGone(msg.Err), true
+	case handoff.DoneMsg:
+		return m.dashboardDone(msg), true
 	case agentUpMsg:
 		return m.agentUp(msg), true
 	case agentWakeMsg:
@@ -1147,6 +1158,8 @@ func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.askStructure(), true
 	case key.Matches(msg, m.keys.Restage):
 		return m.askRestage(), true
+	case key.Matches(msg, m.keys.Dashboard):
+		return m.openDashboard(), true
 	case key.Matches(msg, m.keys.Round):
 		return m.askRound(), true
 	case key.Matches(msg, m.keys.Suggest):

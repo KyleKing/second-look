@@ -61,6 +61,7 @@ type keyMap struct {
 	Note         key.Binding
 	Shell        key.Binding
 	Checkout     key.Binding
+	Dashboard    key.Binding
 	State        key.Binding
 	Ready        key.Binding
 	Draft        key.Binding
@@ -147,6 +148,7 @@ func defaultKeyMap() keyMap {
 		Note:         key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "note")),
 		Shell:        key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
 		Checkout:     key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
+		Dashboard:    key.NewBinding(key.WithKeys("B"), key.WithHelp("B", "branches and CI")),
 		State:        key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "state")),
 		Ready:        key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
 		Draft:        key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
@@ -323,6 +325,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{What: "the request", Head: true},
 		{Key: refreshKey, What: "restage"},
 		{Key: "C", What: "check out"},
+		{Key: "B", What: "the checkout's branches and CI"},
 		{Key: "P", What: "post one"},
 		{Key: "S", What: "submit", Kids: asHints(events())},
 		{Key: "i", What: "what it says about itself"},
