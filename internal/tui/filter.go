@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -98,9 +100,40 @@ func (f filter) keeps(section string, r *Row) bool {
 		return true
 	}
 
-	hay := strings.Join([]string{section, r.Left, r.Mid, r.Tail, r.Under, r.Agent}, "\x00")
+	hay := strings.Join([]string{section, r.Left, r.Mid, r.Tail, r.Under, r.Agent, r.words()}, "\x00")
 
 	return filterpkg.Match(text, hay)
+}
+
+// words is everything a row says on the grid or in the inspector, so a word
+// filtered for finds the row whether or not its column had room.
+func (r *Row) words() string {
+	var parts []string
+
+	for _, col := range slices.Sorted(maps.Keys(r.Cells)) {
+		c := r.Cells[col]
+		parts = append(parts, spansText(c.Spans), spansText(c.Long))
+	}
+
+	if r.About != nil {
+		parts = append(parts, r.About.Subject, r.About.Prefix, r.About.Ref)
+
+		for _, f := range r.About.Facts {
+			parts = append(parts, f.Text)
+		}
+	}
+
+	return strings.Join(parts, "\x00")
+}
+
+func spansText(spans []Span) string {
+	var b strings.Builder
+
+	for _, s := range spans {
+		b.WriteString(s.Text)
+	}
+
+	return b.String()
 }
 
 // narrow drops the rows the filter does not keep, and the sections left with

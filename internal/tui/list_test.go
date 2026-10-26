@@ -1470,3 +1470,29 @@ func TestAnExpandedGridRowShowsItsConversationOnce(t *testing.T) {
 		t.Errorf("the row is drawn %d times, want once in the body and once in the inspector:\n%s", got, frame)
 	}
 }
+
+// A filter finds a grid row by what its cells and its inspector say, including
+// a column the frame had no room for.
+func TestAWordFiltersGridRowsByTheirCellsAndInspector(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		query string
+		want  []string
+		gone  []string
+	}{
+		{"/lease", []string{"a hotfix for the lease"}, []string{"say why"}},
+		{"/lee", []string{"no conventional prefix"}, []string{"a hotfix for the lease"}},
+		{"/draft", []string{"no conventional prefix"}, []string{"say why"}},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			t.Parallel()
+
+			l := tui.NewTabs([]tui.Tab{{Name: "inbox", Sections: lanes, Columns: laneColumns}}, 0)
+			l.Update(tea.WindowSizeMsg{Width: 80, Height: 34})
+			typeList(l, tc.query)
+
+			shows(t, l, tc.want, tc.gone)
+		})
+	}
+}
