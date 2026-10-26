@@ -278,6 +278,14 @@ type List struct {
 	// arrives above the cursor should not leave it in the middle of the list.
 	touched bool
 
+	// held is a refreshed order waiting on the keyboard. baseline is the rows as
+	// last drawn and shifts the ones the last refresh moved.
+	now      func() time.Time
+	lastKey  time.Time
+	held     bool
+	baseline []Place
+	shifts   map[string]Move
+
 	keys   keyMap
 	list   listKeys
 	styles styles
@@ -472,7 +480,13 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return l, nil
 	case tea.KeyPressMsg:
+		l.lastKey = l.clock()
+
 		return l.handleKey(msg)
+	case holdMsg:
+		cmd := l.idle()
+
+		return l, cmd
 	case restMsg:
 		cmd := l.settled(msg.at)
 
@@ -505,9 +519,7 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// still the row being looked at.
 	for _, ld := range l.loaders() {
 		if cmd, mine := ld.Absorb(msg); mine {
-			l.rebuild()
-
-			return l, tea.Batch(cmd, l.rest())
+			return l, tea.Batch(cmd, l.apply(), l.rest())
 		}
 	}
 
@@ -1024,6 +1036,7 @@ func (l *List) rebuild() {
 
 	l.lines = l.lines[:0]
 	l.shown = l.filter.narrow(keepFocused(l.focused, l.sections()))
+	l.baseline = placesOf(l.shown)
 
 	for i := range l.shown {
 		l.appendSection(i, &l.shown[i])

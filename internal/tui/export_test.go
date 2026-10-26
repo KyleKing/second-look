@@ -2,6 +2,7 @@ package tui
 
 import (
 	"image/color"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -320,3 +321,18 @@ func Readings() []Reading {
 
 	return out
 }
+
+// SetClock replaces the wall clock the idle hold reads.
+func (l *List) SetClock(now func() time.Time) { l.now = now }
+
+// HoldTick is the wait for the keyboard to go quiet running out, which a test
+// delivers rather than sleeping the wait.
+//
+//nolint:ireturn // the message type is unexported
+func HoldTick() tea.Msg { return holdMsg{} }
+
+// Held says a refreshed order is waiting on the keyboard.
+func (l *List) Held() bool { return l.held }
+
+// Shifts is which rows the last refresh moved.
+func (l *List) Shifts() map[string]Move { return l.shifts }
