@@ -1041,7 +1041,7 @@ func (s *inboxScreen) sections() []tui.Section {
 func (s *inboxScreen) rows(items []inbox.PullRequest, lane inbox.Lane, now time.Time) []tui.Row {
 	rows := make([]tui.Row, 0, len(items))
 	waits := !s.configured && lane == inbox.LaneWaiting
-	shared := s.sharedNames()
+	shared := sharedNames(s.places())
 
 	for j := range items {
 		p := &items[j]
@@ -1145,6 +1145,16 @@ func measured(k inbox.Known) bool { return k.Added > 0 || k.Removed > 0 }
 // only sign that a row was started. The mark leads, because a row with work in
 // it is the one to come back to rather than one to pick up cold.
 func holding(k inbox.Known) string {
+	word := holdingWord(k)
+	if word == "" {
+		return ""
+	}
+
+	return "● " + word + "  "
+}
+
+// holdingWord is what the staged review carries, empty where none is staged.
+func holdingWord(k inbox.Known) string {
 	if !k.Reviewed {
 		return ""
 	}
@@ -1165,10 +1175,10 @@ func holding(k inbox.Known) string {
 	}
 
 	if len(parts) == 0 {
-		return "● staged  "
+		return wordStaged
 	}
 
-	return "● " + strings.Join(parts, " ") + "  "
+	return strings.Join(parts, " ")
 }
 
 func tagged(p *inbox.PullRequest) string {

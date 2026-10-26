@@ -333,7 +333,7 @@ func (s *reviewsScreen) sections() []tui.Section {
 		hereRows = append(hereRows, s.reviewRow(&here[i], now))
 	}
 
-	out = append(out, tui.Section{Name: "staged", Rows: hereRows})
+	out = append(out, tui.Section{Name: wordStaged, Rows: hereRows})
 
 	if len(away) > 0 {
 		awayRows := make([]tui.Row, 0, len(away))

@@ -97,10 +97,10 @@ func queueOnce(
 			Name:     "conversations",
 			Sections: th.sections, Act: th.act, State: th.state,
 			Hints: threadsHints, Help: threadsHelp, Loader: th,
-			Badge: th.badge,
+			Badge: th.badge, Columns: th.columns,
 		},
 		{
-			Name:     "staged",
+			Name:     wordStaged,
 			Sections: rv.sections, Act: rv.act, State: rv.state,
 			Hints: reviewsHints, Help: reviewsHelp, Loader: rv, Rest: rv.restedOn,
 			Badge: rv.badge,

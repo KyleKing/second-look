@@ -202,7 +202,7 @@ func (l *List) bodyView() string {
 	out := make([]string, 0, rows)
 
 	for i := l.offset; i < len(l.lines) && len(out) < rows; i++ {
-		if row := l.lines[i].row; row != nil && row.Cells != nil && l.columns != nil && !l.lines[i].under {
+		if row := l.lines[i].row; row != nil && row.Cells != nil && l.columns != nil && l.drawsOnGrid(i) {
 			out = append(out, l.gridLine(i, grid, reach))
 
 			continue
@@ -221,6 +221,12 @@ func (l *List) bodyView() string {
 	}
 
 	return strings.Join(alongside(out, bar, l.styles, l.width), "\n")
+}
+
+// drawsOnGrid reports whether line i is a row's one grid line, as opposed to a
+// line of the conversation it has expanded.
+func (l *List) drawsOnGrid(i int) bool {
+	return !l.lines[i].under && l.lines[i].detail == ""
 }
 
 func (l *List) line(i int, lay table.Layout, width int, urgent bool) string {

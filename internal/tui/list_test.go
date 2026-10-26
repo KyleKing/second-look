@@ -1444,3 +1444,29 @@ func unlitRunes(frame string) string {
 
 	return ""
 }
+
+// An expanded row on the grid shows its conversation under it, and the row
+// itself is drawn once rather than again for each line of the conversation.
+func TestAnExpandedGridRowShowsItsConversationOnce(t *testing.T) {
+	t.Parallel()
+
+	withDetail := func() []tui.Section {
+		out := lanes()
+		out[0].Rows[0].Detail = []string{"alice:", "  does this leak on cancel?"}
+
+		return out
+	}
+
+	l := tui.NewTabs([]tui.Tab{{Name: "inbox", Sections: withDetail, Columns: laneColumns}}, 0)
+	l.Update(tea.WindowSizeMsg{Width: 100, Height: 34})
+	l.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	frame := plain(l.ListFrame())
+	if !strings.Contains(frame, "does this leak on cancel?") {
+		t.Errorf("the conversation is not shown:\n%s", frame)
+	}
+
+	if got := strings.Count(frame, "order the queue by lane"); got != 2 {
+		t.Errorf("the row is drawn %d times, want once in the body and once in the inspector:\n%s", got, frame)
+	}
+}

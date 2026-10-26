@@ -12,7 +12,6 @@ import (
 
 	"github.com/kyleking/second-look/internal/conversations"
 	"github.com/kyleking/second-look/internal/ghrun"
-	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/notice"
 	"github.com/kyleking/second-look/internal/resolve"
@@ -181,8 +180,8 @@ var threadsHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	{"o", "open it on GitHub"},
 	{refreshKey, "read the queue again"},
 }, helpLeave(), prose(
-	"● marks a conversation that moved since you last read it, and a second ●",
-	"before the author says a review of that pull request is already staged here.",
+	"● marks a conversation that moved since you last read it, and a ● beginning",
+	"the status says a review of that pull request is already staged here.",
 	"A reply is staged into that pull request's prepared review and posts with it,",
 	"so r leaves the queue and opens the review screen for it. Any repository will",
 	"do, cloned here or not: gh-repo-dashboard says which clones are on this laptop,",
@@ -263,6 +262,7 @@ func (s *threadsScreen) sections() []tui.Section {
 	}
 
 	now := time.Now()
+	shared := sharedNames(s.places())
 
 	out := make([]tui.Section, 0, len(s.buckets)+1)
 
@@ -270,7 +270,7 @@ func (s *threadsScreen) sections() []tui.Section {
 	case len(s.notices) > 0:
 		rows := make([]tui.Row, 0, len(s.notices))
 		for i := range s.notices {
-			rows = append(rows, noticeRow(&s.notices[i], now))
+			rows = append(rows, noticeRow(&s.notices[i], shared, now))
 		}
 		out = append(out, tui.Section{Name: "notifications", Rows: rows})
 	case s.noteFailed != nil:
@@ -279,38 +279,36 @@ func (s *threadsScreen) sections() []tui.Section {
 
 	for i := range s.buckets {
 		b := &s.buckets[i]
+		recedes := b.Name == conversations.BucketAwaiting
 		rows := make([]tui.Row, 0, len(b.Items))
 
 		for j := range b.Items {
 			c := &b.Items[j]
 			rows = append(rows, tui.Row{
 				Key:    c.Key(),
-				Left:   c.Where(),
 				Repo:   c.Repository,
 				Kind:   string(c.Kind),
-				Mid:    c.Anchor(),
-				Age:    humanize.Ago(c.Updated(), now),
-				Tail:   holding(s.local[c.Where()]) + tail(c),
-				Under:  humanize.FirstLine(c.Last().Body),
 				Unread: !s.looked.Since(c),
+				Dim:    recedes,
+				Cells:  s.conversationCells(c, shared, now),
+				About:  s.conversationAbout(c, now),
 				Detail: detail(c),
 			})
 		}
 
-		out = append(out, tui.Section{Name: b.Name, Rows: rows, Recedes: b.Name == conversations.BucketAwaiting})
+		out = append(out, tui.Section{Name: b.Name, Rows: rows, Recedes: recedes})
 	}
 
 	return out
 }
 
-// noticeRow draws a notification like the queue's own rows: why it came in
-// the middle, where and what it is at the edges, and the unread mark it earns
-// by arriving through a fetch that only asks for unread.
-func noticeRow(n *notice.Thread, now time.Time) tui.Row {
+// noticeRow draws a notification like the queue's own rows: where and what it
+// is at the edges, why it came in the status, and the unread mark it earns by
+// arriving through a fetch that only asks for unread.
+func noticeRow(n *notice.Thread, shared map[string]bool, now time.Time) tui.Row {
 	return tui.Row{
-		Key: n.Key(), Repo: n.Repo, Left: n.Where(),
-		Kind: noticeKind(n.Kind), Mid: noticeReason(n.Reason),
-		Age: humanize.Ago(n.Updated, now), Tail: n.Title, Unread: true,
+		Key: n.Key(), Repo: n.Repo, Kind: noticeKind(n.Kind), Unread: true,
+		Cells: noticeCells(n, shared, now), About: noticeAbout(n, now),
 	}
 }
 
@@ -355,29 +353,6 @@ func (s *threadsScreen) notice(key string) *notice.Thread {
 	}
 
 	return nil
-}
-
-// tail is whose turn it is and what the pull request is called. The author of
-// the last comment comes first, because a thread a person last touched is a
-// different obligation from one a bot last touched.
-func tail(c *conversations.Conversation) string {
-	const authorCap = 16
-
-	var b strings.Builder
-
-	b.WriteString(humanize.Clip(c.Last().Author, authorCap))
-
-	if n := len(c.Notes); n > 1 {
-		b.WriteString("  " + strconv.Itoa(n) + " replies")
-	}
-
-	if c.Outdated {
-		b.WriteString("  outdated")
-	}
-
-	b.WriteString("  " + c.Title)
-
-	return b.String()
 }
 
 // detail is the whole conversation, shown when a row is expanded. Every comment

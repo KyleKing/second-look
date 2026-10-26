@@ -21,6 +21,8 @@ const (
 	RoleQuiet
 	RoleAge
 	RolePriority
+	// RoleUnread marks a row that moved since it was read.
+	RoleUnread
 	RoleAdd
 	RoleRemove
 	// RolePending stands in for a fact that has not arrived.
@@ -94,6 +96,8 @@ func (s styles) rungOf(r Role, waiting bool) rung {
 		return rungs.age
 	case RolePriority:
 		return rungs.priority
+	case RoleUnread:
+		return rungs.unread
 	case RoleAdd:
 		return rungIf(waiting, rungs.age, rungs.add)
 	case RoleRemove:

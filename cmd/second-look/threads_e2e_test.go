@@ -11,7 +11,9 @@ import (
 
 	"github.com/kyleking/aragonite/ghcassette"
 
+	main "github.com/kyleking/second-look/cmd/second-look"
 	"github.com/kyleking/second-look/internal/conversations"
+	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/notice"
 )
 
@@ -274,4 +276,41 @@ func TestThreadsScreenNotifications(t *testing.T) {
 	}
 
 	s.RequireAllPlayed(t)
+}
+
+// The status cell says only what the row's words do not: work already staged
+// on the pull request, how long the thread has run, and a moved line, with the
+// long form spelling out what the short one cuts.
+func TestAConversationsStatusSaysWhatIsNotable(t *testing.T) {
+	t.Parallel()
+
+	two := []conversations.Note{{Author: "a"}, {Author: "b"}}
+
+	for _, tc := range []struct {
+		name        string
+		c           conversations.Conversation
+		k           inbox.Known
+		short, long string
+	}{
+		{name: "nothing notable", c: conversations.Conversation{Notes: two[:1]}},
+		{name: "a reply", c: conversations.Conversation{Notes: two}, short: "2 replies", long: "2 replies"},
+		{
+			name: "outdated", c: conversations.Conversation{Notes: two[:1], Outdated: true},
+			short: "old", long: "outdated",
+		},
+		{
+			name: "work staged", c: conversations.Conversation{Notes: two},
+			k:     inbox.Known{Reviewed: true, Draft: 2},
+			short: "● 2 drafts · 2 replies", long: "● 2 drafts · 2 replies",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			short, long := main.StatusWordsOf(&tc.c, tc.k)
+			if short != tc.short || long != tc.long {
+				t.Errorf("the status says %q/%q, want %q/%q", short, long, tc.short, tc.long)
+			}
+		})
+	}
 }

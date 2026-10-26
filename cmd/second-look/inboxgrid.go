@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +27,10 @@ const (
 // wordDraft is what a draft pull request reads as, before and after the facts land.
 const wordDraft = "draft"
 
+// wordStaged is what a review staged here with nothing in it yet reads as, and
+// the name of the tab and lane that hold such reviews.
+const wordStaged = "staged"
+
 // The grid's widths. A change is drawn in a count of at most four cells and a
 // sign, so the size column holds two of those and the space between them. The
 // long status word needs a cell this wide, and a status never grows past it.
@@ -39,21 +42,16 @@ const (
 	statusMin   = 2 + inbox.ShortWidth
 	statusLong  = 24
 	statusMax   = 26
-	refFloor    = 15
 	titleFloor  = 30
 	authorFrom  = 112
 	sizeFrom    = 100
 	titleWeight = 3
 )
 
-// columns is the grid the inbox rows are drawn on. The ref column is as wide as
-// the longest ref in view, up to the floor it keeps when there is no room, so
-// every title starts in the same column whatever lands.
+// columns is the grid the inbox rows are drawn on.
 func (s *inboxScreen) columns() []table.Column {
-	ref := max(s.refWidth(), 1)
-
 	return []table.Column{
-		{Key: colRef, Min: min(ref, refFloor), Max: ref, Weight: 1, Trim: table.TrimLeft},
+		refColumn(s.places()),
 		{Key: colTitle, Min: titleFloor, Weight: titleWeight},
 		{Key: colAuthor, Min: authorWidth, Max: authorWidth, From: authorFrom},
 		{Key: colAge, Min: ageWidth, Max: ageWidth, Align: table.AlignRight},
@@ -62,52 +60,18 @@ func (s *inboxScreen) columns() []table.Column {
 	}
 }
 
-// refWidth is the widest ref any lane holds.
-func (s *inboxScreen) refWidth() int {
-	shared := s.sharedNames()
-	widest := 0
+// places is where every pull request in the lanes points.
+func (s *inboxScreen) places() []place {
+	var out []place
 
 	for i := range s.lanes {
 		for j := range s.lanes[i].Items {
-			owner, name := refParts(&s.lanes[i].Items[j], shared)
-			widest = max(widest, humanize.Width(owner+name))
+			p := &s.lanes[i].Items[j]
+			out = append(out, place{repo: p.Repository, number: p.Number})
 		}
 	}
 
-	return widest
-}
-
-// sharedNames is the repository names that two owners share across the queue,
-// which are the only ones a ref needs its owner to tell apart.
-func (s *inboxScreen) sharedNames() map[string]bool {
-	owners := map[string]string{}
-	shared := map[string]bool{}
-
-	for i := range s.lanes {
-		for j := range s.lanes[i].Items {
-			owner, name, _ := strings.Cut(s.lanes[i].Items[j].Repository, "/")
-			if seen, ok := owners[name]; ok && seen != owner {
-				shared[name] = true
-			}
-
-			owners[name] = owner
-		}
-	}
-
-	return shared
-}
-
-// refParts is a ref as its owner prefix, which is empty unless the name is
-// shared, and the rest.
-func refParts(p *inbox.PullRequest, shared map[string]bool) (string, string) {
-	owner, name, _ := strings.Cut(p.Repository, "/")
-	rest := name + "#" + strconv.Itoa(p.Number)
-
-	if shared[name] {
-		return owner + "/", rest
-	}
-
-	return "", rest
+	return out
 }
 
 // cells is one row on the grid. A fact that has not arrived draws a dot in its
@@ -116,15 +80,9 @@ func (s *inboxScreen) cells(
 	p *inbox.PullRequest, k inbox.Known, shared map[string]bool, now time.Time,
 ) map[string]tui.Cell {
 	_, have := s.facts[keyOf(p)]
-	owner, rest := refParts(p, shared)
-
-	ref := []tui.Span{{Text: rest, Role: tui.RoleCell}}
-	if owner != "" {
-		ref = append([]tui.Span{{Text: owner, Role: tui.RoleQuiet}}, ref...)
-	}
 
 	return map[string]tui.Cell{
-		colRef:    {Spans: ref},
+		colRef:    {Spans: place{repo: p.Repository, number: p.Number}.spans(shared)},
 		colTitle:  {Spans: titleSpans(p.Title, mark(k))},
 		colAuthor: plain(p.Author, tui.RoleCell),
 		colAge:    plain(humanize.Ago(p.Updated, now), tui.RoleAge),

@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"io"
+	"strings"
 
 	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/checkouts"
+	"github.com/kyleking/second-look/internal/conversations"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
@@ -139,4 +141,22 @@ func LocalFlags(args []string) (local.Mode, string, error) { return parseLocalFl
 // pipe path: the patch on stdout and nothing staged.
 func LocalPipe(ctx context.Context, args []string, stdout io.Writer) error {
 	return localCmd(ctx, args, stdout)
+}
+
+// StatusWordsOf is the status cell's short and long words for a
+// conversation, given what this laptop holds for its pull request.
+func StatusWordsOf(c *conversations.Conversation, k inbox.Known) (string, string) {
+	cell := conversationStatus(c, k)
+
+	return plainWords(cell.Spans), plainWords(cell.Long)
+}
+
+func plainWords(spans []tui.Span) string {
+	var b strings.Builder
+
+	for _, s := range spans {
+		b.WriteString(s.Text)
+	}
+
+	return b.String()
 }
