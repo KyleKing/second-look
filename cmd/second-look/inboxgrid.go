@@ -41,6 +41,7 @@ const (
 	sizeWidth   = 2*countWidth + 1
 	statusMin   = 2 + inbox.ShortWidth
 	statusLong  = 24
+	titleLong   = 40
 	statusMax   = 26
 	titleFloor  = 30
 	authorFrom  = 112
@@ -83,7 +84,7 @@ func (s *inboxScreen) cells(
 
 	return map[string]tui.Cell{
 		colRef:    {Spans: place{repo: p.Repository, number: p.Number}.spans(shared)},
-		colTitle:  {Spans: titleSpans(p.Title, mark(k))},
+		colTitle:  titleSpans(p.Title, mark(k)),
 		colAuthor: plain(p.Author, tui.RoleCell),
 		colAge:    plain(humanize.Ago(p.Updated, now), tui.RoleAge),
 		colSize:   fact(sizeCell(k)),
@@ -174,17 +175,22 @@ func mark(k inbox.Known) tui.Span {
 
 var conventional = regexp.MustCompile(`^[A-Za-z]+(\([^)]*\))?!?: `)
 
-// titleSpans is a title behind its mark, with a conventional-commit prefix
-// receded so the subject is what the eye lands on.
-func titleSpans(title string, lead tui.Span) []tui.Span {
-	spans := []tui.Span{lead, {Text: " ", Role: tui.RoleCell}}
-
+// titleSpans is a title behind its mark. A conventional-commit prefix is receded
+// and kept only where the column is wide enough to spare it, since the inspector
+// shows it in full.
+func titleSpans(title string, lead tui.Span) tui.Cell {
+	head := []tui.Span{lead, {Text: " ", Role: tui.RoleCell}}
 	prefix := conventional.FindString(title)
-	if prefix != "" {
-		spans = append(spans, tui.Span{Text: prefix, Role: tui.RoleQuiet})
+	subject := tui.Span{Text: title[len(prefix):], Role: tui.RoleText}
+
+	short := append(append([]tui.Span{}, head...), subject)
+	if prefix == "" {
+		return tui.Cell{Spans: short}
 	}
 
-	return append(spans, tui.Span{Text: title[len(prefix):], Role: tui.RoleText})
+	long := append(append([]tui.Span{}, head...), tui.Span{Text: prefix, Role: tui.RoleQuiet}, subject)
+
+	return tui.Cell{Spans: short, Long: long, LongAt: titleLong}
 }
 
 func sizeCell(k inbox.Known) tui.Cell {

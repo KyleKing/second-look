@@ -68,7 +68,7 @@ func (s *reviewsScreen) reviewCells(
 
 	return map[string]tui.Cell{
 		colRef:    {Spans: place{repo: r.Repository, number: r.Number}.spans(shared)},
-		colTitle:  {Spans: titleCell(r)},
+		colTitle:  titleCell(r),
 		colHolds:  plain(s.tail(r), tui.RoleCell),
 		colAge:    plain(humanize.Ago(r.Modified, now), tui.RoleAge),
 		colStatus: statusCellOf(stateGlyph(state), state, stateRole(state)),
@@ -80,14 +80,14 @@ func (s *reviewsScreen) reviewCells(
 // titleCell is what the pull request is called, behind the mark. A review that
 // could not be read says why where its title would be, and one whose title was
 // never cached draws the placeholder.
-func titleCell(r *prepared.Review) []tui.Span {
+func titleCell(r *prepared.Review) tui.Cell {
 	lead := unreadMark(r.Blocked() || r.Broken != "")
 
 	switch name := title(r); {
 	case r.Broken != "":
-		return []tui.Span{lead, {Text: " ", Role: tui.RoleCell}, {Text: r.Broken, Role: tui.RoleText}}
+		return tui.Cell{Spans: []tui.Span{lead, {Text: " ", Role: tui.RoleCell}, {Text: r.Broken, Role: tui.RoleText}}}
 	case name == "":
-		return append([]tui.Span{lead, {Text: " ", Role: tui.RoleCell}}, tui.Pending().Spans...)
+		return tui.Cell{Spans: append([]tui.Span{lead, {Text: " ", Role: tui.RoleCell}}, tui.Pending().Spans...)}
 	default:
 		return titleSpans(name, lead)
 	}

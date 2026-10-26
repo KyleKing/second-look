@@ -171,7 +171,7 @@ func why(w conversations.Why) string {
 func noticeCells(n *notice.Thread, shared map[string]bool, now time.Time) map[string]tui.Cell {
 	return map[string]tui.Cell{
 		colRef:    {Spans: place{repo: n.Repo, number: n.Number}.spans(shared)},
-		colTitle:  {Spans: titleSpans(n.Title, unreadMark(true))},
+		colTitle:  titleSpans(n.Title, unreadMark(true)),
 		colAge:    plain(humanize.Ago(n.Updated, now), tui.RoleAge),
 		colStatus: plain(noticeReason(n.Reason), tui.RoleCell),
 	}
