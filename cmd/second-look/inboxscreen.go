@@ -1055,7 +1055,7 @@ func failedRow(reason string) tui.Row {
 
 func (s *inboxScreen) rows(items []inbox.PullRequest, lane inbox.Lane, now time.Time) []tui.Row {
 	rows := make([]tui.Row, 0, len(items))
-	waits := !s.configured && lane == inbox.LaneWaiting
+	waits := !s.configured && (lane == inbox.LaneWaiting || lane == inbox.LaneMerged)
 	shared := sharedNames(s.places())
 
 	for j := range items {
