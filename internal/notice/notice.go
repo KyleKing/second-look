@@ -66,7 +66,7 @@ type wire struct {
 }
 
 // Args is the gh call one fetch makes, exported for the reason
-// conversations.Args is: a replay builds the interaction from this rather
+// conversations.LightArgs is: a replay builds the interaction from this rather
 // than from a copy that drifts.
 //
 // Participating narrows the stream to what names you — mentions, review
@@ -97,12 +97,21 @@ func Fetch(ctx context.Context, root string) ([]Thread, error) {
 	return Decode(out)
 }
 
+// ErrUnavailable is a stream the token cannot read: GitHub answers 404 to a
+// token without the notifications scope, and asking again changes nothing.
+var ErrUnavailable = errors.New("notifications are not available to this token")
+
 // ghErr puts gh's stderr in the message, which is where its reason lives; the
 // exit status alone says nothing.
 func ghErr(err error) error {
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
-		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
+		reason := strings.TrimSpace(string(exitErr.Stderr))
+		if strings.Contains(reason, "HTTP 404") {
+			return fmt.Errorf("%w: %w", ErrUnavailable, err)
+		}
+
+		return fmt.Errorf("%w: %s", err, reason)
 	}
 
 	return err

@@ -15,6 +15,7 @@ import (
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/notice"
 	"github.com/kyleking/second-look/internal/resolve"
+	"github.com/kyleking/second-look/internal/snapshot"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -40,12 +41,31 @@ type threadsScreen struct {
 	// reading as a queue with nothing in it.
 	waiting bool
 	failed  error
+	// snaps is where the last queue was kept, nil in a test that has none.
+	// records is what each pull request was read as, so the next read fetches
+	// only what moved. have says rows are on screen, and stale says they are
+	// from the snapshot and this run's read has not confirmed them. age is how
+	// long ago the snapshot was saved.
+	snaps   *snapshot.Store
+	records map[string]conversations.Record
+	have    bool
+	stale   bool
+	age     time.Duration
+	// started is set by the first Start, so a later one is a refresh, which
+	// reads everything again whatever the snapshot says.
+	started bool
 	// notices is the notification stream folded into this tab: everything
 	// addressed to you that is not a conversation — mentions, review requests,
 	// your own pull requests moving — with noteFailed holding a refused fetch
 	// so it reads as refused rather than as empty.
 	notices    []notice.Thread
 	noteFailed error
+	// noteStale says the notifications are the snapshot's, and noteDenied that
+	// GitHub refused the stream to this token. denied is when it last did,
+	// kept so the next open does not ask again within a day.
+	noteStale  bool
+	noteDenied bool
+	denied     time.Time
 	// gh runs the mutations marking a notification done or unsubscribing it,
 	// held so a test can stand in for it.
 	gh ghrun.Runner
@@ -58,7 +78,7 @@ type threadsScreen struct {
 // newThreadsScreen reads the read marks, which are local, and leaves the queue
 // itself to the loader: fetching it is a network round trip and nothing should
 // pay for it until the queue is looked at.
-func newThreadsScreen(ctx context.Context) (*threadsScreen, error) {
+func newThreadsScreen(ctx context.Context, snaps *snapshot.Store) (*threadsScreen, error) {
 	looked, err := loadLooked()
 	if err != nil {
 		return nil, err
@@ -71,14 +91,14 @@ func newThreadsScreen(ctx context.Context) (*threadsScreen, error) {
 
 	return &threadsScreen{
 		ctx: ctx, queue: &conversations.Queue{}, looked: looked,
-		path: path, repo: currentRepo(ctx), gh: ghrun.GH(),
+		path: path, repo: currentRepo(ctx), gh: ghrun.GH(), snaps: snaps,
 	}, nil
 }
 
 // queueMsg is the conversation queue, answered or refused.
 type queueMsg struct {
-	queue *conversations.Queue
-	err   error
+	read *conversations.Read
+	err  error
 }
 
 // noticeMsg is the notification stream, answered or refused.
@@ -87,33 +107,84 @@ type noticeMsg struct {
 	err     error
 }
 
-// Start fetches the queue. It is one request rather than the inbox's several,
-// so there is nothing to draw progressively; what it buys is a screen that
-// opens now and a tab nobody switches to that costs nothing. The notification
-// stream rides alongside it, since a tab that knows half of what is owed to
-// you still sends you to the browser for the rest.
+// Start paints the last queue from the snapshot, then reads it again behind
+// that, fetching only the pull requests that moved. The notification stream
+// rides alongside, since a tab that knows half of what is owed to you still
+// sends you to the browser for the rest, and is not asked for at all while
+// GitHub's refusal of it is recent.
 func (s *threadsScreen) Start() tea.Cmd {
 	s.waiting = true
 	s.local = localKnowledge()
 
-	return tea.Batch(
-		func() tea.Msg {
-			queue, err := conversations.Fetch(s.ctx, ".", conversations.DefaultLimit)
+	forced := s.started
+	s.started = true
 
-			return queueMsg{queue: queue, err: err}
-		},
-		func() tea.Msg {
-			threads, err := notice.Fetch(s.ctx, ".")
+	var prior *conversations.Prior
 
-			return noticeMsg{threads: threads, err: err}
-		},
-	)
+	if !forced {
+		prior = s.paint()
+	}
+
+	queue := func() tea.Msg {
+		read, err := conversations.ReadQueue(s.ctx, ".", conversations.DefaultLimit, prior, time.Now())
+
+		return queueMsg{read: read, err: err}
+	}
+
+	if s.noteDenied && !forced {
+		return queue
+	}
+
+	return tea.Batch(queue, func() tea.Msg {
+		threads, err := notice.Fetch(s.ctx, ".")
+
+		return noticeMsg{threads: threads, err: err}
+	})
+}
+
+// paint puts the snapshot on screen as rows nothing has confirmed yet, and says
+// what it vouches for to the read that follows.
+func (s *threadsScreen) paint() *conversations.Prior {
+	if s.snaps == nil {
+		return nil
+	}
+
+	snap, age, ok := s.snaps.Conversations()
+	if !ok {
+		return nil
+	}
+
+	s.queue = &snap.Queue
+	s.buckets = conversations.Buckets(s.queue, s.looked)
+	s.records = snap.Records
+	s.have, s.stale, s.age = true, true, age
+	s.denied = snap.Denied
+
+	if snap.Refused(time.Now()) {
+		s.noteDenied = true
+	} else {
+		s.notices, s.noteStale = snap.Notices, len(snap.Notices) > 0
+	}
+
+	return &conversations.Prior{Queue: snap.Queue, Records: snap.Records}
+}
+
+// keep writes what the screen holds as the snapshot the next open paints. A
+// queue not yet read as anybody is not worth keeping.
+func (s *threadsScreen) keep() {
+	if s.snaps == nil || s.queue.Viewer == "" {
+		return
+	}
+
+	s.snaps.SaveConversations(snapshot.Conversations{
+		Queue: *s.queue, Records: s.records, Notices: s.notices, Denied: s.denied,
+	})
 }
 
 func (s *threadsScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
 	switch answered := msg.(type) {
 	case noticeMsg:
-		s.notices, s.noteFailed = answered.threads, answered.err
+		s.absorbNotices(answered)
 
 		return nil, true
 	case queueMsg:
@@ -126,13 +197,32 @@ func (s *threadsScreen) Absorb(msg tea.Msg) (tea.Cmd, bool) {
 		}
 
 		s.failed = nil
-		s.queue = answered.queue
-		s.buckets = conversations.Buckets(answered.queue, s.looked)
+		s.queue, s.records = answered.read.Queue, answered.read.Records
+		s.buckets = conversations.Buckets(s.queue, s.looked)
+		s.have, s.stale = true, false
+		s.keep()
 
 		return nil, true
 	}
 
 	return nil, false
+}
+
+// absorbNotices takes the stream's answer. A refusal is remembered rather than
+// shown as an error, since it is the token and not the moment that failed.
+func (s *threadsScreen) absorbNotices(answered noticeMsg) {
+	s.noteStale = false
+
+	switch {
+	case errors.Is(answered.err, notice.ErrUnavailable):
+		s.notices, s.noteFailed, s.noteDenied, s.denied = nil, nil, true, time.Now()
+	case answered.err != nil:
+		s.notices, s.noteFailed = nil, answered.err
+	default:
+		s.notices, s.noteFailed, s.noteDenied, s.denied = answered.threads, nil, false, time.Time{}
+	}
+
+	s.keep()
 }
 
 // save writes the read marks back and the counts the prompt reads. It runs on
@@ -160,6 +250,9 @@ func (s *threadsScreen) save() error {
 
 	return nil
 }
+
+// sectionNotices is the heading of the notification stream.
+const sectionNotices = "notifications"
 
 // threadsHints is the footer, which advertises only the keys this screen offers.
 var threadsHints = [][2]string{
@@ -227,15 +320,15 @@ func (s *threadsScreen) unread() int {
 	return n
 }
 
-// badge is the tab's count: the unread count once it is known, and nothing
-// while the queue is still out or refused.
+// badge is the tab's count: the unread count once it is known, dim while it is
+// the snapshot's, and nothing where there is no queue to count.
 func (s *threadsScreen) badge() tui.Badge {
-	if s.waiting || s.failed != nil {
+	if !s.have {
 		return tui.Badge{}
 	}
 
 	if n := s.unread(); n > 0 {
-		return tui.Badge{Label: strconv.Itoa(n)}
+		return tui.Badge{Label: strconv.Itoa(n), Stale: s.stale}
 	}
 
 	return tui.Badge{}
@@ -248,7 +341,7 @@ func (s *threadsScreen) state() tui.State {
 	case s.failed != nil:
 		return tui.State{Text: "the search failed"}
 	case s.waiting:
-		return tui.State{Text: searching, Busy: true}
+		return tui.State{Text: cachedWord(s.age) + searching, Busy: true}
 	}
 
 	return tui.State{}
@@ -257,7 +350,7 @@ func (s *threadsScreen) state() tui.State {
 // sections turns the snapshot into rows. The unread mark is read live, so
 // marking one clears its mark where it sits rather than moving it.
 func (s *threadsScreen) sections() []tui.Section {
-	if s.waiting || s.failed != nil {
+	if !s.have && (s.waiting || s.failed != nil) {
 		return []tui.Section{{Name: "your conversations", Note: s.counts()}}
 	}
 
@@ -270,11 +363,13 @@ func (s *threadsScreen) sections() []tui.Section {
 	case len(s.notices) > 0:
 		rows := make([]tui.Row, 0, len(s.notices))
 		for i := range s.notices {
-			rows = append(rows, noticeRow(&s.notices[i], shared, now))
+			rows = append(rows, noticeRow(&s.notices[i], shared, s.noteStale, now))
 		}
-		out = append(out, tui.Section{Name: "notifications", Rows: rows})
+		out = append(out, tui.Section{Name: sectionNotices, Rows: rows})
+	case s.noteDenied:
+		out = append(out, tui.Section{Name: sectionNotices, Note: "not available to this token", Recedes: true})
 	case s.noteFailed != nil:
-		out = append(out, tui.Section{Name: "notifications", Note: s.noteFailed.Error()})
+		out = append(out, tui.Section{Name: sectionNotices, Note: s.noteFailed.Error()})
 	}
 
 	for i := range s.buckets {
@@ -290,6 +385,7 @@ func (s *threadsScreen) sections() []tui.Section {
 				Kind:   string(c.Kind),
 				Unread: !s.looked.Since(c),
 				Dim:    recedes,
+				Stale:  s.stale,
 				Cells:  s.conversationCells(c, shared, now),
 				About:  s.conversationAbout(c, now),
 				Detail: detail(c),
@@ -305,9 +401,9 @@ func (s *threadsScreen) sections() []tui.Section {
 // noticeRow draws a notification like the queue's own rows: where and what it
 // is at the edges, why it came in the status, and the unread mark it earns by
 // arriving through a fetch that only asks for unread.
-func noticeRow(n *notice.Thread, shared map[string]bool, now time.Time) tui.Row {
+func noticeRow(n *notice.Thread, shared map[string]bool, stale bool, now time.Time) tui.Row {
 	return tui.Row{
-		Key: n.Key(), Repo: n.Repo, Kind: noticeKind(n.Kind), Unread: true,
+		Key: n.Key(), Repo: n.Repo, Kind: noticeKind(n.Kind), Unread: true, Stale: stale,
 		Cells: noticeCells(n, shared, now), About: noticeAbout(n, now),
 	}
 }

@@ -287,6 +287,17 @@ step 1.
    only the snapshot paint. Both paths add the notifications 404 memo. Files:
    `internal/conversations/`, `cmd/second-look/threadsscreen.go`. Tests:
    `queueCassette` extended and a light reply decode. Risk: medium.
+
+   Built as the split. The light query answered in 1.0 to 1.1 s for 40 pull
+   requests (5 KB). The heavy read by node id is cheapest in parallel chunks:
+   40 ids took 5.4 s in one call and 2.7 to 3.0 s as four calls of ten, so the
+   heavy read is always chunked by ten, cold included. One id took 0.9 to 1.0 s.
+   With a snapshot and nothing moved the tab confirms in the light query's time
+   (1.2 s against 5.1 s before), and a record older than ten minutes is fetched
+   again, the same bound the inbox uses for what `updatedAt` does not carry. The
+   notification stream's 404 is remembered for a day in the snapshot. Unverified:
+   whether a thread resolved on another device moves the pull request's
+   `updatedAt`, which is what the ten minute bound covers.
 6. Eager start and counts. `tui.Tabs.StartAll`, `(count, fresh)` for the strip, the
    shared `gh` semaphore. Files: `internal/tui/tabs.go`, `queuescreen.go`, the exec
    helper. Tests: strip golden frames for fresh and stale, and no tab starts twice.

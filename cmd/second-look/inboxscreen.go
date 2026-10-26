@@ -937,14 +937,18 @@ func (s *inboxScreen) state() tui.State {
 
 // cachedWord says how old the rows on screen are while the searches that replace
 // them are out, so a snapshot is never read as fresh.
-func (s *inboxScreen) cachedWord() string {
-	if s.age < time.Minute {
+func (s *inboxScreen) cachedWord() string { return cachedWord(s.age) }
+
+// cachedWord says how old a snapshot is, or nothing where it is too young to
+// matter.
+func cachedWord(age time.Duration) string {
+	if age < time.Minute {
 		return ""
 	}
 
 	now := time.Now()
 
-	return "cached " + humanize.Ago(now.Add(-s.age), now) + " ago · "
+	return "cached " + humanize.Ago(now.Add(-age), now) + " ago · "
 }
 
 // yours is how many rows are waiting on you: the lanes before waiting on

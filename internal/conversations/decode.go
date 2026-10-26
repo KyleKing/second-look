@@ -7,13 +7,35 @@ import (
 	"time"
 )
 
-type response struct {
+// answer is the heavy read's reply: who is asking, and the pull requests it
+// was asked about. A node GitHub would not resolve arrives as null.
+type answer struct {
+	Data struct {
+		Viewer struct {
+			Login string `json:"login"`
+		} `json:"viewer"`
+		Nodes []*pullRequest `json:"nodes"`
+	} `json:"data"`
+}
+
+// lightAnswer is the light read's reply.
+//
+//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
+type lightAnswer struct {
 	Data struct {
 		Viewer struct {
 			Login string `json:"login"`
 		} `json:"viewer"`
 		Search struct {
-			Nodes []pullRequest `json:"nodes"`
+			Nodes []struct {
+				ID         string    `json:"id"`
+				Number     int       `json:"number"`
+				UpdatedAt  time.Time `json:"updatedAt"`
+				HeadRefOid string    `json:"headRefOid"`
+				Repository struct {
+					NameWithOwner string `json:"nameWithOwner"`
+				} `json:"repository"`
+			} `json:"nodes"`
 		} `json:"search"`
 	} `json:"data"`
 }
@@ -91,27 +113,55 @@ type review struct {
 // GitHub gives no resolve.
 const thumbsUp = "THUMBS_UP"
 
-// Decode reads what the query answered and keeps the conversations that are
-// yours. It is exported because a test that seeds the queue reads the same
+// Decode reads what the heavy query answered and keeps the conversations that
+// are yours. It is exported because a test that seeds the queue reads the same
 // recording the fetcher does, and two copies of GitHub's shape would drift.
 func Decode(body []byte) (*Queue, error) {
-	var r response
+	me, pulls, err := decodePulls(body)
+	if err != nil {
+		return nil, err
+	}
+
+	q := &Queue{Viewer: me}
+	for _, p := range pulls {
+		q.Conversations = append(q.Conversations, p.conversations...)
+	}
+
+	return q, nil
+}
+
+// pulled is one pull request the heavy read answered for and the conversations
+// of it that are yours, which may be none.
+type pulled struct {
+	key           string
+	conversations []Conversation
+}
+
+func decodePulls(body []byte) (string, []pulled, error) {
+	var r answer
 	if err := json.Unmarshal(body, &r); err != nil {
-		return nil, fmt.Errorf("reading your open conversations: %w", err)
+		return "", nil, fmt.Errorf("reading your open conversations: %w", err)
 	}
 
 	me := r.Data.Viewer.Login
 	if me == "" {
-		return nil, ErrNoViewer
+		return "", nil, ErrNoViewer
 	}
 
-	q := &Queue{Viewer: me}
+	out := make([]pulled, 0, len(r.Data.Nodes))
 
-	for i := range r.Data.Search.Nodes {
-		q.Conversations = append(q.Conversations, r.Data.Search.Nodes[i].conversations(me)...)
+	for _, p := range r.Data.Nodes {
+		if p == nil || p.Number == 0 {
+			continue
+		}
+
+		out = append(out, pulled{
+			key:           KeyOf(p.Repository.NameWithOwner, p.Number),
+			conversations: p.conversations(me),
+		})
 	}
 
-	return q, nil
+	return me, out, nil
 }
 
 func (p *pullRequest) conversations(me string) []Conversation {

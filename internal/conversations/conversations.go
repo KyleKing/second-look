@@ -13,15 +13,12 @@
 package conversations
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/kyleking/second-look/internal/ghrun"
 )
 
 // Kind is which of the three surfaces a conversation lives on. It decides what
@@ -197,55 +194,6 @@ const Query = "is:pr is:open involves:@me"
 type Queue struct {
 	Viewer        string         `json:"viewer"`
 	Conversations []Conversation `json:"conversations"`
-}
-
-// Args is the gh call one fetch makes.
-//
-// It is exported for the same reason Decode is: a test that replays the fetch
-// builds the interaction from this rather than from a copy of the query, and a
-// cassette keyed on a copy would answer nothing the moment the query changed.
-func Args(limit int) []string {
-	if limit <= 0 {
-		limit = DefaultLimit
-	}
-
-	return []string{
-		"api", "graphql",
-		"-F", "q=" + Query,
-		"-F", "n=" + strconv.Itoa(limit),
-		"-f", "query=" + query,
-	}
-}
-
-// Fetch reads every qualifying conversation in one request.
-//
-// Viewer, search, threads, comments, and reviews arrive together because the
-// bucketing needs all of them at once: whose turn it is cannot be decided
-// without knowing who you are, and a per-pull-request round trip would spend a
-// second each on pull requests with nothing in them.
-func Fetch(ctx context.Context, root string, limit int) (*Queue, error) {
-	release, err := ghrun.Acquire(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("starting gh: %w", err)
-	}
-
-	defer release()
-
-	//nolint:gosec // the query is a constant and the limit is an integer
-	cmd := exec.CommandContext(ctx, "gh", Args(limit)...)
-	cmd.Dir = root
-
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("reading your open conversations: %w", ghError(err))
-	}
-
-	q, err := Decode(out)
-	if err != nil {
-		return nil, err
-	}
-
-	return q, nil
 }
 
 // ghError puts gh's own stderr in the message, which is where its reason for

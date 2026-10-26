@@ -45,7 +45,11 @@ func fixtureConversations() snapshot.Conversations {
 			Kind: conversations.KindThread, Repository: "example/widgets", Number: 7, ThreadID: "PRRT_invented",
 			Notes: []conversations.Note{{ID: 1, Author: "someone", Body: "invented", Created: epoch}},
 		}}},
+		Records: map[string]conversations.Record{
+			"example/widgets#7": {Updated: epoch, Head: "abc", Fetched: epoch},
+		},
 		Notices: []notice.Thread{{ID: "1", Repo: "example/widgets", Number: 7, Updated: epoch}},
+		Denied:  epoch,
 	}
 }
 
@@ -105,6 +109,12 @@ func TestRoundTripAcrossProcessesAndPastTheMemoryTTL(t *testing.T) {
 
 	sameJSON(t, conv.Queue, fixtureConversations().Queue)
 	sameJSON(t, conv.Notices, fixtureConversations().Notices)
+	sameJSON(t, conv.Records, fixtureConversations().Records)
+
+	within, past := epoch.Add(snapshot.DeniedFor-time.Minute), epoch.Add(snapshot.DeniedFor+time.Minute)
+	if !conv.Refused(within) || conv.Refused(past) {
+		t.Error("a refused stream is remembered for exactly a day")
+	}
 
 	st, _, ok := reader.Staged()
 	if !ok {

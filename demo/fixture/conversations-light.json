@@ -1,0 +1,29 @@
+{
+  "data": {
+    "viewer": {
+      "login": "me"
+    },
+    "search": {
+      "nodes": [
+        {
+          "id": "PR_o_mine_1",
+          "number": 1,
+          "updatedAt": "2026-08-01T00:00:00Z",
+          "headRefOid": "0000000000000000000000000000000000000000",
+          "repository": {
+            "nameWithOwner": "o/mine"
+          }
+        },
+        {
+          "id": "PR_o_theirs_2",
+          "number": 2,
+          "updatedAt": "2026-08-01T00:00:00Z",
+          "headRefOid": "0000000000000000000000000000000000000000",
+          "repository": {
+            "nameWithOwner": "o/theirs"
+          }
+        }
+      ]
+    }
+  }
+}

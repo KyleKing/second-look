@@ -73,7 +73,7 @@ func queueOnce(
 		plan:       func() []inbox.Bucket { return planQueue(cfg) },
 	}
 
-	th, err := newThreadsScreen(ctx)
+	th, err := newThreadsScreen(ctx, snaps)
 	if err != nil {
 		return -1, where, err
 	}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,15 +18,16 @@ import (
 	"github.com/kyleking/second-look/internal/notice"
 )
 
-// The conversation queue is one GraphQL call and nothing local, so these run
-// outside a checkout, and the read marks they would write are pointed at a
-// temporary config directory rather than the real one.
+// The conversation queue is GraphQL and nothing local, so these run outside a
+// checkout, and the read marks they would write are pointed at a temporary
+// config directory rather than the real one.
 //
 // The cassette is built here rather than checked in. A real recording carries
 // the private repository names, logins, and pull request titles of whatever is
-// open, and this repository is public; building it from conversations.Args means
-// the call it answers is the call the fetcher makes, which a hand-written copy
-// of a 60-line GraphQL query would stop being on the first edit.
+// open, and this repository is public; building it from conversations.LightArgs
+// and HeavyArgs means the calls it answers are the calls the fetcher makes,
+// which a hand-written copy of a 60-line GraphQL query would stop being on the
+// first edit.
 func TestThreads(t *testing.T) {
 	t.Parallel()
 
@@ -145,10 +147,29 @@ func TestThreadsJSON(t *testing.T) {
 	}
 }
 
-// queueCassette answers the one call a fetch makes with the hand-written queue
-// the conversations package tests against, which is the only fixture of this
-// shape and the one place its rules are written down.
-func queueCassette(t *testing.T) string {
+// queueFixture is the hand-written queue the conversations package tests
+// against, which is the only fixture of this shape and the one place its rules
+// are written down. The light answer is derived from it, so the pull requests
+// the light read finds are the ones the heavy read is asked about.
+type queueFixture struct {
+	viewer json.RawMessage
+	nodes  []fixtureNode
+}
+
+// fixtureNode is one pull request of the fixture. Fields keeps everything the
+// heavy read answers, and the rest is what the light read answers with.
+//
+//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
+type fixtureNode struct {
+	ID         string `json:"id"`
+	Number     int    `json:"number"`
+	Repository struct {
+		NameWithOwner string `json:"nameWithOwner"`
+	} `json:"repository"`
+	fields map[string]json.RawMessage
+}
+
+func readQueueFixture(t *testing.T) queueFixture {
 	t.Helper()
 
 	body, err := os.ReadFile(filepath.Join("..", "..", "internal", "conversations", "testdata", "queue.json"))
@@ -156,13 +177,138 @@ func queueCassette(t *testing.T) string {
 		t.Fatalf("reading the queue fixture: %v", err)
 	}
 
-	c := &ghcassette.Cassette{Interactions: []ghcassette.Interaction{{
-		Args:   conversations.Args(conversations.DefaultLimit),
-		Stdout: string(body),
-	}}}
+	var fixture struct {
+		Data struct {
+			Viewer json.RawMessage   `json:"viewer"`
+			Nodes  []json.RawMessage `json:"nodes"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &fixture); err != nil {
+		t.Fatalf("reading the queue fixture: %v", err)
+	}
+
+	q := queueFixture{viewer: fixture.Data.Viewer}
+
+	for _, raw := range fixture.Data.Nodes {
+		var n fixtureNode
+
+		if err := json.Unmarshal(raw, &n); err != nil {
+			t.Fatalf("reading a pull request of the queue fixture: %v", err)
+		}
+
+		if err := json.Unmarshal(raw, &n.fields); err != nil {
+			t.Fatalf("reading a pull request of the queue fixture: %v", err)
+		}
+
+		q.nodes = append(q.nodes, n)
+	}
+
+	return q
+}
+
+func (q queueFixture) ids() []string {
+	ids := make([]string, 0, len(q.nodes))
+	for i := range q.nodes {
+		ids = append(ids, q.nodes[i].ID)
+	}
+
+	return ids
+}
+
+// light is what the light read answers, each pull request last moved at the
+// time updated names for its id, or at fixtureUpdated where it names none.
+func (q queueFixture) light(t *testing.T, updated map[string]string) string {
+	t.Helper()
+
+	//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
+	type lightNode struct {
+		ID         string `json:"id"`
+		Number     int    `json:"number"`
+		Repository any    `json:"repository"`
+		UpdatedAt  string `json:"updatedAt"`
+		HeadRefOid string `json:"headRefOid"`
+	}
+
+	nodes := make([]lightNode, 0, len(q.nodes))
+
+	for i := range q.nodes {
+		n := &q.nodes[i]
+
+		at := updated[n.ID]
+		if at == "" {
+			at = fixtureUpdated
+		}
+
+		nodes = append(nodes, lightNode{
+			ID: n.ID, Number: n.Number, Repository: n.Repository,
+			UpdatedAt: at, HeadRefOid: strings.Repeat("a", fixtureHeadLen),
+		})
+	}
+
+	return marshal(t, map[string]any{"data": map[string]any{
+		"viewer": q.viewer, "search": map[string]any{"nodes": nodes},
+	}})
+}
+
+// heavy is what a heavy read of the pull requests ids name answers.
+func (q queueFixture) heavy(t *testing.T, ids ...string) string {
+	t.Helper()
+
+	var nodes []map[string]json.RawMessage
+
+	for i := range q.nodes {
+		if slices.Contains(ids, q.nodes[i].ID) {
+			nodes = append(nodes, q.nodes[i].fields)
+		}
+	}
+
+	return marshal(t, map[string]any{"data": map[string]any{"viewer": q.viewer, "nodes": nodes}})
+}
+
+// fixtureUpdated is when the light answer says a pull request last moved, and
+// fixtureHeadLen how long the head it names is.
+const (
+	fixtureUpdated = "2026-08-01T00:00:00Z"
+	fixtureHeadLen = 40
+)
+
+func marshal(t *testing.T, v any) string {
+	t.Helper()
+
+	out, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("writing a fixture answer: %v", err)
+	}
+
+	return string(out)
+}
+
+// queueInteractions are the calls a cold read of the queue makes.
+func queueInteractions(t *testing.T) []ghcassette.Interaction {
+	t.Helper()
+
+	q := readQueueFixture(t)
+	chunks := conversations.Chunks(q.ids())
+	out := make([]ghcassette.Interaction, 0, 1+len(chunks))
+	out = append(out, ghcassette.Interaction{
+		Args: conversations.LightArgs(conversations.DefaultLimit), Stdout: q.light(t, nil),
+	})
+
+	for _, part := range chunks {
+		out = append(out, ghcassette.Interaction{Args: conversations.HeavyArgs(part), Stdout: q.heavy(t, part...)})
+	}
+
+	return out
+}
+
+// queueCassette is the queue's calls and nothing else, saved where a replay
+// reads them.
+func queueCassette(t *testing.T) string {
+	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "threads.golden")
-	if err := ghcassette.Save(path, c); err != nil {
+	if err := ghcassette.Save(path, &ghcassette.Cassette{Interactions: queueInteractions(t)}); err != nil {
 		t.Fatalf("writing the queue cassette: %v", err)
 	}
 
@@ -243,16 +389,10 @@ func TestThreadsScreenNotifications(t *testing.T) {
 		t.Fatalf("reading the notifications fixture: %v", err)
 	}
 
-	queue, err := os.ReadFile(filepath.Join("..", "..", "internal", "conversations", "testdata", "queue.json"))
-	if err != nil {
-		t.Fatalf("reading the queue fixture: %v", err)
-	}
-
-	c := &ghcassette.Cassette{Interactions: []ghcassette.Interaction{
-		{Args: conversations.Args(conversations.DefaultLimit), Stdout: string(queue)},
-		{Args: notice.Args(), Stdout: string(body)},
-		{Args: []string{"api", "-X", "DELETE", "/notifications/threads/1001"}},
-	}}
+	c := &ghcassette.Cassette{Interactions: append(queueInteractions(t),
+		ghcassette.Interaction{Args: notice.Args(), Stdout: string(body)},
+		ghcassette.Interaction{Args: []string{"api", "-X", "DELETE", "/notifications/threads/1001"}},
+	)}
 
 	cassette := filepath.Join(t.TempDir(), "threads.golden")
 	if err := ghcassette.Save(cassette, c); err != nil {

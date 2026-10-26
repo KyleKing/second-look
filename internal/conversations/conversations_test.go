@@ -3,6 +3,7 @@ package conversations_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -361,5 +362,55 @@ func TestWriteAlignsAndQuotesTheLastWord(t *testing.T) {
 
 	if !strings.Contains(lines[3], "review body") {
 		t.Errorf("a review body does not say where it sits: %q", lines[3])
+	}
+}
+
+// A pull request is fetched when nothing vouches for what is held about it:
+// it is new, it moved, it changed head, or it was read longer ago than MaxAge.
+// Anything else is reused, and one found by two searches is asked about once.
+func TestSplitFetchesOnlyWhatTheRecordCannotVouchFor(t *testing.T) {
+	t.Parallel()
+
+	now := at("2026-08-01T12:00:00Z")
+	moved := at("2026-08-01T11:00:00Z")
+	read := conversations.Record{Updated: moved, Head: "aaa", Fetched: now.Add(-time.Minute)}
+
+	pull := func(number int, updated time.Time, head string) conversations.Candidate {
+		return conversations.Candidate{ID: "id", Repository: "o/r", Number: number, Updated: updated, Head: head}
+	}
+
+	records := map[string]conversations.Record{
+		"o/r#1": read,
+		"o/r#2": read,
+		"o/r#3": read,
+		"o/r#4": {Updated: moved, Head: "aaa", Fetched: now.Add(-conversations.MaxAge - time.Second)},
+	}
+
+	cands := []conversations.Candidate{
+		pull(1, moved, "aaa"),
+		pull(1, moved, "aaa"),
+		pull(2, moved.Add(time.Minute), "aaa"),
+		pull(3, moved, "bbb"),
+		pull(4, moved, "aaa"),
+		pull(5, moved, "aaa"),
+	}
+
+	reuse, fetch := conversations.Split(records, cands, now)
+
+	numbers := func(cs []conversations.Candidate) []int {
+		out := make([]int, 0, len(cs))
+		for _, c := range cs {
+			out = append(out, c.Number)
+		}
+
+		return out
+	}
+
+	if got := numbers(reuse); !slices.Equal(got, []int{1}) {
+		t.Errorf("reused %v, want [1]", got)
+	}
+
+	if got := numbers(fetch); !slices.Equal(got, []int{2, 3, 4, 5}) {
+		t.Errorf("fetched %v, want [2 3 4 5]", got)
 	}
 }

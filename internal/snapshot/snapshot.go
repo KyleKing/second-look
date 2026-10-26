@@ -25,7 +25,7 @@ const (
 	memoryTTL = 24 * time.Hour
 	// The schema is bumped whenever a record gains, loses, or renames a field: a
 	// record written under another version reads as absent.
-	schema = 1
+	schema = 2
 
 	keyInbox         = "inbox"
 	keyConversations = "conversations"
@@ -109,11 +109,24 @@ type Inbox struct {
 	Verified bool `json:"-"`
 }
 
-// Conversations is the conversation tab: the queue and the notification stream.
+// Conversations is the conversation tab: the queue, what each pull request in
+// it was read as, and the notification stream. Denied is when GitHub last
+// refused the stream to this token, so the next open does not ask again within
+// DeniedFor.
 type Conversations struct {
 	Header
-	Queue   conversations.Queue `json:"queue"`
-	Notices []notice.Thread     `json:"notices"`
+	Queue   conversations.Queue             `json:"queue"`
+	Records map[string]conversations.Record `json:"records"`
+	Notices []notice.Thread                 `json:"notices"`
+	Denied  time.Time                       `json:"denied,omitzero"`
+}
+
+// DeniedFor is how long a refused notification stream is remembered.
+const DeniedFor = 24 * time.Hour
+
+// Refused reports a stream refused recently enough that asking again is wasted.
+func (c Conversations) Refused(now time.Time) bool {
+	return !c.Denied.IsZero() && now.Sub(c.Denied) < DeniedFor
 }
 
 // Staged is the staged tab: what the forge said of each review, keyed like the
