@@ -81,19 +81,35 @@ func (l *List) inspector() []string {
 	return []string{l.panelLine(l.titleLine(&about)), l.panelLine(facts)}
 }
 
+// titleLine keeps the subject whole for as long as it can: the ref goes first
+// and the prefix second, since the row already shows both.
 func (l *List) titleLine(a *About) []Span {
-	rest := []Span{}
+	room := l.width - 1
 
-	for _, text := range []string{a.Prefix, a.Ref} {
-		if text != "" {
-			rest = append(rest, Span{Text: titleGap}, Span{Text: text, Role: RoleQuiet})
+	for _, rest := range titleRests(a) {
+		if textWidth(a.Subject) <= room-spansWidth(rest) {
+			return append([]Span{{Text: a.Subject, Role: RoleText}}, rest...)
 		}
 	}
 
-	room := l.width - 1 - spansWidth(rest)
-	subject := Span{Text: cut(a.Subject, max(subjectFloor, room)), Role: RoleText}
+	return []Span{{Text: cut(a.Subject, max(subjectFloor, room)), Role: RoleText}}
+}
 
-	return append([]Span{subject}, rest...)
+// titleRests lists what the title line may keep beside the subject, most first.
+func titleRests(a *About) [][]Span {
+	var prefix, ref []Span
+
+	if a.Prefix != "" {
+		prefix = []Span{{Text: titleGap}, {Text: a.Prefix, Role: RoleQuiet}}
+	}
+
+	if a.Ref != "" {
+		ref = []Span{{Text: titleGap}, {Text: a.Ref, Role: RoleQuiet}}
+	}
+
+	both := append(append([]Span{}, prefix...), ref...)
+
+	return [][]Span{both, prefix, nil}
 }
 
 func (l *List) factLine(a *About) []Span {
