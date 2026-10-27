@@ -20,10 +20,13 @@ prefetch = 3
 dispatch = ["claude", "-p"]
 
 # Agents the review screen can talk to over ACP, first one preferred.
-# SECOND_LOOK_AGENT picks another at startup.
+# SECOND_LOOK_AGENT picks another at startup. draft is what T sends this
+# agent over an empty review instead of second-look's own default, for a
+# private skill or slash command the agent already knows.
 [[agent]]
 name = "claude"
 command = ["npx", "-y", "@zed-industries/claude-code-acp"]
+draft = "/change-review"
 
 # Queue sections replace the built-in lanes. A query is gh search terms, so a
 # gh-dash section works as written.

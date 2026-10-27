@@ -109,7 +109,10 @@ type Model struct {
 	agentOff   int
 	agentSaw   bool
 	agentIn    textinput.Model
-	restage    Restager
+	// draftText overrides the instruction T sends an agent over an empty
+	// review, where a config already has its own skill to point at by name.
+	draftText string
+	restage   Restager
 	// left is where the diff's cursor stood when a view off the cycle opened, which closing it returns to.
 	left where
 	// headSearch finds files at head carrying a line, and atHead is what each
@@ -1904,7 +1907,7 @@ func (m *Model) object(prefix rune, msg tea.KeyPressMsg) {
 
 	switch msg.String() {
 	case "h":
-		m.repeatable(motion{step: step, what: "hunk", want: isHunk})
+		m.repeatable(motion{step: step, what: hunkNoun, want: isHunk})
 	case "f":
 		m.repeatable(motion{step: step, what: fileNoun, want: isKind(rowFile)})
 	case "]", "[":

@@ -522,6 +522,10 @@ func reviewScreen(
 		opts = append(opts, tui.WithAgent(s))
 	}
 
+	if d := draftPrompt(); d != "" {
+		opts = append(opts, tui.WithDraftPrompt(d))
+	}
+
 	if p := agentProbe(); p != nil {
 		opts = append(opts, tui.WithAgentProbe(p))
 	}
@@ -1496,6 +1500,23 @@ func agentStarter(dir string) tui.AgentStarter {
 	return func(ctx context.Context, loadID string) (*acp.Session, error) {
 		return acp.Start(ctx, argv, dir, loadID)
 	}
+}
+
+// draftPrompt is the picked agent's own instruction for T over an empty
+// review, or empty to leave the screen's built-in default. It names the same
+// [[agent]] agentStarter picked, so SECOND_LOOK_AGENT moves both together.
+func draftPrompt() string {
+	cfg, err := loadConfig()
+	if err != nil {
+		return ""
+	}
+
+	a := cfg.Picked(os.Getenv("SECOND_LOOK_AGENT"))
+	if a == nil {
+		return ""
+	}
+
+	return a.Draft
 }
 
 // agentProbe answers what a recorded session is doing by running the

@@ -1,0 +1,4 @@
+[[agent]]
+name = "stub"
+command = ["go", "run", "../../../internal/acp/testdata/stub"]
+draft = "/change-review"

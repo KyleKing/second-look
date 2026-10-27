@@ -107,7 +107,7 @@ func (m *Model) ask(span artifact.Span, outside bool, text string) tea.Cmd {
 		m.save("asked " + m.agent.Name() + "; the answer lands on the card")
 		m.openAgent()
 
-		return tea.Batch(m.agentIn.Focus(), askSession(m, m.agent, id, prompt))
+		return askSession(m, m.agent, id, prompt)
 	case m.asker != nil:
 		cmd := m.askOneShot(id, prompt)
 		m.save("asked the agent; the answer lands on the card")

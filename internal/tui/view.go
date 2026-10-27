@@ -166,19 +166,49 @@ func (m *Model) readCount() string {
 
 // position is where the cursor is. On a comment it counts them, since "which
 // of these am I on" is the question a review asks and the scrollbar answers in
-// lines rather than in comments. Everywhere else it is how far down the screen
-// is, fixed width so the title does not shift under the eye on every keystroke.
+// lines rather than in comments. On code it is how far down the screen is,
+// fixed width so the title does not shift under the eye on every keystroke of
+// ordinary reading. Standing on a heading instead of a line of code is rarer
+// and already moves the title elsewhere, so there the percentage carries the
+// name of what the heading is, since a reader landing on one by a motion key
+// is asking what it is as much as where it is.
 func (m *Model) position() string {
 	if at, total := m.commentAt(); at > 0 {
 		return fmt.Sprintf("comment %d/%d", at, total)
 	}
 
 	last := len(m.screen.rows) - 1
-	if last < 1 {
-		return "100%"
+	pct := percent
+
+	if last >= 1 {
+		pct = m.cursor * percent / last
 	}
 
-	return fmt.Sprintf("%3d%%", m.cursor*100/last)
+	if word := m.onWord(); word != "" {
+		return fmt.Sprintf("%s %3d%%", word, pct)
+	}
+
+	return fmt.Sprintf("%3d%%", pct)
+}
+
+// onWord names a file's or a hunk's own heading, the two places a reader lands
+// by a motion key (]f, ]h) rather than by scrolling, and so is asking what the
+// row is as much as where it is. Everything else — code, a comment, a thread's
+// card — already says what it is by how it is drawn, so naming it here too
+// would only repeat the frame back at the reader.
+func (m *Model) onWord() string {
+	if m.cursor < 0 || m.cursor >= len(m.screen.rows) {
+		return ""
+	}
+
+	switch m.screen.rows[m.cursor].kind {
+	case rowFile:
+		return fileNoun
+	case rowHunk:
+		return hunkNoun
+	default:
+		return ""
+	}
 }
 
 // commentAt is which comment the cursor is inside and how many the screen is
@@ -393,7 +423,7 @@ func (m *Model) hints() []keyhint.Hint {
 		view,
 		{Key: "m", What: "mark", Off: m.current() < 0, Priority: shedLater},
 		{Key: "e", What: m.writeWord(), Off: !m.canWrite(), Priority: shedLater},
-		{Key: "a", What: "add", Off: !m.onCode(), Priority: shedLater},
+		{Key: "a", What: "add", Off: !m.onCode() && !m.onFileHead(), Priority: shedLater},
 		{Key: "i", What: "context", Priority: shedFirst},
 		{Key: "S", What: "submit", Priority: shedLast},
 		{Key: "?", What: "help", Priority: shedLast},
@@ -404,6 +434,11 @@ func (m *Model) hints() []keyhint.Hint {
 	if m.repoDir != "" {
 		at := slices.IndexFunc(out, func(h keyhint.Hint) bool { return h.Key == "S" })
 		out = slices.Insert(out, at, keyhint.Hint{Key: "B", What: "branches", Priority: shedFirst})
+	}
+
+	if m.agentStart != nil {
+		at := slices.IndexFunc(out, func(h keyhint.Hint) bool { return h.Key == "S" })
+		out = slices.Insert(out, at, keyhint.Hint{Key: "T", What: m.dispatchWord(), Priority: shedLater})
 	}
 
 	if m.view == viewFile {
@@ -437,13 +472,11 @@ func (m *Model) canWrite() bool {
 // the legend's own, matched against the same rules the footer dims by so the
 // two cannot disagree.
 func (m *Model) inert(k string) bool {
+	if dim, ok := m.writeInert(k); ok {
+		return dim
+	}
+
 	switch k {
-	case "a", "s", "V":
-		return !m.onCode()
-	case "m", "E":
-		return m.current() < 0
-	case "e":
-		return !m.canWrite()
 	case "F":
 		return m.workRoot == "" || !m.onCode()
 	case "L":
@@ -454,12 +487,30 @@ func (m *Model) inert(k string) bool {
 	case "B":
 		return m.repoDir == ""
 	case "T":
-		return m.dispatcher == nil
+		return m.dispatcher == nil && m.agentStart == nil
 	case "X", "K":
 		return m.prober == nil
 	}
 
 	return false
+}
+
+// writeInert is inert's half about writing something on the cursor's row,
+// split out so a file's own heading can differ from a line of code without
+// growing inert's one switch.
+func (m *Model) writeInert(k string) (bool, bool) {
+	switch k {
+	case "a":
+		return !m.onCode() && !m.onFileHead(), true
+	case "s", "V":
+		return !m.onCode(), true
+	case "m", "E":
+		return m.current() < 0, true
+	case "e":
+		return !m.canWrite(), true
+	}
+
+	return false, false
 }
 
 // onCode reports whether the cursor is on a line of the diff, which is the one
@@ -972,7 +1023,7 @@ func (c tally) words() []string {
 		n     int
 		glyph string
 		word  string
-	}{{c.ready, "", "ready"}, {c.draft, "◐ ", "draft"}, {c.skip, "", "skipped"}, {c.todo, "", "todo"}} {
+	}{{c.ready, "", "ready"}, {c.draft, "◐ ", draftWord}, {c.skip, "", "skipped"}, {c.todo, "", "todo"}} {
 		if at.n > 0 {
 			out = append(out, fmt.Sprintf("%s%d %s", at.glyph, at.n, at.word))
 		}

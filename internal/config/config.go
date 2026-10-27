@@ -65,6 +65,11 @@ type Check struct {
 type Agent struct {
 	Name    string   `toml:"name"`
 	Command []string `toml:"command"`
+	// Draft is what T sends this agent over a review with nothing staged and
+	// no session yet, in place of second-look's own default instruction —
+	// for naming a private skill (a slash command, a house convention) the
+	// agent already knows rather than pointing it at `second-look skill`.
+	Draft string `toml:"draft,omitempty"`
 }
 
 // Server is a language server for extensions the built-in list does not cover,

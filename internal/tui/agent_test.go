@@ -184,6 +184,105 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 	askedOverTheSession(t, run, path)
 }
 
+// An empty review has no todo set to hand back, so T asks the agent to draft
+// one from the diff instead of refusing: "hand this to an agent" and "there
+// is nothing here yet" mean the same thing on a review with no comments.
+func TestDispatchOnAnEmptyReviewAsksTheAgentToDraftIt(t *testing.T) {
+	t.Parallel()
+
+	stub := agentStub(t)
+
+	sub := &counter{}
+	home := t.TempDir()
+	path := filepath.Join(home, "pr-42.toml")
+	review := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+	if err := artifact.Save(path, review); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithStore(home),
+		tui.WithAgent(func(ctx context.Context, loadID string) (*acp.Session, error) {
+			return acp.Start(ctx, []string{stub}, home, loadID)
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	run := looped(m)
+	run.key(letter('T'))
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "1 Allow")
+	})
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "stub heard: Review kyleking/jj-diff#42") {
+		t.Errorf("T on an empty review did not ask the agent to draft it:\n%s", frame)
+	}
+
+	// A second T, still with nothing owed, resumes the same conversation
+	// rather than asking it to draft the review all over again.
+	run.key(letter('1'))
+	run.wait(func() bool { return strings.Contains(plain(m.Frame()), "agent done") })
+	run.key(tea.KeyPressMsg{Code: tea.KeyEscape})
+	run.key(letter('T'))
+
+	if frame := plain(m.Frame()); strings.Count(frame, "stub heard: Review") != 1 {
+		t.Errorf("T asked the agent to draft the review twice:\n%s", frame)
+	}
+}
+
+// A pane reopened after esc must take a line the same as a fresh one. Its
+// prompt is a new input each time, and a new input listens to nothing until
+// it is focused — the tell is the placeholder, which draws whole only once
+// the input carries the frame's width.
+func TestAReopenedAgentPaneTakesALine(t *testing.T) {
+	t.Parallel()
+
+	stub := agentStub(t)
+
+	sub := &counter{}
+	home := t.TempDir()
+	path := filepath.Join(home, "pr-42.toml")
+	review := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+	if err := artifact.Save(path, review); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithStore(home),
+		tui.WithAgent(func(ctx context.Context, loadID string) (*acp.Session, error) {
+			return acp.Start(ctx, []string{stub}, home, loadID)
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	run := looped(m)
+	run.key(letter('T'))
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "1 Allow")
+	})
+	run.key(letter('1'))
+	run.wait(func() bool { return strings.Contains(plain(m.Frame()), "agent done") })
+
+	run.key(tea.KeyPressMsg{Code: tea.KeyEscape})
+	run.key(letter('T'))
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "talk to stub") {
+		t.Errorf("the reopened prompt lost its placeholder:\n%s", frame)
+	}
+
+	run.key(letter('x'))
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "❯ x") {
+		t.Errorf("the reopened prompt did not take the keystroke:\n%s", frame)
+	}
+}
+
 // askedOverTheSession puts a question about a line to the live session, and
 // checks the agent's reply in that turn alone lands in [plan].
 func askedOverTheSession(t *testing.T, run *loop, path string) {

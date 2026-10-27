@@ -22,7 +22,10 @@ const (
 // dispatch answers T: every comment handed back to an agent is written out as
 // one set, and the agent is started on it where one is configured. A review
 // already carrying a session hands that over too, so a second T is a follow-up
-// rather than a restart.
+// rather than a restart. An empty review with nothing owed and no session yet
+// is the one case left: there T asks the agent to draft the review from the
+// diff instead of refusing, since there is nothing else for "hand this to an
+// agent" to mean there.
 //
 // It is a separate key from S rather than a mode of it because the two are
 // different acts. S blocks on a draft, because a draft is a comment nobody has
@@ -96,6 +99,19 @@ func writeSetTo(store string, number int, text string) (string, error) {
 	}
 
 	return path, nil
+}
+
+// dispatchWord is what T offers right now, so the footer names the act
+// rather than always saying "dispatch" whatever state the review is in.
+func (m *Model) dispatchWord() string {
+	switch {
+	case len(m.review.Todos()) > 0:
+		return "hand back"
+	case m.agent != nil || m.review.Agent.Session != "" || len(m.review.Comments) > 0:
+		return "agent"
+	}
+
+	return draftWord
 }
 
 func unread(n int, path string) string {

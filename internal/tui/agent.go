@@ -26,6 +26,13 @@ func WithAgent(start AgentStarter) Option {
 	return func(m *Model) { m.agentStart = start }
 }
 
+// WithDraftPrompt names what T asks an agent to do with an empty review
+// instead of second-look's own default, for a config that already has a
+// skill of its own to point the agent at by name.
+func WithDraftPrompt(prompt string) Option {
+	return func(m *Model) { m.draftText = prompt }
+}
+
 // errAgentEnded marks a session that stopped on its own or on ctrl+\, so the
 // title can say ended rather than repeat a nil error as silence.
 var errAgentEnded = errors.New("the agent ended")
@@ -41,6 +48,9 @@ const (
 type agentUpMsg struct {
 	s    *acp.Session
 	owed []artifact.Comment
+	// send is a plain prompt to ask once the session is up, used in place of
+	// owed when there was no todo set and the review was still empty.
+	send string
 	err  error
 }
 
@@ -71,16 +81,20 @@ func watchAgent(s *acp.Session) tea.Cmd {
 	}
 }
 
-// askAgent is T where a live session is the hand-off: an owed set goes over it
-// as the prompt, and an empty one just opens the conversation.
+// askAgent is T where a live session is the hand-off: an owed set goes over
+// it as the prompt, an empty review with no session yet is asked to draft one
+// from the diff instead, and otherwise an empty ask just opens the
+// conversation.
 func (m *Model) askAgent(owed []artifact.Comment) tea.Cmd {
 	if m.agent != nil && m.agentDead != nil {
 		m.agent.Close()
 		m.agent, m.agentDead, m.agentSaw = nil, nil, false
 	}
 
+	send := m.draftSend(owed)
+
 	if m.agent == nil {
-		if len(owed) == 0 && m.review.Agent.Session == "" {
+		if len(owed) == 0 && m.review.Agent.Session == "" && send == "" {
 			m.say("nothing is marked todo; m then t hands a comment back", false)
 
 			return nil
@@ -92,21 +106,55 @@ func (m *Model) askAgent(owed []artifact.Comment) tea.Cmd {
 		return func() tea.Msg {
 			s, err := start(context.Background(), load)
 
-			return agentUpMsg{s: s, owed: owed, err: err}
+			return agentUpMsg{s: s, owed: owed, send: send, err: err}
 		}
 	}
 
 	m.openAgent()
 
-	if len(owed) == 0 {
-		return watchAgent(m.agent)
+	switch {
+	case len(owed) > 0:
+		return tea.Batch(m.sendSet(m.agent, owed), watchAgent(m.agent))
+	case send != "":
+		return tea.Batch(m.sendText(m.agent, send), watchAgent(m.agent))
 	}
 
-	return tea.Batch(m.sendSet(m.agent, owed), watchAgent(m.agent))
+	return watchAgent(m.agent)
+}
+
+// draftSend is the instruction T sends when nothing is owed, the review has
+// not recorded a session yet, and nothing is staged on it either — the one
+// time "hand back what's owed" and "there is nothing yet to review" are the
+// same ask. A review already carrying a comment keeps the plain refusal
+// instead: T hands back what is owed, it does not redo a review in progress.
+func (m *Model) draftSend(owed []artifact.Comment) string {
+	if len(owed) > 0 || len(m.review.Comments) > 0 || m.review.Agent.Session != "" {
+		return ""
+	}
+
+	if m.draftText != "" {
+		return m.draftText
+	}
+
+	return defaultDraftPrompt(m.review.Owner, m.review.Repo, m.review.Number)
+}
+
+// defaultDraftPrompt is what T sends an agent when no [[agent]] names its own
+// draft prompt. It points at second-look's own skill rather than naming a
+// private one, since that is the contract every adapter can follow without
+// this project knowing what any particular agent calls its own wrapper.
+func defaultDraftPrompt(owner, repo string, number int) string {
+	return fmt.Sprintf(
+		"Review %s/%s#%d. Run `second-look skill` for the contract: read the diff with "+
+			"`second-look get`, stage findings as draft comments with `second-look comment add`, "+
+			"and write the review's own note saying what you read and ran. Everything you stage "+
+			"is a draft for the person at this keyboard to read before anything posts.",
+		owner, repo, number)
 }
 
 // agentUp seats the session the adapter opened and asks it the todo set one
-// was waiting on.
+// was waiting on, or the draft instruction where there was no todo set but
+// something to send anyway.
 func (m *Model) agentUp(msg agentUpMsg) tea.Cmd {
 	if msg.err != nil {
 		m.say(fmt.Sprintf("starting the agent: %v", msg.err), true)
@@ -125,21 +173,29 @@ func (m *Model) agentUp(msg agentUpMsg) tea.Cmd {
 		m.say(msg.s.Name()+" is listening", false)
 	}
 
-	cmds := []tea.Cmd{m.agentIn.Focus(), watchAgent(msg.s)}
-	if len(msg.owed) > 0 {
+	cmds := []tea.Cmd{watchAgent(msg.s)}
+
+	switch {
+	case len(msg.owed) > 0:
 		cmds = append(cmds, m.sendSet(msg.s, msg.owed))
+	case msg.send != "":
+		cmds = append(cmds, m.sendText(msg.s, msg.send))
 	}
 
 	return tea.Batch(cmds...)
 }
 
-// openAgent brings the pane up over the session, scrolled to its end.
+// openAgent brings the pane up over the session, scrolled to its end, and
+// focuses the prompt: a pane reopened after esc takes a line the same as one
+// just started, and a fresh input listens to nothing until it is focused.
 func (m *Model) openAgent() {
 	m.agentOpen = true
 	m.agentOff = 0
 	m.agentIn = newPrompt()
 	m.agentIn.Prompt = "❯ "
 	m.agentIn.Placeholder = "talk to " + m.agent.Name()
+	// The command Focus answers is a cursor blink, which newPrompt turns off.
+	m.agentIn.Focus()
 	m.showing = nil
 }
 
@@ -154,6 +210,15 @@ func (m *Model) sendSet(s *acp.Session, owed []artifact.Comment) tea.Cmd {
 	}
 
 	return m.askSession(s, m.setText())
+}
+
+// sendText asks the session a plain prompt with nothing written to disk
+// first: the draft instruction records nothing itself, unlike a todo set,
+// because what it asks for is a review the agent is about to stage on its own.
+func (m *Model) sendText(s *acp.Session, text string) tea.Cmd {
+	m.say(fmt.Sprintf("asking %s to draft the review…", s.Name()), false)
+
+	return m.askSession(s, text)
 }
 
 // askSession asks text of the session and reports the turn back when it stops.
@@ -358,6 +423,10 @@ func (m *Model) agentAsk() string {
 	if m.agentDead != nil {
 		return m.styles.footer.Render("  the agent has ended")
 	}
+
+	// The input has no width of its own until one is set, and an unset width
+	// collapses the placeholder to its first letter.
+	m.agentIn.SetWidth(max(1, m.width-agentPad))
 
 	return m.agentIn.View()
 }

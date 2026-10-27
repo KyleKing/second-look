@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/local"
 )
 
@@ -49,12 +50,15 @@ type staging struct {
 // wrote is told apart from what an agent staged at a glance.
 const mine = "mine-"
 
-// askWrite opens the a chord. A review comment anchors to a line of the diff
-// and nowhere else, so a row that is not one is refused here rather than after
-// the comment has been typed.
+// askWrite opens the a chord. A review comment anchors to a line of the diff,
+// and GitHub has no comment that is not on one, so standing on a file's own
+// heading opens the same chord against the file's first changed line rather
+// than refusing: that is the closest thing to "about the file" the forge
+// offers, and second-look names it that way in the title rather than
+// pretending it is about line one.
 func (m *Model) askWrite() {
-	if !m.onCode() {
-		m.say("a writes a comment on a line of the diff, and this row is not one", false)
+	if !m.onCode() && !m.onFileHead() {
+		m.say("a writes a comment on a line of the diff, or on a file's heading, and this row is not one", false)
 
 		return
 	}
@@ -63,8 +67,39 @@ func (m *Model) askWrite() {
 	m.say(m.chord("a", severities()), false)
 }
 
+// onFileHead reports whether the cursor rests on a file's own heading inside
+// the diff it belongs to, as opposed to a file heading grouping another
+// screen's rows (threads, trouble, comments) where there is no hunk to anchor
+// a new comment to.
+func (m *Model) onFileHead() bool {
+	if m.view != viewDiff && m.view != viewCode {
+		return false
+	}
+
+	if m.cursor < 0 || m.cursor >= len(m.screen.rows) {
+		return false
+	}
+
+	r := m.screen.rows[m.cursor]
+
+	return r.kind == rowFile && r.path != ""
+}
+
+// firstCodeOf is the first changed line of path's own diff, which is where a
+// comment about the file as a whole anchors.
+func (m *Model) firstCodeOf(path string) (diff.Line, bool) {
+	for i := range m.screen.rows {
+		if r := &m.screen.rows[i]; r.path == path && r.kind == rowCode {
+			return r.line, true
+		}
+	}
+
+	return diff.Line{}, false
+}
+
 // writeAs answers the second key of the a chord and opens the editor on the
-// line the cursor is standing on.
+// line the cursor is standing on, or the file's first changed line where the
+// cursor stood on its heading instead.
 func (m *Model) writeAs(msg tea.KeyPressMsg) tea.Cmd {
 	var severity string
 
@@ -81,10 +116,28 @@ func (m *Model) writeAs(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	r := m.screen.rows[m.cursor]
-	start, line, side := m.takeRange(r.line, r.path)
+	onFile := r.kind == rowFile
+	fallback := r.line
+
+	if onFile {
+		first, ok := m.firstCodeOf(r.path)
+		if !ok {
+			m.say(r.path+" has no changed line to anchor a file comment to", true)
+
+			return nil
+		}
+
+		fallback = first
+	}
+
+	start, line, side := m.takeRange(fallback, r.path)
 
 	fresh := &staging{path: r.path, side: side, line: line, start: start, severity: severity}
+
 	title := fmt.Sprintf("a %s comment on %s", severity, rangeWord(r.path, firstOf(start, line), line))
+	if onFile {
+		title = fmt.Sprintf("a %s comment on %s, the file", severity, r.path)
+	}
 
 	return m.beginEdit(title, "", editedMsg{index: noComment, replyTo: -1, fresh: fresh})
 }

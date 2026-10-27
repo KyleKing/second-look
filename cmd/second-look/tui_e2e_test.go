@@ -866,13 +866,13 @@ func TestReviewCursorRowIsTintedEdgeToEdge(t *testing.T) {
 				sc.press("j")
 			}
 
-			sc.awaitFrame("one tinted row", func([]string) bool { return len(sc.tintedRows()) == 1 })
-
-			y := sc.tintedRows()[0]
-			if got := sc.tintSpan(y); got != sz.cols-1 {
-				t.Errorf("the tint on row %d covers %d cells, want %d:\n%s",
-					y, got, sz.cols-1, strings.Join(sc.frame(), "\n"))
-			}
+			// A first frame can go out at the default width before the real
+			// size arrives, and its tint is a whole row short of this one.
+			want := sz.cols - 1
+			sc.awaitFrame("one row tinted edge to edge", func([]string) bool {
+				rows := sc.tintedRows()
+				return len(rows) == 1 && sc.tintSpan(rows[0]) == want
+			})
 
 			sc.press("q")
 			sc.wait()

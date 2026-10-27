@@ -32,9 +32,11 @@ const (
 	escKey      = "esc"
 	walkKeys    = "j/k"
 	fileNoun    = "file"
+	hunkNoun    = "hunk"
 	stopNoun    = "stop"
 	chapterNoun = "chapter"
 	featureNoun = "feature"
+	draftWord   = "draft"
 )
 
 type keyMap struct {
@@ -155,7 +157,7 @@ func defaultKeyMap() keyMap {
 		Skip:         key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
 		Todo:         key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "hand back")),
 		Resolve:      key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "resolve")),
-		Dispatch:     key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "dispatch todo")),
+		Dispatch:     key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "dispatch todo, or draft")),
 		Seen:         key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
 		Search:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 		Files:        key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "files")),
@@ -205,7 +207,7 @@ func objects(bracket string) [][2]string {
 	return [][2]string{
 		{bracket, chapterNoun},
 		{"s", stopNoun},
-		{"h", "hunk"},
+		{"h", hunkNoun},
 		{"f", fileNoun},
 		{"c", commentWord},
 		{"t", "thread"},
@@ -218,7 +220,7 @@ func objects(bracket string) [][2]string {
 // states are what m accepts, and folds what z accepts. Both are shown while the
 // chord waits, so the second key never has to be remembered.
 func states() [][2]string {
-	return [][2]string{{"r", "ready"}, {"d", "draft"}, {"t", "todo"}, {"x", "skip"}}
+	return [][2]string{{"r", "ready"}, {"d", draftWord}, {"t", "todo"}, {"x", "skip"}}
 }
 
 // lookObjects are what u accepts: the questions the renderers answer
@@ -309,6 +311,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "m", What: "a state", Kids: asHints(states())},
 		{What: "writing", Head: true},
 		{Key: "a", What: "a comment", Kids: asHints(severities())},
+		{What: "on a file's heading it is about the file, anchored to its first line"},
 		{Key: "s", What: "a suggestion"},
 		{Key: "V", What: "a range"},
 		{Key: "F", What: "fixme into the source"},
@@ -316,7 +319,8 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "e", What: "edit, reply, write"},
 		{Key: "E", What: "editing a note"},
 		{Key: "!", What: "a shell"},
-		{Key: "T", What: "todos to an agent"},
+		{Key: "T", What: "todos to an agent, or on an empty review, asks one to draft it"},
+		{What: "T again reopens the pane without asking anything twice; ctrl+\\ ends the session"},
 		{What: "while writing: ctrl+t swaps in what an agent wrote, ctrl+n completes a word"},
 		{What: "conversations", Head: true},
 		{Key: "r/t/x/R", What: "a verdict on a thread: ready, todo, skip, resolve"},
