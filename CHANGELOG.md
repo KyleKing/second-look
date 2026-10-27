@@ -1,3 +1,9 @@
+## v0.38.0 (2026-10-27)
+
+### Feat
+
+- **tui**: draft a review with the agent, comment from a file's heading, and name the row under the cursor
+
 ## v0.37.0 (2026-10-26)
 
 ### Feat
