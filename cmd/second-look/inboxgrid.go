@@ -158,6 +158,10 @@ func plain(text string, role tui.Role) tui.Cell {
 	return tui.Cell{Spans: []tui.Span{{Text: text, Role: role}}}
 }
 
+// stackDigitCap is the position past which a stack's count no longer fits in
+// the one cell the mark gets, so a deeper row draws + instead.
+const stackDigitCap = 10
+
 // mark is the one cell ahead of a title: priority, else where the row sits in
 // its stack, else nothing. A stacked row is numbered from the bottom, which
 // merges first, so the count reads both as position and as direction.
@@ -167,7 +171,7 @@ func mark(k inbox.Known) tui.Span {
 		return tui.Span{Text: "!", Role: tui.RolePriority}
 	case k.Stack.Size == 0:
 		return tui.Span{Text: " ", Role: tui.RoleCell}
-	case k.Stack.Position >= 10:
+	case k.Stack.Position >= stackDigitCap:
 		return tui.Span{Text: "+", Role: tui.RoleQuiet}
 	}
 

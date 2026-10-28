@@ -1141,10 +1141,10 @@ func gridRow(key, owner, mark, prefix, subject, author, age string, size, status
 	}
 
 	lead := tui.RoleCell
-	switch mark {
-	case "!":
+	switch {
+	case mark == "!":
 		lead = tui.RolePriority
-	case "╭", "├", "╰":
+	case mark != " ":
 		lead = tui.RoleQuiet
 	}
 
@@ -1188,9 +1188,9 @@ func lanes() []tui.Section {
 		{Name: "new for you", Rows: []tui.Row{
 			gridRow("o/b#2", "", "!", "fix: ", "a hotfix for the lease", "maria", "9d",
 				pending, tui.Cell{Spans: []tui.Span{sp(tui.RoleCell, "priority")}}, false),
-			gridRow("o/c#3", "o/", "╭", "chore: ", "bump a dependency whose name is long enough to be cut", "sam", "4d",
+			gridRow("o/c#3", "o/", "1", "chore: ", "bump a dependency whose name is long enough to be cut", "sam", "4d",
 				pending, pending, false),
-			gridRow("o/c#7", "o/", "╰", "feat: ", "use the bump", "sam", "4d", pending, tui.Cell{}, false),
+			gridRow("o/c#7", "o/", "2", "feat: ", "use the bump", "sam", "4d", pending, tui.Cell{}, false),
 			gridRow("p/c#8", "p/", " ", "", "no conventional prefix on this one", "lee", "3d", size("+1.2k", "-340"),
 				tui.Cell{Spans: []tui.Span{sp(tui.RoleMuted, "◌"), sp(tui.RoleCell, " draft")}}, false),
 		}},

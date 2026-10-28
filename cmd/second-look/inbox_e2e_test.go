@@ -724,8 +724,8 @@ func TestTheQueueRedrawsWhenTheTerminalResizes(t *testing.T) {
 					last.cols, last.rows, got, tc.shows, strings.Join(frame, "\n"))
 			}
 
-			if !strings.Contains(frame[0], "second-look") {
-				t.Errorf("the header is not the first row:\n%s", strings.Join(frame, "\n"))
+			if !strings.Contains(frame[1], "second-look") {
+				t.Errorf("the header is not the first row of the page:\n%s", strings.Join(frame, "\n"))
 			}
 
 			if !strings.Contains(frame[len(frame)-1], "enter review") {
