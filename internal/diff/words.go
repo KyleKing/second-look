@@ -30,10 +30,11 @@ type Refined map[LineRef][]Span
 // of each differ, so a one-word edit reads as one word rather than as two
 // entirely changed lines.
 //
-// Pairing is positional inside a change block, which is a run of removals
-// followed by a run of additions: the first removal answers the first addition.
-// An unpaired line is left whole, and so is a pair with too little in common,
-// since marking most of a rewritten line is noise rather than information.
+// Pairing is by best match inside a change block, which is a run of removals
+// followed by a run of additions: each removal answers the addition most like
+// it, never crossing another pair. An unpaired line is left whole, and so is a
+// pair with too little in common, since marking most of a rewritten line is
+// noise rather than information.
 func (d *Diff) Refine() Refined { return d.pair().marks }
 
 // Reindented is every changed line paired with one saying the same thing at
@@ -62,10 +63,7 @@ func refineFile(out pairing, path string, lines []Line) {
 
 	flush := func() {
 		gone, came = refineReindented(out, path, gone, came)
-
-		for at := range min(len(gone), len(came)) {
-			refineOne(out, path, gone[at], came[at])
-		}
+		align(out, path, gone, came)
 
 		gone, came = nil, nil
 	}
@@ -178,6 +176,133 @@ func refineOne(out pairing, path string, gone, came Line) {
 
 	out.marks[refOf(path, gone)] = before
 	out.marks[refOf(path, came)] = after
+}
+
+// align pairs a block's removals with its additions by best match rather than
+// by position, so a prose edit that merged two lines into one still pairs the
+// line it kept instead of showing three whole-line changes. Pairs may not
+// cross: two lines that traded places are a move, which pair() has already
+// taken out of the block.
+func align(out pairing, path string, gone, came []Line) {
+	if len(gone) == 0 || len(came) == 0 {
+		return
+	}
+
+	if len(gone)*len(came) > blockCap {
+		// The match table is quadratic in the block, which the same cap as the
+		// reindent pairing bounds. Past it the positional pairing is what a
+		// huge generated block gets.
+		for at := range min(len(gone), len(came)) {
+			refineOne(out, path, gone[at], came[at])
+		}
+
+		return
+	}
+
+	for _, pair := range matched(score(gone, came)) {
+		refineOne(out, path, gone[pair[0]], came[pair[1]])
+	}
+}
+
+// score weighs every removal against every addition on their shared tokens
+// over the mean length, and floors out the pairs too unlike to mark.
+func score(gone, came []Line) [][]float64 {
+	left, right := make([]map[string]int, len(gone)), make([]map[string]int, len(came))
+	for i, l := range gone {
+		left[i] = bagOf(l.Text)
+	}
+
+	for i, l := range came {
+		right[i] = bagOf(l.Text)
+	}
+
+	out := make([][]float64, len(gone))
+	for i := range gone {
+		out[i] = make([]float64, len(came))
+		for j := range came {
+			mean := float64(len(gone[i].Text)+len(came[j].Text)) / halves
+			if mean > 0 {
+				out[i][j] = float64(shared(left[i], right[j])) / mean
+			}
+			if out[i][j] < sameEnough {
+				out[i][j] = 0
+			}
+		}
+	}
+
+	return out
+}
+
+// matched walks back the best non-crossing set of pairs a score table offers,
+// which is a longest-subsequence alignment scored on lines instead of tokens.
+func matched(score [][]float64) [][2]int {
+	best := make([][]float64, len(score)+1)
+	for i := range best {
+		best[i] = make([]float64, len(score[0])+1)
+	}
+
+	for i := 1; i <= len(score); i++ {
+		for j := 1; j <= len(score[0]); j++ {
+			best[i][j] = max(
+				max(best[i-1][j], best[i][j-1]),
+				best[i-1][j-1]+score[i-1][j-1],
+			)
+		}
+	}
+
+	var out [][2]int
+
+	for i, j := len(score), len(score[0]); i > 0 && j > 0; {
+		switch best[i][j] {
+		case best[i-1][j]:
+			i--
+		case best[i][j-1]:
+			j--
+		default:
+			if score[i-1][j-1] > 0 {
+				out = append(out, [2]int{i - 1, j - 1})
+			}
+
+			i--
+			j--
+		}
+	}
+
+	return out
+}
+
+// halves is the count a mean of two lengths divides by.
+const halves = 2
+
+// bagOf is a line's tokens as a multiset, which is what a match is weighed on
+// before the costlier token-sequence check decides the pair.
+func bagOf(text string) map[string]int {
+	out := map[string]int{}
+	for _, s := range tokens(text) {
+		if strings.TrimSpace(text[s.From:s.To]) == "" {
+			continue
+		}
+
+		out[text[s.From:s.To]]++
+	}
+
+	return out
+}
+
+// shared is how many bytes of token two lines carry in common, unordered: an
+// upper bound on what an ordered match can find, so pairs that could never
+// reach the floor are not asked to.
+func shared(a, b map[string]int) int {
+	if len(a) > len(b) {
+		a, b = b, a
+	}
+
+	total := 0
+	for token, n := range a {
+		total += min(n, b[token]) * len(token)
+	}
+
+	return total
 }
 
 func refOf(path string, l Line) LineRef {
