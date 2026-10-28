@@ -1,3 +1,12 @@
+## v0.39.0 (2026-10-28)
+
+### Feat
+
+- **tui**: lift the dim faces a rung and give the queue title the spare width
+- **tui**: read whitespace changes as glyphs, not indent blocks
+- **tui**: mark the cursor row with a bar glyph and a deeper band
+- **tui**: inset the frame a margin from the terminal edges
+
 ## v0.38.0 (2026-10-27)
 
 ### Feat
