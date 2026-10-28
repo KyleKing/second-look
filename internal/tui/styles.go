@@ -113,7 +113,7 @@ func newStyles() styles {
 		// What is already read recedes, which is nightfox's dim_inactive: the
 		// eye then finds what is left instead of counting glyphs.
 		behind: base.Foreground(p.Overlay0),
-		number: base.Foreground(p.Overlay0),
+		number: base.Foreground(p.Overlay1),
 		// The cursor is drawn as a solid chip rather than sk.Cursor's bold text,
 		// since a single lavender character reads the same as the rail and the
 		// title's own accent and is lost in a screen already full of them.
@@ -136,7 +136,7 @@ func newStyles() styles {
 		span:        rangeFace(p, sk),
 		panel:       sk.Panel,
 		hintKey:     base.Foreground(accent(p)),
-		hintWord:    base.Foreground(p.Overlay1),
+		hintWord:    base.Foreground(p.Subtext0),
 		rungs:       newLadder(p, accent(p)),
 		skin:        sk,
 		lanes:       newLaneFaces(p),
@@ -235,7 +235,7 @@ func newLadder(p theme.Palette, accent color.Color) ladder {
 
 	return ladder{
 		title:    rung{dim: base.Foreground(p.Text), lit: base.Foreground(p.Text).Bold(true)},
-		waiting:  fg(p.Overlay2, p.Subtext0),
+		waiting:  fg(p.Overlay1, p.Subtext0),
 		cell:     fg(p.Subtext0, p.Text),
 		age:      fg(p.Overlay1, p.Subtext0),
 		mark:     fg(p.Overlay1, p.Subtext0),
@@ -274,7 +274,7 @@ func newLaneFaces(p theme.Palette) laneFaces {
 	return laneFaces{
 		label:      base.Foreground(p.Text).Bold(true),
 		count:      base.Foreground(p.Subtext0),
-		quietLabel: base.Foreground(p.Overlay2),
-		quietCount: base.Foreground(p.Overlay1),
+		quietLabel: base.Foreground(p.Overlay1),
+		quietCount: base.Foreground(p.Subtext0),
 	}
 }

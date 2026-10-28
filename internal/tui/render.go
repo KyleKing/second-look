@@ -222,7 +222,7 @@ func newRichStyles(s styles) richStyles {
 			diff.KindAdd:    theme.Tint(p.Base, p.Green, markMix),
 			diff.KindRemove: theme.Tint(p.Base, p.Red, markMix),
 		},
-		gutter:  base.Foreground(p.Overlay0),
+		gutter:  base.Foreground(p.Overlay1),
 		colored: colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ASCII,
 	}
 }
@@ -437,7 +437,9 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 	// indented line reads as a whitespace mark, which is what the mark depth is
 	// for. A line that is only whitespace has no code to wait for, so it bands
 	// whole rather than vanish.
-	code := indentOf(l.Text)
+	lead := indentOf(l.Text)
+	tail := len(strings.TrimRight(l.Text, " \t"))
+	code := lead
 	if code == len(l.Text) {
 		code = 0
 	}
@@ -474,7 +476,7 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 		var text string
 		var spent int
 		if inMark {
-			text, spent = expandMarked(l.Text[piece.from:piece.to], cols)
+			text, spent = expandMarked(l.Text[piece.from:piece.to], cols, piece.from, lead, tail)
 		} else {
 			text, spent = expandFrom(l.Text[piece.from:piece.to], cols)
 		}
@@ -553,21 +555,31 @@ func expandFrom(s string, col int) (string, int) {
 	return b.String(), col
 }
 
-// expandMarked is expandFrom for a run the pairing marked: whitespace cells are
-// drawn as glyphs rather than as background, so a whitespace change is legible
-// without any toggle — a space is · and a tab → followed by its padding.
-func expandMarked(s string, col int) (string, int) {
+// expandMarked is expandFrom for a run the pairing marked, given the line's
+// lead and tail byte offsets: whitespace at the edges of the line — its indent
+// or its trailing end — is drawn as glyphs rather than as background, so a
+// whitespace change is legible without any toggle. A space is · and a tab is →
+// followed by its padding. Whitespace between words inside a changed run keeps
+// the mark's background and stays a space, since reading the code matters more
+// than marking every cell the pairing touched.
+func expandMarked(s string, col, at, lead, tail int) (string, int) {
 	var b strings.Builder
 
-	for _, r := range s {
-		switch r {
-		case ' ':
+	for i, r := range s {
+		edge := at+i < lead || at+i >= tail
+
+		switch {
+		case r == ' ' && edge:
 			b.WriteRune('·')
 			col++
-		case '\t':
+		case r == '\t' && edge:
 			n := tabStop - col%tabStop
 			b.WriteRune('→')
 			b.WriteString(strings.Repeat("·", n-1))
+			col += n
+		case r == '\t':
+			n := tabStop - col%tabStop
+			b.WriteString(strings.Repeat(" ", n))
 			col += n
 		default:
 			b.WriteRune(r)

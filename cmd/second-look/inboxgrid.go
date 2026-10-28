@@ -44,7 +44,7 @@ const (
 	titleLong   = 40
 	statusMax   = 26
 	titleFloor  = 30
-	titleMax    = 72
+	titleMax    = 100
 	authorFrom  = 112
 	sizeFrom    = 100
 	titleWeight = 3
