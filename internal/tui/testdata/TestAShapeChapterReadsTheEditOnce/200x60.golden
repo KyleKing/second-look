@@ -5,7 +5,7 @@
    ▸ ⇢ the same edit i… shape  │▌⇢ the same edit in 6 files  6 files · 6 hunks · shape  [za] raw                                                           │ the same edit in 6 files                 
      ⇢ (root)            read  │     SHAPE · 6 files · cards/CardA.tsx                                                                                     │ ⇢ code                                   
                                │     cards/CardA.tsx  +1 -1 ────────────────────────────────────────────────────────────────────────────────────────────── │                                          
-   by symbol and directory: no │       export function CardA() {                                                                                           │ next: (root)                             
+   by symbol and directory: no │       export function CardA() { ───────────────────────────────────────────────────────────────────────────────────────── │ next: (root)                             
    commits to read by          │   3 -   const id = useSuspenseVendor(data => data.id)                                                                     │                                          
    [p] plain  [I] outline      │   3 +   const id = useVendorId()                                                                                          │                                          
                                │   4     return <CardABody id={id} />                                                                                      │                                          
@@ -25,13 +25,13 @@
                                │                                                                                                                           │                                          
                                │     BEYOND THE SHAPE                                                                                                      │                                          
                                │     cards/CardE.tsx  +2 -1 ────────────────────────────────────────────────────────────────────────────────────────────── │                                          
-                               │       export function CardE() {                                                                                           │                                          
+                               │       export function CardE() { ───────────────────────────────────────────────────────────────────────────────────────── │                                          
                                │   3 -   const id = useSuspenseVendor(data => data.id)                                                                     │                                          
                                │   3 +   const id = useVendorId()                                                                                          │                                          
                                │   4 +   const limit = 4                                                                                                   │                                          
                                │   5     return <CardEBody id={id} />                                                                                      │                                          
                                │     cards/CardF.tsx  +2 -1 ────────────────────────────────────────────────────────────────────────────────────────────── │                                          
-                               │       export function CardF() {                                                                                           │                                          
+                               │       export function CardF() { ───────────────────────────────────────────────────────────────────────────────────────── │                                          
                                │   3 -   const id = useSuspenseVendor(data => data.id)                                                                     │                                          
                                │   3 +   const id = useVendorId()                                                                                          │                                          
                                │   4 +   const limit = 5                                                                                                   │                                          

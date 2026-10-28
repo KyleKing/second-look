@@ -361,13 +361,15 @@ func (m *Model) fill(r row, l diff.Line, seg string, band, room int) string {
 	return seg
 }
 
-// bandOf is the band a changed line's text is drawn under. A line drawn as
-// part of the whole file keeps its quiet unless the diff pairs it, since
-// banding every line of a file shown in full would color all of it.
+// bandOf is the band a changed line's text is drawn under. A paired line
+// carries its change on the marked runs alone, so the band is for what the
+// pairing left whole: a rewritten block, drawn to the hunk's width. A line
+// drawn as part of the whole file keeps its quiet either way, since banding
+// every line of a file shown in full would color all of it.
 func (m *Model) bandOf(r row, l diff.Line) (color.Color, bool) {
 	_, paired := m.refined[refOf(r.path, l)]
 	band, banded := m.rich.band[l.Kind]
-	banded = banded && (paired || !r.whole)
+	banded = banded && !paired && !r.whole
 
 	if !r.current {
 		return band, banded

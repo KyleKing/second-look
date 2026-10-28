@@ -3,7 +3,7 @@ jj-diff#42              2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skippe
 vcs ●──────────────────────────────────────────────────────────────────┊─  split
 ▌                                                                              ┃
      internal/vcs/diff.go  +2 -1 ──────────────────────────────────────────────┃
-       func Parse(r io.Reader) ([]Hunk, error) {                               ┃
+       func Parse(r io.Reader) ([]Hunk, error) { ──────────────────────────────┃
   14       first := 1                                                          ┃
                                                                                ┃
        ╭─ ◐ draft · question ──────────────────────────────────── diff.go:14 ─╮┃

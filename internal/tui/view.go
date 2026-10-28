@@ -768,9 +768,9 @@ func (m *Model) rowBodies(r row, width int) []string {
 		return []string{m.spanLine(r, strings.TrimSuffix(text, r.text), style, width, closed(r))}
 	}
 
-	// A hunk with nothing named on it is still a boundary and still carries the
-	// read mark, so it draws as a rule rather than as a blank row.
-	if r.kind == rowFile || (r.kind == rowHunk && r.hunk > 0 && r.text == "") {
+	// A hunk is a boundary and carries the read mark whether or not it names
+	// what encloses it, so it draws as a rule either way.
+	if r.kind == rowFile || (r.kind == rowHunk && r.hunk > 0) {
 		return []string{m.ruledFile(text, width, style)}
 	}
 
