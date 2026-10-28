@@ -300,18 +300,6 @@ const movedGlyph = "⇄"
 // reindentGlyph marks a line that only moved to another indent, where its neighbors changed what it sits inside.
 const reindentGlyph = "⇥"
 
-// indentMarker is the last byte of a line's leading whitespace, the one cell of
-// its indent a changed line tints.
-type indentMarker [2]int
-
-func markIndent(text string) indentMarker {
-	at := indentOf(text)
-
-	return indentMarker{max(0, at-1), at}
-}
-
-func (m indentMarker) holds(p run) bool { return m[1] > m[0] && p.from >= m[0] && p.to <= m[1] }
-
 // indentOf is how many bytes of leading whitespace a line carries.
 func indentOf(text string) int { return len(text) - len(strings.TrimLeft(text, " \t")) }
 
@@ -373,13 +361,13 @@ func (m *Model) fill(r row, l diff.Line, seg string, band, room int) string {
 	return seg
 }
 
-// bandOf is the band a line is drawn under, which only a line the diff pairs
-// with a replacement has. The row under the cursor tints that band toward the
-// selection, and a line without one is lit in the selection itself.
+// bandOf is the band a changed line's text is drawn under. A line drawn as
+// part of the whole file keeps its quiet unless the diff pairs it, since
+// banding every line of a file shown in full would color all of it.
 func (m *Model) bandOf(r row, l diff.Line) (color.Color, bool) {
 	_, paired := m.refined[refOf(r.path, l)]
 	band, banded := m.rich.band[l.Kind]
-	banded = banded && paired
+	banded = banded && (paired || !r.whole)
 
 	if !r.current {
 		return band, banded
@@ -445,12 +433,14 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 	mark := m.rich.mark[l.Kind]
 	marked := m.refined[refOf(r.path, l)]
 
-	// A changed line with no partner carries its side's band under the last cell
-	// of its indent, so where a run of them starts and ends reads at the code
-	// rather than only in the gutter. The whole indent would draw a block.
-	lead, leads := m.rich.band[l.Kind]
-	leads = leads && !r.whole
-	marker := markIndent(l.Text)
+	// The band starts where the code does: a block of side color ahead of an
+	// indented line reads as a whitespace mark, which is what the mark depth is
+	// for. A line that is only whitespace has no code to wait for, so it bands
+	// whole rather than vanish.
+	code := indentOf(l.Text)
+	if code == len(l.Text) {
+		code = 0
+	}
 
 	var segs []string
 
@@ -471,16 +461,23 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 			face = faces[piece.class]
 		}
 
+		inMark := covered(marked, piece.from)
 		style := under(face, band, ok)
 
 		switch {
-		case ok && covered(marked, piece.from):
+		case inMark:
 			style = under(face, mark, true)
-		case !ok && leads && marker.holds(piece):
-			style = under(face, lead, true)
+		case piece.to <= code:
+			style = face
 		}
 
-		text, spent := expandFrom(l.Text[piece.from:piece.to], cols)
+		var text string
+		var spent int
+		if inMark {
+			text, spent = expandMarked(l.Text[piece.from:piece.to], cols)
+		} else {
+			text, spent = expandFrom(l.Text[piece.from:piece.to], cols)
+		}
 
 		// With wrap off the whole run goes in and the caller's cut marks where
 		// it ran out, so the check comes after the write.
@@ -556,6 +553,31 @@ func expandFrom(s string, col int) (string, int) {
 	return b.String(), col
 }
 
+// expandMarked is expandFrom for a run the pairing marked: whitespace cells are
+// drawn as glyphs rather than as background, so a whitespace change is legible
+// without any toggle — a space is · and a tab → followed by its padding.
+func expandMarked(s string, col int) (string, int) {
+	var b strings.Builder
+
+	for _, r := range s {
+		switch r {
+		case ' ':
+			b.WriteRune('·')
+			col++
+		case '\t':
+			n := tabStop - col%tabStop
+			b.WriteRune('→')
+			b.WriteString(strings.Repeat("·", n-1))
+			col += n
+		default:
+			b.WriteRune(r)
+			col += textWidth(string(r))
+		}
+	}
+
+	return b.String(), col
+}
+
 // run is one stretch of a line drawn with one face: a grammar class that does
 // not straddle the boundary of a changed run.
 type run struct {
@@ -579,8 +601,9 @@ func (m *Model) runs(r row, l diff.Line) []run {
 		cuts[min(s.From, len(text))], cuts[min(s.To, len(text))] = true, true
 	}
 
+	// The band starts at the code, so a run may not straddle the indent's end.
 	if at := indentOf(text); l.Kind != diff.KindContext && at > 0 {
-		cuts[at-1], cuts[at] = true, true
+		cuts[at] = true
 	}
 
 	at := make([]int, 0, len(cuts))
