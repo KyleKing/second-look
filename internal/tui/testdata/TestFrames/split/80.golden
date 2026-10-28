@@ -21,4 +21,4 @@ vcs ●────────────────────────�
   16 +     if err != nil {                                                     │
   17       last := 4                                                           │
      internal/vcs/git.go ──────────────────────────────────────────────────────│
-split: narrower than 120 columns it draws unified
+ split: narrower than 120 columns it draws unified  S submit   ? help   q quit

@@ -320,6 +320,10 @@ func (m *Model) cursorPath() string {
 // that must not be cut off mid-word.
 const maxFailLines = 3
 
+// statusGap is the cells a status and the hints beside it spend between them:
+// one to lead the line and two apart.
+const statusGap = 3
+
 // footerLines is the bottom of the frame. Everything but a failure fits one
 // line; a failure wraps, and whatever still does not fit reaches the
 // scrollback when the screen exits.
@@ -348,8 +352,17 @@ func (m *Model) footerLines() []string {
 		return []string{" " + keyhint.Fit(footerStyles(m.styles), m.hints(), m.width-1)}
 	}
 
+	// A status message shares the line with the hints rather than replacing
+	// them: they are the map a reader orients by, and the message is where they
+	// land right after asking for a change.
 	if !m.failed {
-		return []string{m.styles.footer.Render(cut(m.status, m.width))}
+		status := m.styles.footer.Render(cut(m.status, m.width))
+		room := m.width - lipgloss.Width(status) - statusGap
+		if line := keyhint.Fit(footerStyles(m.styles), m.hints(), room); line != "" {
+			return []string{" " + status + "  " + line}
+		}
+
+		return []string{status}
 	}
 
 	lines := wrap(m.status, m.width)
