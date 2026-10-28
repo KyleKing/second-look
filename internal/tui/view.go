@@ -676,6 +676,14 @@ func rowsTo(lines []int, n, row int) []int {
 	return lines
 }
 
+// cursorBar and rangeBar mark the first drawn line of the row under the cursor
+// and of a row an open range covers. The band alone is too quiet a signal, and
+// the thinner bar keeps the two apart where a palette quantizes them into one.
+const (
+	cursorBar = "▌"
+	rangeBar  = "▏"
+)
+
 func (m *Model) renderRow(i, width int) []string {
 	r := m.screen.rows[i]
 	r.current = i == m.cursor
@@ -688,7 +696,17 @@ func (m *Model) renderRow(i, width int) []string {
 	out := make([]string, len(bodies))
 
 	for j, body := range bodies {
-		out[j] = m.tinted(i, " "+body, width+1)
+		mark := " "
+		if j == 0 {
+			switch {
+			case i == m.cursor:
+				mark = m.styles.cursor.Render(cursorBar)
+			case m.inRange(i):
+				mark = m.styles.selected.Render(rangeBar)
+			}
+		}
+
+		out[j] = m.tinted(i, mark+body, width+1)
 	}
 
 	return out

@@ -131,8 +131,8 @@ func newStyles() styles {
 		merged:      base.Foreground(p.Mauve),
 		priority:    base.Foreground(p.Peach).Bold(true),
 		placeholder: base.Foreground(p.Overlay0),
-		band:        sk.Band,
-		row:         sk.Band,
+		band:        bandFace(p),
+		row:         bandFace(p),
 		span:        rangeFace(p, sk),
 		panel:       sk.Panel,
 		hintKey:     base.Foreground(accent(p)),
@@ -153,8 +153,24 @@ func newStyles() styles {
 	}
 }
 
-// spanShare is how much of the accent a range's rows hold, half what the
-// cursor's band does.
+// bandLift is how far the band's lightness rises toward middle grey, and
+// bandSat is the share of the accent's saturation it keeps.
+const (
+	bandLift = 0.12
+	bandSat  = 0.6
+)
+
+// bandDepth is how far the cursor's band carries the accent's hue: more than
+// the skin's, which on a dark palette reads as no band at all. Tinting rather
+// than mixing keeps the lightness down so text on it stays readable.
+var bandDepth = theme.Depth{Lift: bandLift, Sat: bandSat}
+
+func bandFace(p theme.Palette) lipgloss.Style {
+	return lipgloss.NewStyle().Background(theme.Tint(p.Base, p.Lavender, bandDepth))
+}
+
+// spanShare is how much of the accent a range's rows hold, quieter than the
+// cursor's band.
 const spanShare = 0.08
 
 func rangeFace(p theme.Palette, sk skin.Skin) lipgloss.Style {

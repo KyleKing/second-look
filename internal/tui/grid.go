@@ -130,17 +130,18 @@ func rungIf(first bool, a, b rung) rung {
 
 // gridColumns is the tab's columns with each breakpoint read against the
 // terminal's width, which is what a breakpoint is named in, rather than the
-// narrower table left once the margin and scrollbar are spent.
+// narrower page left once the margin and scrollbar are spent.
 func (l *List) gridColumns() []table.Column {
 	cols := l.columns()
+	term := l.width + pageSides*l.padX
 
 	for i := range cols {
 		switch {
 		case cols[i].From == 0:
-		case cols[i].From <= l.width:
+		case cols[i].From <= term:
 			cols[i].From = 0
 		default:
-			cols[i].From = l.width + 1
+			cols[i].From = term + 1
 		}
 	}
 
@@ -162,12 +163,7 @@ func (l *List) gridLine(i int, lay table.Layout, reach int) string {
 
 	var b strings.Builder
 
-	margin := strings.Repeat(" ", gridMargin)
-	if l.mono && row.Flash > 0 {
-		margin = flashMark + " "
-	}
-
-	b.WriteString(face.Render(margin))
+	b.WriteString(l.rowMargin(face, lit, row.Flash))
 
 	gutter := face.Render(strings.Repeat(" ", table.Gutter))
 
@@ -192,6 +188,20 @@ func (l *List) gridLine(i int, lay table.Layout, reach int) string {
 	}
 
 	return b.String()
+}
+
+// rowMargin is the two cells ahead of a row: the cursor bar for the row under
+// the cursor, the flash mark for a row still settling where there is no color,
+// else the plain margin.
+func (l *List) rowMargin(face lipgloss.Style, lit bool, flash uint8) string {
+	switch {
+	case lit:
+		return face.Inherit(l.styles.selected).Render(cursorBar) + face.Render(" ")
+	case l.mono && flash > 0:
+		return face.Render(flashMark + " ")
+	}
+
+	return face.Render(strings.Repeat(" ", gridMargin))
 }
 
 // fit draws spans in exactly w cells. Text that fits is padded on the side the
