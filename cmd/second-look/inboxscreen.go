@@ -100,8 +100,6 @@ type inboxScreen struct {
 	// rate limit or a dropped connection looks like. Saying so beats a queue
 	// that quietly orders itself by age and looks like it never tried.
 	unread int
-	// order is which of inbox.Orders the queue is arranged by, cycled by s.
-	order int
 	// lanes is what the screen draws: the default lanes made from the
 	// searches, or the configured sections as they answered. It is rebuilt by
 	// regroup whenever a search, the facts, or a rating lands.
@@ -167,7 +165,6 @@ var inboxHints = [][2]string{
 	{"M", "merge"},
 	{"l", "labels"},
 	{"o", "GitHub"},
-	{"s", "sort"},
 	{"?", helpArg},
 }
 
@@ -219,7 +216,7 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer,
 	case tui.ActComment:
 		err = commentOn(ctx, h.at, stdout)
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActSort, tui.ActMerge, tui.ActFold:
+		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActMerge, tui.ActFold:
 		return nil
 	}
 
@@ -638,7 +635,7 @@ func (s *inboxScreen) regroup() {
 		return
 	}
 
-	s.lanes = inbox.Lanes(s.buckets, s.facts, c, s.local, inbox.Orders[s.order].Order)
+	s.lanes = inbox.Lanes(s.buckets, s.facts, c, s.local, inbox.Orders[0].Order)
 }
 
 // absorbCost records one rating and puts the queue back in order around it. The
@@ -922,10 +919,14 @@ func (s *inboxScreen) state() tui.State {
 		return tui.State{Text: humanize.Plural(s.unread, "row") + " could not be rated" + s.readyWord()}
 	}
 
-	out := "sorted by " + inbox.Orders[s.order].Name + s.readyWord()
+	out := strings.TrimPrefix(s.readyWord(), " · ")
 
 	if s.factsOut {
-		out += " · reading reviews…"
+		if out != "" {
+			out += " "
+		}
+
+		out += "· reading reviews…"
 	}
 
 	if s.factsErr != "" {
@@ -1177,12 +1178,7 @@ func (s *inboxScreen) relabel(key, name string, on bool) {
 }
 
 func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
-	// Sorting is about the queue rather than the row the cursor is on, and a
-	// bucket that failed still has one to cycle through.
-	if a == tui.ActSort {
-		return s.sort(), false, nil
-	}
-
+	// Folding is about the queue rather than the row the cursor is on.
 	if a == tui.ActFold {
 		s.showMerge = !s.showMerge
 
@@ -1226,27 +1222,17 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return "", false, nil
 	case tui.ActMark, tui.ActReply, tui.ActResolve, tui.ActDiscard:
 		return "", false, errNotInInbox
-	case tui.ActSort, tui.ActFold:
-		// Neither needs a row, so they return before this switch is reached.
+	case tui.ActFold:
+		// It needs no row, so it returns before this switch is reached.
 	}
 
 	return "", false, nil
 }
 
-// arrange puts one bucket's rows in whichever of inbox.Orders is current, so a
-// bucket arriving after s was pressed lands in the order already chosen rather
-// than back in triage order.
+// arrange puts one bucket's rows in triage order, which is the only order the
+// queue reads in.
 func (s *inboxScreen) arrange(items []inbox.PullRequest) {
-	inbox.Orders[s.order].Order(items, s.known)
-}
-
-// sort advances to the next of inbox.Orders and puts every bucket back in it,
-// so s cycles the whole queue rather than one section at a time.
-func (s *inboxScreen) sort() string {
-	s.order = (s.order + 1) % len(inbox.Orders)
-	s.regroup()
-
-	return "sorted by " + inbox.Orders[s.order].Name
+	inbox.Orders[0].Order(items, s.known)
 }
 
 // leaving says what the screen is closing for, since all three handoffs look
@@ -1258,7 +1244,7 @@ func leaving(a tui.Action) string {
 	case tui.ActComment:
 		return "commenting on"
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActSort, tui.ActMerge, tui.ActFold:
+		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActMerge, tui.ActFold:
 	}
 
 	return "opening"
