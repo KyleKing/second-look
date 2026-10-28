@@ -452,6 +452,7 @@ CONFIG
 
     limit = 25                        # rows per section, 30 by default
     priority = ["priority", "urgent"] # labels that lead "new for you"
+    work_orgs = ["acme"]              # owners w counts as work; the rest is personal
 
     [[section]]
     name = "needs my review"

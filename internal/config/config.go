@@ -105,6 +105,9 @@ type Config struct {
 	// Priority are the label names that put a pull request waiting on your
 	// review first. Unset, the built-in short list applies.
 	Priority []string `toml:"priority,omitempty"`
+	// WorkOrgs are the organizations whose pull requests count as work for
+	// the queue's w toggle; every other owner reads as personal.
+	WorkOrgs []string `toml:"work_orgs,omitempty"`
 	// Sections replace the built-in buckets outright when the file names any.
 	// Merging the two would put rows in front of you that no query asked for.
 	Sections []Section `toml:"section"`
@@ -162,6 +165,19 @@ func (c *Config) PriorityLabels() []string {
 	}
 
 	return c.Priority
+}
+
+// IsWork reports whether an owner names one of the work organizations, which
+// is what the queue's work-or-personal toggle reads. An empty list answers
+// false for everything: nothing configured, nothing filtered.
+func (c *Config) IsWork(owner string) bool {
+	for _, org := range c.WorkOrgs {
+		if strings.EqualFold(org, owner) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Path is where the config lives.

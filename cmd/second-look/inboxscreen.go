@@ -54,6 +54,10 @@ type inboxScreen struct {
 	// configured says the sections came from the config, which is what decides
 	// whether the first one can be called what is waiting on you.
 	configured bool
+	// work is the organizations the config counts as work, and scope is where
+	// the w toggle stands: every row, work orgs only, or everything else.
+	work  func(owner string) bool
+	scope int
 	// local is what this laptop already holds for each pull request: a prepared
 	// review, and what its cached diff was rated. It is read once when the
 	// screen opens, since ordering a queue by it must cost no API calls.
@@ -216,7 +220,8 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer,
 	case tui.ActComment:
 		err = commentOn(ctx, h.at, stdout)
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActMerge, tui.ActFold:
+		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActMerge, tui.ActFold,
+		tui.ActScope:
 		return nil
 	}
 
@@ -1029,7 +1034,7 @@ func (s *inboxScreen) sections() []tui.Section {
 			continue
 		}
 
-		lane := tui.Section{Name: b.Name, Rows: s.rows(b.Items, inbox.Lane(i), now)}
+		lane := tui.Section{Name: b.Name, Rows: s.rows(s.scoped(b.Items), inbox.Lane(i), now)}
 		lane.Recedes = !s.configured && (i == int(inbox.LaneWaiting) || i == int(inbox.LaneMerged))
 		lane.Fold = !s.configured && i == int(inbox.LaneMerged) && !s.showMerge
 
@@ -1178,11 +1183,18 @@ func (s *inboxScreen) relabel(key, name string, on bool) {
 }
 
 func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
-	// Folding is about the queue rather than the row the cursor is on.
+	// Folding and the work-or-personal scope are about the queue rather than
+	// the row the cursor is on.
 	if a == tui.ActFold {
 		s.showMerge = !s.showMerge
 
 		return "", false, nil
+	}
+
+	if a == tui.ActScope {
+		s.scope = (s.scope + 1) % scopes
+
+		return scopeWord(s.scope), false, nil
 	}
 
 	// A bucket that failed carries one row standing for the failure, which has
@@ -1222,8 +1234,8 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return "", false, nil
 	case tui.ActMark, tui.ActReply, tui.ActResolve, tui.ActDiscard:
 		return "", false, errNotInInbox
-	case tui.ActFold:
-		// It needs no row, so it returns before this switch is reached.
+	case tui.ActFold, tui.ActScope:
+		// They need no row, so they return before this switch is reached.
 	}
 
 	return "", false, nil
@@ -1235,6 +1247,46 @@ func (s *inboxScreen) arrange(items []inbox.PullRequest) {
 	inbox.Orders[0].Order(items, s.known)
 }
 
+// scopes is how the w toggle turns: all of the queue, the work organizations
+// alone, then everything else, and back to all.
+const scopes = 3
+
+// scoped is a bucket's items under the w toggle, and the bucket itself where
+// nothing is filtered.
+func (s *inboxScreen) scoped(items []inbox.PullRequest) []inbox.PullRequest {
+	if s.scope == scopeAll || s.work == nil {
+		return items
+	}
+
+	var out []inbox.PullRequest
+
+	for i := range items {
+		owner, _, _ := strings.Cut(items[i].Repository, "/")
+		if s.work(owner) == (s.scope == scopeWork) {
+			out = append(out, items[i])
+		}
+	}
+
+	return out
+}
+
+const (
+	scopeAll = iota
+	scopeWork
+	scopePersonal
+)
+
+func scopeWord(scope int) string {
+	switch scope {
+	case scopeWork:
+		return "work"
+	case scopePersonal:
+		return "personal"
+	}
+
+	return "all"
+}
+
 // leaving says what the screen is closing for, since all three handoffs look
 // the same from inside the frame.
 func leaving(a tui.Action) string {
@@ -1244,7 +1296,8 @@ func leaving(a tui.Action) string {
 	case tui.ActComment:
 		return "commenting on"
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActMerge, tui.ActFold:
+		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActMerge, tui.ActFold,
+		tui.ActScope:
 	}
 
 	return "opening"

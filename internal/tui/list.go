@@ -104,6 +104,9 @@ const (
 	ActMerge
 	// ActFold is z: show or hide the section the caller keeps folded.
 	ActFold
+	// ActScope is w: narrow the queue to the work organizations, then to
+	// everything else, then back to all of it.
+	ActScope
 )
 
 // Act performs an action on a row. What it returns is the one line the footer
@@ -130,6 +133,7 @@ type listKeys struct {
 	Unfocus  key.Binding
 	Unread   key.Binding
 	UnreadUp key.Binding
+	Scope    key.Binding
 }
 
 func defaultListKeys() listKeys {
@@ -151,6 +155,7 @@ func defaultListKeys() listKeys {
 		Unfocus:  key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "every repository")),
 		Unread:   key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "next unread")),
 		UnreadUp: key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "last unread")),
+		Scope:    key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "work, personal, all")),
 	}
 }
 
@@ -628,6 +633,7 @@ func (l *List) perform(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		{l.list.Discard, ActDiscard},
 
 		{l.list.Fold, ActFold},
+		{l.list.Scope, ActScope},
 		{l.keys.Merge, ActMerge},
 	} {
 		if key.Matches(msg, m.binding) {

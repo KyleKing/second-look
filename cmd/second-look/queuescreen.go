@@ -153,6 +153,7 @@ func queueScreens(ctx context.Context, snaps *snapshot.Store) (*inboxScreen, *th
 		ctx:        ctx,
 		snaps:      snaps,
 		configured: len(cfg.Sections) > 0,
+		work:       cfg.IsWork,
 		ahead:      keepAhead(cfg),
 		priority:   cfg.PriorityLabels(),
 		plan:       func() []inbox.Bucket { return planQueue(cfg) },
