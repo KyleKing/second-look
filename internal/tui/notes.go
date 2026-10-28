@@ -257,7 +257,7 @@ func (s *scribe) block(b *ghmd.Block) []row {
 	case ghmd.Rule:
 		return []row{s.row(strings.Repeat("─", min(s.avail, ruleWidth)))}
 	case ghmd.Table:
-		return s.flat(b.Lines, "")
+		return s.flat(tableLines(b.Lines, s.avail), "")
 	case ghmd.Quote:
 		return s.flat(b.Lines, "│ ")
 	case ghmd.Prose:
@@ -270,7 +270,9 @@ func (s *scribe) block(b *ghmd.Block) []row {
 // code says something the code does not, and a long one is drawn to its head
 // with the rest one keystroke away.
 func (s *scribe) fence(b *ghmd.Block) []row {
-	if len(b.Lines) <= fenceFold {
+	// A diagram's source is read as rarely as a long dump is, so it folds at
+	// any length rather than spending a card on graph syntax.
+	if len(b.Lines) <= fenceFold && b.Lang != "mermaid" {
 		return s.code(b, len(b.Lines))
 	}
 

@@ -316,10 +316,13 @@ type Model struct {
 	helpNote *helpNote
 	// about is what the pull request says about itself, aboutOpen is whether
 	// the overlay holding it has the frame, and aboutAt is how far that is
-	// scrolled.
-	about     threads.About
-	aboutOpen bool
-	aboutAt   int
+	// scrolled. aboutExpand is z R there: the collapsed sections opened, and
+	// aboutZ is the z chord waiting for its second key.
+	about       threads.About
+	aboutOpen   bool
+	aboutExpand bool
+	aboutZ      bool
+	aboutAt     int
 	// next is enter on a posted review: the caller opens the next one staged.
 	next bool
 	// checkout is C, answered by the caller once the screen has closed.

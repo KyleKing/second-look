@@ -20,12 +20,25 @@ func WithAbout(a threads.About) Option {
 	return func(m *Model) { m.about = a }
 }
 
-// readAbout scrolls the overlay and closes it. Every other key closes it too:
-// it changes nothing, so there is nothing to lose by leaving.
+// readAbout scrolls the overlay, folds and opens its collapsed sections, and
+// closes it. Every other key closes it too: it changes nothing, so there is
+// nothing to lose by leaving.
 func (m *Model) readAbout(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	const halfPage = 2
 
 	switch {
+	case m.aboutZ:
+		m.aboutZ = false
+		switch msg.String() {
+		case "a", "i":
+			m.aboutExpand = !m.aboutExpand
+		case "R":
+			m.aboutExpand = true
+		case "M", "c":
+			m.aboutExpand = false
+		}
+	case msg.String() == "z":
+		m.aboutZ = true
 	case key.Matches(msg, m.keys.Down):
 		m.aboutAt++
 	case key.Matches(msg, m.keys.Up):
@@ -37,7 +50,7 @@ func (m *Model) readAbout(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Top):
 		m.aboutAt = 0
 	default:
-		m.aboutOpen, m.aboutAt = false, 0
+		m.aboutOpen, m.aboutAt, m.aboutExpand = false, 0, false
 
 		return m, nil
 	}
@@ -163,15 +176,51 @@ func (m *Model) mdLines(body string, room int) []string {
 func (m *Model) mdBlock(b *ghmd.Block, room int, lead string) []string {
 	switch b.Kind {
 	case ghmd.Code:
+		if b.Lang == "mermaid" && !m.aboutExpand {
+			return []string{lead + m.styles.note.Render(
+				cut("▸ mermaid diagram · "+plural(len(b.Lines), "line"), room))}
+		}
+
 		return flatLines(b.Lines, room, lead+"  ", m.styles.body)
-	case ghmd.Table, ghmd.Rule:
-		return flatLines(b.Lines, room, lead, m.styles.note)
+	case ghmd.Table:
+		return flatLines(tableLines(b.Lines, room-len(lead)), room, lead, m.styles.note)
+	case ghmd.Rule:
+		return []string{lead + m.styles.note.Render(strings.Repeat("─", min(room, ruleWidth)))}
 	case ghmd.Details:
-		return []string{lead + m.styles.note.Render(cut("▸ "+summaryOf(b), room))}
+		return m.detailsLines(b, room, lead)
 	case ghmd.Quote, ghmd.Prose:
 	}
 
 	return flatLines(wrap(strings.Join(b.Lines, "\n"), room-len(lead)), room, lead, m.styles.body)
+}
+
+// detailsLines draws a collapsed section by its summary and how much it holds,
+// or by the blocks themselves where z R opened them. The fold is the same za,
+// z R, z M a note's own sections take.
+func (m *Model) detailsLines(b *ghmd.Block, room int, lead string) []string {
+	label := arrow(m.aboutExpand) + " " + summaryOf(b) + " · " + plural(hiddenLines(b), "line")
+	out := []string{lead + m.styles.note.Render(cut(label, room))}
+
+	if !m.aboutExpand {
+		return out
+	}
+
+	for i := range b.Blocks {
+		out = append(out, m.mdBlock(&b.Blocks[i], room, lead+"  ")...)
+	}
+
+	return out
+}
+
+// hiddenLines counts what a collapsed section would draw opened, so the fold
+// says what it costs to open.
+func hiddenLines(b *ghmd.Block) int {
+	n := len(b.Lines)
+	for i := range b.Blocks {
+		n += hiddenLines(&b.Blocks[i])
+	}
+
+	return n
 }
 
 func flatLines(lines []string, room int, lead string, style lipgloss.Style) []string {

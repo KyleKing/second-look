@@ -124,9 +124,9 @@ func (s *scan) structured() ([]Block, bool) {
 
 		return []Block{{Kind: Rule}}, true
 	case strings.HasPrefix(line, "|"):
-		return []Block{{Kind: Table, Lines: s.run(func(l string) bool {
+		return []Block{{Kind: Table, Lines: flat(s.run(func(l string) bool {
 			return strings.HasPrefix(strings.TrimSpace(l), "|")
-		})}}, true
+		}))}}, true
 	case strings.HasPrefix(line, ">"):
 		return []Block{{Kind: Quote, Lines: quoted(s.run(func(l string) bool {
 			return strings.HasPrefix(strings.TrimSpace(l), ">")
@@ -304,6 +304,17 @@ func quoted(lines []string) []string {
 
 	for i, line := range lines {
 		out[i] = emphasis(strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(line), ">"), " "))
+	}
+
+	return out
+}
+
+// flat runs emphasis over a table's lines the way prose gets it, since a cell
+// that reads _🩺 Stability_ spells the markers it was styled with.
+func flat(lines []string) []string {
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		out[i] = emphasis(line)
 	}
 
 	return out
