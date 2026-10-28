@@ -1,3 +1,17 @@
+## v0.41.0 (2026-10-28)
+
+### Feat
+
+- **inbox**: toggle the queue between work orgs and everything else
+- **tui**: drop the band to the lines the pairing left whole
+- **diff**: pair removed and added lines by best match
+- **tui**: draw tables, fold diagrams, and open collapsed sections in the about pane
+- **tui**: give c the comments, v the views, and i the info
+- **tui**: keep the hint bar beside a status message
+- **tui**: give the inspector a padding row and a softer panel
+- **tui**: drop the sort cycling for a single order
+- **tui**: scroll the view under the wheel instead of walking the cursor
+
 ## v0.40.0 (2026-10-28)
 
 ### Feat
