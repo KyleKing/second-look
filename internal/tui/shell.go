@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"sync"
 	"unicode"
 
 	tea "charm.land/bubbletea/v2"
@@ -51,6 +52,10 @@ type Shell struct {
 	// failure is what a screen the shell has already left could not finish,
 	// which a footer the alternate screen took with it is not.
 	failure error
+	// pending counts reviews whose children are still being stopped, so the
+	// queue comes back before a slow language server finishes dying and the
+	// program still waits for it at the end.
+	pending sync.WaitGroup
 	// queue is set when a review with no queue behind it was left with esc,
 	// which the caller answers by opening the queue.
 	queue bool
@@ -98,6 +103,10 @@ type openedMsg struct {
 	err    error
 }
 
+// closedMsg lands when a left review's children finished dying, which nothing
+// waits on but the shell's own end.
+type closedMsg struct{}
+
 // Init starts whichever screen the shell opens on.
 func (s *Shell) Init() tea.Cmd {
 	if s.at == modeReview {
@@ -125,6 +134,8 @@ func (s *Shell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := s.opened(msg)
 
 		return s, cmd
+	case closedMsg:
+		return s, nil
 	case leftMsg:
 		cmd := s.back(msg.esc)
 
@@ -223,16 +234,18 @@ func (s *Shell) opening() tea.Cmd {
 	s.at = modeOpening
 	ctx := s.ctx
 
-	return func() tea.Msg {
+	return tea.Batch(s.list.spinOn(true), func() tea.Msg {
 		m, err := open(ctx)
 
 		return openedMsg{review: m, err: err}
-	}
+	})
 }
 
 // opened puts the review on screen, or reports why it could not be read and
 // leaves the queue where it was.
 func (s *Shell) opened(msg openedMsg) tea.Cmd {
+	s.list.spinOn(false)
+
 	if msg.err != nil {
 		s.at = modeList
 		s.list.say(msg.err.Error(), true)
@@ -268,14 +281,23 @@ func (s *Shell) back(esc bool) tea.Cmd {
 		return tea.Quit
 	}
 
-	s.review.close()
+	closing := s.review
 	s.review, s.at = nil, modeList
 
 	if failed != nil {
 		s.list.say(failed.Error(), true)
 	}
 
-	return tea.ClearScreen
+	s.list.spinOn(false)
+	s.list.resumed()
+	s.pending.Add(1)
+
+	return tea.Batch(tea.ClearScreen, func() tea.Msg {
+		defer s.pending.Done()
+		closing.close()
+
+		return closedMsg{}
+	})
 }
 
 // View draws the screen being read. An open in flight keeps the queue on
@@ -336,6 +358,8 @@ func RunShell(s *Shell) (Outcome, error) {
 
 // close ends what the screens still have running.
 func (s *Shell) close() {
+	s.pending.Wait()
+
 	if s.review != nil {
 		s.review.close()
 	}

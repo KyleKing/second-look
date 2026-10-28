@@ -265,8 +265,13 @@ type List struct {
 
 	status string
 	failed bool
-	help   bool
-	helpAt int
+	// spinning marks work in flight nobody can see, like a slow open, and spin
+	// is the frame it is on. The footer keeps saying what is happening while
+	// the glyph beside it says it has not finished.
+	spinning bool
+	spin     int
+	help     bool
+	helpAt   int
 	// helpBox is where the legend was last drawn, which a click is read against.
 	helpBox overlay.Rect
 	chosen  string
@@ -296,6 +301,62 @@ func (l *List) WithLabeling(lb Labeling) *List {
 // restMsg is the cursor having held still long enough that what is under it is
 // worth paying for.
 type restMsg struct{ at int }
+
+// spinMsg is one turn of the wait glyph.
+type spinMsg struct{}
+
+// spinFrames cycles the glyph a wait turns, and spinRate is how fast it turns:
+// fast enough to read as motion, slow enough that it is not flicker.
+var spinFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+const spinRate = 100 * time.Millisecond
+
+// spinOn starts or stops the wait glyph. Starting it kicks the first tick;
+// stopping it is a flag so a tick already out dies rather than restarting.
+func (l *List) spinOn(on bool) tea.Cmd {
+	l.spinning = on
+	if !on {
+		return nil
+	}
+
+	return tea.Tick(spinRate, func(time.Time) tea.Msg { return spinMsg{} })
+}
+
+// spun is one turn of the wait glyph, dropped where the wait is already over.
+func (l *List) spun() tea.Cmd {
+	if !l.spinning {
+		return nil
+	}
+
+	l.spin++
+
+	return tea.Tick(spinRate, func(time.Time) tea.Msg { return spinMsg{} })
+}
+
+// labels routes the three label-bearing messages: a listing read, a label
+// set, and what a checkout of the focused repository answered.
+func (l *List) labels(msg tea.Msg) {
+	switch msg := msg.(type) {
+	case labelsReadMsg:
+		l.labeler.hear(msg)
+	case labelSetMsg:
+		l.applyLabelSet(msg)
+	case FocusNote:
+		if msg.Repo == l.focused {
+			l.focusNote = msg.Note
+		}
+	}
+}
+
+// resumed asks every tab that can reload itself to, which is how a review that
+// deleted its own artifact comes back off the staged list it was drawn from.
+func (l *List) resumed() {
+	for i := range l.tabs {
+		if r, ok := l.tabs[i].Loader.(interface{ Resume() }); ok {
+			r.Resume()
+		}
+	}
+}
 
 // settleFor is how long the cursor holds still before what is under it is paid
 // for. Long enough that running down a queue asks for nothing, short enough
@@ -389,18 +450,12 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := l.settled(msg.at)
 
 		return l, cmd
-	case labelsReadMsg:
-		l.labeler.hear(msg)
+	case spinMsg:
+		cmd := l.spun()
 
-		return l, nil
-	case labelSetMsg:
-		l.applyLabelSet(msg)
-
-		return l, nil
-	case FocusNote:
-		if msg.Repo == l.focused {
-			l.focusNote = msg.Note
-		}
+		return l, cmd
+	case labelsReadMsg, labelSetMsg, FocusNote:
+		l.labels(msg)
 
 		return l, nil
 	case StatusMsg:

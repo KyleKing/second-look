@@ -224,7 +224,12 @@ func (l *List) footerOver() string {
 			style = l.styles.fail
 		}
 
-		return style.Render(cut(l.status, l.width))
+		status := l.status
+		if l.spinning {
+			status = spinFrames[l.spin%len(spinFrames)] + " " + status
+		}
+
+		return style.Render(cut(status, l.width))
 	}
 
 	return ""
