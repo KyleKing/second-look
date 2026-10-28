@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -158,20 +159,19 @@ func plain(text string, role tui.Role) tui.Cell {
 }
 
 // mark is the one cell ahead of a title: priority, else where the row sits in
-// its stack, else nothing.
+// its stack, else nothing. A stacked row is numbered from the bottom, which
+// merges first, so the count reads both as position and as direction.
 func mark(k inbox.Known) tui.Span {
 	switch {
 	case k.Priority:
 		return tui.Span{Text: "!", Role: tui.RolePriority}
 	case k.Stack.Size == 0:
 		return tui.Span{Text: " ", Role: tui.RoleCell}
-	case !k.Stack.Above():
-		return tui.Span{Text: "╭", Role: tui.RoleQuiet}
-	case k.Stack.Position == k.Stack.Size:
-		return tui.Span{Text: "╰", Role: tui.RoleQuiet}
+	case k.Stack.Position >= 10:
+		return tui.Span{Text: "+", Role: tui.RoleQuiet}
 	}
 
-	return tui.Span{Text: "├", Role: tui.RoleQuiet}
+	return tui.Span{Text: strconv.Itoa(k.Stack.Position), Role: tui.RoleQuiet}
 }
 
 var conventional = regexp.MustCompile(`^[A-Za-z]+(\([^)]*\))?!?: `)
