@@ -1,3 +1,10 @@
+## v0.40.0 (2026-10-28)
+
+### Feat
+
+- **tui**: number each row of a stack
+- **tui**: lift the content a row off the top edge
+
 ## v0.39.0 (2026-10-28)
 
 ### Feat
