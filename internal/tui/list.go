@@ -197,6 +197,9 @@ type List struct {
 	offset int
 	width  int
 	height int
+	// padX is the margin the last resize left beside the page, which a click
+	// has to know to read its position in the page's coordinates.
+	padX int
 
 	expanded map[string]bool
 	filter   filter
@@ -356,7 +359,8 @@ func (l *List) setProfile(p colorprofile.Profile) {
 func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		l.width, l.height = msg.Width, msg.Height
+		l.padX = pagePad(msg.Width)
+		l.width, l.height = msg.Width-pageSides*l.padX, msg.Height
 		l.rebuild()
 
 		return l, nil
@@ -472,6 +476,8 @@ func (l *List) wheel(msg tea.MouseWheelMsg) tea.Cmd {
 // click closes the legend from outside it, switches to a tab clicked on, and
 // puts the cursor on a row clicked on. A prompt in the footer keeps the screen.
 func (l *List) click(m tea.Mouse) tea.Cmd {
+	m = inset(m, l.padX)
+
 	if l.help {
 		if !l.helpBox.Contains(m.X, m.Y) {
 			l.help = false
