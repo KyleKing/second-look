@@ -41,12 +41,17 @@ func TestFrames(t *testing.T) {
 		{"confirm", []tea.KeyPressMsg{
 			{Code: 'm', Text: "m"}, {Code: 'x', Text: "x"}, {Code: 'S', Text: "S"},
 		}},
-		{"code", []tea.KeyPressMsg{{Code: 'c', Text: "c"}}},
-		{"split", []tea.KeyPressMsg{{Code: 'v', Text: "v"}}},
+		{"code", []tea.KeyPressMsg{{Code: 'v', Text: "v"}}},
+		{"split", []tea.KeyPressMsg{{Code: 'u', Text: "u"}, {Code: 'v', Text: "v"}}},
 		{"plain", []tea.KeyPressMsg{
-			{Code: 'v', Text: "v"}, {Code: 'v', Text: "v"}, {Code: 'v', Text: "v"},
+			{Code: 'u', Text: "u"},
+			{Code: 'v', Text: "v"},
+			{Code: 'u', Text: "u"},
+			{Code: 'v', Text: "v"},
+			{Code: 'u', Text: "u"},
+			{Code: 'v', Text: "v"},
 		}},
-		{"comments", []tea.KeyPressMsg{{Code: 'c', Text: "c"}, {Code: 'c', Text: "c"}}},
+		{"comments", []tea.KeyPressMsg{{Code: 'c', Text: "c"}}},
 	}
 
 	for _, width := range []int{80, 120} {
@@ -179,7 +184,7 @@ func TestPlainFromAStopHeadingKeepsTheCursorOnItsHunk(t *testing.T) {
 				t.Fatalf("n landed on %q, want the stop's heading", got)
 			}
 
-			for _, k := range []rune{'p', 'c'} {
+			for _, k := range []rune{'p', 'v'} {
 				pressKey(t, m, k)
 
 				if got := m.CursorFile(); m.CursorRow() == 0 || !strings.HasSuffix(got, "lock.go") {

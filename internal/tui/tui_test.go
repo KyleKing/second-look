@@ -95,7 +95,7 @@ func modelFor(t *testing.T, r *artifact.Review, patch string, opts ...tui.Option
 func nextView(tb testing.TB, m *tui.Model) {
 	tb.Helper()
 
-	press(tb, m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+	press(tb, m, tea.KeyPressMsg{Code: 'v', Text: "v"})
 }
 
 // The state chord is m then a letter, which is how a comment is restamped.
@@ -784,7 +784,7 @@ func TestTheCommentViewKeepsYourPlace(t *testing.T) {
 	go2(t, m, ']', 'c')
 	was := m.CommentUnderCursor()
 
-	// c walks three views, so the comments are two presses from the diff and
+	// v walks three views, so the comments are two presses from the diff and
 	// the diff is one press back.
 	nextView(t, m)
 	nextView(t, m)
@@ -1075,7 +1075,7 @@ func TestTogglingOneLookAtATime(t *testing.T) {
 		{[]rune{'u', 's'}, "split"},
 		{[]rune{'u', 'g'}, "plain split"},
 		{[]rune{'u', 's'}, "plain"},
-		{[]rune{'v'}, ""},
+		{[]rune{'u', 'v'}, ""},
 	} {
 		for _, k := range tc.keys {
 			press(t, m, tea.KeyPressMsg{Code: k, Text: string(k)})
@@ -1112,6 +1112,7 @@ func TestSideBySidePairsAnEditOntoOneRow(t *testing.T) {
 
 	m, _, _ := fixtureWith(t, patch)
 	m.Update(tea.WindowSizeMsg{Width: 160, Height: 30})
+	press(t, m, tea.KeyPressMsg{Code: 'u', Text: "u"})
 	press(t, m, tea.KeyPressMsg{Code: 'v', Text: "v"})
 
 	frame := plain(m.Frame())
@@ -1145,12 +1146,13 @@ func TestSideBySidePairsAnEditOntoOneRow(t *testing.T) {
 
 // Below the width each half needs, side by side draws unified rather than
 // wrapping two columns of code into illegibility. The mode still says it is
-// split, because that is what the next v moves off.
+// split, because that is what the next u v moves off.
 func TestSideBySideFallsBackWhenNarrow(t *testing.T) {
 	t.Parallel()
 
 	m, _ := fixture(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	press(t, m, tea.KeyPressMsg{Code: 'u', Text: "u"})
 	press(t, m, tea.KeyPressMsg{Code: 'v', Text: "v"})
 
 	frame := plain(m.Frame())
@@ -1540,6 +1542,7 @@ func TestAReadHunkRecedes(t *testing.T) {
 			m := readable(t, longPatch(t))
 			if renderer == "plain" {
 				for range 3 {
+					press(t, m, tea.KeyPressMsg{Code: 'u', Text: "u"})
 					press(t, m, tea.KeyPressMsg{Code: 'v', Text: "v"})
 				}
 			}

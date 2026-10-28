@@ -21,4 +21,4 @@ jj-diff#42             3 files · +5 −1 · read 1 of 4 hunks · ◆ 1 to judge
   12       done()                                                              │
                                                                                │
  ◆ api  1 file · 1 hunk                                                        │
- j/k line   ] go to   c code   i context   S submit   ? help   q quit
+ j/k line   ] go to   v code   i info   S submit   ? help   esc queue   q quit

@@ -80,8 +80,8 @@ type keyMap struct {
 	Seen         key.Binding
 	Search       key.Binding
 	Files        key.Binding
-	List         key.Binding
-	Renderer     key.Binding
+	Comments     key.Binding
+	View         key.Binding
 	Look         key.Binding
 	Order        key.Binding
 	Tour         key.Binding
@@ -161,8 +161,8 @@ func defaultKeyMap() keyMap {
 		Seen:         key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
 		Search:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 		Files:        key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "files")),
-		List:         key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
-		Renderer:     key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "renderer")),
+		Comments:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
+		View:         key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "view")),
 		Look:         key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "toggle one of them")),
 		Threads:      key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "conversations")),
 		Trouble:      key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "trouble")),
@@ -190,7 +190,7 @@ func defaultKeyMap() keyMap {
 		Merge:        key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
 		DeleteBranch: key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "delete branch")),
 		React:        key.NewBinding(key.WithKeys(","), key.WithHelp(",", "react")),
-		About:        key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "context")),
+		About:        key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "info")),
 		Help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		EndPane:      key.NewBinding(key.WithKeys("ctrl+\\"), key.WithHelp("ctrl+\\", "end the pane's program")),
 		Back:         key.NewBinding(key.WithKeys(escKey), key.WithHelp(escKey, "back")),
@@ -224,9 +224,10 @@ func states() [][2]string {
 }
 
 // lookObjects are what u accepts: the questions the renderers answer
-// together and that this toggles one at a time.
+// together, each toggled on its own, and v which walks the presets the cycle
+// once answered for.
 func lookObjects() [][2]string {
-	return [][2]string{{"g", "grammar"}, {"s", "side by side"}, {"w", "wrap"}}
+	return [][2]string{{"g", "grammar"}, {"s", "side by side"}, {"w", "wrap"}, {"v", "the next preset"}}
 }
 
 // goObjects are what g accepts: gg keeps the top it always was, d and r ask
@@ -283,9 +284,9 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "/", What: "search"},
 		{What: "tab in the prompt narrows a search to hunks not yet read"},
 		{What: "what is shown", Head: true},
-		{Key: "c", What: "the next view"},
+		{Key: "v", What: "the next view"},
+		{Key: "c", What: "the comments"},
 		{Key: "t", What: "threads"},
-		{Key: "v", What: "the next renderer"},
 		{Key: "u", What: "one of them", Kids: asHints(lookObjects())},
 		{Key: "z", What: "folds, the frame", Kids: zPage()},
 		{Key: "f", What: "files matching a pattern"},
@@ -332,7 +333,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "B", What: "the checkout's branches and CI"},
 		{Key: "P", What: "post one"},
 		{Key: "S", What: "submit", Kids: asHints(events())},
-		{Key: "i", What: "what it says about itself"},
+		{Key: "i", What: "info about the pull request"},
 		{Key: "l", What: "labels, picked from the repository's"},
 		{Key: "o", What: "on GitHub"},
 		{Key: "M", What: "merge"},

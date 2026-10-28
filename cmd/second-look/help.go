@@ -119,7 +119,7 @@ NAMING A PULL REQUEST
       package, with the file and hunk counts on each heading so a directory can
       be taken or left as a unit. ]d walks the groups.
 
-      c walks three views: both, the code, the comments. Both is the diff with
+      v walks three views: both, the code, the comments. Both is the diff with
       what is being said about it inline. The code is the file as it reads after
       the change, with a removal standing as one line saying how much came out
       and each conversation standing as one row naming what it is, which za

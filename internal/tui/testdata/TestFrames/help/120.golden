@@ -19,6 +19,6 @@
          ╰─ [e]dit · [r]eady · [d]raft · [t│         /  search                                                      ││
                                            │            tab in the prompt narrows a search to hunks not yet read    ││
     16 +     if err != nil {               │ what is shown                                                          ││
-    17       last := 4                     │         c  the next view                                               ││
+    17       last := 4                     │         v  the next view                                               ││
        internal/vcs/git.go ────────────────╰ · · ·──────────────────────────────────────────────────────────────────╯│
-   j/k line   ] go to   c code   m mark   e write   a add   i context   S submit   ? help   esc queue   q quit
+   j/k line   ] go to   v code   m mark   e write   a add   i info   S submit   ? help   esc queue   q quit

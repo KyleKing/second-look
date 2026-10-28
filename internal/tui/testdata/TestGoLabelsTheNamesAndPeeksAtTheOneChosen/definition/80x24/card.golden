@@ -21,4 +21,4 @@ vcs ●────────────────────────�
        func Head() string {
  201       return head                                                          
 
- j/k line   ] go to   c code   i context   S submit   ? help   q quit
+ j/k line   ] go to   v code   i info   S submit   ? help   esc queue   q quit

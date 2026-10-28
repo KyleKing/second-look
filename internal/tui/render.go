@@ -751,21 +751,9 @@ func spanAt(lexed [][]highlight.Span, at int) []highlight.Span {
 	return lexed[at]
 }
 
-// cycleRenderer moves v on and says what the new one cannot do. A spike is
-// worth living with only if its limits are in front of the person living with
-// it, so the caveat is the status rather than a line in the help nobody opens.
-func (m *Model) cycleRenderer() {
-	m.drawn = m.drawn.next()
-
-	// Side by side pairs a removal with the addition that replaced it, which
-	// changes which rows exist rather than only how they are drawn, so the
-	// screen is laid out again rather than merely redrawn.
-	m.rebuild()
-	m.sayLook()
-}
-
 // toggleLook flips one of the questions on its own, which is what the cycle
-// cannot do: reading a wide diff side by side without the grammar.
+// cannot do: reading a wide diff side by side without the grammar. The v
+// object walks the presets the questions combine into.
 func (m *Model) toggleLook(msg tea.KeyPressMsg) {
 	switch msg.String() {
 	case "g":
@@ -774,13 +762,18 @@ func (m *Model) toggleLook(msg tea.KeyPressMsg) {
 		m.drawn.split = !m.drawn.split
 	case "w":
 		m.drawn.wrap = !m.drawn.wrap
+	case "v":
+		m.drawn = m.drawn.next()
 	default:
 		m.say("nothing to draw for "+msg.String()+
-			"; g grammar, s side by side, w wrap", false)
+			"; g grammar, s side by side, w wrap, v the next preset", false)
 
 		return
 	}
 
+	// Side by side pairs a removal with the addition that replaced it, which
+	// changes which rows exist rather than only how they are drawn, so the
+	// screen is laid out again rather than merely redrawn.
 	m.rebuild()
 	m.sayLook()
 }

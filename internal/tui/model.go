@@ -181,7 +181,7 @@ type Model struct {
 	search search
 	files  files
 
-	// drawn is which renderer v is on, and refined and lexed are what the rich
+	// drawn is which renderer u v is on, and refined and lexed are what the rich
 	// one reads: the runs of each changed line its partner does not carry, and
 	// the grammar's reading of each file, lexed the first time it is drawn.
 	drawn   look
@@ -2148,9 +2148,23 @@ func (m *Model) toggleView(v viewMode) {
 // cycleView walks the three views, keeping the cursor on the same comment
 // across the change. Losing your place is what makes another view a detour
 // rather than a shortcut.
-func (m *Model) cycleView() {
+func (m *Model) cycleView() { m.goView(m.view.next()) }
+
+// showComments opens what the review will post, and a second press leaves it
+// for the diff, the way t leaves the threads.
+func (m *Model) showComments() {
+	if m.view == viewComments {
+		m.goView(viewDiff)
+
+		return
+	}
+
+	m.goView(viewComments)
+}
+
+func (m *Model) goView(v viewMode) {
 	was, at := m.current(), m.here()
-	m.view = m.view.next()
+	m.view = v
 	m.rebuild()
 
 	m.goTo(at)
@@ -2544,13 +2558,13 @@ func setState(c *artifact.Comment, status string) {
 }
 
 // reshapes answers the keys that change what the frame shows rather than what
-// the review says: the view, the renderer, the order, and the two filters.
+// the review says: the views, the order, and the two filters.
 func (m *Model) reshapes(msg tea.KeyPressMsg) bool {
 	switch {
-	case key.Matches(msg, m.keys.List):
+	case key.Matches(msg, m.keys.View):
 		m.cycleView()
-	case key.Matches(msg, m.keys.Renderer):
-		m.cycleRenderer()
+	case key.Matches(msg, m.keys.Comments):
+		m.showComments()
 	case key.Matches(msg, m.keys.Order):
 		m.cycleOrder()
 	case key.Matches(msg, m.keys.Tour):

@@ -426,7 +426,7 @@ func (m *Model) hints() []keyhint.Hint {
 		return m.outlineHints()
 	}
 
-	view := keyhint.Hint{Key: "c", What: m.view.next().String(), Priority: shedFirst}
+	view := keyhint.Hint{Key: "v", What: m.view.next().String(), Priority: shedFirst}
 	if m.view.next() == viewDiff {
 		view.What = "the diff"
 	}
@@ -438,7 +438,7 @@ func (m *Model) hints() []keyhint.Hint {
 		{Key: "m", What: "mark", Off: m.current() < 0, Priority: shedLater},
 		{Key: "e", What: m.writeWord(), Off: !m.canWrite(), Priority: shedLater},
 		{Key: "a", What: "add", Off: !m.onCode() && !m.onFileHead(), Priority: shedLater},
-		{Key: "i", What: "context", Priority: shedFirst},
+		{Key: "i", What: "info", Priority: shedFirst},
 		{Key: "S", What: "submit", Priority: shedLast},
 		{Key: "?", What: "help", Priority: shedLast},
 		{Key: escKey, What: "queue", Priority: shedFirst},
