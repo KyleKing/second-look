@@ -1,6 +1,6 @@
 
-second-look   inbox 4    other 2                                sorted by triage
-──────────────━━━━━━━━──────────────────────────────────────────────────────────
+second-look   inbox  4    other  2                              sorted by triage
+──────────────━━━━━━━━━─────────────────────────────────────────────────────────
   ready to merge  1
   a#1         feat(inbox): order the queue by lane      2d  ✓ approved         
   new for you  4
@@ -18,7 +18,7 @@ second-look   inbox 4    other 2                                sorted by triage
 
 
 
-
+                                                                                
 a hotfix for the lease  fix  o/b#2                                              
 maria · 9d old · priority                                                       
 enter review   M merge                                                          

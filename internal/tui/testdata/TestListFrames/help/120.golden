@@ -14,7 +14,7 @@
                                             │                  o  open it on GitHub                                 │
                                             │             ctrl+r  read the queue again                              │
                                             │             q, esc  leave                                             │
-                                            │                                                                       │
+                                            │                                                                       │ 
   good catch, pushed a defer  kyleking/tlr#1│                     ● marks a conversation that moved since you last  │ 
   2h                                        ╰ · · ·─────────────────────────────────────────────────────────────────╯ 
   enter read   space mark read   r reply   R resolve   o GitHub   tab group   / filter   ? help   q quit              

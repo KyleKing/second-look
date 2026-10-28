@@ -93,6 +93,10 @@ func newStyles() styles {
 	sk := skin.New(p, accent(p))
 	base := lipgloss.NewStyle()
 
+	// A full Mantle strip reads as a hole in the page rather than a part of it,
+	// so the inspector and footer sit on a surface only a step under the base.
+	sk.Panel = base.Background(theme.Mix(p.Mantle, p.Base, panelShare))
+
 	var tint [flashSteps + 1]lipgloss.Style
 	for step := 1; step <= flashSteps; step++ {
 		tint[step] = base.Background(theme.Mix(p.Base, accent(p), tintShare[step]))
@@ -172,6 +176,10 @@ func bandFace(p theme.Palette) lipgloss.Style {
 // spanShare is how much of the accent a range's rows hold, quieter than the
 // cursor's band.
 const spanShare = 0.08
+
+// panelShare is how far the footer block's surface leans toward Mantle: halfway,
+// which keeps it one quiet step under the page rather than a hole in it.
+const panelShare = 0.5
 
 func rangeFace(p theme.Palette, sk skin.Skin) lipgloss.Style {
 	if sk.Band.GetReverse() {

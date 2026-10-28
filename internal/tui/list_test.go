@@ -776,7 +776,7 @@ func TestAnActionKeepsTheCursorWhereTheReaderPutIt(t *testing.T) {
 // panelless is a frame's lines above the panel, which keeps its own background
 // in every profile.
 func panelless(frame string) []string {
-	const panelRows = 3
+	const panelRows = 4
 
 	lines := strings.Split(frame, "\n")
 

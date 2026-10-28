@@ -14,7 +14,7 @@ second-look               ╭─ keys ──────────────
                           │                  r  reply, staged into the        │
                           │                     prepared review               │
                           │                  R  resolve the thread, or        │
-                          │                     thumbs-up what cannot be      │
+                          │                     thumbs-up what cannot be      │ 
 good catch, pushed a defer│                     resolved                      │ 
 alice · internal/pool/pool╰ · · ·─────────────────────────────────────────────╯ 
 enter read   space mark read   r reply   R resolve   o GitHub   ? help          

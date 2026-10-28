@@ -80,7 +80,7 @@ func TestInboxPaintsTheLastQueueBeforeGHAnswers(t *testing.T) {
 
 	sc.await("a row from the last open")
 	sc.await("cached 3h ago")
-	sc.await("inbox 1")
+	sc.await("inbox  1")
 
 	if err := os.WriteFile(release, nil, 0o600); err != nil {
 		t.Fatal(err)

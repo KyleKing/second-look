@@ -32,7 +32,7 @@ type Fact struct {
 // lengths, and the spacing its words keep.
 const (
 	inspectorTall  = 16
-	inspectorFull  = 2
+	inspectorFull  = 3
 	inspectorShort = 1
 	factGap        = " · "
 	subjectFloor   = 8
@@ -63,7 +63,9 @@ func (l *List) inspector() []string {
 		return []string{l.panelLine(facts)}
 	}
 
-	return []string{l.panelLine(l.titleLine(&about)), l.panelLine(facts)}
+	// The first line is left blank, which gives the inspector air on the same
+	// surface rather than growing the strip with a lighter one.
+	return []string{"", l.panelLine(l.titleLine(&about)), l.panelLine(facts)}
 }
 
 // titleLine keeps the subject whole for as long as it can: the ref goes first
