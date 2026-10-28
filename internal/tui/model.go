@@ -1069,8 +1069,18 @@ func (m *Model) wheel(msg tea.MouseWheelMsg) {
 	case m.outline.open:
 		m.outlineStep(step / wheelStep)
 	case m.quiet():
-		m.moveBy(step)
-		m.follow()
+		// The wheel scrolls the text, not the cursor: the view glides a few
+		// lines and the cursor only comes along where the screen would leave
+		// it behind, the way a wheel works in an editor.
+		m.offset = clamp(m.offset+step, m.maxOffset())
+
+		for m.cursor < m.offset {
+			m.moveBy(1)
+		}
+
+		for m.cursor >= m.offset+m.viewHeight() {
+			m.moveBy(-1)
+		}
 	}
 }
 
