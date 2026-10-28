@@ -774,13 +774,20 @@ func TestAnActionKeepsTheCursorWhereTheReaderPutIt(t *testing.T) {
 }
 
 // panelless is a frame's lines above the panel, which keeps its own background
-// in every profile.
+// in every profile. The panel is the footer plus however many rows the
+// inspector took at this height.
 func panelless(frame string) []string {
-	const panelRows = 4
-
 	lines := strings.Split(frame, "\n")
 
-	return lines[:len(lines)-panelRows]
+	rows := 2
+	switch h := len(lines); {
+	case h >= 28:
+		rows = 6
+	case h >= 16:
+		rows = 4
+	}
+
+	return lines[:len(lines)-rows]
 }
 
 // Ordering a queue by what a diff costs to read means a read per row, which on
@@ -1329,7 +1336,7 @@ func TestTheInspectorSaysWhatTheGridDropped(t *testing.T) {
 		l.Update(tea.WindowSizeMsg{Width: width, Height: 34})
 
 		lines := strings.Split(plain(l.ListFrame()), "\n")
-		panel := strings.Join(lines[len(lines)-3:], "\n")
+		panel := strings.Join(lines[len(lines)-6:], "\n")
 
 		if got := strings.Contains(panel, "+57 -0"); got != want {
 			t.Errorf("at %d columns the inspector says the size = %v, want %v:\n%s", width, got, want, panel)

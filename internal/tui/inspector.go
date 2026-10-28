@@ -28,25 +28,33 @@ type Fact struct {
 	Column string
 }
 
-// The height from which the inspector has its title line, the line's two
-// lengths, and the spacing its words keep.
+// The height from which the inspector has its title line, the taller height
+// from which it carries the row's own detail, the line's lengths, and the
+// spacing its words keep.
 const (
 	inspectorTall  = 16
+	inspectorDeep  = 28
 	inspectorFull  = 3
+	inspectorWide  = 5
 	inspectorShort = 1
 	factGap        = " · "
 	subjectFloor   = 8
 	titleGap       = "  "
 )
 
-// inspectorRows is how many lines the inspector takes: the facts always, and
-// the title above them where the frame is tall enough to spare it.
+// inspectorRows is how many lines the inspector takes: the facts always, the
+// title above them where the frame is tall enough to spare it, and the row's
+// own preview where the frame is taller still.
 func (l *List) inspectorRows() int {
 	if l.height < inspectorTall {
 		return inspectorShort
 	}
 
-	return inspectorFull
+	if l.height < inspectorDeep {
+		return inspectorFull
+	}
+
+	return inspectorWide
 }
 
 // inspector draws the row under the cursor, one line per inspectorRows.
@@ -65,7 +73,19 @@ func (l *List) inspector() []string {
 
 	// The first line is left blank, which gives the inspector air on the same
 	// surface rather than growing the strip with a lighter one.
-	return []string{"", l.panelLine(l.titleLine(&about)), l.panelLine(facts)}
+	out := []string{"", l.panelLine(l.titleLine(&about)), l.panelLine(facts)}
+
+	for len(out) < l.inspectorRows() {
+		if i := len(out) - inspectorFull; i >= 0 && i < len(row.Detail) {
+			out = append(out, l.panelLine([]Span{{Text: row.Detail[i], Role: RoleMuted}}))
+
+			continue
+		}
+
+		out = append(out, "")
+	}
+
+	return out
 }
 
 // titleLine keeps the subject whole for as long as it can: the ref goes first
