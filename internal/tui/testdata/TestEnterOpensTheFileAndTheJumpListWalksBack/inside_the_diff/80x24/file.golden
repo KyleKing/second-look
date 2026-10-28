@@ -12,7 +12,7 @@ vcs ─────────────────────────�
   12   line 12 of internal/vcs/diff.go                                          
   13   line 13 of internal/vcs/diff.go                                          
   14   line 14 of internal/vcs/diff.go                                          
-  15 +     lines, err := split(r)                                               
+▌ 15 +     lines, err := split(r)                                               
   16 + line 16 of internal/vcs/diff.go                                          
   17   line 17 of internal/vcs/diff.go                                          
   18   line 18 of internal/vcs/diff.go                                          

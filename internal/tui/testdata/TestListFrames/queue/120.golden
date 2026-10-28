@@ -1,20 +1,20 @@
-second-look                                                                                             sorted by triage
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  new since you looked  2
-  kyleking/tlr#118    ● good catch, pushed a defer                 …ol/pool.go:42  alice         2h  2 replies          
-  …repository-name#7  ● two questions inline                       review body     bob          13h                    
-  waiting on you  0
-  awaiting others  1
-  kyleking/wavez#7      no, that one is per worker                 …se/lease.go:9  KyleKing      4d                    
-
-
-
-
-
-
-
-
-
-good catch, pushed a defer  kyleking/tlr#118                                                                            
-2h                                                                                                                      
-enter read   space mark read   r reply   R resolve   o GitHub   tab group   / filter   ? help   q quit                  
+  second-look                                                                                         sorted by triage
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    new since you looked  2
+  ▌ kyleking/tlr#118    ● good catch, pushed a defer              …ol/pool.go:42  alice         2h  2 replies         
+    …repository-name#7  ● two questions inline                    review body     bob          13h                   
+    waiting on you  0
+    awaiting others  1
+    kyleking/wavez#7      no, that one is per worker              …se/lease.go:9  KyleKing      4d                   
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  good catch, pushed a defer  kyleking/tlr#118                                                                        
+  2h                                                                                                                  
+  enter read   space mark read   r reply   R resolve   o GitHub   tab group   / filter   ? help   q quit              

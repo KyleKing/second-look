@@ -1,6 +1,6 @@
 jj-diff#42              2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
 vcs ●───────────────────────────────────────────────────────────────────────┊─  
-                         ╭─ keys ─────────────────────────────────────────────╮┃
+▌                        ╭─ keys ─────────────────────────────────────────────╮┃
      internal/vcs/diff.go│ moving                                             │┃
        func Parse(r io.Re│       j/k  a line                                  │┃
   14       first := 1    │  ctrl+d/u  half a page                             │┃

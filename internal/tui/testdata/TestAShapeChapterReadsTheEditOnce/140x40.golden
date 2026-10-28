@@ -1,40 +1,40 @@
-jj-diff#42                                                                                        7 files · +9 −6 · read 0 of 7 hunks ·   2%
-the same edit i… ───●────────────────────────────────────────────────────────────────────────────────────────────────────  (root) ────────  
-                                                                                                                                           ┃
- ⇢ the same edit in 6 files  6 files · 6 hunks · shape  [za] raw                                                                           ┃
-     SHAPE · 6 files · cards/CardA.tsx                                                                                                     ┃
-     cards/CardA.tsx  +1 -1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────┃
-       export function CardA() {                                                                                                           ┃
-   3 -   const id = useSuspenseVendor(data => data.id)                                                                                     ┃
-   3 +   const id = useVendorId()                                                                                                          ┃
-   4     return <CardABody id={id} />                                                                                                      ┃
-                                                                                                                                           ┃
-     FILES · 6 in cards/ · 4 exact, 2 more  [space] read                                                                                   ┃
-       CardA.tsx  1 hunk  +1 −1  exact                                                                                                     ┃
-       CardB.tsx  1 hunk  +1 −1  exact                                                                                                     ┃
-       CardC.tsx  1 hunk  +1 −1  exact                                                                                                     ┃
-       CardD.tsx  1 hunk  +1 −1  exact                                                                                                     ┃
-       CardE.tsx  1 hunk  +2 −1  1 line beyond: + const limit = 4                                                                          ┃
-       CardF.tsx  1 hunk  +2 −1  1 line beyond: + const limit = 5                                                                          ┃
-                                                                                                                                           ┃
-     NOT CHANGED AT HEAD · 3 files like these                                                                                              ┃
-     ○ cards/RisksCard.tsx:4 · carries “const id = useSuspenseVendor(data => data.id)”                                                     ┃
-     ○ hooks/legacy.ts:9 · calls useSuspenseVendor                                                                                         ┃
-     ○ cards/CardG.tsx · named like them                                                                                                   ┃
-                                                                                                                                           ┃
-     BEYOND THE SHAPE                                                                                                                      ┃
-     cards/CardE.tsx  +2 -1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────┃
-       export function CardE() {                                                                                                           ┃
-   3 -   const id = useSuspenseVendor(data => data.id)                                                                                     ┃
-   3 +   const id = useVendorId()                                                                                                          ┃
-   4 +   const limit = 4                                                                                                                   ┃
-   5     return <CardEBody id={id} />                                                                                                      ┃
-     cards/CardF.tsx  +2 -1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────┃
-       export function CardF() {                                                                                                           ┃
-   3 -   const id = useSuspenseVendor(data => data.id)                                                                                     ┃
-   3 +   const id = useVendorId()                                                                                                          ┃
-   4 +   const limit = 5                                                                                                                   ┃
-   5     return <CardFBody id={id} />                                                                                                      │
-                                                                                                                                           │
- ⇢ (root)  1 file · 1 hunk                                                                                                                 │
- j/k line   ] go to   c code   m mark   e write   a add   i context   S submit   ? help   esc queue   q quit
+  jj-diff#42                                                                                    7 files · +9 −6 · read 0 of 7 hunks ·   2%
+  the same edit i… ──●─────────────────────────────────────────────────────────────────────────────────────────────────  (root) ────────  
+                                                                                                                                         ┃
+  ▌⇢ the same edit in 6 files  6 files · 6 hunks · shape  [za] raw                                                                       ┃
+       SHAPE · 6 files · cards/CardA.tsx                                                                                                 ┃
+       cards/CardA.tsx  +1 -1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────┃
+         export function CardA() {                                                                                                       ┃
+     3 -   const id = useSuspenseVendor(data => data.id)                                                                                 ┃
+     3 +   const id = useVendorId()                                                                                                      ┃
+     4     return <CardABody id={id} />                                                                                                  ┃
+                                                                                                                                         ┃
+       FILES · 6 in cards/ · 4 exact, 2 more  [space] read                                                                               ┃
+         CardA.tsx  1 hunk  +1 −1  exact                                                                                                 ┃
+         CardB.tsx  1 hunk  +1 −1  exact                                                                                                 ┃
+         CardC.tsx  1 hunk  +1 −1  exact                                                                                                 ┃
+         CardD.tsx  1 hunk  +1 −1  exact                                                                                                 ┃
+         CardE.tsx  1 hunk  +2 −1  1 line beyond: + const limit = 4                                                                      ┃
+         CardF.tsx  1 hunk  +2 −1  1 line beyond: + const limit = 5                                                                      ┃
+                                                                                                                                         ┃
+       NOT CHANGED AT HEAD · 3 files like these                                                                                          ┃
+       ○ cards/RisksCard.tsx:4 · carries “const id = useSuspenseVendor(data => data.id)”                                                 ┃
+       ○ hooks/legacy.ts:9 · calls useSuspenseVendor                                                                                     ┃
+       ○ cards/CardG.tsx · named like them                                                                                               ┃
+                                                                                                                                         ┃
+       BEYOND THE SHAPE                                                                                                                  ┃
+       cards/CardE.tsx  +2 -1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────┃
+         export function CardE() {                                                                                                       ┃
+     3 -   const id = useSuspenseVendor(data => data.id)                                                                                 ┃
+     3 +   const id = useVendorId()                                                                                                      ┃
+     4 +   const limit = 4                                                                                                               ┃
+     5     return <CardEBody id={id} />                                                                                                  ┃
+       cards/CardF.tsx  +2 -1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────┃
+         export function CardF() {                                                                                                       ┃
+     3 -   const id = useSuspenseVendor(data => data.id)                                                                                 ┃
+     3 +   const id = useVendorId()                                                                                                      ┃
+     4 +   const limit = 5                                                                                                               ┃
+     5     return <CardFBody id={id} />                                                                                                  │
+                                                                                                                                         │
+   ⇢ (root)  1 file · 1 hunk                                                                                                             │
+   j/k line   ] go to   c code   m mark   e write   a add   i context   S submit   ? help   esc queue   q quit

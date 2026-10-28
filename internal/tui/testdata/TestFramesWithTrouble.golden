@@ -1,30 +1,30 @@
-jj-diff#42                                                       2 files · +2 −1 · 2 problems ·   0%
-vcs ●───────────────────────────────────────────────────────────────────────────────────────────┊─  
-                                                                                                    
-     internal/vcs/diff.go  +2 -1 ───────────────────────────────────────────────────────────────────
-       func Parse(r io.Reader) ([]Hunk, error) {
-  14       first := 1                                                                               
-  15 -     lines := split(r)                                                                        
-  15 +     lines, err := split(r)                                                                   
-      × typescript 2339: Property 'is_archived' does not exist on type 'Row'.
-  16 +     if err != nil {                                                                          
-      ! house rules long-comment: a comment block runs past two lines
-  17       last := 4                                                                                
-     internal/vcs/git.go ───────────────────────────────────────────────────────────────────────────
-       func Head() string {
- 201       return head                                                                              
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- j/k line   ] go to   c code   m mark   e write   i context   S submit   ? help   esc queue   q quit
+  jj-diff#42                                                   2 files · +2 −1 · 2 problems ·   0%
+  vcs ●───────────────────────────────────────────────────────────────────────────────────────┊─  
+  ▌                                                                                               
+       internal/vcs/diff.go  +2 -1 ───────────────────────────────────────────────────────────────
+         func Parse(r io.Reader) ([]Hunk, error) {
+    14       first := 1                                                                           
+    15 -     lines := split(r)                                                                    
+    15 +     lines, err := split(r)                                                               
+        × typescript 2339: Property 'is_archived' does not exist on type 'Row'.
+    16 +     if err != nil {                                                                      
+        ! house rules long-comment: a comment block runs past two lines
+    17       last := 4                                                                            
+       internal/vcs/git.go ───────────────────────────────────────────────────────────────────────
+         func Head() string {
+   201       return head                                                                          
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+   j/k line   ] go to   c code   m mark   i context   S submit   ? help   esc queue   q quit

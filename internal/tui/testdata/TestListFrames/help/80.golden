@@ -1,7 +1,7 @@
 second-look               ╭─ keys ────────────────────────────────────────────╮e
 ──────────────────────────│ j/k, ctrl+u/d, g/G  move, half page, top and      │─
   new since you looked  2 │                     bottom                        │
-  kyleking/tlr#118    ● go│      ctrl+e/ctrl+y  scroll without moving the     │ 
+▌ kyleking/tlr#118    ● go│      ctrl+e/ctrl+y  scroll without moving the     │ 
   …repository-name#7  ● tw│                     cursor                        │
   waiting on you  0       │       1/2/3, ] / [  the queue to read             │
   awaiting others  1      │                tab  the next group                │

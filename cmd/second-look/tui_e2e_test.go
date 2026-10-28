@@ -294,8 +294,9 @@ func (s *screen) reversedRows() []int {
 	return rows
 }
 
-// tintedRows are the rows whose first cell has a background, which is where the
-// cursor's tint begins.
+// tintedRows are the rows that carry a background in their first few cells,
+// which is where the cursor's tint begins at the page's edge. A diff's own
+// bands never reach that far left: they start under the line's text.
 func (s *screen) tintedRows() []int {
 	s.termMu.Lock()
 	defer s.termMu.Unlock()
@@ -303,27 +304,36 @@ func (s *screen) tintedRows() []int {
 	var rows []int
 
 	for y := range s.term.Height() {
-		if c := s.term.CellAt(0, y); c != nil && c.Style.Bg != nil {
-			rows = append(rows, y)
+		for x := range min(4, s.term.Width()) {
+			if c := s.term.CellAt(x, y); c != nil && c.Style.Bg != nil {
+				rows = append(rows, y)
+
+				break
+			}
 		}
 	}
 
 	return rows
 }
 
-// tintSpan is how many cells from the left edge of row y share the first
-// cell's background.
+// tintSpan is how many cells the row's first background spans from where it
+// starts, which is the page's edge rather than the terminal's. The cursor's
+// chip and its band are different colors, so what is counted is the run of
+// cells with any background at all.
 func (s *screen) tintSpan(y int) int {
 	s.termMu.Lock()
 	defer s.termMu.Unlock()
 
-	first := s.term.CellAt(0, y)
 	n := 0
 
 	for x := range s.term.Width() {
 		c := s.term.CellAt(x, y)
-		if c == nil || first == nil || c.Style.Bg != first.Style.Bg {
-			break
+		if c == nil || c.Style.Bg == nil {
+			if n > 0 {
+				break
+			}
+
+			continue
 		}
 
 		n++
@@ -846,9 +856,9 @@ func TestReviewEsc_OpensTheQueueFromADirectReview(t *testing.T) {
 	}
 }
 
-// The cursor's row is one tint from the margin to the cell before the
-// scrollbar, so it reads as a bar across the screen at either size.
-func TestReviewCursorRowIsTintedEdgeToEdge(t *testing.T) {
+// The cursor's row is one tint from the page's left edge to the cell before
+// the scrollbar, so it reads as a bar across the page at either size.
+func TestReviewCursorRowIsTintedAcrossThePage(t *testing.T) {
 	t.Parallel()
 
 	for _, sz := range queueSizes {
@@ -867,9 +877,11 @@ func TestReviewCursorRowIsTintedEdgeToEdge(t *testing.T) {
 			}
 
 			// A first frame can go out at the default width before the real
-			// size arrives, and its tint is a whole row short of this one.
-			want := sz.cols - 1
-			sc.awaitFrame("one row tinted edge to edge", func([]string) bool {
+			// size arrives, and its tint is a whole row short of this one. The
+			// page's margin is 2 cells to a side, and yields under 84 columns.
+			pad := min(2, max(0, (sz.cols-80)/2))
+			want := sz.cols - 1 - 2*pad
+			sc.awaitFrame("one row tinted across the page", func([]string) bool {
 				rows := sc.tintedRows()
 				return len(rows) == 1 && sc.tintSpan(rows[0]) == want
 			})

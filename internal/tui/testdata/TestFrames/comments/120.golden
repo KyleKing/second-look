@@ -1,24 +1,24 @@
-jj-diff#42                                                      2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
-vcs ●───────────────────────────────────────────────────────────────────────────────────────────────────────┊─  comments
-                                                                                                                        
-     internal/vcs/diff.go  1 ready · ◐ 1 draft ─────────────────────────────────────────────────────────────────────────
- 
-       ╭─ ● ready · major ─────────────────────────────────────────────────────────── diff.go:15 ─╮
-       │ split can fail now, so this has to check err.                                            │
-       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯
- 
-       ╭─ ◐ draft · question ──────────────────────────────────────────────────────── diff.go:14 ─╮
-       │ Is first still 1 after the change?                                                       │
-       │ note  Unverified: I have not read the caller.                                            │
-       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯
- 
-     internal/vcs/git.go  1 skipped ────────────────────────────────────────────────────────────────────────────────────
-
-
-
-
-
-
-
-
-comments
+  jj-diff#42                                                  2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
+  vcs ●───────────────────────────────────────────────────────────────────────────────────────────────────┊─  comments
+  ▌                                                                                                                   
+       internal/vcs/diff.go  1 ready · ◐ 1 draft ─────────────────────────────────────────────────────────────────────
+   
+         ╭─ ● ready · major ─────────────────────────────────────────────────────────── diff.go:15 ─╮
+         │ split can fail now, so this has to check err.                                            │
+         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯
+   
+         ╭─ ◐ draft · question ──────────────────────────────────────────────────────── diff.go:14 ─╮
+         │ Is first still 1 after the change?                                                       │
+         │ note  Unverified: I have not read the caller.                                            │
+         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯
+   
+       internal/vcs/git.go  1 skipped ────────────────────────────────────────────────────────────────────────────────
+  
+  
+  
+  
+  
+  
+  
+  
+  comments

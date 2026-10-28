@@ -273,14 +273,16 @@ type cursorLine struct {
 	text string
 }
 
-// cursorLines are the frame lines the cursor's row is drawn on, top down.
+// cursorLines are the frame lines the cursor's row is drawn on, top down. The
+// band's escape appears anywhere in the line since the page margin sits ahead
+// of it.
 func cursorLines(m *tui.Model) []cursorLine {
 	on := m.CursorFace()
 
 	var out []cursorLine
 
 	for i, line := range strings.Split(m.Frame(), "\n") {
-		if strings.HasPrefix(line, on) {
+		if strings.Contains(line, on) {
 			out = append(out, cursorLine{at: i, text: plain(line)})
 		}
 	}

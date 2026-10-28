@@ -16,7 +16,7 @@ vcs ─────────────────────────�
  
   16 +     if err != nil {                                                      
   17       last := 4                                                            
-       ╶─ ⤷ @bot-b · unresolved · 1 comment · no verdict · 2 lines ─╴           
+▌      ╶─ ⤷ @bot-b · unresolved · 1 comment · no verdict · 2 lines ─╴           
      internal/vcs/git.go ───────────────────────────────────────────────────────
        func Head() string {
  201       return head                                                          

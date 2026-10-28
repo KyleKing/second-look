@@ -374,3 +374,9 @@ func DashboardScript(dir string) (string, error) {
 
 	return script, nil
 }
+
+// PageMargin is the margin the page keeps from the terminal's sides.
+func (m *Model) PageMargin() int { return m.padX }
+
+// PageMargin is the margin the page keeps from the terminal's sides.
+func (l *List) PageMargin() int { return l.padX }

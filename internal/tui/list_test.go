@@ -168,8 +168,8 @@ func TestTheCursorRowIsLit(t *testing.T) {
 			for i, line := range strings.Split(l.ListFrame(), "\n") {
 				lit[i] = strings.Contains(line, "\x1b[48;")
 
-				if lit[i] && xansi.StringWidth(line) < width-1 {
-					t.Errorf("line %d is lit for %d cells of %d", i, xansi.StringWidth(line), width-1)
+				if lit[i] && xansi.StringWidth(line) < width-l.PageMargin() {
+					t.Errorf("line %d is lit for %d cells of %d", i, xansi.StringWidth(line), width-l.PageMargin())
 				}
 			}
 
@@ -225,8 +225,8 @@ func TestTheCursorRowIsReversedWhereThereIsNoColor(t *testing.T) {
 				t.Fatalf("%d rows carry %q, want exactly one", len(marked), tc.mark)
 			}
 
-			if got := xansi.StringWidth(marked[0]); got != width {
-				t.Errorf("the marked row is %d cells wide, want %d", got, width)
+			if got := xansi.StringWidth(marked[0]); got != width-l.PageMargin() {
+				t.Errorf("the marked row is %d cells wide, want %d", got, width-l.PageMargin())
 			}
 		})
 	}
@@ -1297,7 +1297,7 @@ func TestTheFooterShedsWholeHintsByPriority(t *testing.T) {
 			l.Update(tea.WindowSizeMsg{Width: width, Height: 24})
 
 			lines := strings.Split(plain(l.ListFrame()), "\n")
-			footer := strings.TrimRight(lines[len(lines)-1], " ")
+			footer := strings.TrimSpace(lines[len(lines)-1])
 
 			var drawn []string
 
@@ -1361,13 +1361,16 @@ func TestTheCursorLeavesTheGridWhereItWas(t *testing.T) {
 			lit.Update(tea.WindowSizeMsg{Width: width, Height: 34})
 			lit.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
 
-			if bare := unlitRunes(lit.ListFrame()); bare != "" {
+			if bare := unlitRunes(lit.ListFrame(), lit.PageMargin()); bare != "" {
 				t.Errorf("the lit row has cells with no background: %q", bare)
 			}
 
 			first, second := frame(0), frame(2)
 			for i := range first {
-				if strings.TrimRight(first[i], " ") != strings.TrimRight(second[i], " ") {
+				holds := func(s string) string {
+					return strings.NewReplacer("▌", " ", "▏", " ").Replace(strings.TrimRight(s, " "))
+				}
+				if holds(first[i]) != holds(second[i]) {
 					t.Errorf("line %d moved with the cursor:\n%q\n%q", i, first[i], second[i])
 				}
 			}
@@ -1377,11 +1380,13 @@ func TestTheCursorLeavesTheGridWhereItWas(t *testing.T) {
 
 // unlitRunes is the text of the first lit line that is drawn with no background,
 // which is a reset inside the row that ended the band early.
-func unlitRunes(frame string) string {
+func unlitRunes(frame string, pad int) string {
 	for _, line := range strings.Split(frame, "\n") {
 		if !strings.Contains(line, "\x1b[48;") {
 			continue
 		}
+
+		line = line[pad:]
 
 		var bare strings.Builder
 

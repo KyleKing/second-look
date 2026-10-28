@@ -487,8 +487,9 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 
 	// The redraw rewrites only changed digits, so the header count never appears
 	// whole. A row is written whole, so an excluded row's absence proves the filter.
-	// The title is what survives the narrowest frame: the author and the owner do not.
-	sc.awaitFrom(back, "feat(vcs): read the head")
+	// The subject is what survives the narrowest frame: the prefix, the author,
+	// and the owner do not.
+	sc.awaitFrom(back, "read the head")
 
 	if after := sc.text()[back:]; strings.Contains(after, "hello-world#112") {
 		t.Errorf("the queue came back unnarrowed, listing a row the filter excludes:\n%s", after)
@@ -919,7 +920,7 @@ func TestTheQueueKeepsTheCommitPrefixOffANarrowTitleColumn(t *testing.T) {
 	for _, tc := range []struct {
 		width  int
 		prefix bool
-	}{{80, false}, {100, true}, {160, true}} {
+	}{{80, false}, {108, true}, {160, true}} {
 		t.Run(strconv.Itoa(tc.width), func(t *testing.T) {
 			t.Parallel()
 

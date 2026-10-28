@@ -50,7 +50,9 @@ func manyFiles(n int) string {
 	return b.String()
 }
 
-func headerLine(m *tui.Model) string { return strings.Split(plain(m.Frame()), "\n")[1] }
+func headerLine(m *tui.Model) string {
+	return strings.Split(strings.TrimLeft(plain(m.Frame()), "\n"), "\n")[1]
+}
 
 // A file's segment is drawn heavy once its hunks are read, files inside one
 // directory are told apart, and a diff too big for a segment each is drawn as

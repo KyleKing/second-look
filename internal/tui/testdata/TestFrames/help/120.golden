@@ -1,24 +1,24 @@
-jj-diff#42                                                      2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
-vcs ●───────────────────────────────────────────────────────────────────────────────────────────────────────────────┊─  
-                                         ╭─ keys ─────────────────────────────────────────────────────────────────────╮┃
-     internal/vcs/diff.go  +2 -1 ────────│ moving                                                                     │┃
-       func Parse(r io.Reader) ([]Hunk, e│       j/k  a line                                                          │┃
-  14       first := 1                    │  ctrl+d/u  half a page                                                     │┃
-                                         │  ctrl+e/y  scroll a line                                                   │┃
-       ╭─ ◐ draft · question ────────────│            y/Y and shift+up/down do the same                               │┃
-       │ Is first still 1 after the chang│      gg/G  the ends                                                        │┃
-       │ note  Unverified: I have not rea│         ]  go to…                                                          │┃
-       ╰─ [e]dit · [r]eady · [d]raft · [t│         [  go back…                                                        │┃
-                                         │       n/N  the same, or back                                               │┃
-  15 -     lines := split(r)             │  ctrl+o/i  back and forward through jumps                                  │┃
-  15 +     lines, err := split(r)        │            tab goes forward too once ctrl+o has left a place ahead         │┃
-                                         │         .  the last change                                                 │┃
-       ╭─ ● ready · major ───────────────│       tab  what wants a decision                                           │┃
-       │ split can fail now, so this has │ shift+tab  and back                                                        │┃
-       ╰─ [e]dit · [r]eady · [d]raft · [t│         /  search                                                          │┃
-                                         │            tab in the prompt narrows a search to hunks not yet read        ││
-  16 +     if err != nil {               │ what is shown                                                              ││
-  17       last := 4                     │         c  the next view                                                   ││
-     internal/vcs/git.go ────────────────│         t  threads                                                         ││
-       func Head() string {              ╰ · · ·──────────────────────────────────────────────────────────────────────╯│
- j/k line   ] go to   c code   m mark   e write   a add   i context   S submit   ? help   esc queue   q quit
+  jj-diff#42                                                  2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
+  vcs ●───────────────────────────────────────────────────────────────────────────────────────────────────────────┊─  
+  ▌                                        ╭─ keys ─────────────────────────────────────────────────────────────────╮┃
+       internal/vcs/diff.go  +2 -1 ────────│ moving                                                                 │┃
+         func Parse(r io.Reader) ([]Hunk, e│       j/k  a line                                                      │┃
+    14       first := 1                    │  ctrl+d/u  half a page                                                 │┃
+                                           │  ctrl+e/y  scroll a line                                               │┃
+         ╭─ ◐ draft · question ────────────│            y/Y and shift+up/down do the same                           │┃
+         │ Is first still 1 after the chang│      gg/G  the ends                                                    │┃
+         │ note  Unverified: I have not rea│         ]  go to…                                                      │┃
+         ╰─ [e]dit · [r]eady · [d]raft · [t│         [  go back…                                                    │┃
+                                           │       n/N  the same, or back                                           │┃
+    15 -     lines := split(r)             │  ctrl+o/i  back and forward through jumps                              │┃
+    15 +     lines, err := split(r)        │            tab goes forward too once ctrl+o has left a place ahead     │┃
+                                           │         .  the last change                                             │┃
+         ╭─ ● ready · major ───────────────│       tab  what wants a decision                                       │┃
+         │ split can fail now, so this has │ shift+tab  and back                                                    │┃
+         ╰─ [e]dit · [r]eady · [d]raft · [t│         /  search                                                      │┃
+                                           │            tab in the prompt narrows a search to hunks not yet read    ││
+    16 +     if err != nil {               │ what is shown                                                          ││
+    17       last := 4                     │         c  the next view                                               ││
+       internal/vcs/git.go ────────────────│         t  threads                                                     ││
+         func Head() string {              ╰ · · ·──────────────────────────────────────────────────────────────────╯│
+   j/k line   ] go to   c code   m mark   e write   a add   i context   S submit   ? help   esc queue   q quit

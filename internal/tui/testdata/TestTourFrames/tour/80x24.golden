@@ -1,7 +1,7 @@
 jj-diff#42             3 files · +5 −1 · read 1 of 4 hunks · ◆ 1 to judge ·   3%
 1 ━●━━━━━━  the lock's call… ────────  api ───────────────  gen ──────────────  
                                                                                ┃
- ◆ stop 1 of 1 · the core decision                                             ┃
+▌◆ stop 1 of 1 · the core decision                                             ┃
     Every save takes the lock before it writes.                                ┃
     → The route waits on it, with no timeout.                                  ┃
    ✓ core/lock.go  +1 -0 ──────────────────────────────────────────────────────┃

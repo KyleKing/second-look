@@ -1,24 +1,24 @@
-jj-diff#42                                               2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped · comment 1/3
-vcs ──────────────────────────●─────────────────────────────────────────────────────────────────────────────────────┊─  
-                                                                                                                       ┃
-     internal/vcs/diff.go  +2 -1 ──────────────────────────────────────────────────────────────────────────────────────┃
-       func Parse(r io.Reader) ([]Hunk, error) {                                                                       ┃
-  14       first := 1                                                                                                  ┃
-                                                                                                                       ┃
-       ╭─ ◐ draft · question ──────────────────────────────────────────────────────── diff.go:14 ─╮                    ┃
-       │ Is first still 1 after the change?                                                       │                    ┃
-       │ note  Unverified: I have not read the caller.                                            │                    ┃
-       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯                    ┃
-                                                                                                                       ┃
-  15 -     lines := split(r)                                                                                           ┃
-  15 +     lines, err := split(r)                                                                                      ┃
-                                                                                                                       ┃
-       ╭─ ● ready · major ─────────────────────────────────────────────────────────── diff.go:15 ─╮                    ┃
-       │ split can fail now, so this has to check err.                                            │                    ┃
-       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯                    ┃
-                                                                                                                       │
-  16 +     if err != nil {                                                                                             │
-  17       last := 4                                                                                                   │
-     internal/vcs/git.go ──────────────────────────────────────────────────────────────────────────────────────────────│
-       func Head() string {                                                                                            │
-1 comment still draft, m r posts it or m x skips it
+  jj-diff#42                                           2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped · comment 1/3
+  vcs ─────────────────────────●──────────────────────────────────────────────────────────────────────────────────┊─  
+                                                                                                                     ┃
+       internal/vcs/diff.go  +2 -1 ──────────────────────────────────────────────────────────────────────────────────┃
+         func Parse(r io.Reader) ([]Hunk, error) {                                                                   ┃
+    14       first := 1                                                                                              ┃
+                                                                                                                     ┃
+  ▌      ╭─ ◐ draft · question ──────────────────────────────────────────────────────── diff.go:14 ─╮                ┃
+         │ Is first still 1 after the change?                                                       │                ┃
+         │ note  Unverified: I have not read the caller.                                            │                ┃
+         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯                ┃
+                                                                                                                     ┃
+    15 -     lines := split(r)                                                                                       ┃
+    15 +     lines, err := split(r)                                                                                  ┃
+                                                                                                                     ┃
+         ╭─ ● ready · major ─────────────────────────────────────────────────────────── diff.go:15 ─╮                ┃
+         │ split can fail now, so this has to check err.                                            │                ┃
+         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯                ┃
+                                                                                                                     │
+    16 +     if err != nil {                                                                                         │
+    17       last := 4                                                                                               │
+       internal/vcs/git.go ──────────────────────────────────────────────────────────────────────────────────────────│
+         func Head() string {                                                                                        │
+  1 comment still draft, m r posts it or m x skips it
