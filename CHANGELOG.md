@@ -1,3 +1,9 @@
+## v0.42.0 (2026-10-28)
+
+### Feat
+
+- **tui**: give the inspector the row detail at tall heights
+
 ## v0.41.0 (2026-10-28)
 
 ### Feat
