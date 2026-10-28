@@ -1,3 +1,4 @@
+
 jj-diff#42              2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
 vcs ●───────────────────────────────────────────────────────────────────────┊─  
 ▌                        ╭─ keys ─────────────────────────────────────────────╮┃
@@ -14,11 +15,10 @@ vcs ●────────────────────────�
   15 +     lines, err := │            tab goes forward too once ctrl+o has    │┃
                          │            left a place ahead                      │┃
        ╭─ ● ready · major│         .  the last change                         │┃
-       │ split can fail n│       tab  what wants a decision                   │┃
-       ╰─ [e]dit · [r]ead│ shift+tab  and back                                │┃
+       │ split can fail n│       tab  what wants a decision                   ││
+       ╰─ [e]dit · [r]ead│ shift+tab  and back                                ││
                          │         /  search                                  ││
   16 +     if err != nil │            tab in the prompt narrows a search to   ││
   17       last := 4     │            hunks not yet read                      ││
-     internal/vcs/git.go │ what is shown                                      ││
-       func Head() string╰ · · ·──────────────────────────────────────────────╯│
+     internal/vcs/git.go ╰ · · ·──────────────────────────────────────────────╯│
  j/k line   ] go to   c code   i context   S submit   ? help   q quit

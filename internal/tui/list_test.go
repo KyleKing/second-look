@@ -173,7 +173,7 @@ func TestTheCursorRowIsLit(t *testing.T) {
 				}
 			}
 
-			want := map[int]bool{3: true}
+			want := map[int]bool{4: true}
 			for i := range 8 {
 				if lit[i] != want[i] {
 					t.Errorf("line %d lit = %v, want %v", i, lit[i], want[i])
@@ -289,10 +289,10 @@ func TestListAnswersAClick(t *testing.T) {
 		t.Errorf("a click on the d#4 row put the cursor on %q", got)
 	}
 
-	l.Update(tea.MouseClickMsg{X: strings.Index(lines[0], "staged"), Y: 0, Button: tea.MouseLeft})
+	l.Update(tea.MouseClickMsg{X: strings.Index(lines[1], "staged"), Y: 1, Button: tea.MouseLeft})
 
-	if got := plain(l.ListFrame()); !strings.Contains(strings.Split(got, "\n")[1], "━") ||
-		strings.Index(strings.Split(got, "\n")[1], "━") < strings.Index(lines[0], "staged") {
+	if got := plain(l.ListFrame()); !strings.Contains(strings.Split(got, "\n")[2], "━") ||
+		strings.Index(strings.Split(got, "\n")[2], "━") < strings.Index(lines[1], "staged") {
 		t.Errorf("a click on the staged tab did not switch to it:\n%s", got)
 	}
 }
@@ -478,8 +478,8 @@ func TestTheHeaderCarriesTheSectionOnceItScrollsOff(t *testing.T) {
 	}
 
 	lines := strings.Split(plain(l.ListFrame()), "\n")
-	if !strings.Contains(lines[1], "pending your review") {
-		t.Errorf("the header does not name the section the cursor is in:\n%s", lines[1])
+	if !strings.Contains(lines[1]+lines[2], "pending your review") {
+		t.Errorf("the header does not name the section the cursor is in:\n%s", lines[1]+lines[2])
 	}
 }
 

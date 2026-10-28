@@ -1,3 +1,4 @@
+
 second-look               ╭─ keys ────────────────────────────────────────────╮e
 ──────────────────────────│ j/k, ctrl+u/d, g/G  move, half page, top and      │─
   new since you looked  2 │                     bottom                        │
@@ -14,7 +15,6 @@ second-look               ╭─ keys ──────────────
                           │                     prepared review               │
                           │                  R  resolve the thread, or        │
                           │                     thumbs-up what cannot be      │
-                          │                     resolved                      │
-good catch, pushed a defer│                  o  open it on GitHub             │ 
+good catch, pushed a defer│                     resolved                      │ 
 alice · internal/pool/pool╰ · · ·─────────────────────────────────────────────╯ 
 enter read   space mark read   r reply   R resolve   o GitHub   ? help          

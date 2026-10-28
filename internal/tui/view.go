@@ -42,7 +42,7 @@ func (m *Model) View() tea.View {
 func (m *Model) render() string {
 	if m.width < minWidth || m.height < minHeight {
 		return fmt.Sprintf("second-look needs %dx%d, this is %dx%d",
-			minWidth, minHeight, m.width+2*m.padX, m.height)
+			minWidth, minHeight, m.width+pageSides*m.padX, m.height+m.padY)
 	}
 
 	var body []string
@@ -75,7 +75,7 @@ func (m *Model) render() string {
 		out = append(out, m.agentLines()...)
 	}
 
-	return marginate(strings.Join(append(out, m.footerLines()...), "\n"), m.padX)
+	return marginate(strings.Join(append(out, m.footerLines()...), "\n"), m.padX, m.padY)
 }
 
 // paneLines is the running program's screen under a divider naming it. The

@@ -1,3 +1,4 @@
+
 jj-diff#42                                                2 files · +2 −1 ·   0%
 vcs ●───────────────────────────────────────────────────────────────────────┊─  
 ▌                                                                              ┃
@@ -14,11 +15,10 @@ vcs ●────────────────────────�
                                                                                ┃
       ┃ REVIEW BODY                                                            ┃
       ┃ Picking up the review. I checked production and:                       ┃
-      ┃                                                                        ┃
+      ┃                                                                        │
       ┃ 1. Across 177 live asks, seven orgs carry an id owned by another       │
       ┃    org, which is the case this change is for                           │
       ┃ 2. The org in the ticket has none of it: no cross-org pointer, no      │
       ┃    duplicate ask                                                       │
       ┃ - it does have two live questionnaires sharing a name                  │
-      ┃                                                                        │
 everything open

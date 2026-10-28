@@ -48,7 +48,7 @@ func (l *List) render() string {
 		out = l.labelOver(out)
 	}
 
-	return marginate(out, l.padX)
+	return marginate(out, l.padX, l.padY)
 }
 
 // frame is the chrome around the rows: the program's name, the tabs, on the

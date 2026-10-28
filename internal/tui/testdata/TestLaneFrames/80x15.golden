@@ -1,3 +1,4 @@
+
 second-look   inbox 4    other 2                                sorted by triage
 ──────────────━━━━━━━━──────────────────────────────────────────────────────────
   ready to merge  1
@@ -10,6 +11,5 @@ second-look   inbox 4    other 2                                sorted by triage
   waiting on others  1
   d#4         docs: say why                             1d  ○ awaiting         
   merged  1 · z shows
-
 maria · 9d old · priority                                                       
 enter review   M merge                                                          

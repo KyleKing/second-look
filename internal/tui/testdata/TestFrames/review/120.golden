@@ -1,3 +1,4 @@
+
   jj-diff#42                                                  2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
   vcs ●───────────────────────────────────────────────────────────────────────────────────────────────────────────┊─  
   ▌                                                                                                                  ┃
@@ -14,11 +15,10 @@
     15 +     lines, err := split(r)                                                                                  ┃
                                                                                                                      ┃
          ╭─ ● ready · major ─────────────────────────────────────────────────────────── diff.go:15 ─╮                ┃
-         │ split can fail now, so this has to check err.                                            │                ┃
-         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯                ┃
+         │ split can fail now, so this has to check err.                                            │                │
+         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────────────────────────╯                │
                                                                                                                      │
     16 +     if err != nil {                                                                                         │
     17       last := 4                                                                                               │
        internal/vcs/git.go ──────────────────────────────────────────────────────────────────────────────────────────│
-         func Head() string {                                                                                        │
    j/k line   ] go to   c code   m mark   e write   a add   i context   S submit   ? help   esc queue   q quit

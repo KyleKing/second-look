@@ -60,7 +60,7 @@ func TestALongRunKeepsTheLineItAnswersInView(t *testing.T) {
 		pressKey(t, m, 'j')
 	}
 
-	top := strings.SplitN(plain(m.Frame()), "\n", 4)[2]
+	top := strings.SplitN(plain(m.Frame()), "\n", 5)[3]
 	if !strings.Contains(top, "lines, err := split(r)") || !strings.Contains(top, "COMMENTS") {
 		t.Errorf("the line the run answers is not pinned:\n%s", plain(m.Frame()))
 	}

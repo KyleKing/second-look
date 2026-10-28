@@ -170,9 +170,10 @@ type Model struct {
 	offset   int
 	width    int
 	height   int
-	// padX is the margin the last resize left beside the page, which a click
-	// has to know to read its position in the page's coordinates.
+	// padX and padY are the margin the last resize left around the page, which
+	// a click has to know to read its position in the page's coordinates.
 	padX int
+	padY int
 
 	keys   keyMap
 	styles styles
@@ -644,8 +645,8 @@ type branchDeletedMsg struct {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.padX = pagePad(msg.Width)
-		m.width, m.height = msg.Width-pageSides*m.padX, msg.Height
+		m.padX, m.padY = pagePad(msg.Width, msg.Height)
+		m.width, m.height = msg.Width-pageSides*m.padX, msg.Height-m.padY
 
 		if m.pane != nil {
 			m.pane.Resize(m.width, m.paneHeight())
@@ -1083,7 +1084,7 @@ func (m *Model) quiet() bool {
 // click closes the legend from outside it, and puts the cursor on the row
 // clicked on, read against the lines rowLines last drew.
 func (m *Model) click(at tea.Mouse) {
-	at = inset(at, m.padX)
+	at = inset(at, m.padX, m.padY)
 
 	if m.help {
 		if !m.helpRect.Contains(at.X, at.Y) {

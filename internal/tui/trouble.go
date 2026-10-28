@@ -431,9 +431,9 @@ func (m *Model) troubleStyle(s diag.Severity) lipgloss.Style {
 	return m.styles.note
 }
 
-// hoverChrome is the title, the footer, and the blank lines around them, which
-// the overlay's own rows have to leave room for.
-const hoverChrome = 6
+// hoverChrome is the title, the footer, the overlay's own tail, and the blank
+// lines around them, which the overlay's rows have to leave room for.
+const hoverChrome = 7
 
 // answerLines is what a line question left up: each name on the line and what
 // it is. An asker's answer is the same surface with prose in place of symbols.

@@ -1081,7 +1081,7 @@ func TestTogglingOneLookAtATime(t *testing.T) {
 			press(t, m, tea.KeyPressMsg{Code: k, Text: string(k)})
 		}
 
-		title := strings.Join(strings.SplitN(plain(m.Frame()), "\n", 3)[:2], "\n")
+		title := strings.Join(strings.SplitN(plain(m.Frame()), "\n", 4)[1:3], "\n")
 		if !strings.Contains(title, tc.want) {
 			t.Fatalf("after %q the title is %q, want it to name %q", string(tc.keys), title, tc.want)
 		}
@@ -1487,7 +1487,7 @@ diff --git a/db/001.sql b/db/001.sql
 		t.Errorf("the first commit is not read first:\n%s", frame)
 	}
 
-	if !strings.Contains(head[1], "by commit") {
+	if !strings.Contains(head[2], "by commit") {
 		t.Errorf("the header does not say the order is by commit:\n%s", frame)
 	}
 
@@ -1495,14 +1495,14 @@ diff --git a/db/001.sql b/db/001.sql
 		t.Errorf("the rule did not fold the migration into a chapter of its own:\n%s", frame)
 	}
 
-	if !strings.Contains(head[0], "1 plan problem") {
+	if !strings.Contains(head[1], "1 plan problem") {
 		t.Errorf("the header does not count what the plan could not place:\n%s", frame)
 	}
 
 	// At the narrowest frame the title gives way before the problem does.
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	if got := plain(m.Frame()); !strings.Contains(strings.SplitN(got, "\n", 2)[0], "1 plan problem") {
+	if got := plain(m.Frame()); !strings.Contains(strings.SplitN(got, "\n", 3)[1], "1 plan problem") {
 		t.Errorf("an 80-column header drops the plan's problem:\n%s", got)
 	}
 }
@@ -1970,7 +1970,7 @@ func TestJumpingToAFileShowsItsContent(t *testing.T) {
 		t.Fatalf("the file never rendered:\n%s", strings.Join(lines, "\n"))
 	}
 
-	if at > 3 {
+	if at > 4 {
 		t.Errorf("the file landed on line %d of %d, want it near the top", at, len(lines))
 	}
 
@@ -2066,7 +2066,7 @@ func TestALocalReviewNamesItsDiffAndPostsNothing(t *testing.T) {
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	title := strings.SplitN(plain(m.Frame()), "\n", 2)[0]
+	title := strings.SplitN(plain(m.Frame()), "\n", 3)[1]
 	if !strings.Contains(title, "feat/x vs origin/HEAD") || strings.Contains(title, "#") {
 		t.Errorf("a local review is titled %q rather than what it diffs", title)
 	}
@@ -3314,7 +3314,7 @@ func TestTabAtTheEdgeSaysThereIsNothingFurther(t *testing.T) {
 // from zero, or -1 where the frame does not draw it.
 func cursorRow(m *tui.Model) int {
 	if lines := cursorLines(m); len(lines) > 0 {
-		return lines[0].at - 2
+		return lines[0].at - 3
 	}
 
 	return -1
@@ -3872,7 +3872,7 @@ func TestTheHeaderKeepsTheTitleAndDropsCountsFirst(t *testing.T) {
 				t.Errorf("the frame is %d lines, want %d", len(lines), tc.height)
 			}
 
-			head := lines[0]
+			head := lines[1]
 			if n := utf8.RuneCountInString(head); n > tc.width {
 				t.Errorf("the header is %d cells in a %d-column frame: %q", n, tc.width, head)
 			}

@@ -1,3 +1,4 @@
+
 jj-diff#42             3 files · +5 −1 · read 1 of 4 hunks · ◆ 1 to judge ·   3%
 1 ━●━━━━━━  the lock's call… ────────  api ───────────────  gen ──────────────  
                                                                                ┃
@@ -14,11 +15,10 @@ jj-diff#42             3 files · +5 −1 · read 1 of 4 hunks · ◆ 1 to judge
   10   func call() {                                                           ┃
   11 +     waitLock()                                                          ┃
        ╭─ ⤷ @watch-doggo · unresolved · 1 comment ────────────── route.go:11 ─╮┃
-       │   waitLock has no timeout.                                           │┃
-       ╰─ r[e]ply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react ──────╯┃
+       │   waitLock has no timeout.                                           ││
+       ╰─ r[e]ply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react ──────╯│
                                                                                │
   12       done()                                                              │
                                                                                │
  ◆ api  1 file · 1 hunk                                                        │
-     api/route.go  1 more part · 0/2 read  +1 -1 ──────────────────────────────│
  j/k line   ] go to   c code   i context   S submit   ? help   q quit

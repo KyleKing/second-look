@@ -1,3 +1,4 @@
+
   second-look                               ╭─ keys ────────────────────────────────────────────────────────────────╮e
   ──────────────────────────────────────────│ j/k, ctrl+u/d, g/G  move, half page, top and bottom                   │─
     new since you looked  2                 │      ctrl+e/ctrl+y  scroll without moving the cursor                  │
@@ -14,7 +15,6 @@
                                             │             ctrl+r  read the queue again                              │
                                             │             q, esc  leave                                             │
                                             │                                                                       │
-                                            │                     ● marks a conversation that moved since you last  │
-  good catch, pushed a defer  kyleking/tlr#1│                     read it.                                          │ 
-  2h                                        ╰───────────────────────────────────────────────────────────────────────╯ 
+  good catch, pushed a defer  kyleking/tlr#1│                     ● marks a conversation that moved since you last  │ 
+  2h                                        ╰ · · ·─────────────────────────────────────────────────────────────────╯ 
   enter read   space mark read   r reply   R resolve   o GitHub   tab group   / filter   ? help   q quit              
