@@ -346,7 +346,7 @@ func mark(before, after string) ([]Span, []Span, bool) {
 		return nil, nil, false
 	}
 
-	keptLeft, keptRight := common(texts(before, left), texts(after, right))
+	keptLeft, keptRight := commonSpans(before, left, after, right)
 
 	shared := 0
 	for _, at := range keptLeft {
@@ -401,18 +401,22 @@ func wordByte(c byte) bool {
 // common is the longest subsequence of tokens both lines carry in order,
 // reported as the index of each match on either side.
 func common(left, right []string) ([]int, []int) {
+	return commonWhere(len(left), len(right), func(i, j int) bool { return left[i] == right[j] })
+}
+
+func commonWhere(n, m int, eq func(i, j int) bool) ([]int, []int) {
 	// table[i*cols+j] is the length of the longest common subsequence of the
 	// suffixes starting at left[i] and right[j]. It is one flat slice rather
 	// than a row per i, because a line's pairing calls this once per block and
 	// the row allocations were the pairing's own tax.
-	cols := len(right) + 1
-	table := make([]int, (len(left)+1)*cols)
+	cols := m + 1
+	table := make([]int, (n+1)*cols)
 	at := func(i, j int) int { return table[i*cols+j] }
 	set := func(i, j, v int) { table[i*cols+j] = v }
 
-	for i := len(left) - 1; i >= 0; i-- {
-		for j := len(right) - 1; j >= 0; j-- {
-			if left[i] == right[j] {
+	for i := n - 1; i >= 0; i-- {
+		for j := m - 1; j >= 0; j-- {
+			if eq(i, j) {
 				set(i, j, at(i+1, j+1)+1)
 
 				continue
@@ -424,9 +428,9 @@ func common(left, right []string) ([]int, []int) {
 
 	var atLeft, atRight []int
 
-	for i, j := 0, 0; i < len(left) && j < len(right); {
+	for i, j := 0, 0; i < n && j < m; {
 		switch {
-		case left[i] == right[j]:
+		case eq(i, j):
 			atLeft = append(atLeft, i)
 			atRight = append(atRight, j)
 			i++
@@ -439,6 +443,17 @@ func common(left, right []string) ([]int, []int) {
 	}
 
 	return atLeft, atRight
+}
+
+// commonSpans is common for tokens carried as spans of two source strings,
+// which compares the text where it lies rather than cutting string slices of
+// it first.
+func commonSpans(lsrc string, left []Span, rsrc string, right []Span) ([]int, []int) {
+	return commonWhere(len(left), len(right), func(i, j int) bool {
+		l, r := left[i], right[j]
+
+		return l.To-l.From == r.To-r.From && lsrc[l.From:l.To] == rsrc[r.From:r.To]
+	})
 }
 
 // gaps is every token not in kept, merged into runs, which is what a reader
@@ -468,11 +483,4 @@ func gaps(all []Span, kept []int) []Span {
 	return out
 }
 
-func texts(s string, spans []Span) []string {
-	out := make([]string, len(spans))
-	for i, at := range spans {
-		out[i] = s[at.From:at.To]
-	}
 
-	return out
-}
