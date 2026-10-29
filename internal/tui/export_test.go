@@ -156,6 +156,16 @@ func (m *Model) DimKeys() []string {
 // Inert reports a legend key with nothing to act on under the cursor.
 func (m *Model) KeyIsInert(key string) bool { return m.inert(key) }
 
+// Gliding is whether the wheel is still easing the view to where a notch sent it.
+func (m *Model) Gliding() bool { return m.gliding }
+
+// ViewOffset is how far the diff is scrolled, so a test can follow a glide.
+func (m *Model) ViewOffset() int { return m.offset }
+
+// GlideTick answers one tick of a wheel glide, so a test steps it instead of
+// waiting on real time.
+func (m *Model) GlideTick() { m.Update(scrollMsg{}) }
+
 // ChordWaited fires the wait a chord armed when it opened, so a test sees the
 // page it draws without sleeping for it.
 func (m *Model) ChordWaited() { m.Update(chordWaitMsg{seq: m.chordSeq}) }

@@ -168,8 +168,13 @@ type Model struct {
 	cursor   int
 	selected *selection
 	offset   int
-	width    int
-	height   int
+	// scrollGoal is where the wheel is gliding the view, paid a glideRate tick
+	// at a time by glideStep, and gliding is whether that tick is armed. A key
+	// or a click ends the glide, since the view now belongs to it.
+	scrollGoal int
+	gliding    bool
+	width      int
+	height     int
 	// padX and padY are the margin the last resize left around the page, which
 	// a click has to know to read its position in the page's coordinates.
 	padX int
@@ -676,14 +681,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 	case tea.MouseWheelMsg:
-		m.wheel(msg)
+		cmd := m.wheel(msg)
 
-		return m, nil
+		return m, cmd
+	case scrollMsg:
+		cmd := m.glideStep()
+
+		return m, cmd
 	case tea.MouseClickMsg:
+		m.gliding = false
 		m.click(msg.Mouse())
 
 		return m, nil
 	case tea.KeyPressMsg:
+		m.gliding = false
 		was := m.pending
 		mod, cmd := m.handleKey(msg)
 		m.settlePeek()
@@ -1052,8 +1063,10 @@ func (m *Model) redo(c change) (tea.Model, tea.Cmd) {
 	return m.complete(c.key)
 }
 
-// wheel moves whichever overlay is up, and the cursor when none is.
-func (m *Model) wheel(msg tea.MouseWheelMsg) {
+// wheel moves whichever overlay is up, and starts a glide when none is. A
+// notch moves the goal rather than the view, so a trackpad flick is a burst
+// of notches that lands as one ease instead of a teleport apiece.
+func (m *Model) wheel(msg tea.MouseWheelMsg) tea.Cmd {
 	step := wheelStep
 
 	switch msg.Button {
@@ -1061,7 +1074,7 @@ func (m *Model) wheel(msg tea.MouseWheelMsg) {
 		step = -step
 	case tea.MouseWheelDown:
 	default:
-		return
+		return nil
 	}
 
 	switch {
@@ -1072,19 +1085,74 @@ func (m *Model) wheel(msg tea.MouseWheelMsg) {
 	case m.outline.open:
 		m.outlineStep(step / wheelStep)
 	case m.quiet():
-		// The wheel scrolls the text, not the cursor: the view glides a few
-		// lines and the cursor only comes along where the screen would leave
-		// it behind, the way a wheel works in an editor.
-		m.offset = clamp(m.offset+step, m.maxOffset())
-
-		for m.cursor < m.offset {
-			m.moveBy(1)
+		goal := m.offset
+		if m.gliding {
+			goal = m.scrollGoal
 		}
+		m.scrollGoal = clamp(goal+step, m.maxOffset())
 
-		for m.cursor >= m.offset+m.viewHeight() {
-			m.moveBy(-1)
-		}
+		return m.glide()
 	}
+
+	return nil
+}
+
+// glideRate is how often a wheel glide moves the view, and glideEase the
+// share of the way left one move covers: fast when the flick was long, easing
+// to a stop a line at a time.
+const (
+	glideRate = 16 * time.Millisecond
+	glideEase = 4
+)
+
+// scrollMsg is the glide's tick.
+type scrollMsg struct{}
+
+// glide arms the tick that pays a scrollGoal down, unless one is armed.
+func (m *Model) glide() tea.Cmd {
+	if m.gliding {
+		return nil
+	}
+
+	m.gliding = true
+
+	return tea.Tick(glideRate, func(time.Time) tea.Msg { return scrollMsg{} })
+}
+
+// glideStep moves the view a share of the way to scrollGoal and drags the
+// cursor along where the screen would leave it behind, the way a wheel works
+// in an editor. It answers the next tick, or none once the goal is reached.
+func (m *Model) glideStep() tea.Cmd {
+	if !m.gliding {
+		return nil
+	}
+
+	m.scrollGoal = clamp(m.scrollGoal, m.maxOffset())
+	d := m.scrollGoal - m.offset
+
+	if d == 0 {
+		m.gliding = false
+
+		return nil
+	}
+
+	step := d / glideEase
+	if step == 0 && d > 0 {
+		step = 1
+	} else if step == 0 {
+		step = -1
+	}
+	m.offset += step
+
+	for m.cursor < m.offset {
+		m.moveBy(1)
+	}
+
+	for m.cursor >= m.offset+m.viewHeight() {
+		m.moveBy(-1)
+	}
+
+	return tea.Tick(glideRate, func(time.Time) tea.Msg { return scrollMsg{} })
 }
 
 // quiet is no overlay, prompt, editor, or pane holding the screen, which is

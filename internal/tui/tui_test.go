@@ -3103,6 +3103,78 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 	}
 }
 
+// A wheel notch does not jump the diff: it sets where the view is gliding to
+// and glide ticks ease it there, so a trackpad flick lands as one move rather
+// than a teleport apiece. A key ends the glide, since the view belongs to it.
+func TestTheWheelGlidesRatherThanJumping(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := fixtureWith(t, tallPatch(40))
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 14})
+
+	at := plain(m.Frame())
+
+	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+
+	if got := plain(m.Frame()); got != at {
+		t.Fatalf("a notch teleported the view rather than arming a glide:\n%s", got)
+	}
+
+	if !m.Gliding() {
+		t.Fatal("a notch armed no glide")
+	}
+
+	// A tick covers part of the way left, not all of it: one notch is three
+	// lines and the ease opens a line at a time.
+	m.GlideTick()
+
+	if off := m.ViewOffset(); off <= 0 || off >= 3 {
+		t.Fatalf("the first tick eased %d lines, which is none or the whole notch", off)
+	}
+
+	settle := func() {
+		t.Helper()
+
+		for i := 0; m.Gliding(); i++ {
+			if i > 100 {
+				t.Fatal("the glide never reached its goal")
+			}
+
+			m.GlideTick()
+		}
+	}
+	settle()
+
+	down := m.ViewOffset()
+	if down != 3 {
+		t.Fatalf("one notch landed the view %d lines down, want the notch's 3", down)
+	}
+
+	// A burst of notches is one glide to their sum, not three jumps.
+	for range 3 {
+		m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+	}
+	settle()
+
+	if off := m.ViewOffset(); off <= down {
+		t.Fatalf("three notches left the view at %d, no further than one's %d", off, down)
+	}
+
+	// A key takes the view over: the glide standing when it lands is ended.
+	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
+	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
+
+	if m.Gliding() {
+		t.Error("a key landed and the glide kept hold of the view")
+	}
+
+	m.GlideTick()
+
+	if m.Gliding() {
+		t.Error("a tick answered after the glide was ended")
+	}
+}
+
 // A chord left waiting draws its page over the bottom of the frame once the
 // pause says the second key is wanted rather than known.
 func TestAChordLeftWaitingDrawsItsPage(t *testing.T) {

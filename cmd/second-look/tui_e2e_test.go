@@ -856,6 +856,63 @@ func TestReviewEsc_OpensTheQueueFromADirectReview(t *testing.T) {
 	}
 }
 
+// A wheel notch does not jump the diff: a burst of them is one glide to their
+// sum, which is what the frame ends on. The wheel speaks SGR at a cell inside
+// the page, since the program answers no terminal that did not ask.
+func TestReviewWheelGlidesTheView(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, reviewCassette(t, sha))
+	seedReview(t, dir, sha)
+
+	sc := openReview(t, s, dir, "2")
+	sc.await("is the recording target")
+	sc.await("q quit")
+
+	atEnd := func(frame []string) bool {
+		for _, l := range frame {
+			if strings.Contains(l, "units") {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	if atEnd(sc.frame()) {
+		t.Fatalf("the diff's last line drew before the wheel turned:\n%s", strings.Join(sc.frame(), "\n"))
+	}
+
+	// A burst of wheel-down notches glides to their sum rather than teleporting
+	// the view a notch at a time. The review's comments and moved markers make
+	// the row list longer than the file, so enough notches go to reach the end.
+	for range 35 {
+		sc.press("\x1b[<65;50;15M")
+	}
+	sc.awaitFrame("the end of the diff after the wheel down", atEnd)
+
+	// Wheeling back up lands the first line again.
+	for range 35 {
+		sc.press("\x1b[<64;50;15M")
+	}
+	sc.awaitFrame("the top of the diff after the wheel back up", func(frame []string) bool {
+		for _, l := range frame {
+			if strings.Contains(l, "is the recording target") {
+				return true
+			}
+		}
+
+		return false
+	})
+
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("quitting after the wheel exited %d:\n%s", code, sc.text())
+	}
+}
+
 // The cursor's row is one tint from the page's left edge to the cell before
 // the scrollbar, so it reads as a bar across the page at either size.
 func TestReviewCursorRowIsTintedAcrossThePage(t *testing.T) {
