@@ -1,3 +1,14 @@
+## v0.45.0 (2026-10-29)
+
+### Feat
+
+- **tui**: show the selected row's detail beside the queue
+- **get**: diff locally when the API refuses, from a pooled clone
+
+### Fix
+
+- **post**: prune the whole staged footprint after publishing
+
 ## v0.44.0 (2026-10-29)
 
 ### Feat
