@@ -482,5 +482,3 @@ func gaps(all []Span, kept []int) []Span {
 
 	return out
 }
-
-
