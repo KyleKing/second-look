@@ -224,19 +224,19 @@ func (s *Store) SaveStaged(viewer string, v Staged) {
 // DropStaged makes the staged snapshot read as absent.
 func (s *Store) DropStaged() { s.staged.drop() }
 
+// slot is one record's snapshot: memory over disk, with the process's clock
+// injectable so a test can age a record without sleeping.
 type slot[T interface{ header() Header }] struct {
-	mem  *cache.TTLCache[T]
-	disk *cache.DiskCache
-	key  string
+	snap *cache.Snapshot[T]
 }
 
 func newSlot[T interface{ header() Header }](disk *cache.DiskCache, key string, now func() time.Time) slot[T] {
-	return slot[T]{mem: cache.NewTTLCacheWithClock[T](memoryTTL, now), disk: disk, key: key}
+	return slot[T]{snap: cache.NewSnapshot(cache.NewTTLCacheWithClock[T](memoryTTL, now), disk, upstream, key)}
 }
 
 //nolint:ireturn // T is the record the slot was made for
 func (s slot[T]) load() (T, time.Duration, bool) {
-	v, age, ok := cache.PersistedStaleUsing(s.disk, s.mem, upstream, s.key, cache.NoStamp)
+	v, age, ok := s.snap.Load(cache.NoStamp)
 	if !ok || v.header().Version != schema {
 		var zero T
 
@@ -246,12 +246,6 @@ func (s slot[T]) load() (T, time.Duration, bool) {
 	return v, age, true
 }
 
-func (s slot[T]) save(v T) { cache.PersistUsing(s.disk, s.mem, upstream, s.key, cache.NoStamp, v) }
+func (s slot[T]) save(v T) { s.snap.Save(cache.NoStamp, v) }
 
-// drop overwrites the entry with one no schema matches, since the disk cache
-// has no delete for a single key.
-func (s slot[T]) drop() {
-	var zero T
-
-	s.save(zero)
-}
+func (s slot[T]) drop() { s.snap.Drop() }

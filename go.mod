@@ -17,7 +17,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/creack/pty v1.1.24
-	github.com/kyleking/aragonite v1.5.1
+	github.com/kyleking/aragonite v1.7.0
 	github.com/lucasb-eyer/go-colorful v1.4.1
 	golang.org/x/sync v0.23.0
 	golang.org/x/sys v0.48.0
