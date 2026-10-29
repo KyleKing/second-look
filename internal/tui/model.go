@@ -414,12 +414,13 @@ func New(
 	path string, submit Submitter, opts ...Option,
 ) *Model {
 	st := loadStyles()
+	marks, reindented, moves := d.Paired()
 	m := &Model{
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
 		files: newFiles(),
 		width: minWidth, height: startHeight, folded: newFolded(),
-		refined: d.Refine(), reindented: d.Reindented(), moves: d.Moved(),
+		refined: marks, reindented: reindented, moves: moves,
 		lexed:  map[string]map[diff.LineRef][]highlight.Span{},
 		lit:    map[string][][]highlight.Span{},
 		drawn:  opening,

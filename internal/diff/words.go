@@ -41,6 +41,16 @@ func (d *Diff) Refine() Refined { return d.pair().marks }
 // another indent, which is a block gaining or losing a level around it.
 func (d *Diff) Reindented() map[LineRef]bool { return d.pair().reindented }
 
+// Paired is the pairing in one pass: the changed runs, the re-indented lines,
+// and the moved runs, which Refine, Reindented, and Moved each answer alone.
+// A caller wanting all three asks once, because the pairing is the expensive
+// read a diff offers.
+func (d *Diff) Paired() (Refined, map[LineRef]bool, map[LineRef]Move) {
+	p := d.pair()
+
+	return p.marks, p.reindented, p.moved
+}
+
 type pairing struct {
 	marks      Refined
 	reindented map[LineRef]bool
@@ -217,8 +227,11 @@ func score(gone, came []Line) [][]float64 {
 	}
 
 	out := make([][]float64, len(gone))
+	cells := make([]float64, len(gone)*len(came))
+
 	for i := range gone {
-		out[i] = make([]float64, len(came))
+		out[i] = cells[i*len(came) : (i+1)*len(came)]
+
 		for j := range came {
 			mean := float64(len(gone[i].Text)+len(came[j].Text)) / halves
 			if mean > 0 {
@@ -236,27 +249,28 @@ func score(gone, came []Line) [][]float64 {
 // matched walks back the best non-crossing set of pairs a score table offers,
 // which is a longest-subsequence alignment scored on lines instead of tokens.
 func matched(score [][]float64) [][2]int {
-	best := make([][]float64, len(score)+1)
-	for i := range best {
-		best[i] = make([]float64, len(score[0])+1)
-	}
+	cols := len(score[0]) + 1
+	best := make([]float64, (len(score)+1)*cols)
+
+	at := func(i, j int) float64 { return best[i*cols+j] }
+	set := func(i, j int, v float64) { best[i*cols+j] = v }
 
 	for i := 1; i <= len(score); i++ {
 		for j := 1; j <= len(score[0]); j++ {
-			best[i][j] = max(
-				max(best[i-1][j], best[i][j-1]),
-				best[i-1][j-1]+score[i-1][j-1],
-			)
+			set(i, j, max(
+				max(at(i-1, j), at(i, j-1)),
+				at(i-1, j-1)+score[i-1][j-1],
+			))
 		}
 	}
 
 	var out [][2]int
 
 	for i, j := len(score), len(score[0]); i > 0 && j > 0; {
-		switch best[i][j] {
-		case best[i-1][j]:
+		switch at(i, j) {
+		case at(i-1, j):
 			i--
-		case best[i][j-1]:
+		case at(i, j-1):
 			j--
 		default:
 			if score[i-1][j-1] > 0 {
@@ -387,22 +401,24 @@ func wordByte(c byte) bool {
 // common is the longest subsequence of tokens both lines carry in order,
 // reported as the index of each match on either side.
 func common(left, right []string) ([]int, []int) {
-	// table[i][j] is the length of the longest common subsequence of the
-	// suffixes starting at left[i] and right[j].
-	table := make([][]int, len(left)+1)
-	for i := range table {
-		table[i] = make([]int, len(right)+1)
-	}
+	// table[i*cols+j] is the length of the longest common subsequence of the
+	// suffixes starting at left[i] and right[j]. It is one flat slice rather
+	// than a row per i, because a line's pairing calls this once per block and
+	// the row allocations were the pairing's own tax.
+	cols := len(right) + 1
+	table := make([]int, (len(left)+1)*cols)
+	at := func(i, j int) int { return table[i*cols+j] }
+	set := func(i, j, v int) { table[i*cols+j] = v }
 
 	for i := len(left) - 1; i >= 0; i-- {
 		for j := len(right) - 1; j >= 0; j-- {
 			if left[i] == right[j] {
-				table[i][j] = table[i+1][j+1] + 1
+				set(i, j, at(i+1, j+1)+1)
 
 				continue
 			}
 
-			table[i][j] = max(table[i+1][j], table[i][j+1])
+			set(i, j, max(at(i+1, j), at(i, j+1)))
 		}
 	}
 
@@ -415,7 +431,7 @@ func common(left, right []string) ([]int, []int) {
 			atRight = append(atRight, j)
 			i++
 			j++
-		case table[i+1][j] >= table[i][j+1]:
+		case at(i+1, j) >= at(i, j+1):
 			i++
 		default:
 			j++

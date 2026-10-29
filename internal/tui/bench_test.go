@@ -52,6 +52,76 @@ func big(b *testing.B) *tui.Model {
 	return m
 }
 
+// hugePatch is a pull request past GitHub's diff cap: 150 files of paired
+// removes and adds, about twenty-one thousand lines, so the line pairing has
+// real work to do rather than coasting on whole-line changes.
+func hugePatch() string {
+	var b strings.Builder
+
+	for f := range 150 {
+		path := fmt.Sprintf("internal/pkg%03d/file.go", f)
+		fmt.Fprintf(&b, "diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n@@ -1,140 +1,140 @@\n", path, path, path, path)
+
+		for l := range 70 {
+			fmt.Fprintf(&b, "-\tresult := compute(item, %d, cfg) // a line worth marking\n", l)
+		}
+
+		for l := range 70 {
+			fmt.Fprintf(&b, "+\tresult := compute(entry, %d, cfg) // a line worth marking\n", l)
+		}
+	}
+
+	return b.String()
+}
+
+// huge is the model hugePatch builds, measured once so the constructor's cost
+// shows in BenchmarkNew rather than being hidden inside another benchmark's
+// setup.
+func huge(b *testing.B) *tui.Model {
+	b.Helper()
+
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "second-look", Number: 2,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+
+	m := tui.New(b.Context(), r, diff.Parse([]byte(hugePatch())), b.TempDir()+"/pr-2.toml", nil)
+	m.Init()
+
+	return m
+}
+
+func BenchmarkParseHuge(b *testing.B) {
+	patch := []byte(hugePatch())
+
+	for b.Loop() {
+		_ = diff.Parse(patch)
+	}
+}
+
+func BenchmarkNew(b *testing.B) {
+	d := diff.Parse([]byte(hugePatch()))
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "second-look", Number: 2,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+
+	for b.Loop() {
+		_ = tui.New(b.Context(), r, d, b.TempDir()+"/pr-2.toml", nil)
+	}
+}
+
+// A view switch rebuilds the screen, which on a diff this size is the
+// keystroke a reader feels.
+func BenchmarkViewSwitch(b *testing.B) {
+	m := huge(b)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	for b.Loop() {
+		m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
+	}
+}
+
 func BenchmarkResize(b *testing.B) {
 	m := big(b)
 
