@@ -1,3 +1,13 @@
+## v0.46.0 (2026-10-29)
+
+### Feat
+
+- **get**: offer to restage a stale review instead of refusing
+
+### Fix
+
+- **tui**: answer the view keys from the outline
+
 ## v0.45.0 (2026-10-29)
 
 ### Feat
