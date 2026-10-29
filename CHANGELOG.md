@@ -1,3 +1,9 @@
+## v0.48.0 (2026-10-29)
+
+### Feat
+
+- **tui**: band every changed line, split the rebuild for async later
+
 ## v0.47.0 (2026-10-29)
 
 ### Feat
