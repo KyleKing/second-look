@@ -59,6 +59,12 @@ func (d *Diff) Moved() map[LineRef]Move {
 	return out
 }
 
+// moveStartCap bounds how many removed runs one added line checks against.
+// Past it the candidates are duplicates of the same few lines — generated
+// code and blank-ish lines — where checking more finds no better move but
+// costs quadratically in the duplicates.
+const moveStartCap = 32
+
 // longestRun is the longest run starting at an added line that some unused
 // removal run matches line for line, and where that removal starts.
 func (d *Diff) longestRun(at spot, starts []spot, used map[spot]bool) (int, spot) {
@@ -69,7 +75,7 @@ func (d *Diff) longestRun(at spot, starts []spot, used map[spot]bool) (int, spot
 
 	best, from := 0, spot{}
 
-	for _, s := range starts {
+	for _, s := range starts[:min(len(starts), moveStartCap)] {
 		gone := d.Files[s.file].Lines
 		if s.file == at.file && gone[s.line].Hunk == came[at.line].Hunk {
 			continue
