@@ -2,10 +2,12 @@ package tui_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,17 +19,33 @@ import (
 	"github.com/kyleking/second-look/internal/tui"
 )
 
-// agentStub builds the stand-in agent once for the tests that drive it; a
-// pane over a real subprocess is the same code path `devin acp` takes.
-func agentStub(t *testing.T) string {
-	t.Helper()
+// agentStub is the stand-in agent's path, built once for every test that
+// drives it: a pane over a real subprocess is the same code path `devin acp`
+// takes, and a go build per test spends most of the wait window compiling.
+// The binary lives in a shared temp dir outliving any one test's cleanup.
+var agentStub = sync.OnceValues(func() (string, error) {
+	dir, err := os.MkdirTemp("", "agent-stub")
+	if err != nil {
+		return "", fmt.Errorf("making the stub's directory: %w", err)
+	}
 
-	bin := filepath.Join(t.TempDir(), "agent-stub")
+	bin := filepath.Join(dir, "agent-stub")
 
 	//nolint:gosec // the only variable is the temp directory this test made
-	out, err := exec.CommandContext(t.Context(), "go", "build", "-o", bin, "../acp/testdata/stub").CombinedOutput()
+	out, err := exec.Command("go", "build", "-o", bin, "../acp/testdata/stub").CombinedOutput()
 	if err != nil {
-		t.Fatalf("building the stub agent: %v\n%s", err, out)
+		return "", fmt.Errorf("building the stub agent: %w\n%s", err, out)
+	}
+
+	return bin, nil
+})
+
+func stubPath(t *testing.T) string {
+	t.Helper()
+
+	bin, err := agentStub()
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	return bin
@@ -99,7 +117,7 @@ func (l *loop) wait(fn func() bool) {
 func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 	t.Parallel()
 
-	stub := agentStub(t)
+	stub := stubPath(t)
 
 	sub := &counter{}
 	home := t.TempDir()
@@ -195,7 +213,7 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 func TestDispatchOnAnEmptyReviewAsksTheAgentToDraftIt(t *testing.T) {
 	t.Parallel()
 
-	stub := agentStub(t)
+	stub := stubPath(t)
 
 	sub := &counter{}
 	home := t.TempDir()
@@ -245,7 +263,7 @@ func TestDispatchOnAnEmptyReviewAsksTheAgentToDraftIt(t *testing.T) {
 func TestAReopenedAgentPaneTakesALine(t *testing.T) {
 	t.Parallel()
 
-	stub := agentStub(t)
+	stub := stubPath(t)
 
 	sub := &counter{}
 	home := t.TempDir()
