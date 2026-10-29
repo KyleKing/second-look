@@ -1,3 +1,9 @@
+## v0.49.1 (2026-10-29)
+
+### Perf
+
+- **tui**: stop recomputing the diff's own answers on every rebuild
+
 ## v0.49.0 (2026-10-29)
 
 ### Feat
