@@ -214,13 +214,19 @@ func Load(path string) (*Config, error) {
 
 	var c Config
 
-	dec := toml.NewDecoder(strings.NewReader(string(raw)))
+	s := string(raw)
+	dec := toml.NewDecoder(strings.NewReader(s))
 	dec.DisallowUnknownFields()
 
 	if err := dec.Decode(&c); err != nil {
 		var strict *toml.StrictMissingError
 		if errors.As(err, &strict) {
-			return nil, fmt.Errorf("%s: %w\n%s", path, ErrUnknownKey, strict.String())
+			hint := ""
+			if strings.Contains(s, "[[") {
+				hint = " (a top-level key belongs above the first [[table]] header; below one it belongs to that table)"
+			}
+
+			return nil, fmt.Errorf("%s: %w%s\n%s", path, ErrUnknownKey, hint, strict.String())
 		}
 
 		return nil, fmt.Errorf("reading %s: %w", path, err)
