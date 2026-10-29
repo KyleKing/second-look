@@ -5,6 +5,10 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/threads"
+	"github.com/kyleking/second-look/internal/tui"
 )
 
 // A change past sixty files opens on its outline. Enter reads the selected
@@ -48,5 +52,40 @@ func TestABigChangeOpensOnItsOutline(t *testing.T) {
 
 	if got := plain(m.Frame()); strings.Contains(got, "CHAPTERS ·") {
 		t.Errorf("esc left the outline up:\n%s", got)
+	}
+}
+
+// The outline is the first screen of a big change, and the view keys still
+// answer from it: t leaves for the conversations, c for what will post, and v
+// for the code, since a key eaten there reads as a view that does not work.
+func TestTheOutlineLeavesForTheViews(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := modelFor(t, &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}, manyFiles(70), tui.WithThreads([]threads.Thread{
+		finding("x", 15, "doggo", "wrap it"),
+	}))
+
+	if got := plain(m.Frame()); !strings.Contains(got, "CHAPTERS · 1 of 3") {
+		t.Fatalf("the big change did not open on its outline:\n%s", got)
+	}
+
+	pressKey(t, m, 't')
+
+	got := plain(m.Frame())
+	if strings.Contains(got, "CHAPTERS ·") {
+		t.Fatalf("t left the outline up:\n%s", got)
+	}
+	if !strings.Contains(got, "wrap it") {
+		t.Fatalf("t did not land on the conversations:\n%s", got)
+	}
+
+	pressKey(t, m, 'I')
+	pressKey(t, m, 'c')
+
+	if got = plain(m.Frame()); !strings.Contains(got, "no comments staged") {
+		t.Errorf("c did not land on what will post:\n%s", got)
 	}
 }

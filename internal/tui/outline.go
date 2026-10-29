@@ -184,6 +184,14 @@ func (m *Model) readOutline(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, m.keys.Quit):
 		return m, func() tea.Msg { return leftMsg{} }
+	case key.Matches(msg, m.keys.View), key.Matches(msg, m.keys.Comments),
+		key.Matches(msg, m.keys.Threads), key.Matches(msg, m.keys.Trouble):
+		// A big change opens on this list, so the views have to answer from
+		// it: a key that leaves for one closes the outline the way esc would.
+		m.outline.open = false
+		m.reshapes(msg)
+
+		return m, nil
 	case m.overlayKey(msg):
 		return m, nil
 	default:
