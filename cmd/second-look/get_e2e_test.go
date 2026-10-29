@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -352,6 +353,100 @@ func TestGetOffersToStashADirtyTree(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A review staged against a head the pull request moved past used to end the
+// open with a get command to type next. At a terminal it is a question
+// instead: yes restages and opens in one step, no leaves the error it was.
+func TestAStaleReviewOffersToRestage(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		answer string
+		opened bool
+	}{
+		{name: "yes", answer: "y\r", opened: true},
+		{name: "no", answer: "n\r"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir, sha := scratchRepo(t, headBranch)
+			s := ghcassette.Replay(t, staleOpenCassette(t, tc.name, sha))
+			seedReview(t, dir, fixtureHeadSHA)
+
+			sc := openReview(t, s, dir, "2")
+			sc.await("Re-stage and open?")
+			sc.press(tc.answer)
+
+			if !tc.opened {
+				refusedRestage(t, sc)
+
+				return
+			}
+
+			openedAfterRestage(t, sc, s, dir, sha)
+		})
+	}
+}
+
+// staleOpenCassette is what offering the restage costs: the stale check, the
+// get a yes runs, and the head check behind the opened frame each read the
+// pull request. The restage reads as a detached target, so its calls carry
+// --repo where the checkout's do not.
+func staleOpenCassette(t *testing.T, name, sha string) string {
+	t.Helper()
+
+	return deriveFrom(t, "post-review", "stale-open-"+name, func(c *ghcassette.Cassette) {
+		away := slices.Clone(c.Interactions[:reads])
+
+		inCheckout(c)
+		restamp(c, sha)
+
+		for i := range away {
+			away[i].Stdout = strings.ReplaceAll(away[i].Stdout, fixtureHeadSHA, sha)
+		}
+
+		first := slices.Clone(c.Interactions[:reads])
+		c.Interactions = slices.Concat(
+			[]ghcassette.Interaction{first[0], away[0], away[1]},
+			threadInteraction(t),
+			[]ghcassette.Interaction{first[0], commitsInteraction(nil, nil)},
+		)
+	})
+}
+
+func refusedRestage(t *testing.T, sc *screen) {
+	t.Helper()
+
+	if code := sc.wait(); code == 0 {
+		t.Fatalf("a declined restage still opened:\n%s", sc.text())
+	}
+	if !strings.Contains(sc.text(), "staged against") {
+		t.Errorf("the refusal lost the stale review's own error:\n%s", sc.text())
+	}
+}
+
+func openedAfterRestage(t *testing.T, sc *screen, s *ghcassette.Session, dir, sha string) {
+	t.Helper()
+
+	sc.await("sample.go")
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("the screen exited %d:\n%s", code, sc.text())
+	}
+
+	review, err := artifact.Load(artifact.Path(stored(t, dir), 2))
+	if err != nil {
+		t.Fatalf("the prepared review: %v", err)
+	}
+	if review.HeadSHA != sha {
+		t.Errorf("the review is still staged against %s", review.HeadSHA)
+	}
+
+	s.RequireAllPlayed(t)
 }
 
 // inRepo reads the scratch repository back, so a test can check what moved

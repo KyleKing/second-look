@@ -315,7 +315,7 @@ func adoptLease(ctx context.Context, t get.Target) get.Target {
 // first: the stash question needs stdin, and two programs cannot own the
 // terminal at once.
 func openReview(ctx context.Context, t get.Target, stdin io.Reader, stdout io.Writer, land int64) error {
-	out, err := review(ctx, t, stdout, land, nil)
+	out, err := review(ctx, t, stdin, stdout, land, nil)
 	if err != nil {
 		return err
 	}
@@ -354,7 +354,7 @@ func afterReview(
 			return err
 		}
 
-		if out, err = review(ctx, t, stdout, land, did); err != nil {
+		if out, err = review(ctx, t, stdin, stdout, land, did); err != nil {
 			return err
 		}
 	}
@@ -454,7 +454,9 @@ func refOf(r *prepared.Review) ref {
 // review draws the screen once and reports what it was left through. A pull
 // request named on the command line has no queue behind it, so leaving the
 // screen ends the program.
-func review(ctx context.Context, t get.Target, stdout io.Writer, land int64, did *touched) (tui.Outcome, error) {
+func review(
+	ctx context.Context, t get.Target, stdin io.Reader, stdout io.Writer, land int64, did *touched,
+) (tui.Outcome, error) {
 	if !term.IsTerminal(os.Stdin.Fd()) && !term.IsTerminal(os.Stdout.Fd()) {
 		return tui.Outcome{}, errNoTerminal
 	}
@@ -464,7 +466,7 @@ func review(ctx context.Context, t get.Target, stdout io.Writer, land int64, did
 	// as it happens draws over the frame.
 	var log strings.Builder
 
-	m, err := reviewScreen(ctx, t, &log, land, did)
+	m, err := reviewScreen(ctx, t, &log, land, did, confirm(stdin, stdout), stdout)
 	if err != nil {
 		return tui.Outcome{}, err
 	}
@@ -487,11 +489,15 @@ func review(ctx context.Context, t get.Target, stdout io.Writer, land int64, did
 
 // reviewScreen builds the review screen for a target. The log collects what a
 // post writes, which the caller hands to the scrollback once the terminal is
-// back.
+// back. A review staged against a head the pull request moved past asks before
+// it is restaged, so a stale open is one answer rather than a trip back to the
+// command line; ask stands in for the question where the terminal is already
+// taken, which is the queue restaging the same way R would inside the screen.
 func reviewScreen(
 	ctx context.Context, t get.Target, log *strings.Builder, land int64, did *touched,
+	ask get.Confirm, out io.Writer,
 ) (*tui.Model, error) {
-	opened, err := get.Open(ctx, t)
+	opened, err := get.Reopen(ctx, out, t, ask)
 	if err != nil {
 		return nil, fmt.Errorf("opening #%d: %w", t.Number, err)
 	}

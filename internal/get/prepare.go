@@ -48,6 +48,38 @@ func Prepare(ctx context.Context, out io.Writer, t Target, ask Confirm) error {
 	return Run(ctx, out, t)
 }
 
+// Reopen opens the review, restaging it when the pull request moved past the
+// head it was staged against and ask agrees. The refresh moves no working
+// copy: a stale review is the reader's staged work being behind, not the tree
+// being wrong, so the checkout is the same decision it was without the prompt.
+// A question nobody answers leaves the error as it was.
+func Reopen(ctx context.Context, out io.Writer, t Target, ask Confirm) (*Review, error) {
+	opened, err := Open(ctx, t)
+
+	var stale *StaleError
+	if !errors.As(err, &stale) {
+		return opened, err
+	}
+
+	yes, askErr := ask(fmt.Sprintf(
+		"#%d moved to %s since this review was staged against %s. Re-stage and open?",
+		stale.Number, short(stale.Current), short(stale.Staged),
+	))
+	if askErr != nil {
+		return nil, askErr
+	}
+
+	if !yes {
+		return nil, err
+	}
+
+	if err := Run(ctx, out, t.Restage()); err != nil {
+		return nil, err
+	}
+
+	return Open(ctx, t)
+}
+
 // dirty describes what the move would clobber, so the question names a number of
 // files rather than asking about "changes" in the abstract.
 func dirty(ctx context.Context, root string) string {

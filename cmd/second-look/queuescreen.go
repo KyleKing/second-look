@@ -107,7 +107,7 @@ func queueOnce(
 
 			opened = adoptLease(ctx, t)
 
-			return reviewScreen(ctx, opened, &log, 0, &did)
+			return reviewScreen(ctx, opened, &log, 0, &did, willing, &log)
 		}
 	}).WithJournal(journal.Open()))
 

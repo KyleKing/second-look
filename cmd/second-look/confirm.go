@@ -24,6 +24,11 @@ func confirm(stdin io.Reader, stdout io.Writer) get.Confirm {
 
 func declined(string) (bool, error) { return false, nil }
 
+// willing answers yes where the question cannot be drawn: the queue's shell
+// owns the terminal when it opens a review, and the refresh it would ask about
+// moves nothing but the staged copy — the same work R does inside the screen.
+func willing(string) (bool, error) { return true, nil }
+
 // asking reads a yes-or-no answer off stdin. Anything but y or yes is no,
 // because the question is only ever asked before something that moves the
 // working tree.

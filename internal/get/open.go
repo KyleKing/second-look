@@ -18,6 +18,7 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/plan"
+	"github.com/kyleking/second-look/internal/pool"
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -27,6 +28,21 @@ var (
 	ErrNoPRForBranch = errors.New("this branch has no pull request; name one, or check one out")
 	ErrStaleReview   = errors.New("the prepared review was staged against an older head")
 )
+
+// StaleError reports a review staged against a head the pull request moved
+// past, carrying both ends so a caller offers the refresh rather than parsing
+// the message for them.
+type StaleError struct {
+	Number          int
+	Staged, Current string
+}
+
+func (e *StaleError) Error() string {
+	return fmt.Sprintf("%s: staged against %s, now at %s; run second-look get %d",
+		ErrStaleReview, short(e.Staged), short(e.Current), e.Number)
+}
+
+func (*StaleError) Unwrap() error { return ErrStaleReview }
 
 // A review whose base branch was never recorded leaves a head it moved past
 // with nothing to compare against.
@@ -100,11 +116,10 @@ func Open(ctx context.Context, t Target) (*Review, error) {
 	}
 
 	if review.HeadSHA != pr.HeadSHA {
-		return nil, fmt.Errorf("%w: staged against %s, now at %s; run second-look get %d",
-			ErrStaleReview, short(review.HeadSHA), short(pr.HeadSHA), t.Number)
+		return nil, &StaleError{Number: t.Number, Staged: review.HeadSHA, Current: pr.HeadSHA}
 	}
 
-	patch, open, about, err := fetchBoth(ctx, t, review.HeadSHA)
+	patch, open, about, err := fetchBoth(ctx, t, review)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +212,9 @@ func cachedDiff(root, sha string) ([]byte, bool) {
 // fetchBoth reads the diff and the threads at once. They are two calls to the
 // same API that need nothing from each other, and running them one after the
 // other is half the wait a first open costs.
-func fetchBoth(ctx context.Context, t Target, sha string) ([]byte, []threads.Thread, threads.About, error) {
+func fetchBoth(
+	ctx context.Context, t Target, review *artifact.Review,
+) ([]byte, []threads.Thread, threads.About, error) {
 	var (
 		patch []byte
 		open  []threads.Thread
@@ -208,14 +225,14 @@ func fetchBoth(ctx context.Context, t Target, sha string) ([]byte, []threads.Thr
 
 	group.Go(func() error {
 		var err error
-		patch, err = patchFor(ctx, t, sha)
+		patch, err = patchFor(ctx, t, review.BaseRef, review.HeadSHA)
 
 		return err
 	})
 
 	group.Go(func() error {
 		var err error
-		open, about, err = threadsFor(ctx, t, sha)
+		open, about, err = threadsFor(ctx, t, review.HeadSHA)
 
 		return err
 	})
@@ -445,14 +462,19 @@ func ghReason(err error) error {
 // it only when the cache has none. Callers reach it having already established
 // that the sha is the pull request's current head, so a fetch answers for the
 // same document the cache would have held.
-func patchFor(ctx context.Context, t Target, want string) ([]byte, error) {
+func patchFor(ctx context.Context, t Target, base, want string) ([]byte, error) {
 	if patch, err := artifact.LoadDiff(t.Store, want); err == nil {
 		return patch, nil
 	}
 
 	patch, err := github.PRDiff(ctx, t.Dir(), t.Remote(), t.Number)
 	if err != nil {
-		return nil, fmt.Errorf("reading the diff: %w", err)
+		// The same refusal get answers with a pooled clone: an open without a
+		// cached diff hits the caps the same way.
+		patch, err = pool.Diff(ctx, t.Work, Host, t.Owner, t.Repo, base, want)
+		if err != nil {
+			return nil, fmt.Errorf("reading the diff: %w", err)
+		}
 	}
 
 	if err := artifact.SaveDiff(t.Store, want, patch); err != nil {
