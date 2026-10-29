@@ -127,7 +127,9 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 	run := looped(m)
 	run.key(letter('T'))
 	run.wait(func() bool {
-		return strings.Contains(plain(m.Frame()), "1 Allow")
+		frame := plain(m.Frame())
+
+		return strings.Contains(frame, "1 Allow") && strings.Contains(frame, "stub heard:")
 	})
 
 	frame := plain(m.Frame())
@@ -149,6 +151,9 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 	for range 3 {
 		run.key(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	}
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "stub heard:")
+	})
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "stub heard:") {
 		t.Errorf("the scrolled transcript lost the turn's start:\n%s", frame)
@@ -214,7 +219,7 @@ func TestDispatchOnAnEmptyReviewAsksTheAgentToDraftIt(t *testing.T) {
 	run := looped(m)
 	run.key(letter('T'))
 	run.wait(func() bool {
-		return strings.Contains(plain(m.Frame()), "1 Allow")
+		return strings.Contains(plain(m.Frame()), "stub heard: Review kyleking/jj-diff#42")
 	})
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "stub heard: Review kyleking/jj-diff#42") {
