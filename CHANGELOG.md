@@ -1,3 +1,9 @@
+## v0.44.0 (2026-10-29)
+
+### Feat
+
+- **tui**: glide the wheel instead of jumping a notch at a time
+
 ## v0.43.0 (2026-10-29)
 
 ### Feat
