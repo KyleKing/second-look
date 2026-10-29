@@ -24,10 +24,18 @@ func Root(r *Review) string { return filepath.Dir(filepath.Dir(r.Path)) }
 func Discard(r *Review) error { return DiscardAt(Root(r), r.Number) }
 
 // DiscardAt removes the review staged for a pull request under root, its read
-// marks, and whatever Sweep then finds unreferenced. Nothing being there is not
-// a failure: a review that posted was removed as it posted.
+// marks, its agent todo files, and whatever Sweep then finds unreferenced.
+// Nothing being there is not a failure: a review that posted was removed as it
+// posted.
 func DiscardAt(root string, number int) error {
-	for _, path := range []string{artifact.Path(root, number), seen.Path(root, number)} {
+	paths := []string{
+		artifact.Path(root, number),
+		seen.Path(root, number),
+		artifact.TodoPath(root, number),
+		strings.TrimSuffix(artifact.TodoPath(root, number), ".md") + ".log",
+	}
+
+	for _, path := range paths {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("removing %s: %w", path, err)
 		}
@@ -36,6 +44,21 @@ func DiscardAt(root string, number int) error {
 	_, err := Sweep(root)
 
 	return err
+}
+
+// DiscardLocal removes the checkout's own review and its read marks, which are
+// only useful while the work they describe is unpublished. It reports whether
+// anything was removed.
+func DiscardLocal(root string) bool {
+	removed := false
+
+	for _, path := range []string{artifact.LocalPath(root), seen.LocalPath(root)} {
+		if err := os.Remove(path); err == nil {
+			removed = true
+		}
+	}
+
+	return removed
 }
 
 // Sweep drops the diff, threads, and rating cached against a head commit no

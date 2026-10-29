@@ -19,12 +19,21 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
+	"github.com/kyleking/second-look/internal/pool"
 	"github.com/kyleking/second-look/internal/prepared"
 	"github.com/kyleking/second-look/internal/resolve"
 )
 
 // rootOf is the checkout or state directory a prepared review is staged under.
 func rootOf(path string) string { return filepath.Dir(filepath.Dir(path)) }
+
+func reviewHost(r *artifact.Review) string {
+	if r.Host == "" {
+		return "github.com"
+	}
+
+	return r.Host
+}
 
 // ErrHeadMoved reports a pull request whose head advanced since the review
 // was prepared.
@@ -82,7 +91,12 @@ func Guard(ctx context.Context, dir, remoteRepo string, r *artifact.Review, out 
 
 	patch, err := github.PRDiff(ctx, dir, remoteRepo, r.Number)
 	if err != nil {
-		return fmt.Errorf("reading the current diff: %w", err)
+		// Over the API's caps the diff is computed locally the same way get
+		// does, so a review big enough to refuse is still postable.
+		patch, err = pool.Diff(ctx, dir, reviewHost(r), r.Owner, r.Repo, r.BaseRef, r.HeadSHA)
+		if err != nil {
+			return fmt.Errorf("reading the current diff: %w", err)
+		}
 	}
 
 	moved, err := artifact.Verify(r.Comments, diff.Parse(patch))
@@ -128,15 +142,24 @@ func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.
 	}
 
 	// GitHub is the source of truth from here, and a prepared review left on
-	// disk would post a second copy of itself if anyone ran post again. What was
-	// cached against the head goes with it, and the read marks stay: a second
-	// pass over the same pull request still knows which hunks were read.
+	// disk would post a second copy of itself if anyone ran post again. The
+	// artifact goes first, then its read marks, its todo files, and whatever
+	// was cached against the head.
 	if err := os.Remove(path); err != nil {
 		return fmt.Errorf("the review posted; removing %s: %w", path, err)
 	}
 
-	if _, err := prepared.Sweep(rootOf(path)); err != nil {
-		return fmt.Errorf("the review posted; clearing its caches: %w", err)
+	if err := prepared.DiscardAt(rootOf(path), r.Number); err != nil {
+		return fmt.Errorf("the review posted; clearing its files: %w", err)
+	}
+
+	// A local review staged for the same head ref describes work that just
+	// published, so it is pruned rather than carried as a second copy.
+	if local, err := artifact.Load(artifact.LocalPath(rootOf(path))); err == nil &&
+		local.HeadRef == r.HeadRef && prepared.DiscardLocal(rootOf(path)) {
+		if err := write(out, "removed the local review, now published\n"); err != nil {
+			return err
+		}
 	}
 
 	return write(out, fmt.Sprintf("removed the staged review for %s/%s#%d\n", r.Owner, r.Repo, r.Number))
