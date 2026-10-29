@@ -1,3 +1,9 @@
+## v0.49.2 (2026-10-29)
+
+### Perf
+
+- **diff**: bound the move scan's candidate list
+
 ## v0.49.1 (2026-10-29)
 
 ### Perf
