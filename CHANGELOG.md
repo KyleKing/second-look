@@ -1,3 +1,9 @@
+## v0.49.3 (2026-10-29)
+
+### Perf
+
+- **diff**: compare a pair's tokens where they lie
+
 ## v0.49.2 (2026-10-29)
 
 ### Perf
