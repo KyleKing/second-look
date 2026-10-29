@@ -1,3 +1,13 @@
+## v0.47.0 (2026-10-29)
+
+### Feat
+
+- **config**: name where a stray top-level key lands
+
+### Perf
+
+- **diff**: pair the lines of a change once, in flat tables
+
 ## v0.46.0 (2026-10-29)
 
 ### Feat
