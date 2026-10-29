@@ -1,3 +1,9 @@
+## v0.49.0 (2026-10-29)
+
+### Feat
+
+- **tui**: build a huge diff's next screen off the input goroutine
+
 ## v0.48.0 (2026-10-29)
 
 ### Feat
