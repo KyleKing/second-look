@@ -3482,11 +3482,22 @@ func (m *Model) applyBranchDeleted(msg branchDeletedMsg) {
 	m.say(msg.summary, false)
 }
 
-func (m *Model) rebuild() {
+func (m *Model) rebuild() { m.rebuildNow() }
+
+func (m *Model) rebuildNow() {
 	// An open range is two row numbers, and every row number here is about to
 	// mean something else.
 	m.selected = nil
 
+	lay, was := m.layout()
+	m.screen = m.buildRows(lay)
+	m.finish(was)
+}
+
+// layout is the state a build reads, gathered while it is still the model's:
+// the rows a screen is made of are cheap to ask for and the build itself is
+// not, which is the split that lets the build run off the input goroutine.
+func (m *Model) layout() (layout, where) {
 	was := m.here()
 
 	if m.notes == nil {
@@ -3528,22 +3539,35 @@ func (m *Model) rebuild() {
 	lay.trouble = m.trouble
 	lay.writing = m.editing != nil && m.editing.msg.index == reviewBody
 
+	return lay, was
+}
+
+// buildRows is the screen a layout makes, which is the part of a rebuild big
+// enough to leave the input goroutine on a huge diff.
+func (m *Model) buildRows(lay layout) screen {
 	switch m.view {
 	case viewTrouble:
-		m.screen = buildTrouble(m.diff, m.trouble, m.probing, m.troubled, lay)
+		return buildTrouble(m.diff, m.trouble, m.probing, m.troubled, lay)
 	case viewComments:
-		m.screen = buildList(m.review, m.diff, lay)
+		return buildList(m.review, m.diff, lay)
 	case viewCode:
-		m.screen = buildCode(m.review, m.diff, m.threads, lay)
+		return buildCode(m.review, m.diff, m.threads, lay)
 	case viewThreads:
-		m.screen = buildThreads(m.diff, m.threads, lay)
-	case viewDiff:
-		m.screen = build(m.review, m.diff, m.threads, lay)
+		return buildThreads(m.diff, m.threads, lay)
 	case viewFile:
 		lines, loaded := m.blobs[m.whole.path]
-		m.screen = buildWhole(m.review, m.diff, m.threads, lay, m.whole, lines, loaded)
+		return buildWhole(m.review, m.diff, m.threads, lay, m.whole, lines, loaded)
+	case viewDiff:
+		return build(m.review, m.diff, m.threads, lay)
 	}
 
+	return build(m.review, m.diff, m.threads, lay)
+}
+
+// finish settles a fresh screen: the peek splices back in, the read count
+// updates, the cursor lands where the rebuild meant to keep it, and a landing
+// that was still armed opens.
+func (m *Model) finish(was where) {
 	m.splicePeek()
 	m.done = m.readHunks()
 
