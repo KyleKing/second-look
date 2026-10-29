@@ -184,8 +184,14 @@ type Model struct {
 	hugeDiff    bool
 	pendingCmd  tea.Cmd
 	deferred    []tea.Msg
-	width       int
-	height      int
+	// drifted is the comment-staleness marks, and driftedSeq is which edit
+	// they were computed after — save() bumps editSeq for every write the
+	// comments took, so the marks rebuild only where they could differ.
+	drifted    map[string]bool
+	driftedSeq int
+	editSeq    int
+	width      int
+	height     int
 	// padX and padY are the margin the last resize left around the page, which
 	// a click has to know to read its position in the page's coordinates.
 	padX int
@@ -432,6 +438,7 @@ func New(
 		files: newFiles(),
 		width: minWidth, height: startHeight, folded: newFolded(),
 		hugeDiff: diffRows(d) >= asyncRows,
+		hunkCols: hunkWidths(d),
 		refined:  marks, reindented: reindented, moves: moves,
 		lexed:  map[string]map[diff.LineRef][]highlight.Span{},
 		lit:    map[string][][]highlight.Span{},
@@ -2747,6 +2754,8 @@ func (m *Model) narrow() {
 }
 
 func (m *Model) save(ok string) {
+	m.editSeq++
+
 	if err := artifact.Save(m.path, m.review); err != nil {
 		m.say(err.Error(), true)
 
@@ -3673,14 +3682,17 @@ func (m *Model) layout() (layout, where) {
 		m.notes = noted(m.threads)
 	}
 
-	m.hunkCols = hunkWidths(m.diff)
+	if m.driftedSeq != m.editSeq {
+		m.drifted = artifact.Drifted(m.review.Comments, m.diff)
+		m.driftedSeq = m.editSeq
+	}
 
 	m.rereview = m.rereviewed()
 
 	lay := layout{
 		width: m.diffWidth(), hide: m.skipper(), fold: m.folded, notes: m.notes, lit: m.lit,
 		split: m.sideBySide(), made: m.made,
-		drifted: artifact.Drifted(m.review.Comments, m.diff),
+		drifted: m.drifted,
 		grown: func(path string, hunk int, span [2]int) ([]row, []row) {
 			return m.surround(path, hunk, span[0], span[1])
 		},

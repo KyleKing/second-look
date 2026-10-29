@@ -67,6 +67,8 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 	m.review = msg.fresh.Review
 	m.diff = msg.fresh.Diff
 	m.hugeDiff = diffRows(m.diff) >= asyncRows
+	m.hunkCols = hunkWidths(m.diff)
+	m.editSeq++
 	m.refined, m.reindented, m.moves = m.diff.Paired()
 	m.lexed = map[string]map[diff.LineRef][]highlight.Span{}
 	m.threads = msg.fresh.Threads

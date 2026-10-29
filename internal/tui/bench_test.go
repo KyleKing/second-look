@@ -112,13 +112,22 @@ func BenchmarkNew(b *testing.B) {
 }
 
 // A view switch rebuilds the screen, which on a diff this size is the
-// keystroke a reader feels.
+// keystroke a reader feels. The build itself runs off the input goroutine
+// now, so what the key press costs and what the switch costs are measured
+// separately: the press is the Update, the switch is the drain after it.
 func BenchmarkViewSwitch(b *testing.B) {
 	m := huge(b)
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	_, cmd := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	drain(m, cmd)
 
-	for b.Loop() {
-		m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
+	for i := 0; b.Loop(); i++ {
+		k := 'v'
+		if i%2 == 1 {
+			k = 'c'
+		}
+
+		_, cmd := m.Update(tea.KeyPressMsg{Code: k, Text: string(k)})
+		drain(m, cmd)
 	}
 }
 
