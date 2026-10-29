@@ -1375,7 +1375,7 @@ func TestTheCursorLeavesTheGridWhereItWas(t *testing.T) {
 			first, second := frame(0), frame(2)
 			for i := range first {
 				holds := func(s string) string {
-					return strings.NewReplacer("▌", " ", "▏", " ").Replace(strings.TrimRight(s, " "))
+					return strings.NewReplacer("▌", " ", "▏", " ").Replace(strings.TrimRight(gridHalf(s), " "))
 				}
 				if holds(first[i]) != holds(second[i]) {
 					t.Errorf("line %d moved with the cursor:\n%q\n%q", i, first[i], second[i])
@@ -1394,6 +1394,7 @@ func unlitRunes(frame string, pad int) string {
 		}
 
 		line = line[pad:]
+		line = gridHalf(line)
 
 		var bare strings.Builder
 
@@ -1421,6 +1422,27 @@ func unlitRunes(frame string, pad int) string {
 	}
 
 	return ""
+}
+
+// gridHalf is the text left of the side preview's rule, which is the column
+// the grid owns: the pane beyond it belongs to the row under the cursor and
+// legitimately differs when the cursor moves.
+func gridHalf(line string) string {
+	i := strings.Index(line, "│")
+	if i < 0 {
+		return line
+	}
+	if i == 0 {
+		return ""
+	}
+
+	// The rule's face opens ahead of its glyph, so cutting only at the glyph
+	// leaves a half-written escape behind.
+	if j := strings.LastIndex(line[:i], "\x1b["); j > 0 {
+		return line[:j-1]
+	}
+
+	return line[:i-1]
 }
 
 // An expanded row on the grid shows its conversation under it, and the row

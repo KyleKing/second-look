@@ -9,8 +9,26 @@ import (
 	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
+	"github.com/kyleking/aragonite/tui/preview"
+	uisplit "github.com/kyleking/aragonite/tui/split"
 	"github.com/kyleking/aragonite/tui/table"
 )
+
+// previewSpec is the side preview's geometry: open beside the rows once the
+// terminal has room, with a cell of air around the rule.
+var previewSpec = uisplit.Spec{SideMin: sidePreviewMin, MainMax: sideGridMax, Pad: 1}
+
+const (
+	// The queue draws its preview beside the rows from this width.
+	sidePreviewMin = 120
+	// The grid keeps growing no wider than this beside the pane.
+	sideGridMax = 96
+)
+
+// sidePreview reports whether the detail pane is open beside the rows.
+func (l *List) sidePreview() bool {
+	return l.width >= previewSpec.SideMin
+}
 
 // View draws the list. It is the same three bands as the review screen -- a
 // header, the body, a footer -- so moving between the two screens does not
@@ -141,12 +159,16 @@ func (l *List) bodyView() string {
 		return l.styles.subtitle.Render("  nothing here")
 	}
 
+	width := l.width
+	if l.sidePreview() {
+		width = previewSpec.MainWidth(uisplit.Side, l.width)
+	}
+
 	bar := scrollbar(rows, len(l.lines), l.offset)
-	width := bodyWidth(l.width, bar)
-	grid := l.gridLayout(width)
+	grid := l.gridLayout(bodyWidth(width, bar))
 
 	// The band runs to the last cell the scrollbar leaves.
-	reach := l.width
+	reach := width
 	if bar != nil {
 		reach -= trackWidth
 	}
@@ -154,14 +176,55 @@ func (l *List) bodyView() string {
 	out := make([]string, 0, rows)
 
 	for i := l.offset; i < len(l.lines) && len(out) < rows; i++ {
-		out = append(out, l.line(i, grid, width, reach))
+		out = append(out, l.line(i, grid, bodyWidth(width, bar), reach))
 	}
 
 	for len(out) < rows {
 		out = append(out, "")
 	}
 
-	return strings.Join(alongside(out, bar, l.styles, l.width), "\n")
+	lines := alongside(out, bar, l.styles, width)
+	if !l.sidePreview() {
+		return strings.Join(lines, "\n")
+	}
+
+	return strings.Join(previewSpec.Render(
+		uisplit.Side, uisplit.Styles{Rule: l.styles.skin.Edge}, l.width, rows,
+		func(w, h int) []string { return preview.Pad(lines, h, w) },
+		l.previewPane,
+	), "\n")
+}
+
+// previewPane is the detail half of a wide queue: the row under the cursor,
+// titled and windowed to the pane's interior.
+func (l *List) previewPane(width, height int) []string {
+	row := l.current()
+	if row == nil {
+		return preview.Pad(nil, height, width)
+	}
+
+	title := row.About.Subject
+	if row.About.Prefix != "" {
+		title = row.About.Prefix + "  " + title
+	}
+	if row.About.Ref != "" {
+		title += "  " + row.About.Ref
+	}
+
+	var lines []string
+	for _, f := range row.About.Facts {
+		lines = append(lines, l.styles.role(f.Role, row.Dim, false).Render(f.Text))
+	}
+	for _, d := range row.Detail {
+		lines = append(lines, l.styles.body.Render(d))
+	}
+
+	d := preview.Detail{Title: title, Lines: lines, Focused: true}
+	st := preview.SkinStyles(l.styles.skin)
+
+	return preview.Pad(append(
+		[]string{d.Head(st, width, max(height-1, 0))}, d.Window(height-1)...),
+		height, width)
 }
 
 // line draws line i: a lane's rule, a blank, a line of an expanded

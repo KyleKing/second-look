@@ -21,6 +21,10 @@ import (
 // fourth drops the least recently used.
 const slots = 3
 
+// poolDirMode is the private mode the pool's directories take: the clones are
+// throwaway, but their remotes may name private repositories.
+const poolDirMode = 0o750
+
 // graphDepth is how much history a commit-graph fetch asks for before the
 // merge-base walk gives up and deepens.
 const graphDepth = 300
@@ -31,12 +35,12 @@ const (
 )
 
 // Diff is the pull request's patch: merge-base to head, which is what
-// `gh pr diff` reports. base is the pull request's base branch name, head its
-// head commit.
+// `gh pr diff` reports. The base argument is the pull request's base branch
+// name, head its head commit.
 //
-// work is an existing checkout to borrow, or empty for a pooled clone. The
-// answer is the same either way; borrowing the checkout only skips the pool
-// and makes a revisit cost an incremental fetch.
+// The work argument is an existing checkout to borrow, or empty for a pooled
+// clone. The answer is the same either way; borrowing the checkout only skips
+// the pool and makes a revisit cost an incremental fetch.
 func Diff(ctx context.Context, work, host, owner, repo, base, head string) ([]byte, error) {
 	dir := work
 	if !namesRepo(ctx, dir, owner, repo) {
@@ -129,7 +133,7 @@ func slot(ctx context.Context, host, owner, repo string) (string, error) {
 		return dir, nil
 	}
 
-	if err := os.MkdirAll(root, 0o750); err != nil {
+	if err := os.MkdirAll(root, poolDirMode); err != nil {
 		return "", fmt.Errorf("creating the clone pool: %w", err)
 	}
 
@@ -167,8 +171,12 @@ func prune(root string) {
 	}
 
 	sort.Slice(aged, func(i, j int) bool {
-		iw, _ := aged[i].Info()
-		jw, _ := aged[j].Info()
+		iw, ierr := aged[i].Info()
+		jw, jerr := aged[j].Info()
+
+		if ierr != nil || jerr != nil {
+			return ierr == nil
+		}
 
 		return iw.ModTime().After(jw.ModTime())
 	})

@@ -1,20 +1,20 @@
 
   second-look   inbox  4    other  2                                                                                                          sorted by triage
   ──────────────━━━━━━━━━─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-    ready to merge  1
-    a#1         feat(inbox): order the queue by lane                                                kyleking      2d    +57    -0  ✓ approved, checks passing
-    new for you  4
-  ▌ b#2       ! fix: a hotfix for the lease                                                         maria         9d            ·  priority                   
-    o/c#3     1 chore: bump a dependency whose name is long enough to be cut                        sam           4d            ·  ·                         
-    o/c#7     2 feat: use the bump                                                                  sam           4d            ·                            
-    p/c#8       no conventional prefix on this one                                                  lee           3d  +1.2k  -340  ◌ draft                   
-    waiting on others  1
-    d#4         docs: say why                                                                       kyleking      1d     +1    -1  ○ awaiting review         
-    merged  1 · z shows
-  
-  
-  
-                                                                                                                                                              
-  a hotfix for the lease  fix  o/b#2                                                                                                                          
-  maria · 9d old · priority                                                                                                                                   
+    ready to merge  1                                                                              │ fix  a hotfix for the lease  o/b#2                       
+    a#1         feat(inbox): order the queue b…  kyleking      2d    +57    -0  ✓ approved         │ maria                                                    
+    new for you  4                                                                                 │ 9d old                                                   
+  ▌ b#2       ! fix: a hotfix for the lease      maria         9d            ·  priority           │ priority                                                 
+    o/c#3     1 chore: bump a dependency whose…  sam           4d            ·  ·                  │                                                          
+    o/c#7     2 feat: use the bump               sam           4d            ·                     │                                                          
+    p/c#8       no conventional prefix on this…  lee           3d  +1.2k  -340  ◌ draft            │                                                          
+    waiting on others  1                                                                           │                                                          
+    d#4         docs: say why                    kyleking      1d     +1    -1  ○ awaiting         │                                                          
+    merged  1 · z shows                                                                            │                                                          
+                                                                                                   │                                                          
+                                                                                                   │                                                          
+                                                                                                   │                                                          
+                                                                                                   │                                                          
+                                                                                                   │                                                          
+                                                                                                   │                                                          
   enter review   M merge                                                                                                                                      

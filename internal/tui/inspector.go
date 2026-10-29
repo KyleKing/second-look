@@ -46,6 +46,10 @@ const (
 // title above them where the frame is tall enough to spare it, and the row's
 // own preview where the frame is taller still.
 func (l *List) inspectorRows() int {
+	if l.sidePreview() {
+		return 0
+	}
+
 	if l.height < inspectorTall {
 		return inspectorShort
 	}
@@ -59,6 +63,10 @@ func (l *List) inspectorRows() int {
 
 // inspector draws the row under the cursor, one line per inspectorRows.
 func (l *List) inspector() []string {
+	if l.sidePreview() {
+		return nil
+	}
+
 	row := l.current()
 	if row == nil {
 		return make([]string, l.inspectorRows())
