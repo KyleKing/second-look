@@ -1,3 +1,9 @@
+## v0.49.4 (2026-10-29)
+
+### Refactor
+
+- **snapshot**: read and write records through aragonite's Snapshot
+
 ## v0.49.3 (2026-10-29)
 
 ### Perf
