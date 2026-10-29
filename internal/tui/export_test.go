@@ -390,3 +390,6 @@ func (m *Model) PageMargin() int { return m.padX }
 
 // PageMargin is the margin the page keeps from the terminal's sides.
 func (l *List) PageMargin() int { return l.padX }
+
+// Building is whether a rebuild is running off the input goroutine.
+func (m *Model) Building() bool { return m.building }

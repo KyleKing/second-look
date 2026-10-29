@@ -46,9 +46,12 @@ func (m *Model) render() string {
 	}
 
 	var body []string
-	if m.outline.open {
+	switch {
+	case m.building:
+		body = m.loadingLines()
+	case m.outline.open:
 		body = m.outlineLines()
-	} else {
+	default:
 		body = m.bodyLines()
 	}
 
@@ -76,6 +79,19 @@ func (m *Model) render() string {
 	}
 
 	return marginate(strings.Join(append(out, m.footerLines()...), "\n"), m.padX, m.padY)
+}
+
+// loadingLines is the page a frame draws while its rows are being built off
+// the input goroutine, which a diff past asyncRows does on every switch.
+func (m *Model) loadingLines() []string {
+	n := m.viewHeight()
+	out := make([]string, n)
+
+	if n > 0 {
+		out[n/3] = m.styles.note.Render("building the view…")
+	}
+
+	return out
 }
 
 // paneLines is the running program's screen under a divider naming it. The

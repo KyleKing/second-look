@@ -23,7 +23,7 @@ func WithAbout(a threads.About) Option {
 // readAbout scrolls the overlay, folds and opens its collapsed sections, and
 // closes it. Every other key closes it too: it changes nothing, so there is
 // nothing to lose by leaving.
-func (m *Model) readAbout(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m *Model) readAbout(msg tea.KeyPressMsg) tea.Model {
 	const halfPage = 2
 
 	switch {
@@ -52,12 +52,12 @@ func (m *Model) readAbout(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	default:
 		m.aboutOpen, m.aboutAt, m.aboutExpand = false, 0, false
 
-		return m, nil
+		return m
 	}
 
 	m.aboutAt = clamp(m.aboutAt, max(0, len(m.aboutText(m.width))-m.viewHeight()))
 
-	return m, nil
+	return m
 }
 
 func (m *Model) aboutLines() []string {

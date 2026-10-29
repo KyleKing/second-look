@@ -173,8 +173,19 @@ type Model struct {
 	// or a click ends the glide, since the view now belongs to it.
 	scrollGoal int
 	gliding    bool
-	width      int
-	height     int
+	// building marks a rebuild running off the input goroutine, which a diff
+	// past asyncRows pays for with a loading page instead of a held frame.
+	// Anything else that arrives while it runs — a key past the nav set, a
+	// landed fetch — defers to the list, because the build is reading the
+	// model and input that mutates it has nowhere safe to write.
+	building    bool
+	buildQueued bool
+	buildSeq    int
+	hugeDiff    bool
+	pendingCmd  tea.Cmd
+	deferred    []tea.Msg
+	width       int
+	height      int
 	// padX and padY are the margin the last resize left around the page, which
 	// a click has to know to read its position in the page's coordinates.
 	padX int
@@ -420,7 +431,8 @@ func New(
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
 		files: newFiles(),
 		width: minWidth, height: startHeight, folded: newFolded(),
-		refined: marks, reindented: reindented, moves: moves,
+		hugeDiff: diffRows(d) >= asyncRows,
+		refined:  marks, reindented: reindented, moves: moves,
 		lexed:  map[string]map[diff.LineRef][]highlight.Span{},
 		lit:    map[string][][]highlight.Span{},
 		drawn:  opening,
@@ -446,7 +458,9 @@ func New(
 // Init lays out the first frame at the assumed size, which the terminal
 // corrects with a resize before anything is drawn.
 func (m *Model) Init() tea.Cmd {
-	m.rebuild()
+	// The first frame builds where it is asked: an arm here has no Update to
+	// answer it, and a screen has to have rows before anything is drawn.
+	m.rebuildNow()
 
 	// The pass shells out to ast-grep, so it runs behind the first frame rather
 	// than in front of it: the rating appears when it is ready and t is a
@@ -663,7 +677,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.rebuild()
 
-		return m, nil
+		cmd := m.takeCmd()
+
+		return m, cmd
 	case tea.ColorProfileMsg:
 		if msg.Profile <= colorprofile.ASCII {
 			m.styles.monochrome()
@@ -680,20 +696,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.agentIn, cmd = m.agentIn.Update(msg)
 		}
 
-		return m, cmd
+		return m, tea.Batch(cmd, m.takeCmd())
 	case tea.MouseWheelMsg:
 		cmd := m.wheel(msg)
 
-		return m, cmd
+		return m, tea.Batch(cmd, m.takeCmd())
 	case scrollMsg:
 		cmd := m.glideStep()
 
-		return m, cmd
+		return m, tea.Batch(cmd, m.takeCmd())
 	case tea.MouseClickMsg:
 		m.gliding = false
 		m.click(msg.Mouse())
 
-		return m, nil
+		cmd := m.takeCmd()
+
+		return m, cmd
 	case tea.KeyPressMsg:
 		m.gliding = false
 		was := m.pending
@@ -712,7 +730,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}))
 		}
 
-		return mod, cmd
+		return mod, tea.Batch(cmd, m.takeCmd())
 	}
 
 	cmd := m.answered(msg)
@@ -728,9 +746,37 @@ const chordWait = 500 * time.Millisecond
 // the same chord is still open.
 type chordWaitMsg struct{ seq int }
 
-// answered takes what a command landed with. Every case is a redraw unless it
-// says otherwise, and a message nothing here knows changes nothing.
+// answered takes what a command landed with. A message that arrives while a
+// rebuild is reading the model off this goroutine waits for it, except the
+// build's own answer, which settles and replays the queue.
 func (m *Model) answered(msg tea.Msg) tea.Cmd {
+	if m.building {
+		if b, ok := msg.(builtMsg); ok {
+			return m.applyBuilt(b)
+		}
+
+		m.deferred = append(m.deferred, msg)
+
+		return nil
+	}
+
+	return tea.Batch(m.landed(msg), m.takeCmd())
+}
+
+// navKey is a key that only moves through what is already drawn — safe to
+// answer while a rebuild reads the model off the input goroutine.
+func (m *Model) navKey(msg tea.KeyPressMsg) bool {
+	return key.Matches(msg, m.keys.Up) || key.Matches(msg, m.keys.Down) ||
+		key.Matches(msg, m.keys.HalfUp) || key.Matches(msg, m.keys.HalfDown) ||
+		key.Matches(msg, m.keys.Top) || key.Matches(msg, m.keys.Bottom) ||
+		key.Matches(msg, m.keys.JumpBack) || key.Matches(msg, m.keys.JumpForward) ||
+		key.Matches(msg, m.keys.Quit) || key.Matches(msg, m.keys.Back) ||
+		key.Matches(msg, m.keys.Help)
+}
+
+// landed takes what a command landed with. Every case is a redraw unless it
+// says otherwise, and a message nothing here knows changes nothing.
+func (m *Model) landed(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case chordWaitMsg:
 		m.waiting = m.pending != 0 && msg.seq == m.chordSeq
@@ -968,7 +1014,48 @@ func (m *Model) promptKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	return nil, nil, false
 }
 
+// deferBuild answers a key while a rebuild reads the model off this
+// goroutine: nav keys move through what is drawn anyway, and the rest wait
+// for the settle and are replayed then, rather than racing what it was
+// reading.
+func (m *Model) deferBuild(msg tea.KeyPressMsg) bool {
+	if !m.building || m.navKey(msg) {
+		return false
+	}
+
+	m.buildQueued = true
+	m.deferred = append(m.deferred, msg)
+
+	return true
+}
+
+// overlayRoute is a key while a read overlay owns the keyboard: the legend,
+// the about page, the chapter outline, or the hover answer, which any key
+// leaves since it changes nothing.
+func (m *Model) overlayRoute(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
+	switch {
+	case m.help:
+		return m.readHelp(msg), nil, true
+	case m.aboutOpen:
+		return m.readAbout(msg), nil, true
+	case m.outline.open:
+		mod, cmd := m.readOutline(msg)
+
+		return mod, cmd, true
+	case m.showing != nil:
+		m.showing = nil
+
+		return m, nil, true
+	}
+
+	return nil, nil, false
+}
+
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.deferBuild(msg) {
+		return m, nil
+	}
+
 	if owner, ok := m.keyOwner(); ok {
 		return owner(msg)
 	}
@@ -981,23 +1068,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	// The legend runs longer than a short frame, and the keys that leave it are
 	// at the bottom, so it scrolls rather than dropping its tail.
-	if m.help {
-		return m.readHelp(msg)
-	}
-
-	if m.aboutOpen {
-		return m.readAbout(msg)
-	}
-
-	if m.outline.open {
-		return m.readOutline(msg)
-	}
-
-	// The hover answer changes nothing, so any key leaves it.
-	if m.showing != nil {
-		m.showing = nil
-
-		return m, nil
+	if mod, cmd, ok := m.overlayRoute(msg); ok {
+		return mod, cmd
 	}
 
 	if cmd, ok := m.judgeKey(msg); ok {
@@ -1202,14 +1274,14 @@ func (m *Model) click(at tea.Mouse) {
 // the key does, said at the length the row abbreviates. The scroll keys are
 // the arrows, the page keys, and the wheel, because j and k are answers of
 // their own inside the legend.
-func (m *Model) readHelp(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m *Model) readHelp(msg tea.KeyPressMsg) tea.Model {
 	const halfPage = 2
 
 	if _, ok := keyhint.At(m.helpTree(), append(m.helpPath, msg.String())); ok {
 		m.helpPath = append(m.helpPath, msg.String())
 		m.helpAt, m.helpNote = 0, nil
 
-		return m, nil
+		return m
 	}
 
 	switch msg.String() {
@@ -1240,7 +1312,7 @@ func (m *Model) readHelp(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	m.helpAt = max(0, m.helpAt)
 
-	return m, nil
+	return m
 }
 
 // helpNote is the legend's answer for one key: its group, its row, and the
@@ -3482,7 +3554,104 @@ func (m *Model) applyBranchDeleted(msg branchDeletedMsg) {
 	m.say(msg.summary, false)
 }
 
-func (m *Model) rebuild() { m.rebuildNow() }
+// asyncRows is how many diff lines make a rebuild worth taking off the input
+// goroutine. Below it a build is a few milliseconds and a loading page would
+// flicker rather than inform; past it a switch can hold the frame for a beat
+// a reader would rather see named.
+const asyncRows = 8_000
+
+func (m *Model) rebuild() {
+	if m.building {
+		// A second switch asked while one is being built is folded into it:
+		// the answer is another rebuild anyway, not two of them in sequence.
+		m.buildQueued = true
+
+		return
+	}
+
+	if !m.hugeDiff {
+		m.rebuildNow()
+		return
+	}
+
+	m.buildSeq++
+	m.building = true
+	lay, was := m.layout()
+	seq := m.buildSeq
+	m.pendingCmd = func() tea.Msg { return builtMsg{seq: seq, s: m.buildRows(lay), was: was} }
+}
+
+// builtMsg is the rows an off-thread rebuild made. What came after them —
+// the read marks, the cursor, the landing — settles here rather than there,
+// because those are the model's state and the build reads none of it.
+type builtMsg struct {
+	seq int
+	s   screen
+	was where
+}
+
+// takeCmd hands the build rebuild armed, if one, to the Update that can run
+// it, since rebuild is called from handlers that return nothing.
+func (m *Model) takeCmd() tea.Cmd {
+	cmd := m.pendingCmd
+	m.pendingCmd = nil
+
+	return cmd
+}
+
+// applyBuilt settles the screen a build sent back, then replays what waited
+// for it — deferred messages first, a folded rebuild after, so input the
+// build could not safely see is answered in order.
+func (m *Model) applyBuilt(msg builtMsg) tea.Cmd {
+	if msg.seq != m.buildSeq {
+		return nil
+	}
+
+	m.screen = msg.s
+	m.building = false
+	m.finish(msg.was)
+
+	queue := m.deferred
+	m.deferred = nil
+
+	var cmd tea.Cmd
+
+	for _, d := range queue {
+		if m.building {
+			// A replayed message armed another build, so what is left waits
+			// for that one's settle the same way this list did.
+			m.deferred = append(m.deferred, d)
+			continue
+		}
+
+		if kp, ok := d.(tea.KeyPressMsg); ok {
+			_, kcmd := m.handleKey(kp)
+			cmd = tea.Batch(cmd, kcmd)
+
+			continue
+		}
+
+		cmd = tea.Batch(cmd, m.landed(d))
+	}
+
+	if m.buildQueued {
+		m.buildQueued = false
+		m.rebuild()
+	}
+
+	return tea.Batch(cmd, m.takeCmd())
+}
+
+// diffRows is how many lines a diff's rows come from, which is what gates a
+// rebuild big enough to build off the input goroutine.
+func diffRows(d *diff.Diff) int {
+	n := 0
+	for i := range d.Files {
+		n += len(d.Files[i].Lines)
+	}
+
+	return n
+}
 
 func (m *Model) rebuildNow() {
 	// An open range is two row numbers, and every row number here is about to

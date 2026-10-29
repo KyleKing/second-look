@@ -87,7 +87,8 @@ func modelFor(t *testing.T, r *artifact.Review, patch string, opts ...tui.Option
 
 	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path, sub.post, opts...)
 	m.Init()
-	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	_, cmd := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	drain(m, cmd)
 
 	return m, path, sub
 }
