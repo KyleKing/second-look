@@ -7,7 +7,11 @@ version = "2"
 enable = ["gci", "gofmt", "gofumpt", "goimports"]
 
 [formatters.settings.gci]
-sections = ["standard", "default", "prefix(github.com/kyleking/second-look)"]
+sections = [
+  "standard",
+  "default",
+  "prefix(github.com/kyleking/second-look)",
+]
 
 [formatters.settings.gofumpt.extra]
 group-params = true
