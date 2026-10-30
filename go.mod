@@ -9,7 +9,7 @@ require (
 	charm.land/bubbletea/v2 v2.1.0
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/alecthomas/chroma/v2 v2.27.0
-	github.com/caelis-labs/acp-go-sdk v1.4.0
+	github.com/caelis-labs/acp-go-sdk v1.5.1
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4
 	github.com/charmbracelet/x/ansi v0.11.9
@@ -19,8 +19,8 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/kyleking/aragonite v1.7.0
 	github.com/lucasb-eyer/go-colorful v1.4.1
-	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.48.0
+	golang.org/x/sync v0.24.0
+	golang.org/x/sys v0.49.0
 )
 
 require (
