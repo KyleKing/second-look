@@ -2,6 +2,7 @@ package tui
 
 import (
 	"image/color"
+	"strconv"
 	"sync"
 
 	"charm.land/lipgloss/v2"
@@ -196,6 +197,20 @@ func (s *styles) monochrome() {
 	s.rungs.waiting = rung{dim: s.rungs.waiting.dim.Faint(true), lit: s.rungs.waiting.lit.Faint(true)}
 	s.lanes.quietLabel = s.lanes.quietLabel.Faint(true)
 	s.lanes.quietCount = s.lanes.quietCount.Faint(true)
+}
+
+// lowcolor swaps the faces whose truecolor mixes quantize badly into the
+// 16-and-256-color cubes — the lavender chip lands on near-white there — for
+// fixed cube colors that keep their meaning. The diff's marks already carry
+// their own depth for the cube; these are the faces nothing else adapted.
+func (s *styles) lowcolor() {
+	s.cursor = lipgloss.NewStyle().Background(lipgloss.Color("61")).Foreground(lipgloss.Color("15")).Bold(true)
+	s.row = lipgloss.NewStyle().Background(lipgloss.Color("237"))
+	s.band = s.row
+	s.span = lipgloss.NewStyle().Background(lipgloss.Color("235"))
+	for step := 1; step <= flashSteps; step++ {
+		s.tint[step] = lipgloss.NewStyle().Background(lipgloss.Color(strconv.Itoa(235+step)))
+	}
 }
 
 func (s styles) forSeverity(name string) lipgloss.Style {

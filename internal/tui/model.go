@@ -696,8 +696,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 	case tea.ColorProfileMsg:
-		if msg.Profile <= colorprofile.ASCII {
+		switch {
+		case msg.Profile <= colorprofile.ASCII:
 			m.styles.monochrome()
+		case msg.Profile < colorprofile.TrueColor:
+			m.styles.lowcolor()
 		}
 
 		return m, nil

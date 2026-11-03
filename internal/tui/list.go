@@ -411,8 +411,11 @@ func (l *List) Init() tea.Cmd {
 // rows are marked by attribute rather than by color.
 func (l *List) setProfile(p colorprofile.Profile) {
 	l.mono = p <= colorprofile.ASCII
-	if l.mono {
+	switch {
+	case l.mono:
 		l.styles.monochrome()
+	case p < colorprofile.TrueColor:
+		l.styles.lowcolor()
 	}
 }
 
