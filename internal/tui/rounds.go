@@ -345,8 +345,8 @@ func (m *Model) hidden() int {
 
 	n := 0
 
-	for _, ref := range seen.Hunks(m.diff) {
-		if m.since.Has(seen.Hunk(m.diff, ref.Path, ref.Hunk)) {
+	for _, ref := range m.allHunks() {
+		if m.since.Has(ref.ID) {
 			n++
 		}
 	}

@@ -7,7 +7,6 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/kyleking/second-look/internal/seen"
 )
 
 // search is the one place the screen takes typed input. It is a motion like any
@@ -117,7 +116,7 @@ func (m *Model) inUnreadHunk(r row) bool {
 		return false
 	}
 
-	return !m.read.Has(seen.Hunk(m.diff, r.path, r.hunk))
+	return !m.read.Has(m.hunkID(r.path, r.hunk))
 }
 
 // rowText is what a reader sees on a row, which is what a search over the

@@ -46,23 +46,43 @@ func Hunk(d *diff.Diff, path string, hunk int) ID {
 // Hunks is every hunk in the diff, in patch order, paired with the file it
 // belongs to. A file that carries no hunk -- a rename, a binary payload -- has
 // nothing to read and so is absent.
+//
+// The ids are rolled in one pass: a hunk's lines lie together, so hashing each
+// hunk by rescanning the diff for its lines would read the diff once per hunk.
 func Hunks(d *diff.Diff) []Ref {
 	var (
 		out  []Ref
 		last int
 	)
 
+	h := sha256.New()
+
 	for i := range d.Files {
 		path := filePath(&d.Files[i])
 		last = 0
+		h.Reset()
+		h.Write([]byte(path))
+		h.Write([]byte{0})
 
 		for _, l := range d.Files[i].Lines {
-			if l.Hunk == last {
-				continue
+			if l.Hunk != last {
+				if last != 0 {
+					out = append(out, Ref{Path: path, Hunk: last, ID: ID(hex.EncodeToString(h.Sum(nil)))})
+					h.Reset()
+					h.Write([]byte(path))
+					h.Write([]byte{0})
+				}
+
+				last = l.Hunk
 			}
 
-			last = l.Hunk
-			out = append(out, Ref{Path: path, Hunk: l.Hunk, ID: Hunk(d, path, l.Hunk)})
+			h.Write([]byte{l.Kind})
+			h.Write([]byte(l.Text))
+			h.Write([]byte{'\n'})
+		}
+
+		if last != 0 {
+			out = append(out, Ref{Path: path, Hunk: last, ID: ID(hex.EncodeToString(h.Sum(nil)))})
 		}
 	}
 

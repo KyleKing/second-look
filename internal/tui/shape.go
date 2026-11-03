@@ -534,7 +534,7 @@ func (m *Model) shapeRow(r row) (string, lipgloss.Style) {
 func (m *Model) seenRefs(refs []order.Ref) []seen.Ref {
 	out := make([]seen.Ref, 0, len(refs))
 	for _, r := range refs {
-		out = append(out, seen.Ref{Path: r.Path, Hunk: r.Hunk, ID: seen.Hunk(m.diff, r.Path, r.Hunk)})
+		out = append(out, seen.Ref{Path: r.Path, Hunk: r.Hunk, ID: m.hunkID(r.Path, r.Hunk)})
 	}
 
 	return out

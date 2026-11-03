@@ -16,7 +16,6 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/highlight"
-	"github.com/kyleking/second-look/internal/seen"
 )
 
 // tabStop is how wide a tab renders. A diff of Go or Python is unreadable if
@@ -309,7 +308,7 @@ func (m *Model) elsewhere(height int) []int {
 			continue
 		}
 
-		if m.read != nil && m.read.Has(seen.Hunk(m.diff, r.path, r.hunk)) {
+		if m.read != nil && m.read.Has(m.hunkID(r.path, r.hunk)) {
 			continue
 		}
 
@@ -959,7 +958,7 @@ func (m *Model) commentRow(r row) (string, lipgloss.Style) {
 // every heading spends the two cells whether or not it stands for a hunk, so a
 // column of paths does not shift where one of them is read.
 func (m *Model) readMark(r row) string {
-	if r.hunk > 0 && m.read != nil && m.read.Has(seen.Hunk(m.diff, r.path, r.hunk)) {
+	if r.hunk > 0 && m.read != nil && m.read.Has(m.hunkID(r.path, r.hunk)) {
 		return "✓ "
 	}
 

@@ -217,6 +217,11 @@ type Model struct {
 	mates    map[diff.LineRef]diff.Line
 	hunkCols map[hunkRef]int
 	lexed    map[string]map[diff.LineRef][]highlight.Span
+	// hunkRefs and hunkIDs are each hunk's read mark, rolled once per diff:
+	// hashing a hunk means reading its lines, so asking per hunk on every
+	// rebuild read the whole diff as many times as it has hunks.
+	hunkRefs []seen.Ref
+	hunkIDs  map[hunkAt]seen.ID
 
 	// pending is the ] or [ waiting for the object that completes it.
 	pending rune
@@ -2432,7 +2437,7 @@ func (m *Model) markRead() {
 		return
 	}
 
-	read := m.read.Toggle(seen.Hunk(m.diff, r.path, r.hunk))
+	read := m.read.Toggle(m.hunkID(r.path, r.hunk))
 	m.saveRead("hunk " + readWord(read))
 }
 
@@ -2444,15 +2449,38 @@ func readWord(read bool) string {
 	return "unread"
 }
 
+// allHunks is every hunk of the diff with its read mark, rolled once: the diff
+// does not change under a review the way a fold or a keystroke does.
+func (m *Model) allHunks() []seen.Ref {
+	if m.hunkRefs == nil {
+		m.hunkRefs = seen.Hunks(m.diff)
+		m.hunkIDs = make(map[hunkAt]seen.ID, len(m.hunkRefs))
+
+		for _, ref := range m.hunkRefs {
+			m.hunkIDs[hunkAt{ref.Path, ref.Hunk}] = ref.ID
+		}
+	}
+
+	return m.hunkRefs
+}
+
+// hunkID is the read mark for one hunk, answered from the roll rather than by
+// reading the hunk's lines again.
+func (m *Model) hunkID(path string, hunk int) seen.ID {
+	m.allHunks()
+
+	return m.hunkIDs[hunkAt{path, hunk}]
+}
+
 // shownHunks is every hunk the frame is currently showing, which is every hunk
 // unless whitespace-only ones are folded away.
 func (m *Model) shownHunks() []seen.Ref {
 	skip := m.skipper().skip
 	if skip == nil {
-		return seen.Hunks(m.diff)
+		return m.allHunks()
 	}
 
-	all := seen.Hunks(m.diff)
+	all := m.allHunks()
 	out := make([]seen.Ref, 0, len(all))
 
 	for _, r := range all {
@@ -2511,7 +2539,7 @@ func (m *Model) askStructure() tea.Cmd {
 	}
 
 	m.reading = true
-	m.say("reading the structure of "+plural(len(seen.Hunks(m.diff)), "hunk")+"...", false)
+	m.say("reading the structure of "+plural(len(m.allHunks()), "hunk")+"...", false)
 
 	return readStructure(m.diff, m.made)
 }
@@ -2519,7 +2547,7 @@ func (m *Model) askStructure() tea.Cmd {
 func (m *Model) hunksOf(path string) []seen.Ref {
 	var out []seen.Ref
 
-	for _, ref := range seen.Hunks(m.diff) {
+	for _, ref := range m.allHunks() {
 		if ref.Path == path {
 			out = append(out, ref)
 		}
@@ -2552,7 +2580,7 @@ func (m *Model) allRead(refs []seen.Ref) bool {
 // saveRead writes the set through immediately, the way every other change is
 // written, so quitting loses nothing.
 func (m *Model) saveRead(ok string) {
-	if err := seen.Save(m.seenAt, m.read, seen.Hunks(m.diff)); err != nil {
+	if err := seen.Save(m.seenAt, m.read, m.allHunks()); err != nil {
 		m.say(err.Error(), true)
 
 		return
@@ -2569,7 +2597,7 @@ func (m *Model) isUnread(r row) bool {
 		return false
 	}
 
-	return !m.read.Has(seen.Hunk(m.diff, r.path, r.hunk))
+	return !m.read.Has(m.hunkID(r.path, r.hunk))
 }
 
 // isHunk accepts a row standing for one hunk of the diff, which is a hunk
@@ -3828,8 +3856,8 @@ func (m *Model) readHunks() map[hunkAt]bool {
 
 	out := map[hunkAt]bool{}
 
-	for _, ref := range seen.Hunks(m.diff) {
-		if m.read.Has(seen.Hunk(m.diff, ref.Path, ref.Hunk)) {
+	for _, ref := range m.allHunks() {
+		if m.read.Has(ref.ID) {
 			out[hunkAt{path: ref.Path, hunk: ref.Hunk}] = true
 		}
 	}

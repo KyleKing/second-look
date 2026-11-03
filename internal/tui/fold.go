@@ -9,7 +9,6 @@ import (
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/rate"
-	"github.com/kyleking/second-look/internal/seen"
 )
 
 // errNoParser is what t says where the structural tool is missing. The w level
@@ -94,7 +93,7 @@ func (m *Model) narrowed(h hider) hider {
 	}
 
 	return hider{why: why, skip: func(p string, at int) bool {
-		return (was != nil && was(p, at)) || m.read.Has(seen.Hunk(m.diff, p, at))
+		return (was != nil && was(p, at)) || m.read.Has(m.hunkID(p, at))
 	}}
 }
 
@@ -112,7 +111,7 @@ func (m *Model) compared(h hider) hider {
 	}
 
 	return hider{why: why, skip: func(p string, at int) bool {
-		return (was != nil && was(p, at)) || m.since.Has(seen.Hunk(m.diff, p, at))
+		return (was != nil && was(p, at)) || m.since.Has(m.hunkID(p, at))
 	}}
 }
 

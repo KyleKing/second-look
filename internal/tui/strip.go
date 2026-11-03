@@ -9,7 +9,6 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/kyleking/second-look/internal/diff"
-	"github.com/kyleking/second-look/internal/seen"
 )
 
 const stripFiles = 120
@@ -145,7 +144,7 @@ func (m *Model) readFiles() map[string]bool {
 		return nil
 	}
 
-	for _, ref := range seen.Hunks(m.diff) {
+	for _, ref := range m.allHunks() {
 		total[ref.Path]++
 
 		if m.read.Has(ref.ID) {
