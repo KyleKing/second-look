@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/threads"
@@ -67,9 +68,14 @@ func noted(ts []threads.Thread) map[noteAt][]ghmd.Block {
 }
 
 // threadRows renders one conversation already on GitHub: who said what, in
-// order, under the line it hangs from. It is read-only, and answering it stages
-// a comment in the prepared review like any other.
-func threadRows(t *threads.Thread, index int, path string, numWidth int, lay layout) []row {
+// order, under the line it hangs from, with the staged replies to it drawn
+// inside the same card so an answer reads as part of the conversation rather
+// than as a card of its own. The thread's notes are read-only, and answering
+// one stages a comment in the prepared review like any other.
+func threadRows(
+	t *threads.Thread, index int, path string, numWidth int, lay layout,
+	replies []int, r *artifact.Review,
+) []row {
 	s := scribe{
 		at: index, path: path, lay: lay,
 		// bodyIndent is applied after wrapping, so it comes off the width first.
@@ -87,7 +93,7 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 	}
 
 	whole := s.whole(t)
-	rows := make([]row, 0, len(whole)+1)
+	rows := make([]row, 0, len(whole)+len(replies)+1)
 
 	if capped, ok := s.capped(t); ok {
 		// A capped thread draws no reaction rows, so the last comment's go on its heading.
@@ -101,7 +107,8 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 	}
 
 	// A folded conversation says so and says how much it is holding back, since
-	// a heading that looks the same either way is one nobody trusts.
+	// a heading that looks the same either way is one nobody trusts. Staged
+	// replies are part of what it holds.
 	if lay.fold.threads[index] {
 		if word := lay.verdicts[index]; word != "" {
 			head.text += " · " + word
@@ -111,13 +118,73 @@ func threadRows(t *threads.Thread, index int, path string, numWidth int, lay lay
 			head.text += " · " + head.answer
 		}
 
-		head.text += " · " + plural(len(whole), "line")
+		head.text += " · " + plural(len(whole)+len(replies), "line")
 		head.folded = true
 
 		return []row{closedRow(head, lay.width)}
 	}
 
+	rows = append(rows, replyRows(r, replies, index, path, lay, s.avail)...)
+
 	return framed(rows, row{kind: rowThread, path: path, comment: -1, thread: index}, lay.width)
+}
+
+// repliesTo is the index of each staged comment answering comment id to, in
+// the order they were staged.
+func repliesTo(r *artifact.Review, to int64) []int {
+	if to == 0 {
+		return nil
+	}
+
+	var out []int
+	for i := range r.Comments {
+		if r.Comments[i].InReplyTo == to {
+			out = append(out, i)
+		}
+	}
+
+	return out
+}
+
+// replyRows is one staged answer inside its thread's card: who and how it
+// stands where a note's author would be, then its body at the note's indent.
+// The rows carry the comment's index, so edit, the status keys, and za work on
+// them the same way they do on a card of its own.
+func replyRows(
+	r *artifact.Review, replies []int, thread int, path string, lay layout, avail int,
+) []row {
+	var out []row
+
+	for _, i := range replies {
+		c := &r.Comments[i]
+		who := whoWord(c.Origin)
+		if who == "" {
+			who = "you"
+		}
+
+		out = append(out, row{
+			kind: rowComment, path: path, comment: i, head: true, thread: thread, inThread: true,
+			text: strings.Repeat(" ", bodyIndent) + "⤶ " + who + " · " + titled(c, true),
+		})
+
+		for _, line := range wrap(c.Body, avail-bodyIndent) {
+			out = append(out, row{
+				kind: rowComment, path: path, comment: i, thread: thread, inThread: true,
+				text: strings.Repeat(" ", bodyIndent*2) + line,
+			})
+		}
+
+		if c.Body == "" && c.Status != artifact.StatusSkip {
+			out = append(out, row{
+				kind: rowNote, path: path, comment: i, thread: thread, inThread: true,
+				text: strings.Repeat(" ", bodyIndent*2) + lay.unwrittenWord(c),
+			})
+		}
+
+		out = append(out, noteRows(c.Note, i, path, avail, lay)...)
+	}
+
+	return out
 }
 
 func threadTitle(t *threads.Thread) string {

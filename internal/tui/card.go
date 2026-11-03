@@ -163,6 +163,30 @@ func (m *Model) answerWord(r row, state string) string {
 	return m.on(m.cardTitle(r)).Render(" · ") + m.on(face).Render(r.answer)
 }
 
+// keysRow is the row the foot's hints describe: the row the cursor is on where
+// it stands inside this card — including a reply nested in a thread's card —
+// and the card's own foot anywhere else.
+func (m *Model) keysRow(foot row) row {
+	if m.cursor < 0 || m.cursor >= len(m.screen.rows) {
+		return foot
+	}
+
+	cur := m.screen.rows[m.cursor]
+	here, ok := cardOf(cur)
+	own, isCard := cardOf(foot)
+
+	switch {
+	case ok && isCard && here == own:
+		return cur
+	case foot.kind == rowThread && foot.thread < len(m.threads) &&
+		cur.comment >= 0 && cur.comment < len(m.review.Comments) &&
+		m.review.Comments[cur.comment].InReplyTo == m.threads[foot.thread].ReplyTo():
+		return cur
+	}
+
+	return foot
+}
+
 func (m *Model) footEdge(r row, edge lipgloss.Style, width int) string {
 	face := keyhint.Styles{
 		Key: m.on(m.styles.key), Text: m.on(m.styles.footer), Off: m.on(m.styles.behind),
@@ -173,7 +197,7 @@ func (m *Model) footEdge(r row, edge lipgloss.Style, width int) string {
 
 	var line string
 
-	for i, k := range m.footKeys(r) {
+	for i, k := range m.footKeys(m.keysRow(r)) {
 		next := keyhint.One(face, k.hint)
 
 		switch {

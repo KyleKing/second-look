@@ -1847,10 +1847,13 @@ func (m *Model) foldHere(open bool) {
 	switch {
 	case r.kind == rowTurn:
 		m.folded.turns[r.comment] = open
-	case r.kind == rowThread && open && m.capHeld(r.thread):
+	case (r.kind == rowThread || r.inThread) && open && m.capHeld(r.thread):
 		// A capped thread opens its held lines from anywhere in it. Without
 		// this the only za that reaches them is the one on the … row itself.
 		m.folded.blocks[blockAt{noteAt{r.thread, 0}, capBlock}] = true
+	case r.inThread:
+		// A reply inside a thread's card folds the conversation it stands in.
+		m.folded.threads[r.thread] = !open
 	case r.kind == rowThread && r.head:
 		m.folded.threads[r.thread] = !open
 	case r.kind == rowThread, isMember(r):
@@ -1980,10 +1983,12 @@ func (m *Model) openHere() bool {
 	switch {
 	case r.kind == rowTurn:
 		return m.folded.turns[r.comment]
-	case r.kind == rowThread && m.capHeld(r.thread):
+	case (r.kind == rowThread || r.inThread) && m.capHeld(r.thread):
 		// A thread holding lines back reads as closed no matter which row of it
 		// the cursor is on, so za opens the cap rather than folding the thread.
 		return false
+	case r.inThread:
+		return !m.folded.threads[r.thread]
 	case r.kind == rowThread && r.head:
 		return !m.folded.threads[r.thread]
 	case r.kind == rowThread:
@@ -3759,7 +3764,7 @@ func (m *Model) buildRows(lay layout) screen {
 	case viewCode:
 		return buildCode(m.review, m.diff, m.threads, lay)
 	case viewThreads:
-		return buildThreads(m.diff, m.threads, lay)
+		return buildThreads(m.diff, m.threads, lay, m.review)
 	case viewFile:
 		lines, loaded := m.blobs[m.whole.path]
 		return buildWhole(m.review, m.diff, m.threads, lay, m.whole, lines, loaded)

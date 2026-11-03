@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -16,7 +17,7 @@ import (
 // of code nobody is rereading. Here each thread carries the one line it anchors
 // to and the rest of the diff is left out, which is the density the queue
 // already has and the anchor the queue cannot show.
-func buildThreads(d *diff.Diff, ts []threads.Thread, lay layout) screen {
+func buildThreads(d *diff.Diff, ts []threads.Thread, lay layout, r *artifact.Review) screen {
 	s := screen{numWidth: numberWidth(d)}
 	at := anchorLines(d)
 
@@ -36,7 +37,7 @@ func buildThreads(d *diff.Diff, ts []threads.Thread, lay layout) screen {
 			}
 
 			s.rows = append(s.rows, quoted(&ts[i], at)...)
-			s.rows = append(s.rows, threadRows(&ts[i], i, path, s.numWidth, lay)...)
+			s.rows = append(s.rows, threadRows(&ts[i], i, path, s.numWidth, lay, repliesTo(r, ts[i].ReplyTo()), r)...)
 		}
 	}
 

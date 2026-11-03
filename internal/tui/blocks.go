@@ -400,14 +400,18 @@ func framed(rows []row, foot row, width int) []row {
 		return rows
 	}
 
+	// A card has one top edge: a reply nested inside a thread's card marks its
+	// first row a head so jumps land on it, and it still draws as body.
+	topped := false
 	for i := range rows {
 		if rows[i].kind == rowBlank {
 			continue
 		}
 
 		rows[i].role = roleBody
-		if rows[i].head {
+		if rows[i].head && !topped {
 			rows[i].role = roleTop
+			topped = true
 		}
 	}
 
@@ -428,15 +432,32 @@ func foldRole(width int) cardRole {
 // matters. The state keeps its glyph so a monochrome terminal still says whether
 // the comment will post.
 func commentTitle(c *artifact.Comment) string {
-	parts := make([]string, 0, 5)
+	parts := commentParts(c, false)
 
 	if who := whoWord(c.Origin); who != "" {
-		parts = append(parts, who)
+		parts = append([]string{who}, parts...)
 	}
 
-	parts = append(parts, statusGlyph(c.Status)+" "+c.Status, c.Severity)
+	return strings.Join(parts, " · ")
+}
 
-	if c.InReplyTo != 0 {
+// titled is a comment's title minus who wrote it: a reply inside its thread
+// names the author beside the ⤶, so the status is all that follows.
+func titled(c *artifact.Comment, inThread bool) string {
+	return strings.Join(commentParts(c, inThread), " · ")
+}
+
+// commentParts is a title's pieces apart from who wrote it: the state, how
+// much it matters, and what it answers. inThread drops the "reply to" a card
+// inside its thread no longer has to say.
+func commentParts(c *artifact.Comment, inThread bool) []string {
+	parts := []string{statusGlyph(c.Status) + " " + c.Status}
+
+	if c.Severity != "" {
+		parts = append(parts, c.Severity)
+	}
+
+	if c.InReplyTo != 0 && !inThread {
 		parts = append(parts, fmt.Sprintf("reply to %d", c.InReplyTo))
 	}
 
@@ -448,7 +469,7 @@ func commentTitle(c *artifact.Comment) string {
 		parts = append(parts, c.SkipReason)
 	}
 
-	return strings.Join(parts, " · ")
+	return parts
 }
 
 func whoWord(origin string) string {

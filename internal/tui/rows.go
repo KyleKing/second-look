@@ -135,6 +135,10 @@ type row struct {
 	// thread motion skips the same way it would skip a hunk with nothing left
 	// in it. Read only where kind is rowThread.
 	resolved bool
+	// inThread marks a staged reply drawn inside its thread's card. Its thread
+	// field names the card it stands in, so a fold from it closes the
+	// conversation rather than the reply alone.
+	inThread bool
 	// folded marks a row standing in for lines it is hiding, which is what za
 	// inverts.
 	folded bool
@@ -351,17 +355,40 @@ func (s screen) hanger(
 				p, s.numWidth, lay.width)...)
 		}
 
-		// What is already on GitHub comes before what this pass is adding, so a
-		// comment reads as an answer to the conversation above it.
-		for _, t := range byThread[a] {
-			out = append(out, threadRows(&ts[t], t, p, s.numWidth, lay)...)
-		}
+		// An answer to a thread on this line belongs inside that thread's card,
+		// not under it as a card of its own. A reply whose thread anchors
+		// elsewhere stays on its own, since pretending it landed in one it did
+		// not is worse than a detached card.
+		replies := map[int][]int{}
+		var free []int
 
 		for _, c := range byLine[a] {
 			placed[c] = true
+			to, claimed := r.Comments[c].InReplyTo, false
+
+			if to != 0 {
+				for _, t := range byThread[a] {
+					if ts[t].ReplyTo() == to {
+						replies[t] = append(replies[t], c)
+						claimed = true
+
+						break
+					}
+				}
+			}
+
+			if !claimed {
+				free = append(free, c)
+			}
 		}
 
-		live, skipped := live(r, byLine[a])
+		// What is already on GitHub comes before what this pass is adding, so a
+		// comment reads as an answer to the conversation above it.
+		for _, t := range byThread[a] {
+			out = append(out, threadRows(&ts[t], t, p, s.numWidth, lay, replies[t], r)...)
+		}
+
+		live, skipped := live(r, free)
 		run := inRun{of: len(live)}
 
 		at := len(out)
