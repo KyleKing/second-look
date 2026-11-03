@@ -60,6 +60,9 @@ type Diff struct {
 	// Headers holds each hunk's @@ line, indexed by Line.Hunk minus one, for a
 	// caller rendering the diff rather than anchoring into it.
 	Headers []string
+	// paired is the line pairing computed once, since it is the expensive read
+	// a diff offers and nothing it answers can change under it.
+	paired *pairing
 }
 
 // WhitespaceOnly reports whether a hunk changes nothing but whitespace.

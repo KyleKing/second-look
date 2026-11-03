@@ -66,16 +66,20 @@ type pairing struct {
 }
 
 func (d *Diff) pair() pairing {
-	out := pairing{
-		marks: Refined{}, reindented: map[LineRef]bool{}, moved: d.Moved(),
-		mate: map[LineRef]Line{},
+	if d.paired == nil {
+		out := pairing{
+			marks: Refined{}, reindented: map[LineRef]bool{}, moved: d.Moved(),
+			mate: map[LineRef]Line{},
+		}
+
+		for i := range d.Files {
+			refineFile(out, pathOf(&d.Files[i]), d.Files[i].Lines)
+		}
+
+		d.paired = &out
 	}
 
-	for i := range d.Files {
-		refineFile(out, pathOf(&d.Files[i]), d.Files[i].Lines)
-	}
-
-	return out
+	return *d.paired
 }
 
 func refineFile(out pairing, path string, lines []Line) {
