@@ -211,7 +211,10 @@ type Model struct {
 	// reindented is every changed line whose partner says the same thing at another indent.
 	reindented map[diff.LineRef]bool
 	// moves is both ends of every run the change takes from one place and puts in another.
-	moves    map[diff.LineRef]diff.Move
+	moves map[diff.LineRef]diff.Move
+	// mates is each paired line's partner on the other side, which a merged row
+	// draws the removed text from.
+	mates    map[diff.LineRef]diff.Line
 	hunkCols map[hunkRef]int
 	lexed    map[string]map[diff.LineRef][]highlight.Span
 
@@ -431,7 +434,7 @@ func New(
 	path string, submit Submitter, opts ...Option,
 ) *Model {
 	st := loadStyles()
-	marks, reindented, moves := d.Paired()
+	marks, reindented, moves, mates := d.Paired()
 	m := &Model{
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
 		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
@@ -439,7 +442,7 @@ func New(
 		width: minWidth, height: startHeight, folded: newFolded(),
 		hugeDiff: diffRows(d) >= asyncRows,
 		hunkCols: hunkWidths(d),
-		refined:  marks, reindented: reindented, moves: moves,
+		refined:  marks, reindented: reindented, moves: moves, mates: mates,
 		lexed:  map[string]map[diff.LineRef][]highlight.Span{},
 		lit:    map[string][][]highlight.Span{},
 		drawn:  opening,

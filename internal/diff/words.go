@@ -42,24 +42,34 @@ func (d *Diff) Refine() Refined { return d.pair().marks }
 func (d *Diff) Reindented() map[LineRef]bool { return d.pair().reindented }
 
 // Paired is the pairing in one pass: the changed runs, the re-indented lines,
-// and the moved runs, which Refine, Reindented, and Moved each answer alone.
-// A caller wanting all three asks once, because the pairing is the expensive
-// read a diff offers.
-func (d *Diff) Paired() (Refined, map[LineRef]bool, map[LineRef]Move) {
+// the moved runs, and each paired line's mate, which Refine, Reindented,
+// Moved, and Mates each answer alone. A caller wanting them all asks once,
+// because the pairing is the expensive read a diff offers.
+func (d *Diff) Paired() (Refined, map[LineRef]bool, map[LineRef]Move, map[LineRef]Line) {
 	p := d.pair()
 
-	return p.marks, p.reindented, p.moved
+	return p.marks, p.reindented, p.moved, p.mate
 }
+
+// Mates is each paired line's partner on the other side, which is what an edit
+// drawn as one line looks the removed text up with.
+func (d *Diff) Mates() map[LineRef]Line { return d.pair().mate }
 
 type pairing struct {
 	marks      Refined
 	reindented map[LineRef]bool
 	// moved lines answer a run elsewhere, so they pair with nothing in their own block.
 	moved map[LineRef]Move
+	// mate is the line a changed line paired with on the other side, kept
+	// rather than its ref so a caller need not find it in the diff again.
+	mate map[LineRef]Line
 }
 
 func (d *Diff) pair() pairing {
-	out := pairing{marks: Refined{}, reindented: map[LineRef]bool{}, moved: d.Moved()}
+	out := pairing{
+		marks: Refined{}, reindented: map[LineRef]bool{}, moved: d.Moved(),
+		mate: map[LineRef]Line{},
+	}
 
 	for i := range d.Files {
 		refineFile(out, pathOf(&d.Files[i]), d.Files[i].Lines)
@@ -186,6 +196,7 @@ func refineOne(out pairing, path string, gone, came Line) {
 
 	out.marks[refOf(path, gone)] = before
 	out.marks[refOf(path, came)] = after
+	out.mate[refOf(path, gone)], out.mate[refOf(path, came)] = came, gone
 }
 
 // align pairs a block's removals with its additions by best match rather than

@@ -87,18 +87,16 @@ func (l *List) CursorKey() string {
 // WantsCheckout is C, which the caller answers once the screen has closed.
 func (m *Model) WantsCheckout() bool { return m.checkout }
 
-// DiffColors is everything a change is drawn out of: the frame the bands sit
-// on, the color the code is written in, and the four backgrounds themselves at
-// the depths a terminal of the given kind gets. A test measures them against
-// each other, which is the only way to know a band says anything.
+// DiffColors is everything a change is drawn out of: the frame the marks sit
+// on, the color the code is written in, and the two backgrounds themselves at
+// the depth a terminal of the given kind gets. A test measures them against
+// each other, which is the only way to know a mark says anything.
 func DiffColors(p theme.Palette, millions bool) map[string]color.Color {
-	band, mark := depths(millions)
+	mark := markDepth(millions)
 
 	return map[string]color.Color{
 		"page":         p.Base,
 		"text":         p.Text,
-		"added band":   theme.Tint(p.Base, p.Green, band),
-		"removed band": theme.Tint(p.Base, p.Red, band),
 		"added mark":   theme.Tint(p.Base, p.Green, mark),
 		"removed mark": theme.Tint(p.Base, p.Red, mark),
 	}

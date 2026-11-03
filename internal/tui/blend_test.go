@@ -18,11 +18,11 @@ func palettes() map[string]theme.Palette {
 	return map[string]theme.Palette{"ink": theme.Ink()}
 }
 
-// A band is the accent's hue at the background's depth rather than a mix of the
+// A mark is the accent's hue at the background's depth rather than a mix of the
 // two, because a mix lands in the grey ramp. The 256-color cube carries almost
-// no dark tints either, so a terminal that cannot mix its own gets the bands
-// deeper: held back there, added and removed quantize to one slot and the band
-// stops saying which side a line is on. Reaching that case takes only tmux,
+// no dark tints either, so a terminal that cannot mix its own gets the mark
+// deeper: held back there, added and removed quantize to one slot and the mark
+// stops saying which side a run is on. Reaching that case takes only tmux,
 // which reports 256 colors on a laptop that has millions.
 func TestBothSidesStayApartAtEveryDepth(t *testing.T) {
 	t.Parallel()
@@ -60,17 +60,15 @@ func TestBothSidesStayApartAtEveryDepth(t *testing.T) {
 // tuned to, measured the way an eye reads them, so a palette change or a depth
 // tweak that flattens the diff fails here rather than in a review.
 //
-// The mark is color alone, so its floor is the one that has to carry the
-// change: a background cannot get further from its band without getting
-// closer to the text sitting on it.
+// The mark is the only color a changed run is said with, so it has to be far
+// enough from the page to be seen and no deeper than the code on it survives.
 func TestAChangeIsVisibleAndItsCodeStaysReadable(t *testing.T) {
 	t.Parallel()
 
 	const (
 		fromPage = 6.0
 		fromEach = 10.0
-		fromBand = 8.0
-		onBand   = 4.0
+		onMark   = 4.0
 	)
 
 	for name, p := range palettes() {
@@ -81,16 +79,12 @@ func TestAChangeIsVisibleAndItsCodeStaysReadable(t *testing.T) {
 				c := shown(tui.DiffColors(p, millions), millions)
 
 				for _, side := range []string{"added", "removed"} {
-					band, mark := c[side+" band"], c[side+" mark"]
+					mark := c[side+" mark"]
 
-					apart(t, side+" band from the page", band, c["page"], fromPage)
-					apart(t, side+" mark from its band", mark, band, fromBand)
-
-					legible(t, "code on the "+side+" band", c["text"], band, onBand)
-					legible(t, "code on the "+side+" mark", c["text"], mark, onBand)
+					apart(t, side+" mark from the page", mark, c["page"], fromPage)
+					legible(t, "code on the "+side+" mark", c["text"], mark, onMark)
 				}
 
-				apart(t, "the two bands", c["added band"], c["removed band"], fromEach)
 				apart(t, "the two marks", c["added mark"], c["removed mark"], fromEach)
 			})
 		}

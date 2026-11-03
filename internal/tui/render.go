@@ -129,44 +129,34 @@ func (m *Model) sideBySide() bool {
 	return m.drawn.split && m.view == viewDiff && m.diffWidth() >= splitWidth
 }
 
-// The two depths a side is drawn at: the band under a whole changed line, and
-// the runs inside it that actually differ from the line it is paired with. The
-// text is colored by grammar, so the side has to be said by something that
-// leaves the foreground alone.
+// The one depth a side is drawn at: the runs inside a changed line that
+// actually differ from the line it is paired with. A line's side is said by
+// its gutter's color and the mark inside it, so the text itself is left to
+// the grammar's colors alone.
 //
-// The band is a hint rather than a wash, the way delta and GitHub draw it:
-// barely off the frame's own color, with the mark a clear step deeper so the
-// runs that changed are the loudest thing on the line. Deepening either one
-// past this trades the code on it for the band, which is the wrong side of
-// the line for a screen that exists to be read.
-//
-// A 256-color terminal gets deeper values, since the cube carries almost no
+// A 256-color terminal gets a deeper value, since the cube carries almost no
 // dark tints: held back there, added and removed both quantize into the grey
-// ramp and the band says nothing.
+// ramp and the mark says nothing.
 const (
 	// What a terminal that mixes its own colors gets.
-	trueBandLift, trueBandSat = 0.035, 0.45
 	trueMarkLift, trueMarkSat = 0.28, 0.70
 	// What a 256-color terminal gets, deep enough to survive the cube.
-	cubeBandLift, cubeMarkLift = 0.14, 0.34
-	cubeSat                    = 1.0
+	cubeMarkLift = 0.34
+	cubeSat      = 1.0
 )
 
 var (
-	bandMix, markMix = depths(supportsMillions())
-
-	trueBand = theme.Depth{Lift: trueBandLift, Sat: trueBandSat}
+	markMix  = markDepth(supportsMillions())
 	trueMark = theme.Depth{Lift: trueMarkLift, Sat: trueMarkSat}
-	cubeBand = theme.Depth{Lift: cubeBandLift, Sat: cubeSat}
 	cubeMark = theme.Depth{Lift: cubeMarkLift, Sat: cubeSat}
 )
 
-func depths(millions bool) (theme.Depth, theme.Depth) {
+func markDepth(millions bool) theme.Depth {
 	if millions {
-		return trueBand, trueMark
+		return trueMark
 	}
 
-	return cubeBand, cubeMark
+	return cubeMark
 }
 
 // supportsMillions asks what the terminal can actually mix, which decides how
@@ -180,10 +170,9 @@ func supportsMillions() bool {
 // gh-sweep stay one visual family rather than each carrying a theme.
 type richStyles struct {
 	class map[highlight.Class]lipgloss.Style
-	// band and mark are the two depths of each side, indexed by the diff's own
-	// spelling of the line kind. A context line is in neither, which is what
+	// mark is the depth of each side's changed runs, indexed by the diff's own
+	// spelling of the line kind. A context line is in none of it, which is what
 	// says it has no side.
-	band map[byte]color.Color
 	mark map[byte]color.Color
 	// side is the green or red a line's side is said with: its sign and the
 	// line number the side carries, the way delta and GitHub color them rather
@@ -213,10 +202,6 @@ func newRichStyles(s styles) richStyles {
 		side: map[byte]lipgloss.Style{
 			diff.KindAdd:    base.Foreground(p.Green),
 			diff.KindRemove: base.Foreground(p.Red),
-		},
-		band: map[byte]color.Color{
-			diff.KindAdd:    theme.Tint(p.Base, p.Green, bandMix),
-			diff.KindRemove: theme.Tint(p.Base, p.Red, bandMix),
 		},
 		mark: map[byte]color.Color{
 			diff.KindAdd:    theme.Tint(p.Base, p.Green, markMix),
@@ -281,8 +266,8 @@ func (m *Model) richGutter(r row) string {
 		style, mark = side, " "
 	case changed && m.rich.colored && m.moves[refOf(r.path, l)].Lines > 0:
 		style, mark = side, side.Render(movedGlyph)
-	case changed && m.rich.colored && m.reindented[refOf(r.path, l)]:
-		style, mark = side, side.Render(reindentGlyph)
+	case changed && m.rich.colored && wsSignificant(r.path) && m.reindented[refOf(r.path, l)]:
+		style, mark = side, side.Render(m.reindentGlyph(r, l))
 	case changed:
 		style = side
 		mark = side.Render(mark)
@@ -297,8 +282,15 @@ const sharedGlyph = "≈"
 // movedGlyph marks a line of a run the change took from one place and put in another.
 const movedGlyph = "⇄"
 
-// reindentGlyph marks a line that only moved to another indent, where its neighbors changed what it sits inside.
-const reindentGlyph = "⇥"
+// reindentGlyph marks a line that only moved to another indent, in the
+// direction it moved: the mate is the line at the old indent.
+func (m *Model) reindentGlyph(r row, l diff.Line) string {
+	if mate, ok := m.mates[refOf(r.path, l)]; ok && indentOf(l.Text) < indentOf(mate.Text) {
+		return "⇤"
+	}
+
+	return "⇥"
+}
 
 // indentOf is how many bytes of leading whitespace a line carries.
 func indentOf(text string) int { return len(text) - len(strings.TrimLeft(text, " \t")) }
@@ -339,7 +331,7 @@ func number(n, width int) string {
 func (m *Model) padTo(r row, l diff.Line, cells int) string {
 	spaces := strings.Repeat(" ", cells)
 
-	band, ok := m.bandOf(r, l)
+	band, ok := m.bandOf(r)
 	if !ok {
 		return spaces
 	}
@@ -361,32 +353,19 @@ func (m *Model) fill(r row, l diff.Line, seg string, band, room int) string {
 	return seg
 }
 
-// bandOf is the band a changed line's text is drawn under, which is what says
-// which side it is on before the eye reaches the marked runs inside it. A line
-// drawn as part of the whole file keeps its quiet either way, since banding
-// every line of a file shown in full would color all of it.
-func (m *Model) bandOf(r row, l diff.Line) (color.Color, bool) {
-	band, banded := m.rich.band[l.Kind]
-	banded = banded && !r.whole
-
+// bandOf is the band a row draws, which is the selection's alone: a changed
+// line's side is said by its gutter and the mark inside it, not by a wash
+// behind the whole line.
+func (m *Model) bandOf(r row) (color.Color, bool) {
 	if !r.current {
-		return band, banded
+		return nil, false
 	}
 
 	row := m.styles.row.GetBackground()
-	if _, none := row.(lipgloss.NoColor); none {
-		return band, banded
-	}
+	_, none := row.(lipgloss.NoColor)
 
-	if !banded {
-		return row, true
-	}
-
-	return theme.Mix(band, row, selectedShare), true
+	return row, !none
 }
-
-// selectedShare is how far a band moves toward the selection under the cursor.
-const selectedShare = 0.5
 
 // bandMargin is the cells a band runs past the widest line of its hunk.
 const bandMargin = 2
@@ -429,16 +408,19 @@ func hunkWidths(d *diff.Diff) map[hunkRef]int {
 // run against a running column rather than up front: expanding first would
 // move every byte offset the grammar and the pairing answered in.
 func (m *Model) richSegments(r row, l diff.Line, width int) []string {
-	band, ok := m.bandOf(r, l)
+	band, ok := m.bandOf(r)
 	mark := m.rich.mark[l.Kind]
 	marked := m.refined[refOf(r.path, l)]
+
+	// A line paired with nothing changed as a whole, so every run of its code
+	// is marked: the mark, not a band, is what says it changed.
+	markAll := l.Kind != diff.KindContext && !r.whole && len(marked) == 0
 
 	// The band starts where the code does: a block of side color ahead of an
 	// indented line reads as a whitespace mark, which is what the mark depth is
 	// for. A line that is only whitespace has no code to wait for, so it bands
 	// whole rather than vanish.
 	lead := indentOf(l.Text)
-	tail := len(strings.TrimRight(l.Text, " \t"))
 	code := lead
 	if code == len(l.Text) {
 		code = 0
@@ -463,7 +445,13 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 			face = faces[piece.class]
 		}
 
-		inMark := covered(marked, piece.from)
+		// A whitespace-only run is marked only where the indent is significant:
+		// a brace language's reindent is the hunk's badge's to say, not the line's.
+		inMark := covered(marked, piece.from) || (markAll && piece.to > code)
+		if inMark && !wsSignificant(r.path) {
+			inMark = strings.TrimSpace(l.Text[piece.from:piece.to]) != ""
+		}
+
 		style := under(face, band, ok)
 
 		switch {
@@ -473,13 +461,7 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 			style = face
 		}
 
-		var text string
-		var spent int
-		if inMark {
-			text, spent = expandMarked(l.Text[piece.from:piece.to], cols, piece.from, lead, tail)
-		} else {
-			text, spent = expandFrom(l.Text[piece.from:piece.to], cols)
-		}
+		text, spent := expandFrom(l.Text[piece.from:piece.to], cols)
 
 		// With wrap off the whole run goes in and the caller's cut marks where
 		// it ran out, so the check comes after the write.
@@ -555,39 +537,23 @@ func expandFrom(s string, col int) (string, int) {
 	return b.String(), col
 }
 
-// expandMarked is expandFrom for a run the pairing marked, given the line's
-// lead and tail byte offsets: whitespace at the edges of the line — its indent
-// or its trailing end — is drawn as glyphs rather than as background, so a
-// whitespace change is legible without any toggle. A space is · and a tab is →
-// followed by its padding. Whitespace between words inside a changed run keeps
-// the mark's background and stays a space, since reading the code matters more
-// than marking every cell the pairing touched.
-func expandMarked(s string, col, at, lead, tail int) (string, int) {
-	var b strings.Builder
+// wsSignificant reports whether a file's leading whitespace carries meaning —
+// Python, YAML, and friends — which decides whether an indent change is drawn
+// on the line or left to the hunk's badge. Brace languages get the quiet path:
+// their indents are read by shape, not counted by the parser.
+func wsSignificant(path string) bool {
+	switch {
+	case strings.HasSuffix(path, "Makefile"), strings.HasSuffix(path, ".mk"):
+		return true
+	}
 
-	for i, r := range s {
-		edge := at+i < lead || at+i >= tail
-
-		switch {
-		case r == ' ' && edge:
-			b.WriteRune('·')
-			col++
-		case r == '\t' && edge:
-			n := tabStop - col%tabStop
-			b.WriteRune('→')
-			b.WriteString(strings.Repeat("·", n-1))
-			col += n
-		case r == '\t':
-			n := tabStop - col%tabStop
-			b.WriteString(strings.Repeat(" ", n))
-			col += n
-		default:
-			b.WriteRune(r)
-			col += textWidth(string(r))
+	for _, ext := range []string{".py", ".pyi", ".yaml", ".yml", ".hs", ".nim", ".coffee", ".slim", ".pug"} {
+		if strings.HasSuffix(path, ext) {
+			return true
 		}
 	}
 
-	return b.String(), col
+	return false
 }
 
 // run is one stretch of a line drawn with one face: a grammar class that does
