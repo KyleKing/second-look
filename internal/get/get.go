@@ -71,7 +71,7 @@ func Run(ctx context.Context, out io.Writer, t Target) error {
 	// from each other, so they run at once rather than one after the other.
 	group, fetch := errgroup.WithContext(ctx)
 
-	group.Go(func() error { return cacheDiff(fetch, t, pr) })
+	group.Go(func() error { return cacheDiff(fetch, out, t, pr) })
 	group.Go(func() error { return cacheThreads(fetch, out, t, pr.HeadSHA) })
 
 	//nolint:wrapcheck // both goroutines return an error this package already wrapped
@@ -108,14 +108,14 @@ func sweep(out io.Writer, root string) error {
 	return say(out, fmt.Sprintf("cleared %s cached against an older head\n", humanize.Plural(n, "file")))
 }
 
-func cacheDiff(ctx context.Context, t Target, pr *forge.PullRequest) error {
+func cacheDiff(ctx context.Context, out io.Writer, t Target, pr *forge.PullRequest) error {
 	patch, err := github.PRDiff(ctx, t.Dir(), t.Remote(), t.Number)
 	if err != nil {
 		// GitHub refuses diffs past its caps. Git computes them locally: the
 		// reader's own checkout when it names the repository, a pooled clone
 		// otherwise. Two fetches replace the hundreds of blob calls the files
 		// API fallback would spend on a diff this size.
-		patch, err = pool.Diff(ctx, t.Work, Host, t.Owner, t.Repo, pr.BaseRef, pr.HeadSHA)
+		patch, err = pool.Diff(ctx, out, t.Work, Host, t.Owner, t.Repo, pr.BaseRef, pr.HeadSHA)
 		if err != nil {
 			return fmt.Errorf("caching the diff: %w", err)
 		}

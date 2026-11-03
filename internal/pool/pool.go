@@ -9,6 +9,7 @@ package pool
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,14 +42,18 @@ const (
 // The work argument is an existing checkout to borrow, or empty for a pooled
 // clone. The answer is the same either way; borrowing the checkout only skips
 // the pool and makes a revisit cost an incremental fetch.
-func Diff(ctx context.Context, work, host, owner, repo, base, head string) ([]byte, error) {
+func Diff(ctx context.Context, out io.Writer, work, host, owner, repo, base, head string) ([]byte, error) {
+	note(out, "the diff is past what the API serves; computing it locally")
+
 	dir := work
 	if !namesRepo(ctx, dir, owner, repo) {
 		var err error
-		if dir, err = slot(ctx, host, owner, repo); err != nil {
+		if dir, err = slot(ctx, out, host, owner, repo); err != nil {
 			return nil, err
 		}
 	}
+
+	note(out, "fetching the pull request's history")
 
 	mb, err := mergeBase(ctx, dir, base, head)
 	if err != nil {
@@ -57,11 +62,15 @@ func Diff(ctx context.Context, work, host, owner, repo, base, head string) ([]by
 
 	// Full objects for just the two trees the diff reads: each fetch is a
 	// shallow one-commit pull, which is the whole input and nothing older.
+	note(out, "fetching the merge base and the head")
+
 	for _, sha := range []string{mb, head} {
 		if err := git(ctx, dir, "fetch", "--no-filter", "--depth=1", "origin", sha); err != nil {
 			return nil, fmt.Errorf("fetching %s for the diff: %w", sha[:7], err)
 		}
 	}
+
+	note(out, "diffing %s...%s", mb[:7], head[:7])
 
 	patch, err := output(ctx, dir, "diff", mb+"..."+head)
 	if err != nil {
@@ -69,6 +78,15 @@ func Diff(ctx context.Context, work, host, owner, repo, base, head string) ([]by
 	}
 
 	return []byte(patch), nil
+}
+
+// note reports a stage of a fetch that can outlive a reader's patience. A
+// large repository's clone takes minutes and nothing else prints until it is
+// done, so without this the wait reads as a hang.
+func note(w io.Writer, format string, args ...any) {
+	if w != nil {
+		fmt.Fprintf(w, format+"\n", args...)
+	}
 }
 
 // namesRepo reports whether dir is a git checkout of owner/repo, which is
@@ -122,7 +140,7 @@ func mergeBase(ctx context.Context, dir, base, head string) (string, error) {
 
 // slot is the pool's clone for one repository, created on first use and
 // freshened by the caller's fetches. Making a slot prunes the pool to slots.
-func slot(ctx context.Context, host, owner, repo string) (string, error) {
+func slot(ctx context.Context, out io.Writer, host, owner, repo string) (string, error) {
 	root := filepath.Join(os.TempDir(), "second-look", "repos")
 	dir := filepath.Join(root, host+"-"+owner+"-"+repo)
 
@@ -139,6 +157,8 @@ func slot(ctx context.Context, host, owner, repo string) (string, error) {
 
 	// --bare: nothing here is a worktree. --filter=blob:none keeps the clone
 	// to commits and trees; the caller fetches the blobs its diff needs.
+	note(out, "cloning %s/%s (commits and trees only)", owner, repo)
+
 	if err := git(ctx, "",
 		"-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential",
 		"clone", "--bare", "--filter=blob:none",

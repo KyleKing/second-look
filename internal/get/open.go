@@ -471,7 +471,9 @@ func patchFor(ctx context.Context, t Target, base, want string) ([]byte, error) 
 	if err != nil {
 		// The same refusal get answers with a pooled clone: an open without a
 		// cached diff hits the caps the same way.
-		patch, err = pool.Diff(ctx, t.Work, Host, t.Owner, t.Repo, base, want)
+		// Open has no writer of its own; a fallback this slow still reports on
+		// stderr rather than reading as a hang while the screen loads.
+		patch, err = pool.Diff(ctx, os.Stderr, t.Work, Host, t.Owner, t.Repo, base, want)
 		if err != nil {
 			return nil, fmt.Errorf("reading the diff: %w", err)
 		}

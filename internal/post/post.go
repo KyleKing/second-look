@@ -93,7 +93,7 @@ func Guard(ctx context.Context, dir, remoteRepo string, r *artifact.Review, out 
 	if err != nil {
 		// Over the API's caps the diff is computed locally the same way get
 		// does, so a review big enough to refuse is still postable.
-		patch, err = pool.Diff(ctx, dir, reviewHost(r), r.Owner, r.Repo, r.BaseRef, r.HeadSHA)
+		patch, err = pool.Diff(ctx, out, dir, reviewHost(r), r.Owner, r.Repo, r.BaseRef, r.HeadSHA)
 		if err != nil {
 			return fmt.Errorf("reading the current diff: %w", err)
 		}
