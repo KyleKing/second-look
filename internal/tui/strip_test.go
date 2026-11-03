@@ -265,6 +265,28 @@ func TestTheFileStripCollapsesDirectoriesAwayFromTheCursor(t *testing.T) {
 	}
 }
 
+// A rail with more chapters than rows scrolls to keep the one under the
+// cursor in frame, the way the outline's list does.
+func TestTheRailFollowsTheChapterUnderTheCursor(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := fixtureWith(t, manyDirs(40))
+	resize(m, 200, 30)
+
+	for range 26 {
+		pressKey(t, m, 'n')
+	}
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "▸") {
+		t.Errorf("the chapter under the cursor is not marked in the rail:\n%s", frame)
+	}
+
+	if strings.Contains(frame, "ch00") {
+		t.Errorf("the rail still opens on the first chapter: %q", frame)
+	}
+}
+
 // The mark stands in the strip on the opening frame and after the cursor
 // moves, even where the file under it is given one cell.
 func TestTheStripMarksTheCursorAtEveryWidth(t *testing.T) {

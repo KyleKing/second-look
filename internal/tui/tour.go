@@ -224,7 +224,15 @@ func (m *Model) railLines(h int) []string {
 
 	line(countHead("chapters", g.chapter, len(m.plan.Chapters)), m.styles.head.Render)
 
-	for i, c := range m.plan.Chapters {
+	at := g.chapter - 1
+	if g.stop > 0 && holding >= 0 {
+		at = holding
+	}
+
+	top := clamp(at-(h-len(out))/half, len(m.plan.Chapters)-(h-len(out)))
+
+	for i := top; i < len(m.plan.Chapters) && len(out) < h; i++ {
+		c := m.plan.Chapters[i]
 		here := i+1 == g.chapter || (g.stop > 0 && i == holding)
 		name := c.Source.Glyph() + " " + fitName(c.Name, names, w-len(c.Mode)-railGap-glyphGap)
 		gap := strings.Repeat(" ", max(1, w-railGap-textWidth(name)-len(c.Mode)))
