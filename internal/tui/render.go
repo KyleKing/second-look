@@ -210,6 +210,11 @@ func newRichStyles(s styles) richStyles {
 		highlight.Type:        base.Foreground(p.Teal),
 		highlight.Name:        base.Foreground(p.Text),
 		highlight.Punctuation: base.Foreground(p.Overlay2),
+		highlight.Operator:    base.Foreground(p.Sky),
+		highlight.Field:       base.Foreground(p.Sapphire),
+		highlight.Constant:    base.Foreground(p.Flamingo),
+		highlight.Namespace:   base.Foreground(p.Maroon),
+		highlight.Escape:      base.Foreground(p.Pink),
 		highlight.Plain:       base.Foreground(p.Text),
 	}
 

@@ -32,6 +32,18 @@ const (
 	Function
 	Type
 	Punctuation
+	// Operator is the symbol kind a keyword is not: +, :=, in as a word.
+	Operator
+	// Field is a name a receiver owns: attributes, properties, decorators, and
+	// labels, which a reader scans for differently than a bare name.
+	Field
+	// Constant is a name that is a value: true, nil, constants a lexer knows.
+	Constant
+	// Namespace is the name of the package a name comes from.
+	Namespace
+	// Escape is the part of a string that is not its text: escapes, regexes,
+	// interpolation, and the affixes that mark them.
+	Escape
 )
 
 // Span is a run of one line under one class. Spans of a line are in order and
@@ -116,14 +128,31 @@ func lex(matched chroma.Lexer, src []string) [][]Span {
 func classOf(t chroma.TokenType) Class {
 	// The literals share one category and differ by sub-category, so a number
 	// tested against chroma.LiteralString answers true and colors as a string.
+	// The specific Name kinds are tested before the Name category itself, or a
+	// field would answer as an ordinary name and the distinction would be lost.
 	switch {
 	case t.InCategory(chroma.Comment):
 		return Comment
-	case t == chroma.KeywordType, t == chroma.NameClass, t == chroma.NameBuiltin:
+	case t == chroma.KeywordType, t == chroma.NameClass,
+		t == chroma.NameBuiltin, t == chroma.NameBuiltinPseudo:
 		return Type
 	case t.InSubCategory(chroma.NameFunction):
 		return Function
-	case t.InCategory(chroma.Keyword), t.InSubCategory(chroma.Operator):
+	case t.InCategory(chroma.Operator):
+		return Operator
+	case t == chroma.NameConstant, t == chroma.KeywordConstant,
+		t == chroma.LiteralStringBoolean, t == chroma.NameVariableMagic:
+		return Constant
+	case t == chroma.NameNamespace:
+		return Namespace
+	case t == chroma.NameAttribute, t == chroma.NameDecorator,
+		t == chroma.NameProperty, t == chroma.NameVariableInstance,
+		t == chroma.NameLabel:
+		return Field
+	case t == chroma.LiteralStringEscape, t == chroma.LiteralStringRegex,
+		t == chroma.LiteralStringInterpol, t == chroma.LiteralStringAffix:
+		return Escape
+	case t.InCategory(chroma.Keyword):
 		return Keyword
 	case t.InSubCategory(chroma.LiteralNumber):
 		return Number
