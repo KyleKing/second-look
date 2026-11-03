@@ -375,7 +375,37 @@ func mark(before, after string) ([]Span, []Span, bool) {
 		return nil, nil, false
 	}
 
-	return gaps(left, keptLeft), gaps(right, keptRight), true
+	gone, came := gaps(left, keptLeft), gaps(right, keptRight)
+	trim(gone, came, before, after)
+
+	return gone, came, true
+}
+
+// trim narrows each pair of gap runs to the bytes that actually differ, so a
+// rename's unchanged affix — `_x` becoming `x`, a prefix swapped — marks its
+// difference rather than the whole token. Runs pair positionally, so an uneven
+// count is left alone rather than trimmed blind.
+func trim(before, after []Span, left, right string) {
+	if len(before) != len(after) {
+		return
+	}
+
+	for i := range before {
+		b, a := &before[i], &after[i]
+		bl, ar := left, right
+
+		for b.From < b.To && a.From < a.To &&
+			bl[b.From] < 0x80 && bl[b.From] == ar[a.From] {
+			b.From++
+			a.From++
+		}
+
+		for b.From < b.To && a.From < a.To &&
+			bl[b.To-1] < 0x80 && bl[b.To-1] == ar[a.To-1] {
+			b.To--
+			a.To--
+		}
+	}
 }
 
 // tokens splits a line into the units an edit is measured in: a run of word
