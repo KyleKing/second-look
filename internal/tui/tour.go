@@ -420,7 +420,8 @@ func block(lines []string, h, width int) []string {
 }
 
 // tourStrip is the rail as one line: a segment per stop and chapter sized by
-// what it changes, named while there is room to.
+// what it changes. The groups around the cursor keep their names while there
+// is room to, and the rest collapse into a "+N" group on each side.
 func (m *Model) tourStrip(room int) string {
 	at := m.tourAt()
 	if at < 0 {
@@ -442,18 +443,28 @@ func (m *Model) tourStrip(room int) string {
 		}}}
 	}
 
-	for _, labels := range []bool{true, false} {
-		if widths, ok := stripWidths(cs, labels, room); ok {
-			return m.draw(cs, widths, labels)
+	for near := max(at, len(cs)-1-at); near >= 0; near-- {
+		win := windowed(cs, at, near)
+		if widths, ok := stripWidths(win, true, room); ok {
+			return m.draw(win, widths, true)
 		}
 	}
 
-	widths := make([]int, len(cs))
+	if widths, ok := stripWidths(cs, false, room); ok {
+		return m.draw(cs, widths, false)
+	}
+
+	win := windowed(cs, at, 0)
+	if widths, ok := stripWidths(win, false, room); ok {
+		return m.draw(win, widths, false)
+	}
+
+	widths := make([]int, len(win))
 	for i := range widths {
 		widths[i] = 1
 	}
 
-	return cut(m.draw(cs, widths, false), room)
+	return cut(m.draw(win, widths, false), room)
 }
 
 // groupThrough is how far the cursor stands through the drawn group at.

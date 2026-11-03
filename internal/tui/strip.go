@@ -2,6 +2,7 @@ package tui
 
 import (
 	"path"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -55,6 +56,46 @@ type inFile struct {
 type cluster struct {
 	label string
 	segs  []seg
+	// more is how many clusters a collapsed group stands for, 0 for a real
+	// one; its "+N" label is drawn even when real names no longer fit.
+	more int
+}
+
+// shown reports whether a cluster's label is drawn, which a collapsed group
+// keeps when the names around it had to go.
+func (c cluster) shown(labels bool) bool { return c.label != "" && (labels || c.more > 0) }
+
+// windowed is the clusters near at kept whole, with everything further out
+// summed into a "+N" group on each side, still weighted by what it holds.
+func windowed(cs []cluster, at, near int) []cluster {
+	lo, hi := max(0, at-near), min(len(cs), at+near+1)
+	out := make([]cluster, 0, hi-lo+2)
+
+	if lo > 0 {
+		out = append(out, sumClusters(cs[:lo]))
+	}
+
+	out = append(out, cs[lo:hi]...)
+
+	if hi < len(cs) {
+		out = append(out, sumClusters(cs[hi:]))
+	}
+
+	return out
+}
+
+// sumClusters is clusters collapsed into one, labeled with how many it holds.
+func sumClusters(cs []cluster) cluster {
+	s := seg{read: true}
+
+	for _, c := range cs {
+		for _, g := range c.segs {
+			s.weight += g.weight
+			s.read = s.read && g.read
+		}
+	}
+
+	return cluster{label: "+" + strconv.Itoa(len(cs)), segs: []seg{s}, more: len(cs)}
 }
 
 func (m *Model) readFiles() map[string]bool {
@@ -195,7 +236,7 @@ func stripWidths(cs []cluster, labels bool, room int) ([]int, bool) {
 	var weights []int
 
 	for _, c := range cs {
-		if labels && c.label != "" {
+		if c.shown(labels) {
 			fixed += textWidth(c.label) + 1
 		}
 
@@ -270,8 +311,13 @@ func (m *Model) draw(cs []cluster, widths []int, labels bool) string {
 			b.WriteString(strings.Repeat(" ", groupGap))
 		}
 
-		if labels && c.label != "" {
-			b.WriteString(m.styles.hunk.Render(c.label) + " ")
+		if c.shown(labels) {
+			face := m.styles.hunk
+			if c.more > 0 {
+				face = m.styles.note
+			}
+
+			b.WriteString(face.Render(c.label) + " ")
 		}
 
 		for j, s := range c.segs {

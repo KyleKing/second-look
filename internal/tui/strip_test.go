@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -154,6 +155,19 @@ func TestTheStripCollapsesToDirectories(t *testing.T) {
 	}
 }
 
+// manyDirs is one small file in each of n directories, so the tour draws a
+// chapter per directory.
+func manyDirs(n int) string {
+	var b strings.Builder
+
+	for i := range n {
+		fmt.Fprintf(&b, "diff --git a/ch%02d/f.go b/ch%02d/f.go\n--- a/ch%02d/f.go\n+++ b/ch%02d/f.go\n"+
+			"@@ -1 +1 @@\n-old\n+new\n", i, i, i, i)
+	}
+
+	return b.String()
+}
+
 // skewed is one big file among many one-line ones, so the one-line files
 // are each given a single cell.
 func skewed(small int) string {
@@ -171,6 +185,47 @@ func skewed(small int) string {
 	}
 
 	return b.String()
+}
+
+var collapsed = regexp.MustCompile(`\+\d+`)
+
+// More chapters than the strip can name collapse into a "+N" group on each
+// side of the cursor, which keeps the chapter under it and its neighbors
+// named.
+func TestTheStripCollapsesChaptersAwayFromTheCursor(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := fixtureWith(t, manyDirs(40))
+
+	line := headerLine(m)
+	if !strings.Contains(line, "ch00") || !strings.Contains(line, "●") {
+		t.Errorf("the chapter the cursor opens on is not named and marked: %q", line)
+	}
+
+	if got := collapsed.FindAllString(line, -1); len(got) != 1 {
+		t.Errorf("one side of the cursor is not collapsed into a +N group: %q", line)
+	}
+
+	if strings.Contains(line, "ch30") {
+		t.Errorf("a chapter far from the cursor still draws its name: %q", line)
+	}
+
+	for range 20 {
+		pressKey(t, m, 'n')
+	}
+
+	line = headerLine(m)
+	if !strings.Contains(line, "ch20") || !strings.Contains(line, "●") {
+		t.Errorf("the chapter the cursor moved to is not named and marked: %q", line)
+	}
+
+	if got := collapsed.FindAllString(line, -1); len(got) != 2 {
+		t.Errorf("the chapters either side of the cursor are not collapsed: %q", line)
+	}
+
+	if strings.Contains(line, "ch00") || strings.Contains(line, "ch39") {
+		t.Errorf("a chapter far from the cursor still draws its name: %q", line)
+	}
 }
 
 // The mark stands in the strip on the opening frame and after the cursor
