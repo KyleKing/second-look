@@ -129,26 +129,32 @@ func (m *Model) sideBySide() bool {
 	return m.drawn.split && m.view == viewDiff && m.diffWidth() >= splitWidth
 }
 
-// The one depth a side is drawn at: the runs inside a changed line that
-// actually differ from the line it is paired with. A line's side is said by
-// its gutter's color and the mark inside it, so the text itself is left to
-// the grammar's colors alone.
+// The two depths a changed line is drawn at: the wash is the pale tint the
+// whole line carries, and the mark is the deeper one only the runs inside it
+// that actually differ from the line it is paired with get. A line with no
+// pair — net-new or removed whole — is all wash, so a file of new code reads
+// as a sheet of it rather than a wall of the deep color.
 //
-// A 256-color terminal gets a deeper value, since the cube carries almost no
+// A 256-color terminal gets deeper values, since the cube carries almost no
 // dark tints: held back there, added and removed both quantize into the grey
 // ramp and the mark says nothing.
 const (
 	// What a terminal that mixes its own colors gets.
 	trueMarkLift, trueMarkSat = 0.28, 0.70
+	trueWashLift, trueWashSat = 0.10, 0.42
 	// What a 256-color terminal gets, deep enough to survive the cube.
 	cubeMarkLift = 0.34
+	cubeWashLift = 0.12
 	cubeSat      = 1.0
 )
 
 var (
 	markMix  = markDepth(supportsMillions())
+	washMix  = washDepth(supportsMillions())
 	trueMark = theme.Depth{Lift: trueMarkLift, Sat: trueMarkSat}
+	trueWash = theme.Depth{Lift: trueWashLift, Sat: trueWashSat}
 	cubeMark = theme.Depth{Lift: cubeMarkLift, Sat: cubeSat}
+	cubeWash = theme.Depth{Lift: cubeWashLift, Sat: cubeSat}
 )
 
 func markDepth(millions bool) theme.Depth {
@@ -157,6 +163,14 @@ func markDepth(millions bool) theme.Depth {
 	}
 
 	return cubeMark
+}
+
+func washDepth(millions bool) theme.Depth {
+	if millions {
+		return trueWash
+	}
+
+	return cubeWash
 }
 
 // supportsMillions asks what the terminal can actually mix, which decides how
@@ -170,10 +184,12 @@ func supportsMillions() bool {
 // gh-sweep stay one visual family rather than each carrying a theme.
 type richStyles struct {
 	class map[highlight.Class]lipgloss.Style
-	// mark is the depth of each side's changed runs, indexed by the diff's own
-	// spelling of the line kind. A context line is in none of it, which is what
-	// says it has no side.
+	// mark is the depth of each side's changed runs, and wash the paler one of
+	// the line that holds them, both indexed by the diff's own spelling of the
+	// line kind. A context line is in neither, which is what says it has no
+	// side.
 	mark map[byte]color.Color
+	wash map[byte]color.Color
 	// side is the green or red a line's side is said with: its sign and the
 	// line number the side carries, the way delta and GitHub color them rather
 	// than inverted.
@@ -206,6 +222,10 @@ func newRichStyles(s styles) richStyles {
 		mark: map[byte]color.Color{
 			diff.KindAdd:    theme.Tint(p.Base, p.Green, markMix),
 			diff.KindRemove: theme.Tint(p.Base, p.Red, markMix),
+		},
+		wash: map[byte]color.Color{
+			diff.KindAdd:    theme.Tint(p.Base, p.Green, washMix),
+			diff.KindRemove: theme.Tint(p.Base, p.Red, washMix),
 		},
 		gutter:  base.Foreground(p.Overlay1),
 		colored: colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ASCII,
@@ -326,17 +346,17 @@ func number(n, width int) string {
 	return fmt.Sprintf("%*d", width, n)
 }
 
-// padTo fills cells with the line's band where the diff pairs the line, and
-// with spaces where it does not.
+// padTo fills cells with the line's background where it carries one, and with
+// spaces where it does not.
 func (m *Model) padTo(r row, l diff.Line, cells int) string {
 	spaces := strings.Repeat(" ", cells)
 
-	band, ok := m.bandOf(r)
+	base, ok := m.lineBase(r, l)
 	if !ok {
 		return spaces
 	}
 
-	return lipgloss.NewStyle().Background(band).Render(spaces)
+	return lipgloss.NewStyle().Background(base).Render(spaces)
 }
 
 // fill pads seg to room cells, with the band running to band cells and plain
@@ -354,8 +374,7 @@ func (m *Model) fill(r row, l diff.Line, seg string, band, room int) string {
 }
 
 // bandOf is the band a row draws, which is the selection's alone: a changed
-// line's side is said by its gutter and the mark inside it, not by a wash
-// behind the whole line.
+// line's side is said by its wash and the mark inside it.
 func (m *Model) bandOf(r row) (color.Color, bool) {
 	if !r.current {
 		return nil, false
@@ -365,6 +384,21 @@ func (m *Model) bandOf(r row) (color.Color, bool) {
 	_, none := row.(lipgloss.NoColor)
 
 	return row, !none
+}
+
+// lineBase is the background a diff line is drawn over: the selection band on
+// the row under the cursor, the pale wash of its side on a changed line, and
+// nothing on a context one. The wash runs the line's whole width rather than
+// starting where the code does, because pale reads as a tint where the mark's
+// depth would read as a block of side color ahead of an indented line.
+func (m *Model) lineBase(r row, l diff.Line) (color.Color, bool) {
+	if band, ok := m.bandOf(r); ok {
+		return band, true
+	}
+
+	wash, ok := m.rich.wash[l.Kind]
+
+	return wash, ok
 }
 
 // bandMargin is the cells a band runs past the widest line of its hunk.
@@ -408,23 +442,9 @@ func hunkWidths(d *diff.Diff) map[hunkRef]int {
 // run against a running column rather than up front: expanding first would
 // move every byte offset the grammar and the pairing answered in.
 func (m *Model) richSegments(r row, l diff.Line, width int) []string {
-	band, ok := m.bandOf(r)
+	base, hasBase := m.lineBase(r, l)
 	mark := m.rich.mark[l.Kind]
 	marked := m.refined[refOf(r.path, l)]
-
-	// A line paired with nothing changed as a whole, so every run of its code
-	// is marked: the mark, not a band, is what says it changed.
-	markAll := l.Kind != diff.KindContext && !r.whole && len(marked) == 0
-
-	// The band starts where the code does: a block of side color ahead of an
-	// indented line reads as a whitespace mark, which is what the mark depth is
-	// for. A line that is only whitespace has no code to wait for, so it bands
-	// whole rather than vanish.
-	lead := indentOf(l.Text)
-	code := lead
-	if code == len(l.Text) {
-		code = 0
-	}
 
 	var segs []string
 
@@ -447,18 +467,14 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 
 		// A whitespace-only run is marked only where the indent is significant:
 		// a brace language's reindent is the hunk's badge's to say, not the line's.
-		inMark := covered(marked, piece.from) || (markAll && piece.to > code)
+		inMark := covered(marked, piece.from)
 		if inMark && !wsSignificant(r.path) {
 			inMark = strings.TrimSpace(l.Text[piece.from:piece.to]) != ""
 		}
 
-		style := under(face, band, ok)
-
-		switch {
-		case inMark:
+		style := under(face, base, hasBase)
+		if inMark {
 			style = under(face, mark, true)
-		case piece.to <= code:
-			style = face
 		}
 
 		text, spent := expandFrom(l.Text[piece.from:piece.to], cols)

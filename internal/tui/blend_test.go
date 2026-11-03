@@ -82,10 +82,13 @@ func TestAChangeIsVisibleAndItsCodeStaysReadable(t *testing.T) {
 					mark := c[side+" mark"]
 
 					apart(t, side+" mark from the page", mark, c["page"], fromPage)
+					apart(t, side+" mark from its wash", mark, c[side+" wash"], 4.0)
 					legible(t, "code on the "+side+" mark", c["text"], mark, onMark)
+					legible(t, "code on the "+side+" wash", c["text"], c[side+" wash"], onMark)
 				}
 
 				apart(t, "the two marks", c["added mark"], c["removed mark"], fromEach)
+				apart(t, "the two washes", c["added wash"], c["removed wash"], 3.0)
 			})
 		}
 	}

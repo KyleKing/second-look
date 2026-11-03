@@ -93,12 +93,15 @@ func (m *Model) WantsCheckout() bool { return m.checkout }
 // each other, which is the only way to know a mark says anything.
 func DiffColors(p theme.Palette, millions bool) map[string]color.Color {
 	mark := markDepth(millions)
+	wash := washDepth(millions)
 
 	return map[string]color.Color{
 		"page":         p.Base,
 		"text":         p.Text,
 		"added mark":   theme.Tint(p.Base, p.Green, mark),
 		"removed mark": theme.Tint(p.Base, p.Red, mark),
+		"added wash":   theme.Tint(p.Base, p.Green, wash),
+		"removed wash": theme.Tint(p.Base, p.Red, wash),
 	}
 }
 
