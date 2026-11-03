@@ -2,6 +2,7 @@ package tui
 
 import (
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -98,6 +99,45 @@ func sumClusters(cs []cluster) cluster {
 	return cluster{label: "+" + strconv.Itoa(len(cs)), segs: []seg{s}, more: len(cs)}
 }
 
+// litAt is the cluster holding the lit segment, -1 where none is.
+func litAt(cs []cluster) int {
+	for i, c := range cs {
+		if slices.ContainsFunc(c.segs, func(s seg) bool { return s.lit }) {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// fitClusters is the clusters drawn in room: the ones around at are named while a
+// window of them fits, the rest collapse into a "+N" group on each side, and
+// below that the names go and only the collapsed groups keep theirs.
+func (m *Model) fitClusters(cs []cluster, at, room int) string {
+	for near := max(at, len(cs)-1-at); near >= 0; near-- {
+		win := windowed(cs, at, near)
+		if widths, ok := stripWidths(win, true, room); ok {
+			return m.draw(win, widths, true)
+		}
+	}
+
+	if widths, ok := stripWidths(cs, false, room); ok {
+		return m.draw(cs, widths, false)
+	}
+
+	win := windowed(cs, at, 0)
+	if widths, ok := stripWidths(win, false, room); ok {
+		return m.draw(win, widths, false)
+	}
+
+	widths := make([]int, len(win))
+	for i := range widths {
+		widths[i] = 1
+	}
+
+	return cut(m.draw(win, widths, false), room)
+}
+
 func (m *Model) readFiles() map[string]bool {
 	done, total := map[string]int{}, map[string]int{}
 
@@ -134,29 +174,16 @@ func (m *Model) strip(files []fileStat, room int) string {
 		dirAt: m.through(func(r row) bool { return r.path != "" && path.Dir(r.path) == path.Dir(current) }),
 	}
 
-	attempts := []struct {
-		byFile, labels bool
-	}{{true, true}, {false, true}, {false, false}}
-
-	for _, a := range attempts {
-		if a.byFile && len(files) > stripFiles {
-			continue
-		}
-
-		cs := clusters(files, dirs, read, here, a.byFile)
-		if widths, ok := stripWidths(cs, a.labels, room); ok {
-			return m.draw(cs, widths, a.labels)
+	if len(files) <= stripFiles {
+		cs := clusters(files, dirs, read, here, true)
+		if widths, ok := stripWidths(cs, true, room); ok {
+			return m.draw(cs, widths, true)
 		}
 	}
 
 	cs := clusters(files, dirs, read, here, false)
-	widths := make([]int, len(cs))
 
-	for i := range widths {
-		widths[i] = 1
-	}
-
-	return cut(m.draw(cs, widths, false), room)
+	return m.fitClusters(cs, litAt(cs), room)
 }
 
 func directories(files []fileStat) map[string]string {

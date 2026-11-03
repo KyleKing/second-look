@@ -443,28 +443,7 @@ func (m *Model) tourStrip(room int) string {
 		}}}
 	}
 
-	for near := max(at, len(cs)-1-at); near >= 0; near-- {
-		win := windowed(cs, at, near)
-		if widths, ok := stripWidths(win, true, room); ok {
-			return m.draw(win, widths, true)
-		}
-	}
-
-	if widths, ok := stripWidths(cs, false, room); ok {
-		return m.draw(cs, widths, false)
-	}
-
-	win := windowed(cs, at, 0)
-	if widths, ok := stripWidths(win, false, room); ok {
-		return m.draw(win, widths, false)
-	}
-
-	widths := make([]int, len(win))
-	for i := range widths {
-		widths[i] = 1
-	}
-
-	return cut(m.draw(win, widths, false), room)
+	return m.fitClusters(cs, at, room)
 }
 
 // groupThrough is how far the cursor stands through the drawn group at.

@@ -228,6 +228,43 @@ func TestTheStripCollapsesChaptersAwayFromTheCursor(t *testing.T) {
 	}
 }
 
+// The file strip collapses the same way: directories away from the file under
+// the cursor fold into a "+N" group beside the ones it names.
+func TestTheFileStripCollapsesDirectoriesAwayFromTheCursor(t *testing.T) {
+	t.Parallel()
+
+	m, _, _ := fixtureWith(t, manyDirs(40))
+	pressKey(t, m, 'p')
+
+	line := headerLine(m)
+	if !strings.Contains(line, "ch00") || !strings.Contains(line, "●") {
+		t.Errorf("the directory the cursor opens in is not named and marked: %q", line)
+	}
+
+	if got := collapsed.FindAllString(line, -1); len(got) != 1 {
+		t.Errorf("the directories past the cursor are not collapsed into a +N group: %q", line)
+	}
+
+	if strings.Contains(line, "ch30") {
+		t.Errorf("a directory far from the cursor still draws its name: %q", line)
+	}
+
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+	line = headerLine(m)
+	if !strings.Contains(line, "ch39") || !strings.Contains(line, "●") {
+		t.Errorf("the directory the cursor moved to is not named and marked: %q", line)
+	}
+
+	if got := collapsed.FindAllString(line, -1); len(got) != 1 {
+		t.Errorf("the directories before the cursor are not collapsed into a +N group: %q", line)
+	}
+
+	if strings.Contains(line, "ch00") {
+		t.Errorf("a directory far from the cursor still draws its name: %q", line)
+	}
+}
+
 // The mark stands in the strip on the opening frame and after the cursor
 // moves, even where the file under it is given one cell.
 func TestTheStripMarksTheCursorAtEveryWidth(t *testing.T) {
