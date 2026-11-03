@@ -160,8 +160,8 @@ func newStyles() styles {
 // bandLift is how far the band's lightness rises toward middle grey, and
 // bandSat is the share of the accent's saturation it keeps.
 const (
-	bandLift = 0.12
-	bandSat  = 0.6
+	bandLift = 0.06
+	bandSat  = 0.30
 )
 
 // bandDepth is how far the cursor's band carries the accent's hue: more than
