@@ -3644,6 +3644,20 @@ func TestFoldingAConversationSaysSo(t *testing.T) {
 		t.Fatalf("the thread is not capped to its first and last comments:\n%s", frame)
 	}
 
+	// za opens the cap from anywhere in the thread, not only from the … row.
+	pressKey(t, m, 'j')
+
+	go2(t, m, 'z', 'a')
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "wrap the error with the path") ||
+		strings.Contains(frame, "2 comments in all") {
+		t.Fatalf("za did not open the held lines of the thread:\n%s", frame)
+	}
+
+	pressKey(t, m, 'g')
+	pressKey(t, m, 'g')
+	go2(t, m, ']', 't')
+
 	go2(t, m, 'z', 'a')
 
 	frame := plain(m.Frame())
@@ -3653,7 +3667,7 @@ func TestFoldingAConversationSaysSo(t *testing.T) {
 
 	go2(t, m, 'z', 'a')
 
-	if got := plain(m.Frame()); !strings.Contains(got, "wrap the error") {
+	if got := plain(m.Frame()); !strings.Contains(got, "@coderabbitai") {
 		t.Errorf("za did not put the conversation back:\n%s", got)
 	}
 }

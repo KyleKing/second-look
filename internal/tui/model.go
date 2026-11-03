@@ -1847,6 +1847,10 @@ func (m *Model) foldHere(open bool) {
 	switch {
 	case r.kind == rowTurn:
 		m.folded.turns[r.comment] = open
+	case r.kind == rowThread && open && m.capHeld(r.thread):
+		// A capped thread opens its held lines from anywhere in it. Without
+		// this the only za that reaches them is the one on the … row itself.
+		m.folded.blocks[blockAt{noteAt{r.thread, 0}, capBlock}] = true
 	case r.kind == rowThread && r.head:
 		m.folded.threads[r.thread] = !open
 	case r.kind == rowThread, isMember(r):
@@ -1954,6 +1958,20 @@ func (m *Model) foldInside(r row, open bool) bool {
 	return true
 }
 
+// capHeld reports whether the thread is drawn holding back its … row: the cap
+// is a fold, so it is the innermost thing za should open wherever in the
+// thread the cursor stands.
+func (m *Model) capHeld(t int) bool {
+	for i := range m.screen.rows {
+		if r := &m.screen.rows[i]; r.kind == rowThread && r.thread == t &&
+			r.block == capBlock+blockOffset && r.folded {
+			return true
+		}
+	}
+
+	return false
+}
+
 // openHere is whether what the cursor is on is showing, which is what za has
 // to invert.
 func (m *Model) openHere() bool {
@@ -1962,6 +1980,10 @@ func (m *Model) openHere() bool {
 	switch {
 	case r.kind == rowTurn:
 		return m.folded.turns[r.comment]
+	case r.kind == rowThread && m.capHeld(r.thread):
+		// A thread holding lines back reads as closed no matter which row of it
+		// the cursor is on, so za opens the cap rather than folding the thread.
+		return false
 	case r.kind == rowThread && r.head:
 		return !m.folded.threads[r.thread]
 	case r.kind == rowThread:
