@@ -305,15 +305,20 @@ func postReplies(
 	return nil
 }
 
-// Summary is the one line that says what Run sent.
+// Summary is the one line that says what Run sent. What was not sent is said
+// too: a skipped comment posts nothing, and a summary that only counts what
+// went out leaves a missing reply looking like it landed.
 func Summary(r *artifact.Review) string {
 	var comments, replies, resolved int
+
+	var skipped []string
 
 	for i := range r.Comments {
 		c := &r.Comments[i]
 
 		switch {
 		case c.Status == artifact.StatusSkip:
+			skipped = append(skipped, c.ID)
 		case c.InReplyTo == 0:
 			comments++
 		default:
@@ -341,6 +346,10 @@ func Summary(r *artifact.Review) string {
 
 	if resolved > 0 {
 		out += fmt.Sprintf(" · resolved %d", resolved)
+	}
+
+	for _, id := range skipped {
+		out += " · skipped " + id
 	}
 
 	return out

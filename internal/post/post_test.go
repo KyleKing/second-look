@@ -225,7 +225,7 @@ func TestSummaryAndLabelNameWhatWasSent(t *testing.T) {
 		inlineComment("4", artifact.StatusSkip),
 	)
 
-	if got, want := post.Summary(r), "posted 1 comment and 2 replies · resolved 1"; got != want {
+	if got, want := post.Summary(r), "posted 1 comment and 2 replies · resolved 1 · skipped 4"; got != want {
 		t.Errorf("summary = %q, want %q", got, want)
 	}
 
