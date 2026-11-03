@@ -55,13 +55,16 @@ func TestSuggestOpensTheLineAndFencesTheAnswer(t *testing.T) {
 }
 
 // A removed line has no line in the file that results, so there is nothing for a
-// suggestion to replace.
+// suggestion to replace. The plain look draws it as a row of its own; the rich
+// look folds it into the line that replaced it, where the refusal has no row
+// to stand on.
 func TestSuggestRefusesARemovedLine(t *testing.T) {
 	t.Parallel()
 
 	m, _ := fixture(t)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
+	go2(t, m, 'u', 'g')
 	onto(t, m, "lines := split(r)")
 	press(t, m, tea.KeyPressMsg{Code: 's', Text: "s"})
 

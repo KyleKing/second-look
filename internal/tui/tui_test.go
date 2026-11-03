@@ -546,9 +546,9 @@ func TestSearchIsAMotionAndCanBeScopedToUnread(t *testing.T) {
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "the only one"))
 
-	typeSearch(t, m, "split")
+	typeSearch(t, m, "err")
 
-	if got := m.CursorText(); !strings.Contains(got, "split") {
+	if got := m.CursorText(); !strings.Contains(got, "err") {
 		t.Fatalf("the cursor landed on %q, which does not match", got)
 	}
 
@@ -561,7 +561,7 @@ func TestSearchIsAMotionAndCanBeScopedToUnread(t *testing.T) {
 		t.Error("n did not repeat the search")
 	}
 
-	if got := m.CursorText(); !strings.Contains(got, "split") {
+	if got := m.CursorText(); !strings.Contains(got, "err") {
 		t.Errorf("n landed on %q, which does not match", got)
 	}
 
@@ -1020,7 +1020,7 @@ func TestCommentsRenderUnderTheirAnchor(t *testing.T) {
 		above string
 	}{
 		{"added line", comment("c1", parsed, artifact.SideRight, 15, "on the add"), "lines, err := split(r)"},
-		{"removed line", comment("c2", parsed, artifact.SideLeft, 15, "on the remove"), "lines := split(r)"},
+		{"removed line", comment("c2", parsed, artifact.SideLeft, 15, "on the remove"), "lines, err := split(r)"},
 		{"context line", comment("c3", parsed, artifact.SideRight, 14, "on the context"), "first := 1"},
 		{"second file", comment("c4", "internal/vcs/git.go", artifact.SideRight, 201, "on the tail"), "return head"},
 	}
@@ -1238,7 +1238,7 @@ func TestZaOpensAGeneratedFile(t *testing.T) {
 	press(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"})
 	press(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
 
-	if frame := plain(m.Frame()); !strings.Contains(frame, `version = "1.6.0"`) {
+	if frame := plain(m.Frame()); !strings.Contains(frame, `version = "1.`) {
 		t.Errorf("za did not open the lockfile:\n%s", frame)
 	}
 }
@@ -1267,12 +1267,12 @@ diff --git a/internal/rate/rate.go b/internal/rate/rate.go
 		name, heading, raw string
 		model              func(*testing.T) *tui.Model
 	}{
-		{"lockfile card", "go.sum  3 dependencies", "h1:iiiiiiii=", func(t *testing.T) *tui.Model {
+		{"lockfile card", "go.sum  3 dependencies", "h1:", func(t *testing.T) *tui.Model {
 			t.Helper()
 
 			return lockfileWith(t, nil)
 		}},
-		{"generated chapter", "generated  1 file", `version = "1.6.0"`, func(t *testing.T) *tui.Model {
+		{"generated chapter", "generated  1 file", `version = "1.`, func(t *testing.T) *tui.Model {
 			t.Helper()
 
 			m, _, _ := fixtureWith(t, generated)
@@ -2308,7 +2308,6 @@ func TestMarkerWritesATODOIntoTheSource(t *testing.T) {
 	press(t, m, tea.KeyPressMsg{Code: 'h', Text: "h"})
 	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
-	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 
 	if m.KeyIsInert("F") {
 		t.Fatal("F stayed inert with a work root and code under the cursor")
@@ -2364,7 +2363,7 @@ func askedWithoutAnAgent(t *testing.T, width, height int) {
 
 	go2(t, m, ']', 'h')
 
-	for _, k := range "jjjVjA" {
+	for _, k := range "jjVjA" {
 		pressKey(t, m, k)
 	}
 

@@ -242,7 +242,8 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 
 	hunk, folded := 0, 0
 	lines := &pairer{
-		split: c.lay.split, path: p, out: &rows, whole: f.Created() || f.Deleted(),
+		split: c.lay.split, merged: c.lay.merged, mates: c.lay.mates,
+		path: p, out: &rows, whole: f.Created() || f.Deleted(),
 		hang: s.hanger(p, c.r, c.ts, c.byLine, c.byThread, c.placed, c.lay),
 		lead: movedRow(p, c.lay.moved),
 	}

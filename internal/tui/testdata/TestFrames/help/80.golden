@@ -11,14 +11,14 @@ vcs ●────────────────────────�
        │ note  Unverified│         ]  go to…                                  │┃
        ╰─ [e]dit · [r]ead│         [  go back…                                │┃
                          │       n/N  the same, or back                       │┃
-  15 -     lines := split│  ctrl+o/i  back and forward through jumps          │┃
-  15 +     lines, err := │            tab goes forward too once ctrl+o has    │┃
-                         │            left a place ahead                      │┃
-       ╭─ ● ready · major│         .  the last change                         │┃
-       │ split can fail n│       tab  what wants a decision                   ││
-       ╰─ [e]dit · [r]ead│ shift+tab  and back                                ││
-                         │         /  search                                  ││
-  16 +     if err != nil │            tab in the prompt narrows a search to   ││
-  17       last := 4     │            hunks not yet read                      ││
-     internal/vcs/git.go ╰ · · ·──────────────────────────────────────────────╯│
+  15 +     lines, err := │  ctrl+o/i  back and forward through jumps          │┃
+                         │            tab goes forward too once ctrl+o has    │┃
+       ╭─ ● ready · major│            left a place ahead                      │┃
+       │ split can fail n│         .  the last change                         │┃
+       ╰─ [e]dit · [r]ead│       tab  what wants a decision                   │┃
+                         │ shift+tab  and back                                ││
+  16 +     if err != nil │         /  search                                  ││
+  17       last := 4     │            tab in the prompt narrows a search to   ││
+     internal/vcs/git.go │            hunks not yet read                      ││
+       func Head() string╰ · · ·──────────────────────────────────────────────╯│
  j/k line   ] go to   v code   i info   S submit   ? help   esc queue   q quit

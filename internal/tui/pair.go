@@ -16,6 +16,11 @@ import "github.com/kyleking/second-look/internal/diff"
 type pairer struct {
 	split bool
 	whole bool
+	// merged draws a paired removal inside its addition's row rather than as a
+	// row of its own, which is the unified rich look. The split look wants the
+	// same blocks, so it buffers identically and flushes differently.
+	merged bool
+	mates  map[diff.LineRef]diff.Line
 	// hang is the threads and comments sitting under one line, which follow the
 	// row the line was drawn on rather than the line itself.
 	hang func(diff.Line) []row
@@ -34,7 +39,7 @@ type pairer struct {
 // take adds one line, which may emit nothing until the block it belongs to
 // closes.
 func (p *pairer) take(l diff.Line) {
-	if !p.split {
+	if !p.split && !p.merged {
 		p.emit(l, diff.Line{})
 
 		return
@@ -58,6 +63,11 @@ func (p *pairer) take(l diff.Line) {
 }
 
 func (p *pairer) flush() {
+	if p.merged {
+		p.flushMerged()
+		return
+	}
+
 	for at := range max(len(p.gone), len(p.came)) {
 		switch {
 		case at >= len(p.came):
@@ -66,6 +76,35 @@ func (p *pairer) flush() {
 			p.emit(p.came[at], diff.Line{})
 		default:
 			p.emit(p.came[at], p.gone[at])
+		}
+	}
+
+	p.gone, p.came = nil, nil
+}
+
+// flushMerged emits the block's rows for the unified look: removals that paired
+// with an addition fold into its row and are drawn inside it, removals that
+// answered nothing keep their own row ahead of the additions, and unpaired
+// additions keep theirs.
+func (p *pairer) flushMerged() {
+	claimed := make(map[diff.Line]bool, len(p.gone))
+	for _, c := range p.came {
+		if g, ok := p.mates[refOf(p.path, c)]; ok {
+			claimed[g] = true
+		}
+	}
+
+	for _, g := range p.gone {
+		if !claimed[g] {
+			p.emit(g, diff.Line{})
+		}
+	}
+
+	for _, c := range p.came {
+		if g, ok := p.mates[refOf(p.path, c)]; ok {
+			p.emit(c, g)
+		} else {
+			p.emit(c, diff.Line{})
 		}
 	}
 

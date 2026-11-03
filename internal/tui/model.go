@@ -3753,6 +3753,7 @@ func (m *Model) layout() (layout, where) {
 	lay := layout{
 		width: m.diffWidth(), hide: m.skipper(), fold: m.folded, notes: m.notes, lit: m.lit,
 		split: m.sideBySide(), made: m.made,
+		merged: m.drawn.rich && !m.sideBySide(), mates: m.mates,
 		drifted: m.drifted,
 		grown: func(path string, hunk int, span [2]int) ([]row, []row) {
 			return m.surround(path, hunk, span[0], span[1])

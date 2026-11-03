@@ -70,6 +70,7 @@ func TestARangeIsGoneOnceItIsUsedOrDropped(t *testing.T) {
 			if tc.name == "writing one takes it" {
 				write(t, m, "the first covers a range")
 				pressKey(t, m, 'j')
+				pressKey(t, m, 'j')
 			}
 
 			write(t, m, "and this one covers a line")

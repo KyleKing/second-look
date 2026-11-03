@@ -763,6 +763,8 @@ func (m *Model) rowBodies(r row, width int) []string {
 		switch {
 		case m.sideBySide():
 			return m.splitCode(r, width)
+		case m.drawn.rich && r.mate.Kind != 0:
+			return m.mergedCode(r, width)
 		case m.drawn.rich:
 			return m.richCode(r, width)
 		case m.drawn.wrap:

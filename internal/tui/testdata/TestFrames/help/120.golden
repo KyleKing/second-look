@@ -11,14 +11,14 @@
          │ note  Unverified: I have not rea│         ]  go to…                                                      │┃
          ╰─ [e]dit · [r]eady · [d]raft · [t│         [  go back…                                                    │┃
                                            │       n/N  the same, or back                                           │┃
-    15 -     lines := split(r)             │  ctrl+o/i  back and forward through jumps                              │┃
-    15 +     lines, err := split(r)        │            tab goes forward too once ctrl+o has left a place ahead     │┃
-                                           │         .  the last change                                             │┃
-         ╭─ ● ready · major ───────────────│       tab  what wants a decision                                       │┃
-         │ split can fail now, so this has │ shift+tab  and back                                                    ││
-         ╰─ [e]dit · [r]eady · [d]raft · [t│         /  search                                                      ││
-                                           │            tab in the prompt narrows a search to hunks not yet read    ││
-    16 +     if err != nil {               │ what is shown                                                          ││
-    17       last := 4                     │         v  the next view                                               ││
-       internal/vcs/git.go ────────────────╰ · · ·──────────────────────────────────────────────────────────────────╯│
+    15 +     lines, err := split(r)        │  ctrl+o/i  back and forward through jumps                              │┃
+                                           │            tab goes forward too once ctrl+o has left a place ahead     │┃
+         ╭─ ● ready · major ───────────────│         .  the last change                                             │┃
+         │ split can fail now, so this has │       tab  what wants a decision                                       │┃
+         ╰─ [e]dit · [r]eady · [d]raft · [t│ shift+tab  and back                                                    │┃
+                                           │         /  search                                                      ││
+    16 +     if err != nil {               │            tab in the prompt narrows a search to hunks not yet read    ││
+    17       last := 4                     │ what is shown                                                          ││
+       internal/vcs/git.go ────────────────│         v  the next view                                               ││
+         func Head() string { ─────────────╰ · · ·──────────────────────────────────────────────────────────────────╯│
    j/k line   ] go to   v code   m mark   e write   a add   i info   S submit   ? help   esc queue   q quit

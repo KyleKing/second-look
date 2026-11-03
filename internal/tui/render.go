@@ -263,6 +263,118 @@ func (m *Model) richCode(r row, width int) []string {
 }
 
 // rule closes the gutter, so the code has a left edge to run down.
+// mergedCode draws a paired edit as one row: the line's new text, with the
+// runs the old line lost struck through at the places they were cut. It is
+// richCode's frame around its own segment walk.
+func (m *Model) mergedCode(r row, width int) []string {
+	room := max(0, width-m.gutterWidth())
+	band := m.bandRoom(r.path, r.line.Hunk, room)
+	segs := m.mergedSegments(r, r.line, room)
+
+	out := make([]string, len(segs))
+	for i, seg := range segs {
+		seg = m.fill(r, r.line, seg, band, room)
+
+		gutter := m.padTo(r, r.line, m.gutterWidth())
+		if i == 0 {
+			gutter = m.richGutter(r)
+		}
+
+		out[i] = gutter + cut(seg, room)
+	}
+
+	return out
+}
+
+// mergedSegments is the new line's text in order, cut into the pieces the
+// merge answered: kept text under the line's wash, inserted runs under the
+// mark, and the runs the old line lost struck through in the removal's colors
+// at the places they came out. Grammar faces apply to the new text only — the
+// cut text is already saying the loudest thing it can.
+func (m *Model) mergedSegments(r row, l diff.Line, width int) []string {
+	base, hasBase := m.lineBase(r, l)
+	mark := m.rich.mark[l.Kind]
+	spans := m.spansFor(r, l)
+
+	gone := m.styles.remove.Strikethrough(true)
+	if goneWash, ok := m.rich.wash[diff.KindRemove]; ok {
+		gone = gone.Background(goneWash)
+	}
+
+	var segs []string
+
+	var b strings.Builder
+
+	cols := 0
+
+	faces := m.rich.class
+	if m.behind(r) {
+		faces = nil
+		gone = m.styles.behind.Strikethrough(true)
+		if goneWash, ok := m.rich.wash[diff.KindRemove]; ok {
+			gone = gone.Background(goneWash)
+		}
+	}
+
+	write := func(style lipgloss.Style, text string) {
+		text, spent := expandFrom(text, cols)
+		if !m.drawn.wrap {
+			b.WriteString(style.Render(text))
+			if cols = spent; cols >= width {
+				// The caller's cut marks where it ran out; the rest is not drawn.
+				cols = width
+			}
+
+			return
+		}
+
+		for text != "" {
+			room := width - cols
+			if room < 1 {
+				segs = append(segs, b.String())
+				b.Reset()
+				cols, room = 0, width
+			}
+
+			part, rest := takeCells(text, room)
+			b.WriteString(style.Render(part))
+			cols += textWidth(part)
+			text = rest
+		}
+	}
+
+	pieces := diff.Merge(r.mate.Text, l.Text)
+	if len(pieces) == 0 {
+		// A pair the merge will not read as one line falls back to the plain
+		// rich rendering of the addition alone.
+		return m.richSegments(r, l, width)
+	}
+
+	for _, piece := range pieces {
+		if cols >= width && !m.drawn.wrap {
+			break
+		}
+
+		switch piece.Kind {
+		case diff.KindRemove:
+			write(gone, r.mate.Text[piece.From:piece.To])
+		default:
+			face := m.styles.behind
+			if faces != nil {
+				face = faces[classAt(spans, piece.From)]
+			}
+
+			if piece.Kind == diff.KindAdd {
+				write(under(face, mark, true), l.Text[piece.From:piece.To])
+			} else {
+				write(under(face, base, hasBase), l.Text[piece.From:piece.To])
+			}
+		}
+	}
+
+	return append(segs, b.String())
+}
+
 const rule = "\u2502"
 
 // gutterWidth is the number, and the side mark with a space on either side.

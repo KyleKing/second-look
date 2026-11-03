@@ -5,7 +5,6 @@
        internal/vcs/diff.go  +2 -1 ──────────────────────────────────────────────────────────────────────────────────┃
          func Parse(r io.Reader) ([]Hunk, error) { ──────────────────────────────────────────────────────────────────┃
     14       first := 1                                                                                              ┃
-    15 -     lines := split(r)                                                                                       ┃
     15 +     lines, err := split(r)                                                                                  ┃
     16 +     if err != nil {                                                                                         ┃
     17       last := 4                                                                                               ┃
@@ -16,9 +15,10 @@
         ┃ REVIEW BODY                                                                                                ┃
         ┃ Picking up the review. I checked production and:                                                           ┃
         ┃                                                                                                            ┃
-        ┃ 1. Across 177 live asks, seven orgs carry an id owned by another org, which is the                         │
-        ┃    case this change is for                                                                                 │
+        ┃ 1. Across 177 live asks, seven orgs carry an id owned by another org, which is the                         ┃
+        ┃    case this change is for                                                                                 ┃
         ┃ 2. The org in the ticket has none of it: no cross-org pointer, no duplicate ask                            │
         ┃ - it does have two live questionnaires sharing a name                                                      │
         ┃                                                                                                            │
+        ┃ REVIEW NOTE                                                                                                │
    everything open  j/k line   ] go to   v code   m mark   e write   i info   S submit   ? help   esc queue   q quit

@@ -159,6 +159,11 @@ type layout struct {
 	// sides of an edit share a row. It is the one renderer that changes which
 	// rows exist rather than only how they are drawn.
 	split bool
+	// merged folds a paired removal into its addition's row, which the rich
+	// unified look draws as one line with the cut text inside it. It too
+	// changes which rows exist, so it is a layout rather than a paint.
+	merged bool
+	mates  map[diff.LineRef]diff.Line
 	// made is what counts as written by a machine, which is grouped last and
 	// folded until somebody asks for it.
 	made generated.Set
