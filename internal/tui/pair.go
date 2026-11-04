@@ -82,30 +82,57 @@ func (p *pairer) flush() {
 	p.gone, p.came = nil, nil
 }
 
-// flushMerged emits the block's rows for the unified look: removals that paired
-// with an addition fold into its row and are drawn inside it, removals that
-// answered nothing keep their own row ahead of the additions, and unpaired
-// additions keep theirs.
+// flushMerged emits the block's rows for the unified look: a removal that
+// paired with an addition it can merge with folds into that row and is drawn
+// inside it, and every other line keeps a row of its own. Rows come out in
+// patch order read against the post-image: an unpaired removal sits just ahead
+// of the next merged row, where the line it was cut from went, so the numbers
+// a block shows never run backward.
 func (p *pairer) flushMerged() {
 	claimed := make(map[diff.Line]bool, len(p.gone))
 	for _, c := range p.came {
-		if g, ok := p.mates[refOf(p.path, c)]; ok {
+		if g, ok := p.mates[refOf(p.path, c)]; ok && len(diff.Merge(g.Text, c.Text)) > 0 {
 			claimed[g] = true
 		}
 	}
 
-	for _, g := range p.gone {
-		if !claimed[g] {
+	if len(claimed) == 0 {
+		for _, g := range p.gone {
 			p.emit(g, diff.Line{})
 		}
+		for _, c := range p.came {
+			p.emit(c, diff.Line{})
+		}
+
+		p.gone, p.came = nil, nil
+
+		return
 	}
 
+	at := 0
 	for _, c := range p.came {
-		if g, ok := p.mates[refOf(p.path, c)]; ok {
-			p.emit(c, g)
+		mate, paired := p.mates[refOf(p.path, c)]
+		if paired && claimed[mate] {
+			for at < len(p.gone) && p.gone[at] != mate {
+				if !claimed[p.gone[at]] {
+					p.emit(p.gone[at], diff.Line{})
+				}
+				at++
+			}
+			if at < len(p.gone) {
+				at++
+			}
+			p.emit(c, mate)
 		} else {
 			p.emit(c, diff.Line{})
 		}
+	}
+
+	for at < len(p.gone) {
+		if !claimed[p.gone[at]] {
+			p.emit(p.gone[at], diff.Line{})
+		}
+		at++
 	}
 
 	p.gone, p.came = nil, nil
