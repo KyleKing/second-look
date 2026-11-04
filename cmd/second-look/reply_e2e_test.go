@@ -28,17 +28,21 @@ func TestPostReply(t *testing.T) {
 	s.RequireAllPlayed(t)
 }
 
-// TestPostReportsAReplyThatFailedAfterTheReview is the path that cannot be
-// retried: the review is already on GitHub, so the message has to say so and
-// the prepared review has to stay on disk rather than be removed as posted.
+// TestPostReportsAReplyThatFailedAfterTheReview is the reply failing inside a
+// review that has not submitted yet: the pending review is abandoned, nothing
+// reached GitHub, and the staged file is still on disk for a clean retry.
 func TestPostReportsAReplyThatFailedAfterTheReview(t *testing.T) {
 	t.Parallel()
 
 	cassette := deriveFrom(t, "post-reply", "reply-failed", func(c *ghcassette.Cassette) {
-		last := len(c.Interactions) - 1
-		c.Interactions[last].Exit = 1
-		c.Interactions[last].Stdout = ""
-		c.Interactions[last].Stderr = "gh: Not Found (HTTP 404)\n"
+		// The addReply call fails, and the abandon cleans up behind it.
+		c.Interactions[4].Exit = 1
+		c.Interactions[4].Stdout = ""
+		c.Interactions[4].Stderr = "gh: Not Found (HTTP 404)\n"
+		c.Interactions = append(c.Interactions, ghcassette.Interaction{
+			Args:   []string{"api", "--method", "DELETE", "/repos/KyleKing/second-look/pulls/2/reviews/5073201844"},
+			Stdout: "",
+		})
 	})
 
 	s := ghcassette.Replay(t, cassette)
@@ -49,12 +53,8 @@ func TestPostReportsAReplyThatFailedAfterTheReview(t *testing.T) {
 		t.Fatal("expected a failed reply to fail the command")
 	}
 
-	if !strings.Contains(res.stderr, "would post the review twice") {
-		t.Errorf("want the un-retryable state named, got %q", res.stderr)
-	}
-
-	if !strings.Contains(res.stdout, "posted /repos/KyleKing/second-look/pulls/2/reviews") {
-		t.Errorf("want the review that did post reported, got %q", res.stdout)
+	if !strings.Contains(res.stderr, "nothing reached GitHub") {
+		t.Errorf("want the abandoned pending review reported, got %q", res.stderr)
 	}
 }
 

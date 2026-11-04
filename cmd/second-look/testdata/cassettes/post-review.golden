@@ -75,7 +75,31 @@ index 0000000..2007e8b
 exit = 0
 
 [[interaction]]
-args = ['api', '--method', 'POST', '/repos/KyleKing/second-look/pulls/2/reviews', '--input', '-']
-stdin = "{\"commit_id\":\"6bc1218809a6faf83bc266c7a10b6b096f814a74\",\"body\":\"A few things on the budget reader.\",\"event\":\"COMMENT\",\"comments\":[{\"path\":\"testdata/fixture/sample.go\",\"side\":\"RIGHT\",\"body\":\"This returns os.ReadFile's error with no context, so the caller sees a bare `no such file or directory` and cannot tell which budget failed. Wrap it: `fmt.Errorf(\\\"reading %s: %w\\\", path, err)`.\",\"line\":19},{\"path\":\"testdata/fixture/sample.go\",\"side\":\"RIGHT\",\"start_side\":\"RIGHT\",\"body\":\"A line that does not parse is skipped silently, so a typo in the budget file reads as a smaller total rather than as an error. Return the failure instead of continuing past it.\",\"line\":28,\"start_line\":25},{\"path\":\"testdata/fixture/sample.go\",\"side\":\"RIGHT\",\"body\":\"A budget that really does total zero is reported as empty. Check whether any entry parsed instead of checking the total.\",\"line\":33}]}"
-stdout = '{"id":5073185970,"node_id":"PRR_kwDOT-RSFs8AAAABLmKssg","user":{"login":"KyleKing","id":3784339,"node_id":"MDQ6VXNlcjM3ODQzMzk=","avatar_url":"https://avatars.githubusercontent.com/u/3784339?u=59f8cc4f32bd1a7975775b985e3bee10bfc009d4&v=4","gravatar_id":"","url":"https://api.github.com/users/KyleKing","html_url":"https://github.com/KyleKing","followers_url":"https://api.github.com/users/KyleKing/followers","following_url":"https://api.github.com/users/KyleKing/following{/other_user}","gists_url":"https://api.github.com/users/KyleKing/gists{/gist_id}","starred_url":"https://api.github.com/users/KyleKing/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/KyleKing/subscriptions","organizations_url":"https://api.github.com/users/KyleKing/orgs","repos_url":"https://api.github.com/users/KyleKing/repos","events_url":"https://api.github.com/users/KyleKing/events{/privacy}","received_events_url":"https://api.github.com/users/KyleKing/received_events","type":"User","user_view_type":"public","site_admin":false},"body":"A few things on the budget reader.","state":"COMMENTED","html_url":"https://github.com/KyleKing/second-look/pull/2#pullrequestreview-5073185970","pull_request_url":"https://api.github.com/repos/KyleKing/second-look/pulls/2","author_association":"OWNER","_links":{"html":{"href":"https://github.com/KyleKing/second-look/pull/2#pullrequestreview-5073185970"},"pull_request":{"href":"https://api.github.com/repos/KyleKing/second-look/pulls/2"}},"submitted_at":"2026-09-01T01:48:22Z","commit_id":"6bc1218809a6faf83bc266c7a10b6b096f814a74"}'
+args = ['api', 'graphql', '--input', '-']
+stdin = """
+{"query":"query($owner:String!,$name:String!,$number:Int!){\n  repository(owner:$owner,name:$name){pullRequest(number:$number){id}}\n}","variables":{"name":"second-look","number":2,"owner":"KyleKing"}}
+"""
+stdout = """
+{"data":{"repository":{"pullRequest":{"id":"PR_kwDOT-RSFs8AAAAAPR2"}}}}
+"""
+exit = 0
+
+[[interaction]]
+args = ['api', 'graphql', '--input', '-']
+stdin = """
+{"query":"mutation($input:AddPullRequestReviewInput!){\n  addPullRequestReview(input:$input){pullRequestReview{id databaseId}}\n}","variables":{"input":{"commitOID":"6bc1218809a6faf83bc266c7a10b6b096f814a74","pullRequestId":"PR_kwDOT-RSFs8AAAAAPR2","threads":[{"path":"testdata/fixture/sample.go","line":19,"side":"RIGHT","body":"This returns os.ReadFile's error with no context, so the caller sees a bare `no such file or directory` and cannot tell which budget failed. Wrap it: `fmt.Errorf(\\\"reading %s: %w\\\", path, err)`."},{"path":"testdata/fixture/sample.go","line":28,"side":"RIGHT","startLine":25,"startSide":"RIGHT","body":"A line that does not parse is skipped silently, so a typo in the budget file reads as a smaller total rather than as an error. Return the failure instead of continuing past it."},{"path":"testdata/fixture/sample.go","line":33,"side":"RIGHT","body":"A budget that really does total zero is reported as empty. Check whether any entry parsed instead of checking the total."}]}}}
+"""
+stdout = """
+{"data":{"addPullRequestReview":{"pullRequestReview":{"id":"PRR_kwDOT-RSFs8AAAABLmKssg","databaseId":5073185970}}}}
+"""
+exit = 0
+
+[[interaction]]
+args = ['api', 'graphql', '--input', '-']
+stdin = """
+{"query":"mutation($input:SubmitPullRequestReviewInput!){\n  submitPullRequestReview(input:$input){pullRequestReview{id databaseId}}\n}","variables":{"input":{"body":"A few things on the budget reader.","event":"COMMENT","pullRequestReviewId":"PRR_kwDOT-RSFs8AAAABLmKssg"}}}
+"""
+stdout = """
+{"data":{"submitPullRequestReview":{"pullRequestReview":{"id":"PRR_kwDOT-RSFs8AAAABLmKssg","databaseId":5073185970}}}}
+"""
 exit = 0

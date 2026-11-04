@@ -1,0 +1,303 @@
+package post
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/kyleking/second-look/internal/artifact"
+)
+
+// The review posts through GraphQL rather than REST for one reason: a reply
+// posted to the REST replies endpoint lands in whatever pending review the
+// author has open, which may not be the one that just submitted — it returns
+// 200 and stays invisible until a review nobody knows about is submitted. The
+// GraphQL path names the review every reply belongs to, so the review and its
+// replies become public in one submitPullRequestReview call.
+const (
+	prNodeQuery = `query($owner:String!,$name:String!,$number:Int!){
+  repository(owner:$owner,name:$name){pullRequest(number:$number){id}}
+}`
+
+	addReviewMutation = `mutation($input:AddPullRequestReviewInput!){
+  addPullRequestReview(input:$input){pullRequestReview{id databaseId}}
+}`
+
+	addReplyMutation = `mutation($input:AddPullRequestReviewThreadReplyInput!){
+  addPullRequestReviewThreadReply(input:$input){comment{databaseId}}
+}`
+
+	submitReviewMutation = `mutation($input:SubmitPullRequestReviewInput!){
+  submitPullRequestReview(input:$input){pullRequestReview{id databaseId}}
+}`
+
+	// threadQuery finds the node id of the thread a hand-staged reply answers,
+	// which the reply's in_reply_to names by comment database id instead.
+	threadQuery = `query($owner:String!,$name:String!,$number:Int!,$after:String){
+  repository(owner:$owner,name:$name){
+    pullRequest(number:$number){
+      reviewThreads(first:100,after:$after){
+        pageInfo{hasNextPage endCursor}
+        nodes{id comments(first:1){nodes{databaseId}}}
+      }
+    }
+  }
+}`
+)
+
+// request is one call to gh api graphql --input -.
+func request(query string, variables any) ([]byte, error) {
+	body, err := json.Marshal(map[string]any{"query": query, "variables": variables})
+	if err != nil {
+		return nil, fmt.Errorf("encoding the request: %w", err)
+	}
+
+	return body, nil
+}
+
+// graphql answers the data half of a GraphQL response into out, with the
+// errors half as the error. GitHub can answer both, so errors win.
+func graphql(out any, body []byte) error {
+	var envelope struct {
+		Data   json.RawMessage `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return fmt.Errorf("reading the answer: %w", err)
+	}
+
+	if len(envelope.Errors) > 0 {
+		msgs := make([]string, 0, len(envelope.Errors))
+		for _, e := range envelope.Errors {
+			msgs = append(msgs, e.Message)
+		}
+
+		return errors.New(strings.Join(msgs, "; "))
+	}
+
+	if err := json.Unmarshal(envelope.Data, out); err != nil {
+		return fmt.Errorf("reading the answer: %w", err)
+	}
+
+	return nil
+}
+
+// prNodeID is the pull request's GraphQL id, which every mutation on it names.
+func prNodeID(ctx context.Context, p Poster, r *artifact.Review) (string, error) {
+	body, err := request(prNodeQuery, map[string]any{
+		"owner": r.Owner, "name": r.Repo, "number": r.Number,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	raw, err := p.GraphQL(ctx, body)
+	if err != nil {
+		return "", fmt.Errorf("reading the pull request: %w", err)
+	}
+
+	var out struct {
+		Repository struct {
+			PullRequest struct {
+				ID string `json:"id"`
+			} `json:"pullRequest"`
+		} `json:"repository"`
+	}
+
+	if err := graphql(&out, raw); err != nil {
+		return "", fmt.Errorf("reading the pull request: %w", err)
+	}
+
+	if out.Repository.PullRequest.ID == "" {
+		return "", fmt.Errorf("reading the pull request: no pull request %s/%s#%d",
+			r.Owner, r.Repo, r.Number)
+	}
+
+	return out.Repository.PullRequest.ID, nil
+}
+
+// pendingReview is what addPullRequestReview answered: the review everything
+// else hangs off. Its databaseId is what the cleanup delete and the posted
+// record name, since neither speaks GraphQL ids.
+type pendingReview struct {
+	ID         string `json:"id"`
+	DatabaseID int64  `json:"databaseId"`
+}
+
+// openReview creates the pending review holding this review's comments, and
+// replies attach to it by id rather than to whichever pending review happens
+// to exist.
+func openReview(
+	ctx context.Context, p Poster, prID string, r *artifact.Review, threads []artifact.DraftThread,
+) (*pendingReview, error) {
+	body, err := request(addReviewMutation, map[string]any{"input": map[string]any{
+		"pullRequestId": prID,
+		"commitOID":     r.HeadSHA,
+		"threads":       threads,
+	}})
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := p.GraphQL(ctx, body)
+	if err != nil {
+		return nil, fmt.Errorf("opening the review: %w", err)
+	}
+
+	var out struct {
+		AddPullRequestReview struct {
+			PullRequestReview pendingReview `json:"pullRequestReview"`
+		} `json:"addPullRequestReview"`
+	}
+
+	if err := graphql(&out, raw); err != nil {
+		return nil, fmt.Errorf("opening the review: %w", err)
+	}
+
+	if out.AddPullRequestReview.PullRequestReview.ID == "" {
+		return nil, fmt.Errorf("opening the review: GitHub answered no review")
+	}
+
+	return &out.AddPullRequestReview.PullRequestReview, nil
+}
+
+// threadIDs answers the node id of every thread on the pull request, keyed by
+// the database id of the comment that opened it — which is what a reply's
+// in_reply_to holds. It is only asked when a reply does not name its thread.
+func threadIDs(ctx context.Context, p Poster, r *artifact.Review) (map[int64]string, error) {
+	out := map[int64]string{}
+	after := ""
+
+	for {
+		body, err := request(threadQuery, map[string]any{
+			"owner": r.Owner, "name": r.Repo, "number": r.Number,
+			"after": after,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		raw, err := p.GraphQL(ctx, body)
+		if err != nil {
+			return nil, fmt.Errorf("reading the pull request's threads: %w", err)
+		}
+
+		var page struct {
+			Repository struct {
+				PullRequest struct {
+					ReviewThreads struct {
+						PageInfo struct {
+							HasNextPage bool   `json:"hasNextPage"`
+							EndCursor   string `json:"endCursor"`
+						} `json:"pageInfo"`
+						Nodes []struct {
+							ID       string `json:"id"`
+							Comments struct {
+								Nodes []struct {
+									DatabaseID int64 `json:"databaseId"`
+								} `json:"nodes"`
+							} `json:"comments"`
+						} `json:"nodes"`
+					} `json:"reviewThreads"`
+				} `json:"pullRequest"`
+			} `json:"repository"`
+		}
+
+		if err := graphql(&page, raw); err != nil {
+			return nil, fmt.Errorf("reading the pull request's threads: %w", err)
+		}
+
+		for _, t := range page.Repository.PullRequest.ReviewThreads.Nodes {
+			if len(t.Comments.Nodes) > 0 {
+				out[t.Comments.Nodes[0].DatabaseID] = t.ID
+			}
+		}
+
+		if !page.Repository.PullRequest.ReviewThreads.PageInfo.HasNextPage {
+			return out, nil
+		}
+
+		after = page.Repository.PullRequest.ReviewThreads.PageInfo.EndCursor
+	}
+}
+
+// addReply puts one reply into the pending review. Naming pullRequestReviewId
+// is the whole point of this path: the REST endpoint picked whichever pending
+// review existed, and a reply that landed in one nobody submitted stayed
+// invisible while returning success.
+func addReply(
+	ctx context.Context, p Poster, reviewID, threadID, body string,
+) error {
+	req, err := request(addReplyMutation, map[string]any{"input": map[string]any{
+		"pullRequestReviewId":       reviewID,
+		"pullRequestReviewThreadId": threadID,
+		"body":                      body,
+	}})
+	if err != nil {
+		return err
+	}
+
+	raw, err := p.GraphQL(ctx, req)
+	if err != nil {
+		return fmt.Errorf("adding a reply: %w", err)
+	}
+
+	var out struct {
+		AddPullRequestReviewThreadReply struct {
+			Comment struct {
+				DatabaseID int64 `json:"databaseId"`
+			} `json:"comment"`
+		} `json:"addPullRequestReviewThreadReply"`
+	}
+
+	if err := graphql(&out, raw); err != nil {
+		return fmt.Errorf("adding a reply: %w", err)
+	}
+
+	if out.AddPullRequestReviewThreadReply.Comment.DatabaseID == 0 {
+		return fmt.Errorf("adding a reply: GitHub answered no comment")
+	}
+
+	return nil
+}
+
+// submitReview submits the pending review, which is when its comments and its
+// replies all become visible at once.
+func submitReview(
+	ctx context.Context, p Poster, reviewID, event, body string,
+) (*pendingReview, error) {
+	req, err := request(submitReviewMutation, map[string]any{"input": map[string]any{
+		"pullRequestReviewId": reviewID,
+		"event":               event,
+		"body":                body,
+	}})
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := p.GraphQL(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("submitting the review: %w", err)
+	}
+
+	var out struct {
+		SubmitPullRequestReview struct {
+			PullRequestReview pendingReview `json:"pullRequestReview"`
+		} `json:"submitPullRequestReview"`
+	}
+
+	if err := graphql(&out, raw); err != nil {
+		return nil, fmt.Errorf("submitting the review: %w", err)
+	}
+
+	if out.SubmitPullRequestReview.PullRequestReview.ID == "" {
+		return nil, fmt.Errorf("submitting the review: GitHub answered no review")
+	}
+
+	return &out.SubmitPullRequestReview.PullRequestReview, nil
+}

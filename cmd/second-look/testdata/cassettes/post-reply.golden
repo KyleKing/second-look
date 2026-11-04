@@ -73,15 +73,42 @@ index 0000000..2007e8b
 +}
 """
 exit = 0
-
 [[interaction]]
-args = ['api', '--method', 'POST', '/repos/KyleKing/second-look/pulls/2/reviews', '--input', '-']
-stdin = '{"commit_id":"6bc1218809a6faf83bc266c7a10b6b096f814a74","body":"Answering the thread on the budget reader.","event":"COMMENT"}'
-stdout = '{"id":5073201844,"node_id":"PRR_kwDOT-RSFs8AAAABLmLqtA","user":{"login":"KyleKing","id":3784339,"node_id":"MDQ6VXNlcjM3ODQzMzk=","avatar_url":"https://avatars.githubusercontent.com/u/3784339?u=59f8cc4f32bd1a7975775b985e3bee10bfc009d4&v=4","gravatar_id":"","url":"https://api.github.com/users/KyleKing","html_url":"https://github.com/KyleKing","followers_url":"https://api.github.com/users/KyleKing/followers","following_url":"https://api.github.com/users/KyleKing/following{/other_user}","gists_url":"https://api.github.com/users/KyleKing/gists{/gist_id}","starred_url":"https://api.github.com/users/KyleKing/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/KyleKing/subscriptions","organizations_url":"https://api.github.com/users/KyleKing/orgs","repos_url":"https://api.github.com/users/KyleKing/repos","events_url":"https://api.github.com/users/KyleKing/events{/privacy}","received_events_url":"https://api.github.com/users/KyleKing/received_events","type":"User","user_view_type":"public","site_admin":false},"body":"Answering the thread on the budget reader.","state":"COMMENTED","html_url":"https://github.com/KyleKing/second-look/pull/2#pullrequestreview-5073201844","pull_request_url":"https://api.github.com/repos/KyleKing/second-look/pulls/2","author_association":"OWNER","_links":{"html":{"href":"https://github.com/KyleKing/second-look/pull/2#pullrequestreview-5073201844"},"pull_request":{"href":"https://api.github.com/repos/KyleKing/second-look/pulls/2"}},"submitted_at":"2026-09-01T01:50:52Z","commit_id":"6bc1218809a6faf83bc266c7a10b6b096f814a74"}'
+args = ['api', 'graphql', '--input', '-']
+stdin = """
+{"query":"query($owner:String!,$name:String!,$number:Int!){\n  repository(owner:$owner,name:$name){pullRequest(number:$number){id}}\n}","variables":{"name":"second-look","number":2,"owner":"KyleKing"}}
+"""
+stdout = """
+{"data":{"repository":{"pullRequest":{"id":"PR_kwDOT-RSFs8AAAAAPR2"}}}}
+"""
 exit = 0
 
 [[interaction]]
-args = ['api', '--method', 'POST', '/repos/KyleKing/second-look/pulls/2/comments/3900038873/replies', '--input', '-']
-stdin = '{"body":"Agreed, and the wrap wants the path rather than the call: the caller already knows it called ReadBudget."}'
-stdout = "{\"url\":\"https://api.github.com/repos/KyleKing/second-look/pulls/comments/3900052046\",\"pull_request_review_id\":5073201937,\"id\":3900052046,\"node_id\":\"PRRC_kwDOT-RSFs7odhJO\",\"diff_hunk\":\"@@ -0,0 +1,57 @@\\n+// Package fixture is the recording target for second-look's own tests. It is\\n+// never compiled: it lives under testdata so the Go tool ignores it, and it\\n+// exists only to give a long-lived pull request a diff worth commenting on.\\n+package fixture\\n+\\n+import (\\n+\\t\\\"errors\\\"\\n+\\t\\\"fmt\\\"\\n+\\t\\\"os\\\"\\n+\\t\\\"strconv\\\"\\n+)\\n+\\n+var errEmptyBudget = errors.New(\\\"budget file is empty\\\")\\n+\\n+// ReadBudget reads a line-per-entry budget file and totals it.\\n+func ReadBudget(path string) (int, error) {\\n+\\traw, err := os.ReadFile(path)\\n+\\tif err != nil {\\n+\\t\\treturn 0, err\",\"path\":\"testdata/fixture/sample.go\",\"commit_id\":\"6bc1218809a6faf83bc266c7a10b6b096f814a74\",\"original_commit_id\":\"6bc1218809a6faf83bc266c7a10b6b096f814a74\",\"user\":{\"login\":\"KyleKing\",\"id\":3784339,\"node_id\":\"MDQ6VXNlcjM3ODQzMzk=\",\"avatar_url\":\"https://avatars.githubusercontent.com/u/3784339?v=4\",\"gravatar_id\":\"\",\"url\":\"https://api.github.com/users/KyleKing\",\"html_url\":\"https://github.com/KyleKing\",\"followers_url\":\"https://api.github.com/users/KyleKing/followers\",\"following_url\":\"https://api.github.com/users/KyleKing/following{/other_user}\",\"gists_url\":\"https://api.github.com/users/KyleKing/gists{/gist_id}\",\"starred_url\":\"https://api.github.com/users/KyleKing/starred{/owner}{/repo}\",\"subscriptions_url\":\"https://api.github.com/users/KyleKing/subscriptions\",\"organizations_url\":\"https://api.github.com/users/KyleKing/orgs\",\"repos_url\":\"https://api.github.com/users/KyleKing/repos\",\"events_url\":\"https://api.github.com/users/KyleKing/events{/privacy}\",\"received_events_url\":\"https://api.github.com/users/KyleKing/received_events\",\"type\":\"User\",\"user_view_type\":\"public\",\"site_admin\":false},\"body\":\"Agreed, and the wrap wants the path rather than the call: the caller already knows it called ReadBudget.\",\"created_at\":\"2026-09-01T01:50:53Z\",\"updated_at\":\"2026-09-01T01:50:53Z\",\"html_url\":\"https://github.com/KyleKing/second-look/pull/2#discussion_r3900052046\",\"pull_request_url\":\"https://api.github.com/repos/KyleKing/second-look/pulls/2\",\"_links\":{\"self\":{\"href\":\"https://api.github.com/repos/KyleKing/second-look/pulls/comments/3900052046\"},\"html\":{\"href\":\"https://github.com/KyleKing/second-look/pull/2#discussion_r3900052046\"},\"pull_request\":{\"href\":\"https://api.github.com/repos/KyleKing/second-look/pulls/2\"}},\"reactions\":{\"url\":\"https://api.github.com/repos/KyleKing/second-look/pulls/comments/3900052046/reactions\",\"total_count\":0,\"+1\":0,\"-1\":0,\"laugh\":0,\"hooray\":0,\"confused\":0,\"heart\":0,\"rocket\":0,\"eyes\":0},\"start_line\":null,\"original_start_line\":null,\"start_side\":null,\"line\":19,\"original_line\":19,\"side\":\"RIGHT\",\"in_reply_to_id\":3900038873,\"author_association\":\"OWNER\",\"original_position\":19,\"position\":19,\"subject_type\":\"line\"}"
+args = ['api', 'graphql', '--input', '-']
+stdin = """
+{"query":"mutation($input:AddPullRequestReviewInput!){\n  addPullRequestReview(input:$input){pullRequestReview{id databaseId}}\n}","variables":{"input":{"commitOID":"6bc1218809a6faf83bc266c7a10b6b096f814a74","pullRequestId":"PR_kwDOT-RSFs8AAAAAPR2","threads":[]}}}
+"""
+stdout = """
+{"data":{"addPullRequestReview":{"pullRequestReview":{"id":"PRR_kwDOT-RSFs8AAAABLmLqtA","databaseId":5073201844}}}}
+"""
+exit = 0
+
+[[interaction]]
+args = ['api', 'graphql', '--input', '-']
+stdin = """
+{"query":"mutation($input:AddPullRequestReviewThreadReplyInput!){\n  addPullRequestReviewThreadReply(input:$input){comment{databaseId}}\n}","variables":{"input":{"body":"Agreed, and the wrap wants the path rather than the call: the caller already knows it called ReadBudget.","pullRequestReviewId":"PRR_kwDOT-RSFs8AAAABLmLqtA","pullRequestReviewThreadId":"PRRT_kwDOT-RSFs6BudgetThread"}}}
+"""
+stdout = """
+{"data":{"addPullRequestReviewThreadReply":{"comment":{"databaseId":3900052046}}}}
+"""
+exit = 0
+
+[[interaction]]
+args = ['api', 'graphql', '--input', '-']
+stdin = """
+{"query":"mutation($input:SubmitPullRequestReviewInput!){\n  submitPullRequestReview(input:$input){pullRequestReview{id databaseId}}\n}","variables":{"input":{"body":"Answering the thread on the budget reader.","event":"COMMENT","pullRequestReviewId":"PRR_kwDOT-RSFs8AAAABLmLqtA"}}}
+"""
+stdout = """
+{"data":{"submitPullRequestReview":{"pullRequestReview":{"id":"PRR_kwDOT-RSFs8AAAABLmLqtA","databaseId":5073201844}}}}
+"""
 exit = 0

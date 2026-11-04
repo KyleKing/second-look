@@ -7,16 +7,10 @@ import (
 	"github.com/kyleking/second-look/internal/humanize"
 )
 
-// reviewPayload is the body of POST /repos/{owner}/{repo}/pulls/{number}/reviews.
-// Its fields are exactly the schema's `post` fields, spelled the way GitHub spells
-// them, so the allowlist is this struct rather than a list that can drift from it.
-type reviewPayload struct {
-	CommitID string           `json:"commit_id"`
-	Body     string           `json:"body,omitempty"`
-	Event    string           `json:"event"`
-	Comments []commentPayload `json:"comments,omitempty"`
-}
-
+// commentPayload is the body of POST /repos/{owner}/{repo}/pulls/{number}/comments,
+// the endpoint a single comment posts to on its own. Its fields are exactly the
+// schema's `post` fields, spelled the way GitHub spells them, so the allowlist
+// is this struct rather than a list that can drift from it.
 type commentPayload struct {
 	Path      string `json:"path"`
 	Side      string `json:"side"`
@@ -26,21 +20,26 @@ type commentPayload struct {
 	StartLine int    `json:"start_line,omitempty"`
 }
 
-// ReplyPayload is the body of POST /repos/{o}/{r}/pulls/{n}/comments/{id}/replies.
+// ReplyPayload is a reply as posting needs it: the text, the thread it
+// answers, and whether the thread resolves once the reply lands.
 type ReplyPayload struct {
-	Body      string `json:"body"`
+	Body      string `json:"-"`
 	InReplyTo int64  `json:"-"`
-	// ThreadID is set only for a reply that resolves its thread once sent.
+	// ThreadID is the GraphQL node id of the thread this answers, which is what
+	// addPullRequestReviewThreadReply attaches to. It is empty only for a reply
+	// staged by hand, since the screen always knows its thread.
 	ThreadID string `json:"-"`
+	// Resolve marks the reply that closes its thread once it is sent.
+	Resolve bool `json:"-"`
+	// ID is the staged comment's own id, for error messages and the record.
+	ID string `json:"-"`
 }
 
 func replyOf(c *Comment) ReplyPayload {
-	out := ReplyPayload{InReplyTo: c.InReplyTo, Body: c.Body}
-	if c.Resolve {
-		out.ThreadID = c.ThreadID
+	return ReplyPayload{
+		InReplyTo: c.InReplyTo, Body: c.Body, ID: c.ID,
+		ThreadID: c.ThreadID, Resolve: c.Resolve,
 	}
-
-	return out
 }
 
 // DraftError reports comments that are not ready. Posting stops rather than
@@ -164,10 +163,46 @@ func (r *Review) Find(id string) *Comment {
 	return nil
 }
 
-// Payload builds what gets posted: the review itself, and the replies that have
-// to go to their own endpoint. Skipped comments and every local field are absent
-// by construction, since nothing here reads them.
-func (r *Review) Payload() (any, []ReplyPayload, error) {
+// DraftThread is one comment as addPullRequestReview takes it. The field names
+// are the input object's own, which unlike REST's keeps the side on the whole
+// range rather than per end.
+type DraftThread struct {
+	Path      string `json:"path"`
+	Line      int    `json:"line"`
+	Side      string `json:"side,omitempty"`
+	StartLine int    `json:"startLine,omitempty"`
+	StartSide string `json:"startSide,omitempty"`
+	Body      string `json:"body"`
+}
+
+// Threads is what the review posts as: each comment as a draft thread for
+// addPullRequestReview, and each reply for addPullRequestReviewThreadReply
+// against the review it opens. Skipped comments and every local field are
+// absent by construction, since nothing here reads them.
+func (r *Review) Threads() ([]DraftThread, []ReplyPayload, error) {
+	comments, replies, err := r.postable()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	out := make([]DraftThread, 0, len(comments))
+
+	for i := range comments {
+		c := &comments[i]
+		out = append(out, DraftThread{
+			Path: c.Path, Line: c.Line, Side: c.Side,
+			StartLine: c.StartLine, StartSide: c.StartSide, Body: c.Body,
+		})
+	}
+
+	return out, replies, nil
+}
+
+// postable splits the review into what the review itself carries and what
+// answers a thread, after the gates that refuse an unfinished review. A reply
+// without a thread id is reported rather than dropped, because the GraphQL
+// path attaches by thread and cannot guess one.
+func (r *Review) postable() ([]Comment, []ReplyPayload, error) {
 	if drafts := r.Drafts(); len(drafts) > 0 {
 		return nil, nil, &DraftError{Comments: drafts}
 	}
@@ -180,12 +215,7 @@ func (r *Review) Payload() (any, []ReplyPayload, error) {
 		return nil, nil, ErrNothingToPost
 	}
 
-	event := r.Event
-	if event == "" {
-		event = EventComment
-	}
-
-	out := reviewPayload{CommitID: r.HeadSHA, Body: r.Body, Event: event}
+	var comments []Comment
 
 	var replies []ReplyPayload
 
@@ -204,15 +234,8 @@ func (r *Review) Payload() (any, []ReplyPayload, error) {
 			continue
 		}
 
-		out.Comments = append(out.Comments, commentPayload{
-			Path:      c.Path,
-			Line:      c.Line,
-			Side:      c.Side,
-			StartLine: c.StartLine,
-			StartSide: c.StartSide,
-			Body:      c.Body,
-		})
+		comments = append(comments, *c)
 	}
 
-	return out, replies, nil
+	return comments, replies, nil
 }

@@ -1061,12 +1061,12 @@ func showCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	// --payload prints exactly what would be sent, so what stays local is
 	// inspectable rather than promised.
 	if payloadOnly {
-		payload, replies, err := r.Payload()
+		threads, replies, err := r.Threads()
 		if err != nil {
 			return fmt.Errorf("building the payload: %w", err)
 		}
 
-		return writeJSON(stdout, map[string]any{"review": payload, "replies": replies})
+		return writeJSON(stdout, map[string]any{"threads": threads, "replies": replies})
 	}
 
 	return writeJSON(stdout, r)

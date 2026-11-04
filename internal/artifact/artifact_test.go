@@ -37,7 +37,7 @@ func TestLocalFieldsNeverReachThePayload(t *testing.T) {
 	r := review(c)
 	r.Note = secret
 
-	payload, replies, err := r.Payload()
+	payload, replies, err := r.Threads()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestSkippedCommentsAreNotPosted(t *testing.T) {
 		Body: "considered", Status: artifact.StatusSkip, SkipReason: "style only",
 	}
 
-	payload, _, err := review(ready("c1"), skipped).Payload()
+	payload, _, err := review(ready("c1"), skipped).Threads()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestADraftBlocksPosting(t *testing.T) {
 	draft := ready("c2")
 	draft.Status = artifact.StatusDraft
 
-	_, _, err := review(ready("c1"), draft).Payload()
+	_, _, err := review(ready("c1"), draft).Threads()
 
 	var drafts *artifact.DraftError
 	if !errors.As(err, &drafts) {
@@ -129,7 +129,7 @@ func TestAnEmptyReviewIsRefusedUnlessItApproves(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, err := tc.build().Payload()
+			_, _, err := tc.build().Threads()
 			if got := errors.Is(err, artifact.ErrNothingToPost); got != tc.want {
 				t.Errorf("refused = %v, want %v (err = %v)", got, tc.want, err)
 			}
@@ -145,7 +145,7 @@ func TestRepliesGoToTheirOwnEndpoint(t *testing.T) {
 		Status: artifact.StatusReady, InReplyTo: 998877,
 	}
 
-	payload, replies, err := review(ready("c1"), reply).Payload()
+	payload, replies, err := review(ready("c1"), reply).Threads()
 	if err != nil {
 		t.Fatal(err)
 	}

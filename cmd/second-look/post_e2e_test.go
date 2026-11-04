@@ -81,8 +81,8 @@ func TestPostOneCommentOnItsOwn(t *testing.T) {
 		t.Fatalf("post --only failed: %s%s", res.stdout, res.stderr)
 	}
 
-	if !strings.Contains(res.stdout, "/pulls/2/comments") {
-		t.Errorf("the standalone endpoint was not used:\n%s", res.stdout)
+	if !strings.Contains(res.stdout, "posted comment") {
+		t.Errorf("the standalone comment was not reported:\n%s", res.stdout)
 	}
 
 	review, err := artifact.Load(artifact.Path(stored(t, dir), 2))

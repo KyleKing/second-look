@@ -39,10 +39,13 @@ func reviewHost(r *artifact.Review) string {
 // was prepared.
 var ErrHeadMoved = errors.New("the pull request has new commits")
 
-// Poster sends one request and resolves threads. The gh CLI is the only
-// implementation that ships; a test supplies its own.
+// Poster sends one request, asks the GraphQL endpoint one question, and
+// resolves threads. The gh CLI is the only implementation that ships; a test
+// supplies its own.
 type Poster interface {
-	Post(ctx context.Context, endpoint string, body []byte) error
+	Post(ctx context.Context, endpoint string, body []byte) ([]byte, error)
+	Delete(ctx context.Context, endpoint string) error
+	GraphQL(ctx context.Context, request []byte) ([]byte, error)
 	Resolve(ctx context.Context, threadID string) error
 }
 
@@ -53,17 +56,46 @@ type ghPoster struct{}
 //nolint:ireturn // Poster is the seam a test replaces; concrete would remove it
 func GH() Poster { return ghPoster{} }
 
-func (ghPoster) Post(ctx context.Context, endpoint string, body []byte) error {
+func (ghPoster) Post(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 	//nolint:gosec // the endpoint is built from the artifact's own owner, repo, and number
 	cmd := exec.CommandContext(ctx, "gh", "api", "--method", "POST", endpoint, "--input", "-")
 	cmd.Stdin = strings.NewReader(string(body))
 	cmd.Stderr = os.Stderr
 
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("gh api POST %s: %w", endpoint, err)
+	}
+
+	return out, nil
+}
+
+// Delete is the pending-review cleanup: abandoning a review that replies were
+// being added to keeps the pull request from carrying a half-staged review
+// nobody can see until something else submits it.
+func (ghPoster) Delete(ctx context.Context, endpoint string) error {
+	//nolint:gosec // the endpoint is built from the artifact's own owner, repo, and number
+	cmd := exec.CommandContext(ctx, "gh", "api", "--method", "DELETE", endpoint)
+	cmd.Stderr = os.Stderr
+
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("gh api POST %s: %w", endpoint, err)
+		return fmt.Errorf("gh api DELETE %s: %w", endpoint, err)
 	}
 
 	return nil
+}
+
+func (ghPoster) GraphQL(ctx context.Context, request []byte) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "gh", "api", "graphql", "--input", "-")
+	cmd.Stdin = strings.NewReader(string(request))
+	cmd.Stderr = os.Stderr
+
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("gh api graphql: %w", err)
+	}
+
+	return out, nil
 }
 
 func (ghPoster) Resolve(ctx context.Context, threadID string) error {
@@ -113,32 +145,46 @@ func Guard(ctx context.Context, dir, remoteRepo string, r *artifact.Review, out 
 	return nil
 }
 
-// Run posts an already-guarded review, then its replies, and removes the
-// artifact file at path once every request succeeds.
+// Run posts an already-guarded review — its comments as threads on a pending
+// review, its replies against that review by name, and one submit that makes
+// all of it visible at once — then records what posted and removes the
+// artifact file at path.
 func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.Writer) error {
-	payload, replies, err := r.Payload()
+	threads, replies, err := r.Threads()
 	if err != nil {
 		return fmt.Errorf("building the payload: %w", err)
 	}
 
-	body, err := json.Marshal(payload)
+	submitted, err := postReview(ctx, p, r, threads, replies)
 	if err != nil {
-		return fmt.Errorf("encoding the review: %w", err)
-	}
-
-	endpoint := reviewEndpoint(r)
-
-	//nolint:wrapcheck // the caller reports the raw gh failure verbatim
-	if err := p.Post(ctx, endpoint, body); err != nil {
 		return err
 	}
 
-	if err := write(out, "posted "+endpoint+"\n"); err != nil {
+	if err := write(out, fmt.Sprintf("posted review %d on %s/%s#%d\n",
+		submitted.DatabaseID, r.Owner, r.Repo, r.Number)); err != nil {
 		return err
 	}
 
-	if err := postReplies(ctx, p, r, replies, out); err != nil {
-		return err
+	// A resolve that fails leaves the review posted either way, so the record
+	// and the cleanup still run; the failure is reported once both are done.
+	var unresolved error
+
+	for _, reply := range replies {
+		if !reply.Resolve || reply.ThreadID == "" || unresolved != nil {
+			continue
+		}
+
+		if err := resolveAfter(ctx, p, reply.ThreadID, out); err != nil {
+			unresolved = fmt.Errorf("the review posted as %d; %w", submitted.DatabaseID, err)
+		}
+	}
+
+	// The record goes down before the staged file goes away, so what GitHub
+	// holds outlives the artifact that described it. A record that cannot be
+	// written keeps the staged file rather than leaving neither.
+	if err := writeRecord(rootOf(path), r, submitted.DatabaseID, submitted.ID, "review"); err != nil {
+		return fmt.Errorf("the review posted as %d; keeping the staged file as its record: %w",
+			submitted.DatabaseID, err)
 	}
 
 	// GitHub is the source of truth from here, and a prepared review left on
@@ -162,7 +208,89 @@ func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.
 		}
 	}
 
+	if unresolved != nil {
+		return unresolved
+	}
+
 	return write(out, fmt.Sprintf("removed the staged review for %s/%s#%d\n", r.Owner, r.Repo, r.Number))
+}
+
+// postReview carries a staged review through the pending-review dance: open
+// one holding the comments, add each reply to it by id, then submit. Any
+// failure between open and submit abandons the pending review, because one
+// left behind is a reply's invisible landing place — the failure that lost a
+// reply while reporting success.
+func postReview(
+	ctx context.Context, p Poster, r *artifact.Review,
+	threads []artifact.DraftThread, replies []artifact.ReplyPayload,
+) (*pendingReview, error) {
+	prID, err := prNodeID(ctx, p, r)
+	if err != nil {
+		return nil, err
+	}
+
+	pending, err := openReview(ctx, p, prID, r, threads)
+	if err != nil {
+		return nil, err
+	}
+
+	var lookup map[int64]string
+
+	for _, reply := range replies {
+		tid := reply.ThreadID
+
+		if tid == "" {
+			var err error
+			if lookup == nil {
+				lookup, err = threadIDs(ctx, p, r)
+				if err != nil {
+					return nil, abandon(ctx, p, r, pending, err)
+				}
+			}
+
+			tid = lookup[reply.InReplyTo]
+		}
+
+		if tid == "" {
+			return nil, abandon(ctx, p, r, pending,
+				fmt.Errorf("reply %s answers comment %d, which is not a thread on this pull request",
+					reply.ID, reply.InReplyTo))
+		}
+
+		if err := addReply(ctx, p, pending.ID, tid, reply.Body); err != nil {
+			return nil, abandon(ctx, p, r, pending, fmt.Errorf("reply %s: %w", reply.ID, err))
+		}
+	}
+
+	event := r.Event
+	if event == "" {
+		event = artifact.EventComment
+	}
+
+	submitted, err := submitReview(ctx, p, pending.ID, event, r.Body)
+	if err != nil {
+		return nil, abandon(ctx, p, r, pending, err)
+	}
+
+	return submitted, nil
+}
+
+// abandon deletes the pending review a failed post left open and reports what
+// happened to it. Nothing it held was public, so retrying is clean — which the
+// message says, because a review deleted unseen is still a review that had to
+// be deleted.
+func abandon(ctx context.Context, p Poster, r *artifact.Review, pending *pendingReview, cause error) error {
+	endpoint := fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews/%d",
+		r.Owner, r.Repo, r.Number, pending.DatabaseID)
+
+	if err := p.Delete(ctx, endpoint); err != nil {
+		return fmt.Errorf("%w; the pending review it left (id %d) could not be deleted "+
+			"either — close it on GitHub before posting again: %v",
+			cause, pending.DatabaseID, err)
+	}
+
+	return fmt.Errorf("%w; the pending review it left was deleted, "+
+		"nothing reached GitHub, and the staged review is still on disk", cause)
 }
 
 // One posts a single comment on its own, outside any review, and takes it out
@@ -178,36 +306,69 @@ func One(ctx context.Context, p Poster, path string, r *artifact.Review, id stri
 		return fmt.Errorf("posting %s on its own: %w", id, err)
 	}
 
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("encoding the comment: %w", err)
-	}
+	var postedID int64
 
-	endpoint := commentEndpoint(r)
-	if c.InReplyTo != 0 {
-		endpoint = replyEndpoint(r, c.InReplyTo)
-	}
+	var nodeID, kind string
 
 	if c.InReplyTo == 0 {
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("encoding the comment: %w", err)
+		}
+
 		body, err = withCommit(body, r.HeadSHA)
 		if err != nil {
 			return err
 		}
+
+		raw, err := p.Post(ctx, commentEndpoint(r), body)
+		if err != nil {
+			return err //nolint:wrapcheck // the caller reports the raw gh failure verbatim
+		}
+
+		var sent struct {
+			ID     int64  `json:"id"`
+			NodeID string `json:"node_id"`
+		}
+		if err := json.Unmarshal(raw, &sent); err == nil {
+			postedID, nodeID = sent.ID, sent.NodeID
+		}
+
+		kind = "comment"
+
+		if err := write(out, fmt.Sprintf("posted comment %d\n", postedID)); err != nil {
+			return err
+		}
+	} else {
+		// A reply posts inside a pending review the same way the review's own
+		// replies do: naming the review is what keeps it visible.
+		one := r.Only(id)
+
+		threads, replies, err := one.Threads()
+		if err != nil {
+			return fmt.Errorf("posting %s on its own: %w", id, err)
+		}
+
+		submitted, err := postReview(ctx, p, one, threads, replies)
+		if err != nil {
+			return err
+		}
+
+		postedID, nodeID, kind = submitted.DatabaseID, submitted.ID, "review"
+
+		if err := write(out, fmt.Sprintf("posted %s in review %d\n", id, postedID)); err != nil {
+			return err
+		}
 	}
 
-	//nolint:wrapcheck // the caller reports the raw gh failure verbatim
-	if err := p.Post(ctx, endpoint, body); err != nil {
-		return err
-	}
-
-	if err := write(out, "posted "+endpoint+"\n"); err != nil {
-		return err
-	}
-
-	if c.Resolve {
+	if c.Resolve && c.ThreadID != "" {
 		if err := resolveAfter(ctx, p, c.ThreadID, out); err != nil {
 			return err
 		}
+	}
+
+	if err := writeRecord(rootOf(path), r, postedID, nodeID, kind); err != nil {
+		return fmt.Errorf("the comment posted; writing its record: %w", err)
 	}
 
 	r.Remove(id)
@@ -237,34 +398,59 @@ func withCommit(body []byte, sha string) ([]byte, error) {
 	return out, nil
 }
 
-// DryRun prints what Run would send without sending it.
+// DryRun prints what Run would send without sending it: the four GraphQL
+// calls the review posts through, with the replies spelled out one each.
 func DryRun(out io.Writer, r *artifact.Review) error {
-	payload, replies, err := r.Payload()
+	threads, replies, err := r.Threads()
 	if err != nil {
 		return fmt.Errorf("building the payload: %w", err)
 	}
 
-	body, err := json.Marshal(payload)
+	event := r.Event
+	if event == "" {
+		event = artifact.EventComment
+	}
+
+	add, err := request(addReviewMutation, map[string]any{"input": map[string]any{
+		"pullRequestId": "<the pull request's node id>", "commitOID": r.HeadSHA,
+		"threads": threads,
+	}})
 	if err != nil {
 		return fmt.Errorf("encoding the review: %w", err)
 	}
 
-	if err := write(out, fmt.Sprintf("POST %s\n%s\n", reviewEndpoint(r), body)); err != nil {
+	if err := write(out, fmt.Sprintf("graphql %s\n%s\n\n", prNodeQuery, add)); err != nil {
 		return err
 	}
 
 	for _, reply := range replies {
-		line := fmt.Sprintf("POST %s\n", replyEndpoint(r, reply.InReplyTo))
-		if reply.ThreadID != "" {
+		body, err := request(addReplyMutation, map[string]any{"input": map[string]any{
+			"pullRequestReviewId":       "<the pending review's id>",
+			"pullRequestReviewThreadId": reply.ThreadID,
+			"body":                      reply.Body,
+		}})
+		if err != nil {
+			return fmt.Errorf("encoding a reply: %w", err)
+		}
+
+		line := fmt.Sprintf("graphql %s\n", body)
+		if reply.Resolve {
 			line += "RESOLVE thread " + reply.ThreadID + "\n"
 		}
 
-		if err := write(out, line); err != nil {
+		if err := write(out, line+"\n"); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	submit, err := request(submitReviewMutation, map[string]any{"input": map[string]any{
+		"pullRequestReviewId": "<the pending review's id>", "event": event, "body": r.Body,
+	}})
+	if err != nil {
+		return fmt.Errorf("encoding the review: %w", err)
+	}
+
+	return write(out, fmt.Sprintf("graphql %s\n", submit))
 }
 
 // resolveAfter closes the thread a posted reply answered. The reply is already
@@ -276,33 +462,6 @@ func resolveAfter(ctx context.Context, p Poster, threadID string, out io.Writer)
 	}
 
 	return write(out, "resolved thread "+threadID+"\n")
-}
-
-// postReplies runs after the review is already posted, which is why a failure
-// here is reported with that fact rather than retried.
-func postReplies(
-	ctx context.Context, p Poster, r *artifact.Review, replies []artifact.ReplyPayload, out io.Writer,
-) error {
-	for _, reply := range replies {
-		rb, err := json.Marshal(reply)
-		if err != nil {
-			return fmt.Errorf("encoding a reply: %w", err)
-		}
-
-		if err := p.Post(ctx, replyEndpoint(r, reply.InReplyTo), rb); err != nil {
-			return fmt.Errorf("the review posted but a reply did not, and the prepared review is"+
-				" still on disk; posting it again would post the review twice: %w", err)
-		}
-
-		if reply.ThreadID != "" {
-			if err := resolveAfter(ctx, p, reply.ThreadID, out); err != nil {
-				return fmt.Errorf("%w; the prepared review is still on disk and posting it again"+
-					" would post the review twice", err)
-			}
-		}
-	}
-
-	return nil
 }
 
 // Summary is the one line that says what Run sent. What was not sent is said
@@ -355,16 +514,8 @@ func Summary(r *artifact.Review) string {
 	return out
 }
 
-func reviewEndpoint(r *artifact.Review) string {
-	return fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", r.Owner, r.Repo, r.Number)
-}
-
 func commentEndpoint(r *artifact.Review) string {
 	return fmt.Sprintf("/repos/%s/%s/pulls/%d/comments", r.Owner, r.Repo, r.Number)
-}
-
-func replyEndpoint(r *artifact.Review, commentID int64) string {
-	return fmt.Sprintf("/repos/%s/%s/pulls/%d/comments/%d/replies", r.Owner, r.Repo, r.Number, commentID)
 }
 
 func write(w io.Writer, s string) error {
