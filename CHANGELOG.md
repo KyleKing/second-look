@@ -1,3 +1,9 @@
+## v0.50.2 (2026-11-04)
+
+### Fix
+
+- **tui**: sentence-case the probe comment the linter wants
+
 ## v0.50.1 (2026-11-04)
 
 ### Fix
