@@ -11,7 +11,6 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/kyleking/second-look/internal/acp"
-	"github.com/kyleking/second-look/internal/artifact"
 )
 
 // AgentStarter opens an agent session over ACP, loading the one the review
@@ -26,9 +25,9 @@ func WithAgent(start AgentStarter) Option {
 	return func(m *Model) { m.agentStart = start }
 }
 
-// WithDraftPrompt names what T asks an agent to do with an empty review
-// instead of second-look's own default, for a config that already has a
-// skill of its own to point the agent at by name.
+// WithDraftPrompt names what the pane's hand-off key asks an agent to do with
+// an empty review instead of second-look's own default, for a config that
+// already has a skill of its own to point the agent at by name.
 func WithDraftPrompt(prompt string) Option {
 	return func(m *Model) { m.draftText = prompt }
 }
@@ -46,12 +45,8 @@ const (
 
 // agentUpMsg is the session the adapter just opened, or why it would not.
 type agentUpMsg struct {
-	s    *acp.Session
-	owed []artifact.Comment
-	// send is a plain prompt to ask once the session is up, used in place of
-	// owed when there was no todo set and the review was still empty.
-	send string
-	err  error
+	s   *acp.Session
+	err error
 }
 
 // agentWakeMsg is a streamed piece landing on the transcript; the pane reads
@@ -59,10 +54,11 @@ type agentUpMsg struct {
 type agentWakeMsg struct{}
 
 // agentTurnMsg is a prompt answered, with the adapter's word for how the turn
-// stopped.
+// stopped and the text that was sent so a refused one can be queued again.
 type agentTurnMsg struct {
 	reason string
 	err    error
+	sent   string
 }
 
 // agentGoneMsg is the adapter ending, with its stderr where it did not end
@@ -81,57 +77,44 @@ func watchAgent(s *acp.Session) tea.Cmd {
 	}
 }
 
-// askAgent is T where a live session is the hand-off: an owed set goes over
-// it as the prompt, an empty review with no session yet is asked to draft one
-// from the diff instead, and otherwise an empty ask just opens the
-// conversation.
-func (m *Model) askAgent(owed []artifact.Comment) tea.Cmd {
+// askAgent is T where a live session is the hand-off: it brings the pane up
+// over the agent and leaves the first word to the person. The todo set and
+// the draft instruction go on the pane's own key (ctrl+t) rather than firing
+// on open, because a key that also spends a turn is a key that cannot be
+// pressed just to look.
+func (m *Model) askAgent() tea.Cmd {
 	if m.agent != nil && m.agentDead != nil {
 		m.agent.Close()
 		m.agent, m.agentDead, m.agentSaw = nil, nil, false
 	}
 
-	send := m.draftSend(owed)
-
 	if m.agent == nil {
-		if len(owed) == 0 && m.review.Agent.Session == "" && send == "" {
-			m.say("nothing is marked todo; m then t hands a comment back", false)
-
+		if m.agentLoading {
 			return nil
 		}
 
 		start, load := m.agentStart, m.review.Agent.Session
+		m.agentLoading = true
 		m.say("bringing the agent up…", false)
 
 		return func() tea.Msg {
 			s, err := start(context.Background(), load)
 
-			return agentUpMsg{s: s, owed: owed, send: send, err: err}
+			return agentUpMsg{s: s, err: err}
 		}
 	}
 
 	m.openAgent()
 
-	switch {
-	case len(owed) > 0:
-		return tea.Batch(m.sendSet(m.agent, owed), watchAgent(m.agent))
-	case send != "":
-		return tea.Batch(m.sendText(m.agent, send), watchAgent(m.agent))
-	}
-
 	return watchAgent(m.agent)
 }
 
-// draftSend is the instruction T sends when nothing is owed, the review has
-// not recorded a session yet, and nothing is staged on it either — the one
-// time "hand back what's owed" and "there is nothing yet to review" are the
-// same ask. A review already carrying a comment keeps the plain refusal
-// instead: T hands back what is owed, it does not redo a review in progress.
-func (m *Model) draftSend(owed []artifact.Comment) string {
-	if len(owed) > 0 || len(m.review.Comments) > 0 || m.review.Agent.Session != "" {
-		return ""
-	}
-
+// agentDraft is the instruction ctrl+t sends on a review with nothing staged
+// and nothing owed: the agent's own where the config names one, second-look's
+// default otherwise. A review already carrying a comment keeps the plain
+// refusal instead: the key hands back what is owed, it does not redo a review
+// in progress.
+func (m *Model) agentDraft() string {
 	if m.draftText != "" {
 		return m.draftText
 	}
@@ -152,10 +135,11 @@ func defaultDraftPrompt(owner, repo string, number int) string {
 		owner, repo, number)
 }
 
-// agentUp seats the session the adapter opened and asks it the todo set one
-// was waiting on, or the draft instruction where there was no todo set but
-// something to send anyway.
+// agentUp seats the session the adapter opened and drains anything staged
+// while there was none to ask.
 func (m *Model) agentUp(msg agentUpMsg) tea.Cmd {
+	m.agentLoading = false
+
 	if msg.err != nil {
 		m.say(fmt.Sprintf("starting the agent: %v", msg.err), true)
 
@@ -173,16 +157,7 @@ func (m *Model) agentUp(msg agentUpMsg) tea.Cmd {
 		m.say(msg.s.Name()+" is listening", false)
 	}
 
-	cmds := []tea.Cmd{watchAgent(msg.s)}
-
-	switch {
-	case len(msg.owed) > 0:
-		cmds = append(cmds, m.sendSet(msg.s, msg.owed))
-	case msg.send != "":
-		cmds = append(cmds, m.sendText(msg.s, msg.send))
-	}
-
-	return tea.Batch(cmds...)
+	return tea.Batch(watchAgent(msg.s), m.pumpAgent())
 }
 
 // openAgent brings the pane up over the session, scrolled to its end, and
@@ -199,26 +174,57 @@ func (m *Model) openAgent() {
 	m.showing = nil
 }
 
-// sendSet writes the set where a hand-off always records it, then asks it of
-// the session. A store that fails does not stop the ask: the file is the
-// record, not the channel.
-func (m *Model) sendSet(s *acp.Session, owed []artifact.Comment) tea.Cmd {
-	if _, err := m.writeSet(); err != nil {
-		m.say(err.Error(), true)
-	} else {
-		m.say(fmt.Sprintf("handing %s over", plural(len(owed), "todo")), false)
-	}
+// agentHandoff is ctrl+t in the pane: the owed set goes over as the prompt,
+// with the set file written where a hand-off always records it; a review with
+// nothing staged and nothing owed is asked to draft from the diff instead.
+// A store that fails does not stop the ask: the file is the record, not the
+// channel.
+func (m *Model) agentHandoff() tea.Cmd {
+	switch owed := m.review.Todos(); {
+	case len(owed) > 0:
+		if _, err := m.writeSet(); err != nil {
+			m.say(err.Error(), true)
 
-	return m.askSession(s, m.setText())
+			return nil
+		}
+
+		m.say(fmt.Sprintf("handing %s over", plural(len(owed), "todo")), false)
+
+		return m.enqueueAgent(m.setText())
+	case len(m.review.Comments) == 0:
+		m.say(fmt.Sprintf("asking %s to draft the review…", m.agent.Name()), false)
+
+		return m.enqueueAgent(m.agentDraft())
+	default:
+		m.say("nothing is owed; m then t marks a comment first", false)
+
+		return nil
+	}
 }
 
-// sendText asks the session a plain prompt with nothing written to disk
-// first: the draft instruction records nothing itself, unlike a todo set,
-// because what it asks for is a review the agent is about to stage on its own.
-func (m *Model) sendText(s *acp.Session, text string) tea.Cmd {
-	m.say(fmt.Sprintf("asking %s to draft the review…", s.Name()), false)
+// enqueueAgent stages a message for the session. The queue is the shape a
+// running turn takes: nothing typed is eaten, and it sends when the agent is
+// next free rather than when it was typed.
+func (m *Model) enqueueAgent(text string) tea.Cmd {
+	m.agentQueue = append(m.agentQueue, text)
 
-	return m.askSession(s, text)
+	return m.pumpAgent()
+}
+
+// pumpAgent puts the head of the queue on the wire where the session can take
+// it; the agentSending flag marks one dispatched so a second pump cannot
+// start a parallel turn before Prompt marks the session busy.
+func (m *Model) pumpAgent() tea.Cmd {
+	if m.agent == nil || m.agentDead != nil || m.agentSending ||
+		len(m.agentQueue) == 0 || m.agent.Busy() {
+		return nil
+	}
+
+	m.agentSending = true
+	text := m.agentQueue[0]
+	m.agentQueue = m.agentQueue[1:]
+
+	return m.askSession(m.agent, text)
 }
 
 // askSession asks text of the session and reports the turn back when it stops.
@@ -228,37 +234,34 @@ func (m *Model) askSession(s *acp.Session, text string) tea.Cmd {
 	return func() tea.Msg {
 		reason, err := s.Prompt(ctx, text)
 
-		return agentTurnMsg{reason: reason, err: err}
+		return agentTurnMsg{reason: reason, err: err, sent: text}
 	}
 }
 
-// sendLine is enter in the pane: the typed line goes to the agent. A refused
-// line — a turn running, the session ended — keeps the text rather than
-// eating it.
+// sendLine is enter in the pane: the typed line stages for the agent, sending
+// now where it is free or when the turn in flight ends.
 func (m *Model) sendLine() tea.Cmd {
 	text := strings.TrimSpace(m.agentIn.Value())
 	if text == "" {
 		return nil
 	}
 
-	switch {
-	case m.agentDead != nil:
+	if m.agentDead != nil {
 		m.say("the agent has ended; T starts it again", true)
-	case m.agent.Busy():
-		m.say("a turn is still running", false)
-	default:
-		m.agentIn.SetValue("")
 
-		return m.askSession(m.agent, text)
+		return nil
 	}
 
-	return nil
+	m.agentIn.SetValue("")
+
+	return m.enqueueAgent(text)
 }
 
-// agentGone is the adapter ending: the transcript stays readable, and T
-// spawns again over the recorded id.
+// agentGone is the adapter ending: the transcript stays readable, the queue
+// stays staged, and T spawns again over the recorded id.
 func (m *Model) agentGone(err error) {
 	m.agentDead = err
+	m.agentSending = false
 	if m.agentDead == nil {
 		m.agentDead = errAgentEnded
 	}
@@ -267,8 +270,17 @@ func (m *Model) agentGone(err error) {
 }
 
 // agentTurned is a prompt answered. The transcript carries what streamed; the
-// footer hears only a refusal or a crash.
+// footer hears only a refusal or a crash. A refused send — the queue raced a
+// turn it thought was over — goes back on the queue rather than being lost.
 func (m *Model) agentTurned(msg agentTurnMsg) {
+	m.agentSending = false
+
+	if errors.Is(msg.err, acp.ErrBusy) {
+		m.agentQueue = append([]string{msg.sent}, m.agentQueue...)
+
+		return
+	}
+
 	m.agentSaw = true
 
 	switch {
@@ -282,6 +294,9 @@ func (m *Model) agentTurned(msg agentTurnMsg) {
 // agentKey is the keyboard while the pane is open. A pending ask owns it
 // first, the same way a confirmation does: a digit picks its option and esc
 // declines, and nothing else reaches the prompt while the agent waits.
+// Elsewhere esc peels one layer at a time — staged messages first, the pane
+// itself only once nothing is staged — and ctrl+w drops one queued message,
+// but only on an empty input so a typed word still deletes a word.
 func (m *Model) agentKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if p := m.agent.Pending(); p != nil {
 		m.answerPermit(p, msg)
@@ -295,16 +310,31 @@ func (m *Model) agentKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 	case key.Matches(msg, m.keys.Back):
-		m.agentOpen = false
-		m.agentIn.Blur()
+		if n := len(m.agentQueue); n > 0 {
+			m.agentQueue = nil
+			m.say("dropped "+plural(n, "queued message"), false)
+		} else {
+			m.agentOpen = false
+			m.agentIn.Blur()
+		}
 
 		return m, nil
+	case key.Matches(msg, m.keys.SendSet):
+		cmd := m.agentHandoff()
+
+		return m, cmd
 	case key.Matches(msg, m.keys.HalfUp):
 		m.agentOff += m.paneHeight() / scrollHalf
 
 		return m, nil
 	case key.Matches(msg, m.keys.HalfDown):
 		m.agentOff = max(0, m.agentOff-m.paneHeight()/scrollHalf)
+
+		return m, nil
+	case key.Matches(msg, m.keys.DropQueued) && m.agentIn.Value() == "":
+		if n := len(m.agentQueue); n > 0 {
+			m.agentQueue = m.agentQueue[:n-1]
+		}
 
 		return m, nil
 	case key.Matches(msg, m.keys.Accept):
@@ -349,11 +379,26 @@ func (m *Model) agentLines() []string {
 	return append(out, m.agentAsk())
 }
 
-// agentDivider is the pane's top rule: who is running, and how to leave.
+// agentDivider is the pane's top rule: who is running, in what mode, and how
+// to leave — with the hand-off key named while there is something to hand.
 func (m *Model) agentDivider() string {
-	head := " " + m.agent.Name() + " — the agent has the keyboard; esc leaves, ctrl+\\ ends it"
-	if m.agentDead != nil {
-		head = " " + m.agent.Name() + " has ended — esc leaves, T starts it again"
+	head := " " + m.agent.Name()
+	if mode := m.agent.Mode(); mode != "" {
+		head += " · " + mode
+	}
+
+	switch {
+	case m.agentDead != nil:
+		head += " has ended — esc leaves, T starts it again"
+	default:
+		head += " — esc leaves · ctrl+\\ ends"
+		if n := len(m.review.Todos()); n > 0 {
+			head += " · ctrl+t hands " + plural(n, "todo")
+		}
+	}
+
+	if n := len(m.agentQueue); n > 0 {
+		head += " · " + plural(n, "queued")
 	}
 
 	rest := m.width - textWidth(head) - 1
@@ -380,6 +425,11 @@ func (m *Model) agentRows(width int) []string {
 		for _, line := range wrap(text, width-textWidth(mark)) {
 			rows = append(rows, face.Render(cut(mark+line, width)))
 		}
+	}
+
+	for _, q := range m.agentQueue {
+		first, _, _ := strings.Cut(q, "\n")
+		rows = append(rows, m.styles.note.Render(cut("  queued › "+first, width)))
 	}
 
 	return rows

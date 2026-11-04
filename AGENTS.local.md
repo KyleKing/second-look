@@ -216,6 +216,15 @@ nor cached.
 Use `tmux` to look at it, the pty tests in `cmd/second-look/tui_e2e_test.go` to pin it, and
 `internal/tui/testdata/TestFrames/` for frames.
 
+The agent pane can be exercised without a real adapter: `go build -o
+~/.local/bin/sl-stub-agent ./internal/acp/testdata/stub` puts the stub on PATH, and an
+`[[agent]]` with `command = ["sl-stub-agent"]` under a throwaway `XDG_CONFIG_HOME` (so the
+real config stays untouched) reaches every pane state. Its prompts script the turn:
+`wait:<ms>` stays busy with no ask, `hold` stays until `session/cancel`, `fast:` ends at
+once, and anything else runs the permission flow. `second-look agent check` runs the
+configured agent's own argv far enough to catch a bad argv, missing auth, or an
+unadvertised `mode` before T does.
+
 A bare pty answers no terminal capability queries, so the program waits out a two-second
 timeout on each of OSC 11 and DA1 before drawing, which made the first frame take about 4.5
 seconds against 0.5 under tmux. The harness answers them now, which keeps pty tests under 1.5

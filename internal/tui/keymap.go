@@ -114,6 +114,11 @@ type keyMap struct {
 	// cannot be typed a word containing one.
 	Back key.Binding
 	Quit key.Binding
+	// SendSet is the agent pane's hand-off key: the owed todo set, or the
+	// draft instruction where the review is still empty.
+	SendSet key.Binding
+	// DropQueued drops the last message staged for the agent.
+	DropQueued key.Binding
 	// JumpBack and JumpForward walk the jump list. A terminal sends tab for
 	// ctrl+i, so tab walks forward too, but only once ctrl+o has left a place
 	// ahead, and otherwise keeps its own job.
@@ -157,7 +162,7 @@ func defaultKeyMap() keyMap {
 		Skip:         key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
 		Todo:         key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "hand back")),
 		Resolve:      key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "resolve")),
-		Dispatch:     key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "dispatch todo, or draft")),
+		Dispatch:     key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "agent")),
 		Seen:         key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
 		Search:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 		Files:        key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "files")),
@@ -195,6 +200,8 @@ func defaultKeyMap() keyMap {
 		EndPane:      key.NewBinding(key.WithKeys("ctrl+\\"), key.WithHelp("ctrl+\\", "end the pane's program")),
 		Back:         key.NewBinding(key.WithKeys(escKey), key.WithHelp(escKey, "back")),
 		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c", escKey), key.WithHelp("q", quitWord)),
+		SendSet:      key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "hand the todos over")),
+		DropQueued:   key.NewBinding(key.WithKeys("ctrl+w"), key.WithHelp("ctrl+w", "drop the last queued")),
 		JumpBack:     key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "back")),
 		JumpForward:  key.NewBinding(key.WithKeys("ctrl+i"), key.WithHelp("ctrl+i", "forward")),
 	}

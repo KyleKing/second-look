@@ -19,13 +19,11 @@ const (
 	setFilePerm = 0o600
 )
 
-// dispatch answers T: every comment handed back to an agent is written out as
-// one set, and the agent is started on it where one is configured. A review
-// already carrying a session hands that over too, so a second T is a follow-up
-// rather than a restart. An empty review with nothing owed and no session yet
-// is the one case left: there T asks the agent to draft the review from the
-// diff instead of refusing, since there is nothing else for "hand this to an
-// agent" to mean there.
+// dispatch answers T: where an agent adapter is configured it opens the pane
+// over a live session and leaves the first word to the person — the owed set
+// is the pane's own hand-off key, not something the open spends. Where no
+// adapter is configured the set is still written out as one file and the
+// dispatch command runs on it where one is configured.
 //
 // It is a separate key from S rather than a mode of it because the two are
 // different acts. S blocks on a draft, because a draft is a comment nobody has
@@ -36,7 +34,7 @@ func (m *Model) dispatch() tea.Cmd {
 	owed := m.review.Todos()
 
 	if m.agentStart != nil {
-		return m.askAgent(owed)
+		return m.askAgent()
 	}
 
 	if len(owed) == 0 {
@@ -105,10 +103,10 @@ func writeSetTo(store string, number int, text string) (string, error) {
 // rather than always saying "dispatch" whatever state the review is in.
 func (m *Model) dispatchWord() string {
 	switch {
+	case m.agentStart != nil:
+		return "agent"
 	case len(m.review.Todos()) > 0:
 		return "hand back"
-	case m.agent != nil || m.review.Agent.Session != "" || len(m.review.Comments) > 0:
-		return "agent"
 	}
 
 	return draftWord

@@ -102,13 +102,19 @@ type Model struct {
 	// agentOpen is the pane its transcript draws in, which esc leaves without
 	// ending the session; agentDead is how it ended, agentOff how far back
 	// the transcript is scrolled, and agentSaw whether a turn has answered.
-	agentStart AgentStarter
-	agent      *acp.Session
-	agentOpen  bool
-	agentDead  error
-	agentOff   int
-	agentSaw   bool
-	agentIn    textinput.Model
+	// agentQueue is what the person staged while a turn was running, and
+	// agentSending marks one already dispatched, so a pump cannot start a
+	// second turn beside the first.
+	agentStart   AgentStarter
+	agent        *acp.Session
+	agentOpen    bool
+	agentDead    error
+	agentOff     int
+	agentSaw     bool
+	agentIn      textinput.Model
+	agentQueue   []string
+	agentSending bool
+	agentLoading bool
 	// draftText overrides the instruction T sends an agent over an empty
 	// review, where a config already has its own skill to point at by name.
 	draftText string
@@ -853,6 +859,10 @@ func (m *Model) childAnswered(msg tea.Msg) (tea.Cmd, bool) {
 		if m.agent != nil && m.agentDead == nil {
 			return watchAgent(m.agent), true
 		}
+	case agentTurnMsg:
+		m.agentTurned(msg)
+
+		return m.pumpAgent(), true
 	default:
 		return nil, false
 	}
@@ -919,8 +929,6 @@ func (m *Model) absorbAgent(msg tea.Msg) bool {
 		m.agentState = msg.state
 	case agentGoneMsg:
 		m.agentGone(msg.err)
-	case agentTurnMsg:
-		m.agentTurned(msg)
 	default:
 		return false
 	}

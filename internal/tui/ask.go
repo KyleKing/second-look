@@ -121,7 +121,9 @@ func (m *Model) ask(span artifact.Span, outside bool, text string) tea.Cmd {
 }
 
 // agentFree is whether the live session can take a question now.
-func (m *Model) agentFree() bool { return m.agent != nil && m.agentDead == nil && !m.agent.Busy() }
+func (m *Model) agentFree() bool {
+	return m.agent != nil && m.agentDead == nil && !m.agent.Busy() && !m.agentSending
+}
 
 // askOneShot puts the question to the configured asker and answers with an
 // askAnsweredMsg under id.

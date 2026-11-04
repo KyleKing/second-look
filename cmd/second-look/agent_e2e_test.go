@@ -29,8 +29,9 @@ func agentStub(t *testing.T) string {
 }
 
 // Handing the todo set to a configured agent is a conversation, not a process
-// that exits: T opens the session in the pane, the set goes over it as the
-// prompt, and the ask the agent raises is answered where it was raised.
+// that exits: T opens the session in the pane and spends nothing, ctrl+t
+// hands the set over as the prompt, and the ask the agent raises is answered
+// where it was raised.
 func TestReviewScreenDispatchesToAnAgentPane(t *testing.T) {
 	t.Parallel()
 
@@ -61,7 +62,8 @@ command = [%q]
 	sc.await("todo")
 
 	sc.press("T")
-	sc.await("the agent has the keyboard")
+	sc.await("talk to stub")
+	sc.press("\x14") // ctrl+t hands the todo set over
 	sc.await("1 Allow")
 	sc.press("1")
 	sc.await("selected allow")

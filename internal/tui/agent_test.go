@@ -111,9 +111,10 @@ func (l *loop) wait(fn func() bool) {
 }
 
 // Handing a todo set to a configured agent is a conversation, not a process
-// that exits: the set goes over the session as the prompt, the transcript and
-// the ask draw in the pane, and the session id lands on the review so the next
-// open loads it back.
+// that exits: T opens the pane over the session and spends nothing, ctrl+t
+// hands the owed set over as the prompt, the transcript and the ask draw in
+// the pane, and the session id lands on the review so the next open loads it
+// back.
 func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 	t.Parallel()
 
@@ -134,7 +135,7 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 	m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path, sub.post,
 		tui.WithStore(home),
 		tui.WithAgent(func(ctx context.Context, loadID string) (*acp.Session, error) {
-			return acp.Start(ctx, []string{stub}, home, loadID)
+			return acp.Start(ctx, []string{stub}, home, loadID, "")
 		}))
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -145,6 +146,16 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 	run := looped(m)
 	run.key(letter('T'))
 	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "talk to stub")
+	})
+
+	if frame := plain(m.Frame()); strings.Contains(frame, "stub heard:") {
+		t.Errorf("T spent a turn just to open the pane:\n%s", frame)
+	}
+
+	// The hand-off is the pane's own key, not something the open spends.
+	run.key(tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
+	run.wait(func() bool {
 		frame := plain(m.Frame())
 
 		return strings.Contains(frame, "1 Allow") && strings.Contains(frame, "stub heard:")
@@ -152,7 +163,7 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 
 	frame := plain(m.Frame())
 	for _, want := range []string{
-		"stub", "the agent has the keyboard", "runs the tests", "1 Allow", "2 Reject",
+		"stub", "esc leaves", "runs the tests", "1 Allow", "2 Reject",
 	} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the pane is missing %q:\n%s", want, frame)
@@ -207,10 +218,11 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 	askedOverTheSession(t, run, path)
 }
 
-// An empty review has no todo set to hand back, so T asks the agent to draft
-// one from the diff instead of refusing: "hand this to an agent" and "there
-// is nothing here yet" mean the same thing on a review with no comments.
-func TestDispatchOnAnEmptyReviewAsksTheAgentToDraftIt(t *testing.T) {
+// An empty review has no todo set to hand back, so ctrl+t asks the agent to
+// draft one from the diff instead of refusing: "hand this to an agent" and
+// "there is nothing here yet" mean the same thing on a review with no
+// comments.
+func TestHandoffOnAnEmptyReviewAsksTheAgentToDraftIt(t *testing.T) {
 	t.Parallel()
 
 	stub := stubPath(t)
@@ -229,7 +241,7 @@ func TestDispatchOnAnEmptyReviewAsksTheAgentToDraftIt(t *testing.T) {
 	m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path, sub.post,
 		tui.WithStore(home),
 		tui.WithAgent(func(ctx context.Context, loadID string) (*acp.Session, error) {
-			return acp.Start(ctx, []string{stub}, home, loadID)
+			return acp.Start(ctx, []string{stub}, home, loadID, "")
 		}))
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -237,11 +249,15 @@ func TestDispatchOnAnEmptyReviewAsksTheAgentToDraftIt(t *testing.T) {
 	run := looped(m)
 	run.key(letter('T'))
 	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "talk to stub")
+	})
+	run.key(tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
+	run.wait(func() bool {
 		return strings.Contains(plain(m.Frame()), "stub heard: Review kyleking/jj-diff#42")
 	})
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "stub heard: Review kyleking/jj-diff#42") {
-		t.Errorf("T on an empty review did not ask the agent to draft it:\n%s", frame)
+		t.Errorf("ctrl+t on an empty review did not ask the agent to draft it:\n%s", frame)
 	}
 
 	// A second T, still with nothing owed, resumes the same conversation
@@ -279,13 +295,17 @@ func TestAReopenedAgentPaneTakesALine(t *testing.T) {
 	m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path, sub.post,
 		tui.WithStore(home),
 		tui.WithAgent(func(ctx context.Context, loadID string) (*acp.Session, error) {
-			return acp.Start(ctx, []string{stub}, home, loadID)
+			return acp.Start(ctx, []string{stub}, home, loadID, "")
 		}))
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 
 	run := looped(m)
 	run.key(letter('T'))
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "talk to stub")
+	})
+	run.key(tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
 	run.wait(func() bool {
 		return strings.Contains(plain(m.Frame()), "1 Allow")
 	})
@@ -335,5 +355,145 @@ func askedOverTheSession(t *testing.T, run *loop, path string) {
 
 	if !strings.HasPrefix(answer, "stub heard: A reviewer") || strings.Contains(answer, "fix") {
 		t.Errorf("the ask was answered %q, want this turn's reply alone", answer)
+	}
+}
+
+// typeLine types a line into the pane's prompt and sends it, which is how a
+// message reaches the queue while a turn is still running.
+func (l *loop) typeLine(text string) {
+	for _, r := range text {
+		l.key(letter(r))
+	}
+
+	l.key(tea.KeyPressMsg{Code: tea.KeyEnter})
+}
+
+// Lines typed while a turn runs stage rather than refuse: they draw under the
+// transcript as queued, and each sends in order as the turn ahead of it ends.
+func TestLinesStagedDuringATurnSendInOrder(t *testing.T) {
+	t.Parallel()
+
+	stub := stubPath(t)
+
+	sub := &counter{}
+	home := t.TempDir()
+	path := filepath.Join(home, "pr-42.toml")
+	review := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+	if err := artifact.Save(path, review); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithStore(home),
+		tui.WithAgent(func(ctx context.Context, loadID string) (*acp.Session, error) {
+			return acp.Start(ctx, []string{stub}, home, loadID, "")
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	run := looped(m)
+	run.key(letter('T'))
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "talk to stub")
+	})
+
+	run.typeLine("wait:600")
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "stub heard: wait:600")
+	})
+
+	// The turn is busy with no ask up, so these stage rather than send.
+	run.typeLine("fast:first staged")
+	run.typeLine("fast:second staged")
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "queued › fast:first staged") ||
+		!strings.Contains(frame, "queued › fast:second staged") {
+		t.Fatalf("the staged lines did not draw as queued:\n%s", frame)
+	}
+
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "stub heard: fast:second staged")
+	})
+
+	frame := plain(m.Frame())
+	first := strings.Index(frame, "stub heard: fast:first staged")
+	second := strings.Index(frame, "stub heard: fast:second staged")
+
+	if first < 0 || second < 0 || first > second {
+		t.Errorf("the staged lines answered out of order:\n%s", frame)
+	}
+
+	if strings.Contains(frame, "queued ›") {
+		t.Errorf("a drained queue still draws staged:\n%s", frame)
+	}
+}
+
+// Esc peels one layer at a time while the pane is open: staged lines first.
+// The pane itself goes only once none is staged, and ctrl+w on an empty
+// prompt drops just the last staged line.
+func TestEscPeelsStagedLinesThenThePane(t *testing.T) {
+	t.Parallel()
+
+	stub := stubPath(t)
+
+	sub := &counter{}
+	home := t.TempDir()
+	path := filepath.Join(home, "pr-42.toml")
+	review := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+	if err := artifact.Save(path, review); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithStore(home),
+		tui.WithAgent(func(ctx context.Context, loadID string) (*acp.Session, error) {
+			return acp.Start(ctx, []string{stub}, home, loadID, "")
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	run := looped(m)
+	run.key(letter('T'))
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "talk to stub")
+	})
+
+	// A held turn keeps the session busy without an ask owning the keys.
+	run.typeLine("hold")
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "stub heard: hold")
+	})
+
+	run.typeLine("fast:one staged")
+	run.typeLine("fast:two staged")
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "2 queued") {
+		t.Fatalf("the divider does not count the staged lines:\n%s", frame)
+	}
+
+	run.key(tea.KeyPressMsg{Code: 'w', Mod: tea.ModCtrl})
+
+	if frame := plain(m.Frame()); strings.Contains(frame, "two staged") ||
+		!strings.Contains(frame, "one staged") {
+		t.Errorf("ctrl+w did not drop just the last staged line:\n%s", frame)
+	}
+
+	run.key(tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if frame := plain(m.Frame()); strings.Contains(frame, "queued ›") ||
+		!strings.Contains(frame, "dropped 1 queued message") {
+		t.Errorf("esc did not clear the staged lines first:\n%s", frame)
+	}
+
+	run.key(tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if frame := plain(m.Frame()); strings.Contains(frame, "esc leaves · ctrl+\\ ends") {
+		t.Errorf("esc left the queue but not the pane:\n%s", frame)
 	}
 }
