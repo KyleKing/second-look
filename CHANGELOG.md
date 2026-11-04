@@ -1,3 +1,10 @@
+## v0.50.3 (2026-11-04)
+
+### Fix
+
+- **image**: send the URL host's gh token when fetching
+- **post**: set Content-Type on the attachment upload
+
 ## v0.50.2 (2026-11-04)
 
 ### Fix
