@@ -234,7 +234,13 @@ func states() [][2]string {
 // together, each toggled on its own, and v which walks the presets the cycle
 // once answered for.
 func lookObjects() [][2]string {
-	return [][2]string{{"g", "grammar"}, {"s", "side by side"}, {"w", "wrap"}, {"v", "the next preset"}}
+	return [][2]string{
+		{"g", "grammar"},
+		{"i", "the images here"},
+		{"s", "side by side"},
+		{"w", "wrap"},
+		{"v", "the next preset"},
+	}
 }
 
 // goObjects are what g accepts: gg keeps the top it always was, d and r ask

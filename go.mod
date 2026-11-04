@@ -20,7 +20,7 @@ require (
 	github.com/kyleking/aragonite v1.7.0
 	github.com/lucasb-eyer/go-colorful v1.4.1
 	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.48.0
+	golang.org/x/sys v0.49.0
 )
 
 require (
@@ -33,7 +33,11 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
 	github.com/mattn/go-runewidth v0.0.30 // indirect
+	github.com/mattn/go-sixel v0.0.14 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/soniakeys/quant v1.0.0 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
+	golang.org/x/image v0.47.0 // indirect
+	golang.org/x/term v0.38.0 // indirect
 )

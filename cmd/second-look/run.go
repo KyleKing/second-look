@@ -175,6 +175,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		"todo":    func() error { return todoCmd(ctx, args[1:], stdout) },
 		"post":    func() error { return postCmd(ctx, args[1:], stdout) },
 		"inbox":   func() error { return inboxCmd(ctx, args[1:], stdin, stdout) },
+		"image":   func() error { return imageCmd(ctx, args[1:], stdin, stdout) },
 		"threads": func() error { return threadsCmd(ctx, args[1:], stdin, stdout) },
 		"reviews": func() error { return reviewsCmd(ctx, args[1:], stdin, stdout) },
 		"session": func() error { return sessionCmd(ctx, args[1:], stdout) },

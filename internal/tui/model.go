@@ -863,6 +863,12 @@ func (m *Model) childAnswered(msg tea.Msg) (tea.Cmd, bool) {
 		m.agentTurned(msg)
 
 		return m.pumpAgent(), true
+	case previewedMsg:
+		if msg.err != nil {
+			m.say("the viewer closed badly: "+msg.err.Error(), true)
+		}
+
+		return nil, true
 	default:
 		return nil, false
 	}
@@ -1583,6 +1589,12 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case 'S':
 		return m.submitAs(msg)
 	case 'u':
+		if msg.String() == "i" {
+			cmd := m.previewImages()
+
+			return m, cmd
+		}
+
 		m.toggleLook(msg)
 
 		return m, nil
