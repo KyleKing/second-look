@@ -35,6 +35,11 @@ cassette.
 `post-reply` answers a comment the `post-review` recording created, so its `in_reply_to` is
 a real comment id. Deleting that thread on GitHub would break it.
 
+The post writes GraphQL now — `gh api graphql --input -` with the request on stdin — so the
+review, its replies, and the submit replay as one mutation sequence rather than REST posts.
+Both cassettes were rewritten by hand for that flow; re-record them against #2 the next time
+a real post is wanted, since the hand-written responses are invented rather than captured.
+
 - `internal/resolve` records the resolve and thumbs-up `R` sends. One thread on #2 is now
   resolved with a thumbs-up, and `addReaction` refuses a duplicate, so re-recording needs a
   new thread. The ids are consts atop `live_test.go`. It replays through `Session.Apply`, so

@@ -3347,7 +3347,14 @@ func (m *Model) askSubmit() {
 	m.pending = 'S'
 	// The pull request is already named in the title bar, so the prompt spends
 	// its width on what the keys do and stays readable in an 80-column frame.
-	m.say("S  "+plural(c.ready, "comment")+"  "+hintLine(events()), false)
+	// What will not post is said too: a skipped comment is a decision made
+	// earlier, and the confirm is where it can still be revisited.
+	word := "S  " + plural(c.ready, "comment")
+	if c.skip > 0 {
+		word += " · " + plural(c.skip, "skipped")
+	}
+
+	m.say(word+"  "+hintLine(events()), false)
 }
 
 // submitAs answers the second key of the submit chord. A review with a todo
