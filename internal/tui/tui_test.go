@@ -673,13 +673,19 @@ func TestWhitespaceHunksFoldAway(t *testing.T) {
 
 	m, _, _ := fixtureWith(t, patch)
 
-	if !strings.Contains(plain(m.Frame()), "a := 1") {
-		t.Fatal("the whitespace hunk is not shown to begin with")
+	// A hunk changing nothing but whitespace starts folded, with why on the row.
+	frame := plain(m.Frame())
+	if strings.Contains(frame, "a := 1") {
+		t.Fatalf("the whitespace hunk opened instead of folding:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "reindent only") {
+		t.Fatalf("the fold says nothing about why:\n%s", frame)
 	}
 
 	press(t, m, tea.KeyPressMsg{Code: 'w', Text: "w"})
 
-	frame := plain(m.Frame())
+	frame = plain(m.Frame())
 	if strings.Contains(frame, "a := 1") {
 		t.Errorf("the whitespace hunk is still shown:\n%s", frame)
 	}
@@ -694,8 +700,16 @@ func TestWhitespaceHunksFoldAway(t *testing.T) {
 
 	press(t, m, tea.KeyPressMsg{Code: 'w', Text: "w"})
 
+	if !strings.Contains(plain(m.Frame()), "reindent only") {
+		t.Error("w did not bring the folded hunk back")
+	}
+
+	onto(t, m, "reindent only")
+	press(t, m, tea.KeyPressMsg{Code: 'z', Text: "z"})
+	press(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+
 	if !strings.Contains(plain(m.Frame()), "a := 1") {
-		t.Error("w did not bring the hunk back")
+		t.Error("za did not open the folded hunk")
 	}
 }
 

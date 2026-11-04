@@ -485,8 +485,13 @@ func hunkRow(d *diff.Diff, lay layout, at hunkAt, span [2]int) (*row, bool) {
 	}
 
 	if lay.fold.hunks[at] {
+		why := lay.mech[at]
+		if why != "" {
+			why += "  "
+		}
+
 		return &row{
-			kind: rowHunk, text: spanWord(span) + "[za] open",
+			kind: rowHunk, text: spanWord(span) + why + "[za] open",
 			path: at.path, comment: noComment, hunk: at.hunk, folded: true,
 		}, true
 	}

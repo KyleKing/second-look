@@ -305,6 +305,10 @@ type Model struct {
 	// and shape is what the same pass saw of each hunk's symbols.
 	cosmetic map[hunkAt]bool
 	shape    shape
+	// mech is why each hunk that started folded is folded: a reindent, a move,
+	// or a reformat a reader has nothing to check in. It is computed with the
+	// pairing, which already answers every line the test asks about.
+	mech map[hunkAt]string
 	// cost is what the same pass rates the change, shown in the title once it
 	// has an answer to show.
 	cost    rate.Score
@@ -462,6 +466,8 @@ func New(
 		opt(m)
 	}
 
+	m.mech = mechanicalHunks(d, reindented)
+	m.folded.foldMechanical(m.mech)
 	m.folded.foldResolved(m.threads)
 	m.replan()
 	m.tour = len(d.Files) <= tourFiles
@@ -3753,7 +3759,7 @@ func (m *Model) layout() (layout, where) {
 	lay := layout{
 		width: m.diffWidth(), hide: m.skipper(), fold: m.folded, notes: m.notes, lit: m.lit,
 		split: m.sideBySide(), made: m.made,
-		merged: m.drawn.rich && !m.sideBySide(), mates: m.mates,
+		merged: m.drawn.rich && !m.sideBySide(), mates: m.mates, mech: m.mech,
 		drifted: m.drifted,
 		grown: func(path string, hunk int, span [2]int) ([]row, []row) {
 			return m.surround(path, hunk, span[0], span[1])

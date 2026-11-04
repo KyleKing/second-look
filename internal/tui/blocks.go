@@ -120,6 +120,15 @@ func (f folded) foldResolved(ts []threads.Thread) {
 	}
 }
 
+// foldMechanical starts every hunk the classifier found nothing to check in
+// folded, the same default a generated file carries: what a machine wrote
+// waits for somebody to ask, and za asks.
+func (f folded) foldMechanical(mech map[hunkAt]string) {
+	for at := range mech {
+		f.hunks[at] = true
+	}
+}
+
 // layout is what laying out a review takes beyond the review itself: the width
 // to wrap to, which hunks are hidden because nothing in them changed, and what
 // has been folded away by hand.
@@ -164,6 +173,9 @@ type layout struct {
 	// changes which rows exist, so it is a layout rather than a paint.
 	merged bool
 	mates  map[diff.LineRef]diff.Line
+	// mech is why a hunk that started folded is folded, which its row says so
+	// the fold reads as a classification rather than a missing piece.
+	mech map[hunkAt]string
 	// made is what counts as written by a machine, which is grouped last and
 	// folded until somebody asks for it.
 	made generated.Set

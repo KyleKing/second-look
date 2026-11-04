@@ -71,12 +71,14 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 	m.hunkRefs, m.hunkIDs = nil, nil
 	m.editSeq++
 	m.refined, m.reindented, m.moves, m.mates = m.diff.Paired()
+	m.mech = mechanicalHunks(m.diff, m.reindented)
 	m.lexed = map[string]map[diff.LineRef][]highlight.Span{}
 	m.threads = msg.fresh.Threads
 	m.read = msg.fresh.Read
 	m.newHead = ""
 	m.fold = foldNone
 	m.folded = newFolded()
+	m.folded.foldMechanical(m.mech)
 	m.folded.foldResolved(m.threads)
 	m.notes = nil
 	m.around = map[hunkAt]int{}

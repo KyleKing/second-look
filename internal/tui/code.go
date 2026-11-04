@@ -147,8 +147,13 @@ func (s screen) codeRows(f *diff.File, want map[int]bool, c codeCtx) []row {
 			case hide:
 				folded++
 			case shut:
+				why := c.lay.mech[hunkAt{p, hunk}]
+				if why != "" {
+					why += "  "
+				}
+
 				rows = append(rows, row{
-					kind: rowHunk, text: codeHeader(c.d, hunk) + "  [za] open",
+					kind: rowHunk, text: codeHeader(c.d, hunk) + "  " + why + "[za] open",
 					path: p, comment: -1, hunk: hunk, folded: true,
 				})
 			default:

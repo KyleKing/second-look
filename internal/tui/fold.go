@@ -115,6 +115,55 @@ func (m *Model) compared(h hider) hider {
 	}}
 }
 
+// mechanicalHunks is the hunks a reader has nothing to check in: every changed
+// line a reindent of its pair, or the two sides identical once every space and
+// tab is gone. One of those has to cover the whole hunk, since a fold that
+// buries one real edit among the mechanical ones is worse than no fold. A moved
+// run stays open, because its ⇄ note and the jump to the other end only exist
+// while the hunk is drawn.
+func mechanicalHunks(d *diff.Diff, reindented map[diff.LineRef]bool) map[hunkAt]string {
+	type tally struct{ n, indent int }
+
+	tallies := map[hunkAt]*tally{}
+
+	for i := range d.Files {
+		p := filePath(&d.Files[i])
+
+		for _, l := range d.Files[i].Lines {
+			if l.Kind == diff.KindContext || l.Hunk == 0 {
+				continue
+			}
+
+			at := hunkAt{p, l.Hunk}
+			t := tallies[at]
+
+			if t == nil {
+				t = &tally{}
+				tallies[at] = t
+			}
+
+			t.n++
+
+			if reindented[refOf(p, l)] {
+				t.indent++
+			}
+		}
+	}
+
+	out := map[hunkAt]string{}
+
+	for at, t := range tallies {
+		switch {
+		case t.indent == t.n:
+			out[at] = "reindent only"
+		case d.WhitespaceOnly(at.path, at.hunk):
+			out[at] = "whitespace only"
+		}
+	}
+
+	return out
+}
+
 // structureMsg carries the pass over every hunk. It runs once per diff and the
 // answer is kept, so t after the first press is a redraw.
 type structureMsg struct {
