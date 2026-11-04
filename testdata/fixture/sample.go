@@ -1,0 +1,57 @@
+// Package fixture is the recording target for second-look's own tests. It is
+// never compiled: it lives under testdata so the Go tool ignores it, and it
+// exists only to give a long-lived pull request a diff worth commenting on.
+package fixture
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"strconv"
+)
+
+var errEmptyBudget = errors.New("budget file is empty")
+
+// ReadBudget reads a line-per-entry budget file and totals it.
+func ReadBudget(path string) (int, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+
+	total := 0
+
+	for _, line := range splitLines(string(raw)) {
+		n, err := strconv.Atoi(line)
+		if err != nil {
+			continue
+		}
+
+		total += n
+	}
+
+	if total == 0 {
+		return 0, errEmptyBudget
+	}
+
+	return total, nil
+}
+
+func splitLines(s string) []string {
+	out := []string{}
+	start := 0
+
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\n' {
+			out = append(out, s[start:i])
+			start = i + 1
+		}
+	}
+
+	return append(out, s[start:])
+}
+
+// Describe renders a budget total for a person.
+func Describe(total int) string {
+	return fmt.Sprintf("%d units", total)
+}
