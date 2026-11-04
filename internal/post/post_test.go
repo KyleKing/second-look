@@ -57,6 +57,18 @@ func (f *fakePoster) Post(_ context.Context, endpoint string, body []byte) ([]by
 	return []byte(`{"id":88,"node_id":"C_88"}`), nil
 }
 
+func (f *fakePoster) Upload(
+	_ context.Context, _ string, _ int64, name, _ string, _ []byte,
+) (string, error) {
+	f.endpoints = append(f.endpoints, "upload "+name)
+
+	if f.failOn > 0 && len(f.endpoints) == f.failOn {
+		return "", errBoom
+	}
+
+	return "https://github.com/user-attachments/assets/fake-" + name, nil
+}
+
 func (f *fakePoster) GraphQL(_ context.Context, req []byte) ([]byte, error) {
 	f.bodies = append(f.bodies, req)
 
@@ -88,6 +100,9 @@ func (f *fakePoster) GraphQL(_ context.Context, req []byte) ([]byte, error) {
 	case strings.Contains(call.Query, "pullRequest(number"):
 		name, answer = "graphql pullRequest",
 			`{"data":{"repository":{"pullRequest":{"id":"PR_42"}}}}`
+	case strings.Contains(call.Query, "databaseId"):
+		name, answer = "graphql repoID",
+			`{"data":{"repository":{"databaseId":9876}}}`
 	default:
 		return nil, fmt.Errorf("%w: %s", errUnmatched, call.Query)
 	}

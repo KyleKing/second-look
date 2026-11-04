@@ -21,6 +21,10 @@ const (
   repository(owner:$owner,name:$name){pullRequest(number:$number){id}}
 }`
 
+	repoIDQuery = `query($owner:String!,$name:String!){
+  repository(owner:$owner,name:$name){databaseId}
+}`
+
 	addReviewMutation = `mutation($input:AddPullRequestReviewInput!){
   addPullRequestReview(input:$input){pullRequestReview{id databaseId}}
 }`
@@ -71,6 +75,7 @@ var errNotAThread = errors.New("not a thread on this pull request")
 // The GraphQL variables every mutation shares a name for.
 const (
 	keyInput                = "input"
+	keyOwner                = "owner"
 	keyPullRequestReviewID  = "pullRequestReviewId"
 	keyPullRequestReviewTID = "pullRequestReviewThreadId"
 	keyBody                 = "body"
@@ -116,10 +121,38 @@ func graphql(out any, body []byte) error {
 	return nil
 }
 
+// repoID is the repository's numeric id, which the attachment upload names in
+// its query — the node id it also has is a different spelling the endpoint
+// does not take.
+func repoID(ctx context.Context, p Poster, owner, repo string) (int64, error) {
+	body, err := request(repoIDQuery, map[string]any{keyOwner: owner, keyName: repo})
+	if err != nil {
+		return 0, err
+	}
+
+	raw, err := p.GraphQL(ctx, body)
+	if err != nil {
+		return 0, fmt.Errorf("reading the repository: %w", err)
+	}
+
+	//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
+	var out struct {
+		Repository struct {
+			DatabaseID int64 `json:"databaseId"`
+		} `json:"repository"`
+	}
+
+	if err := graphql(&out, raw); err != nil {
+		return 0, fmt.Errorf("reading the repository: %w", err)
+	}
+
+	return out.Repository.DatabaseID, nil
+}
+
 // prNodeID is the pull request's GraphQL id, which every mutation on it names.
 func prNodeID(ctx context.Context, p Poster, r *artifact.Review) (string, error) {
 	body, err := request(prNodeQuery, map[string]any{
-		"owner": r.Owner, "name": r.Repo, "number": r.Number,
+		keyOwner: r.Owner, keyName: r.Repo, "number": r.Number,
 	})
 	if err != nil {
 		return "", err
@@ -208,7 +241,7 @@ func threadIDs(ctx context.Context, p Poster, r *artifact.Review) (map[int64]str
 
 	for {
 		body, err := request(threadQuery, map[string]any{
-			"owner": r.Owner, "name": r.Repo, "number": r.Number,
+			keyOwner: r.Owner, keyName: r.Repo, "number": r.Number,
 			"after": after,
 		})
 		if err != nil {

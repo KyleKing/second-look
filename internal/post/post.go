@@ -39,14 +39,15 @@ func reviewHost(r *artifact.Review) string {
 // was prepared.
 var ErrHeadMoved = errors.New("the pull request has new commits")
 
-// Poster sends one request, asks the GraphQL endpoint one question, and
-// resolves threads. The gh CLI is the only implementation that ships; a test
-// supplies its own.
+// Poster sends one request, asks the GraphQL endpoint one question, resolves
+// threads, and uploads attachments. The gh CLI is the only implementation that
+// ships; a test supplies its own.
 type Poster interface {
 	Post(ctx context.Context, endpoint string, body []byte) ([]byte, error)
 	Delete(ctx context.Context, endpoint string) error
 	GraphQL(ctx context.Context, request []byte) ([]byte, error)
 	Resolve(ctx context.Context, threadID string) error
+	Upload(ctx context.Context, host string, repoID int64, name, contentType string, data []byte) (string, error)
 }
 
 type ghPoster struct{}
@@ -155,7 +156,7 @@ func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.
 		return fmt.Errorf("building the payload: %w", err)
 	}
 
-	submitted, err := postReview(ctx, p, r, threads, replies)
+	submitted, err := postReview(ctx, p, r, rootOf(path), threads, replies)
 	if err != nil {
 		return err
 	}
@@ -237,9 +238,13 @@ func prunePublished(path string, r *artifact.Review, out io.Writer) error {
 // left behind is a reply's invisible landing place — the failure that lost a
 // reply while reporting success.
 func postReview(
-	ctx context.Context, p Poster, r *artifact.Review,
+	ctx context.Context, p Poster, r *artifact.Review, root string,
 	threads []artifact.DraftThread, replies []artifact.ReplyPayload,
 ) (*pendingReview, error) {
+	if err := expandAttachments(ctx, p, r, root, threads, replies); err != nil {
+		return nil, err
+	}
+
 	prID, err := prNodeID(ctx, p, r)
 	if err != nil {
 		return nil, err
@@ -317,12 +322,21 @@ func abandon(ctx context.Context, p Poster, r *artifact.Review, pending *pending
 // staged, and GitHub owns the comment from the moment it lands, so it is
 // removed here for the same reason a posted review's artifact is deleted.
 func One(ctx context.Context, p Poster, path string, r *artifact.Review, id string, out io.Writer) error {
+	// Attachments expand before the payload is built so the body it marshals
+	// already carries the uploaded URL. Only a comment posting can carry one,
+	// so the upload is skipped for a comment OnePayload will refuse.
+	if c := r.Find(id); c != nil && (c.Status == artifact.StatusReady || c.TodoReply()) {
+		if err := Expand(ctx, p, reviewHost(r), r.Owner, r.Repo, rootOf(path), &c.Body); err != nil {
+			return fmt.Errorf("posting %s on its own: %w", id, err)
+		}
+	}
+
 	payload, c, err := r.OnePayload(id)
 	if err != nil {
 		return fmt.Errorf("posting %s on its own: %w", id, err)
 	}
 
-	postedID, nodeID, kind, err := postOne(ctx, p, r, payload, c, id, out)
+	postedID, nodeID, kind, err := postOne(ctx, p, r, rootOf(path), payload, c, id, out)
 	if err != nil {
 		return err
 	}
@@ -352,11 +366,11 @@ func One(ctx context.Context, p Poster, path string, r *artifact.Review, id stri
 // It answers the id GitHub gave what posted and whether that was a comment or
 // a review.
 func postOne(
-	ctx context.Context, p Poster, r *artifact.Review,
+	ctx context.Context, p Poster, r *artifact.Review, root string,
 	payload any, c *artifact.Comment, id string, out io.Writer,
 ) (int64, string, string, error) {
 	if c.InReplyTo != 0 {
-		return postReplyOne(ctx, p, r, id, out)
+		return postReplyOne(ctx, p, r, root, id, out)
 	}
 
 	body, err := json.Marshal(payload)
@@ -397,7 +411,7 @@ func postOne(
 // postReplyOne runs one staged reply through the same pending-review dance a
 // whole review takes, since the reply names the review it belongs to by id.
 func postReplyOne(
-	ctx context.Context, p Poster, r *artifact.Review, id string, out io.Writer,
+	ctx context.Context, p Poster, r *artifact.Review, root, id string, out io.Writer,
 ) (int64, string, string, error) {
 	one := r.Only(id)
 
@@ -406,7 +420,7 @@ func postReplyOne(
 		return 0, "", "", fmt.Errorf("posting %s on its own: %w", id, err)
 	}
 
-	submitted, err := postReview(ctx, p, one, threads, replies)
+	submitted, err := postReview(ctx, p, one, root, threads, replies)
 	if err != nil {
 		return 0, "", "", err
 	}
@@ -488,7 +502,16 @@ func DryRun(out io.Writer, r *artifact.Review) error {
 		return fmt.Errorf("encoding the review: %w", err)
 	}
 
-	return write(out, fmt.Sprintf("graphql %s\n", submit))
+	if err := write(out, fmt.Sprintf("graphql %s\n", submit)); err != nil {
+		return err
+	}
+
+	if mentionsAttach(r.Body, threads, replies) {
+		return write(out, "\nattach: paths upload to user-attachments when this posts; "+
+			"the posted bodies carry the URLs it answers\n")
+	}
+
+	return nil
 }
 
 // resolveAfter closes the thread a posted reply answered. The reply is already

@@ -542,6 +542,16 @@ WHAT STAYS LOCAL
   hang from the RIGHT side and cover only lines the file that results has, and
   both are checked when the comment is staged rather than when it is posted.
 
+  A body embeds a local screenshot or clip as ![alt](attach:path), a path with
+  spaces as attach:<path>. png, jpg, gif, webp, mp4, and mov upload to
+  user-attachments as the body posts and the posted text carries the URL. A
+  path without ~ or a leading / sits under the review's root, and the same
+  file named twice uploads once. A file that is missing, unreadable, or over
+  the size cap refuses the post rather than shipping a broken link.
+
+  The review screen previews images with u then i, drawing them on the
+  terminal itself where the terminal speaks kitty, iTerm2, or sixel graphics.
+
   Turns are the exchange about a comment, in the order it was said. They append
   rather than replace, so send only what is new and nothing already there is
   lost. The note is one mutating field and keeps no argument; the turns keep it.

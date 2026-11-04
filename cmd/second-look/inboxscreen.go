@@ -25,6 +25,7 @@ import (
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/labels"
 	"github.com/kyleking/second-look/internal/lease"
+	"github.com/kyleking/second-look/internal/post"
 	"github.com/kyleking/second-look/internal/snapshot"
 	"github.com/kyleking/second-look/internal/structure"
 	"github.com/kyleking/second-look/internal/tui"
@@ -430,6 +431,11 @@ func cwdClone(ctx context.Context, repo string) (checkouts.Checkout, bool) {
 func commentOn(ctx context.Context, at ref, stdout io.Writer) error {
 	body, err := edit(ctx, "")
 	if err != nil {
+		return fmt.Errorf("commenting on %s: %w", at, err)
+	}
+
+	if err := post.Expand(ctx, post.GH(), "github.com",
+		at.owner, at.repo, ".", &body); err != nil {
 		return fmt.Errorf("commenting on %s: %w", at, err)
 	}
 
