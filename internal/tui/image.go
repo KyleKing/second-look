@@ -34,7 +34,9 @@ func (m *Model) previewImages() tea.Cmd {
 		return nil
 	}
 
-	if termimg.Detect() == termimg.ProtoNone {
+	// Inside tmux the environment cannot say what the outer terminal is, so the
+	// pre-check only refuses when there is no tmux to hide a capable one behind.
+	if termimg.Detect() == termimg.ProtoNone && !termimg.InTMUX() {
 		m.say("this terminal has no inline image protocol (kitty, iTerm2, or sixel)", false)
 
 		return nil

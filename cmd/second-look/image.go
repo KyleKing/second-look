@@ -46,6 +46,9 @@ func imageCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 
 	proto := termimg.Detect()
 	if proto == termimg.ProtoNone {
+		proto = probeProto(stdin, stdout)
+	}
+	if proto == termimg.ProtoNone {
 		return errNoProtocol
 	}
 
@@ -119,6 +122,29 @@ func fetch(ctx context.Context, arg string) (string, error) {
 	}
 
 	return file.Name(), nil
+}
+
+// probeProto is the fallback for an environment that names no protocol, which
+// is every pane inside tmux: TERM_PROGRAM there says "tmux" no matter what
+// terminal is outside it. The kitty query answers whether the outer terminal
+// can draw anyway.
+func probeProto(stdin io.Reader, stdout io.Writer) termimg.Protocol {
+	file, ok := stdin.(*os.File)
+	if !ok {
+		return termimg.ProtoNone
+	}
+
+	old, err := term.MakeRaw(int(file.Fd()))
+	if err != nil {
+		return termimg.ProtoNone
+	}
+	defer term.Restore(int(file.Fd()), old) //nolint:errcheck // the tty state is a courtesy
+
+	if termimg.ProbeKitty(file, stdout) {
+		return termimg.ProtoKitty
+	}
+
+	return termimg.ProtoNone
 }
 
 // nextImage waits for one keypress and reports whether to show the next image:
