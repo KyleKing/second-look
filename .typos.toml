@@ -5,8 +5,9 @@ extend-exclude = ["CHANGELOG.md"]
 
 [default]
 # Abbreviated commit hashes. Every one of them is a word made of a-f, and
-# "f3a9ba6" is not a misspelling of anything.
-extend-ignore-identifiers-re = ["^[0-9a-f]{7,40}$"]
+# "f3a9ba6" is not a misspelling of anything; PNG, the image format the demo
+# stills write, reads to it as a misspelling too.
+extend-ignore-identifiers-re = ["^[0-9a-f]{7,40}$", "^PNGs?$"]
 
 # Names typos reads as misspellings: golangci-lint's linter identifiers, and
 # Ratatui, which is a Rust terminal library rather than a French stew.
