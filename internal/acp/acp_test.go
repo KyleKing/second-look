@@ -91,7 +91,7 @@ func toolEntry(t *testing.T, s *acp.Session) acp.Entry {
 func TestSessionStreamsAWholeTurn(t *testing.T) {
 	t.Parallel()
 
-	s, err := acp.Start(t.Context(), []string{stub}, t.TempDir(), "")
+	s, err := acp.Start(t.Context(), []string{stub}, t.TempDir(), "", "")
 	if err != nil {
 		t.Fatalf("starting the stub: %v", err)
 	}
@@ -179,7 +179,7 @@ func turnThrough(t *testing.T, s *acp.Session, text string) turn {
 func TestSessionLoadsARecordedOne(t *testing.T) {
 	t.Parallel()
 
-	s, err := acp.Start(t.Context(), []string{stub}, t.TempDir(), "old-session")
+	s, err := acp.Start(t.Context(), []string{stub}, t.TempDir(), "old-session", "")
 	if err != nil {
 		t.Fatalf("starting the stub: %v", err)
 	}
@@ -189,15 +189,7 @@ func TestSessionLoadsARecordedOne(t *testing.T) {
 		t.Errorf("the session id is %q; the recorded one was not kept", s.ID())
 	}
 
-	until(t, s, func() bool {
-		for _, e := range s.Entries() {
-			if e.Kind == acp.Agent && strings.Contains(e.Text, "reloaded transcript") {
-				return true
-			}
-		}
-
-		return false
-	})
+	awaitEntry(t, s, acp.Agent, "reloaded transcript")
 }
 
 // The adapter ending has to reach the reader: a pane watching Dead would
@@ -205,7 +197,7 @@ func TestSessionLoadsARecordedOne(t *testing.T) {
 func TestSessionReportsTheAdapterDying(t *testing.T) {
 	t.Parallel()
 
-	s, err := acp.Start(t.Context(), []string{stub}, t.TempDir(), "")
+	s, err := acp.Start(t.Context(), []string{stub}, t.TempDir(), "", "")
 	if err != nil {
 		t.Fatalf("starting the stub: %v", err)
 	}
@@ -220,4 +212,59 @@ func TestSessionReportsTheAdapterDying(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the adapter's end was never reported")
 	}
+}
+
+// A configured mode goes over session/set_mode once the session is up, and
+// one the agent never advertised is said on the transcript instead of being
+// applied to nothing.
+func TestStartAsksForTheConfiguredMode(t *testing.T) {
+	t.Parallel()
+
+	s, err := acp.Start(t.Context(), []string{stub}, t.TempDir(), "", "bypass")
+	if err != nil {
+		t.Fatalf("starting the stub: %v", err)
+	}
+	defer s.Close()
+
+	if s.Mode() != "Bypass Permissions" {
+		t.Errorf("the session mode reads %q", s.Mode())
+	}
+
+	modes := s.Modes()
+	if len(modes) != 2 || modes[0].ID != "code" || modes[1].ID != "bypass" {
+		t.Errorf("the advertised modes read back as %v", modes)
+	}
+
+	awaitEntry(t, s, acp.Note, "mode: Bypass Permissions")
+}
+
+func TestStartNamesAModeTheAgentDoesNotOffer(t *testing.T) {
+	t.Parallel()
+
+	s, err := acp.Start(t.Context(), []string{stub}, t.TempDir(), "", "yolo")
+	if err != nil {
+		t.Fatalf("starting the stub: %v", err)
+	}
+	defer s.Close()
+
+	if s.Mode() != "Code" {
+		t.Errorf("an unapplied mode still reads %q", s.Mode())
+	}
+
+	awaitEntry(t, s, acp.Note, `"yolo" is not one stub offers`)
+}
+
+// awaitEntry waits for a transcript entry of kind carrying text.
+func awaitEntry(t *testing.T, s *acp.Session, kind acp.EntryKind, text string) {
+	t.Helper()
+
+	until(t, s, func() bool {
+		for _, e := range s.Entries() {
+			if e.Kind == kind && strings.Contains(e.Text, text) {
+				return true
+			}
+		}
+
+		return false
+	})
 }

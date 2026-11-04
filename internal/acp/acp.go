@@ -89,6 +89,12 @@ func (p *Permit) Decline() {
 	p.answer <- ""
 }
 
+// Mode is a session mode the agent advertised: bypass, plan, and their kin.
+type Mode struct {
+	ID   string
+	Name string
+}
+
 // Session is one live conversation: the adapter subprocess, the connection
 // over its stdio, and the transcript the screen draws.
 type Session struct {
@@ -105,6 +111,8 @@ type Session struct {
 	seen    map[string]int
 	permit  *Permit
 	stderr  tail
+	modes   []Mode
+	mode    string
 
 	woke chan struct{}
 	dead chan error
@@ -114,7 +122,11 @@ type Session struct {
 // loading the one named by loadID where the agent supports it and starting a
 // new one where it does not. An agent whose auth the host does not manage
 // finds its own credentials, the way `devin acp` reads `devin auth login`'s.
-func Start(ctx context.Context, argv []string, cwd, loadID string) (*Session, error) {
+//
+// Mode names the session mode to ask for once the session is up — `bypass`
+// and its kin — where the agent advertises modes at all. A mode it does not
+// offer is noted on the transcript rather than applied.
+func Start(ctx context.Context, argv []string, cwd, loadID, mode string) (*Session, error) {
 	if len(argv) == 0 {
 		return nil, ErrNoAdapter
 	}
@@ -165,13 +177,16 @@ func Start(ctx context.Context, argv []string, cwd, loadID string) (*Session, er
 	}
 	s.canLoad = res.AgentCapabilities.LoadSession
 
+	var state *wire.SessionModeState
+
 	if loadID != "" && s.canLoad {
-		if _, err := s.conn.LoadSession(ctx, wire.LoadSessionRequest{
+		if loaded, err := s.conn.LoadSession(ctx, wire.LoadSessionRequest{
 			SessionId:  wire.SessionId(loadID),
 			Cwd:        cwd,
 			McpServers: []wire.McpServer{},
 		}); err == nil {
 			s.id = wire.SessionId(loadID)
+			state = loaded.Modes
 		} else {
 			s.note("the recorded session would not load; this is a new one")
 		}
@@ -188,11 +203,73 @@ func Start(ctx context.Context, argv []string, cwd, loadID string) (*Session, er
 			return nil, fmt.Errorf("opening a session: %w", err)
 		}
 		s.id = made.SessionId
+		state = made.Modes
 	}
+
+	s.setModes(state)
+	s.applyMode(ctx, mode)
 
 	go s.reap()
 
 	return s, nil
+}
+
+// setModes records the modes a session answered with, so a configured mode
+// can be checked against them and the pane can name the one in effect.
+func (s *Session) setModes(state *wire.SessionModeState) {
+	if state == nil {
+		return
+	}
+
+	s.modes = make([]Mode, len(state.AvailableModes))
+	for i, m := range state.AvailableModes {
+		s.modes[i] = Mode{ID: string(m.Id), Name: m.Name}
+		if m.Id == state.CurrentModeId {
+			s.mode = m.Name
+		}
+	}
+}
+
+// applyMode asks the session for the configured mode. A mode the agent never
+// advertised, or an agent advertising none, is said on the transcript rather
+// than guessed at, because a missed bypass looks exactly like a quiet one.
+func (s *Session) applyMode(ctx context.Context, want string) {
+	if want == "" {
+		return
+	}
+
+	if len(s.modes) == 0 {
+		s.note(fmt.Sprintf("mode %q asked for, but %s advertises no modes", want, s.name))
+
+		return
+	}
+
+	for _, m := range s.modes {
+		if m.ID != want {
+			continue
+		}
+
+		if _, err := s.conn.SetSessionMode(ctx, wire.SetSessionModeRequest{
+			SessionId: s.id,
+			ModeId:    wire.SessionModeId(m.ID),
+		}); err != nil {
+			s.note(fmt.Sprintf("asking for %s mode: %v", m.Name, err))
+
+			return
+		}
+
+		s.mode = m.Name
+		s.note("mode: " + m.Name)
+
+		return
+	}
+
+	have := make([]string, len(s.modes))
+	for i, m := range s.modes {
+		have[i] = m.ID
+	}
+
+	s.note(fmt.Sprintf("mode %q is not one %s offers (it has: %s)", want, s.name, strings.Join(have, ", ")))
 }
 
 // Prompt sends text and waits out the turn, appending a You line as it goes.
@@ -267,6 +344,24 @@ func (s *Session) ID() string { return string(s.id) }
 // Name is the agent's own name, or the adapter's argv head where it did not
 // give one.
 func (s *Session) Name() string { return s.name }
+
+// Mode is the session mode in effect, by the name the agent gave it, or
+// empty where the agent advertises no modes.
+func (s *Session) Mode() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.mode
+}
+
+// Modes is what the session said it can run as, for a check that wants to
+// show the choices rather than pick one.
+func (s *Session) Modes() []Mode {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return append([]Mode(nil), s.modes...)
+}
 
 // Busy reports a turn in flight.
 func (s *Session) Busy() bool {

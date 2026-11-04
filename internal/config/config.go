@@ -65,11 +65,17 @@ type Check struct {
 type Agent struct {
 	Name    string   `toml:"name"`
 	Command []string `toml:"command"`
-	// Draft is what T sends this agent over a review with nothing staged and
-	// no session yet, in place of second-look's own default instruction —
-	// for naming a private skill (a slash command, a house convention) the
-	// agent already knows rather than pointing it at `second-look skill`.
+	// Draft is what the pane's hand-off key sends this agent over a review
+	// with nothing staged and no session yet, in place of second-look's own
+	// default instruction — for naming a private skill (a slash command, a
+	// house convention) the agent already knows rather than pointing it at
+	// `second-look skill`.
 	Draft string `toml:"draft,omitempty"`
+	// Mode is the session mode to ask for once the session is up: `bypass`
+	// for devin, `bypassPermissions` for claude-code-acp, whatever the
+	// adapter calls it. A mode the session does not advertise is named on
+	// the transcript, not applied.
+	Mode string `toml:"mode,omitempty"`
 }
 
 // Server is a language server for extensions the built-in list does not cover,

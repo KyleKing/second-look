@@ -10,7 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 )
 
 type frame struct {
@@ -26,7 +29,28 @@ var (
 
 	pmu     sync.Mutex
 	pending = map[string]chan frame{}
+
+	cmu      sync.Mutex
+	cancelCh = make(chan struct{})
 )
+
+// cancelled is the channel a "hold" prompt waits on: session/cancel fires it
+// and makes a fresh one for the next holder.
+func cancelled() chan struct{} {
+	cmu.Lock()
+	defer cmu.Unlock()
+
+	return cancelCh
+}
+
+func fireCancel() {
+	cmu.Lock()
+	defer cmu.Unlock()
+
+	close(cancelCh)
+
+	cancelCh = make(chan struct{})
+}
 
 func send(v any) {
 	mu.Lock()
@@ -85,6 +109,16 @@ func ask(id string, params map[string]any) frame {
 	return got
 }
 
+// modes is what the stub advertises: one ordinary mode and one the tests can
+// set to watch session/set_mode land.
+var modes = map[string]any{
+	"availableModes": []map[string]any{
+		{"id": "code", "name": "Code"},
+		{"id": "bypass", "name": "Bypass Permissions"},
+	},
+	"currentModeId": "code",
+}
+
 func prompt(f frame) {
 	var p struct {
 		SessionID string `json:"sessionId"`
@@ -96,6 +130,32 @@ func prompt(f frame) {
 	_ = json.Unmarshal(f.Params, &p)
 
 	say(p.SessionID, "stub heard: "+p.Prompt[0].Text)
+
+	text := p.Prompt[0].Text
+
+	switch {
+	case strings.HasPrefix(text, "fast:"):
+		result(f.ID, map[string]any{"stopReason": "end_turn"})
+
+		return
+	case strings.HasPrefix(text, "wait:"):
+		rest := strings.TrimPrefix(text, "wait:")
+		ms, _, _ := strings.Cut(rest, " ")
+
+		if n, err := strconv.Atoi(ms); err == nil {
+			time.Sleep(time.Duration(n) * time.Millisecond)
+		}
+
+		result(f.ID, map[string]any{"stopReason": "end_turn"})
+
+		return
+	case text == "hold":
+		<-cancelled()
+		result(f.ID, map[string]any{"stopReason": "cancelled"})
+
+		return
+	}
+
 	notify(p.SessionID, "tool_call", map[string]any{
 		"toolCallId": "t1", "title": "runs the tests", "status": "in_progress",
 	})
@@ -163,7 +223,7 @@ func main() {
 				"authMethods":       []any{},
 			})
 		case "session/new":
-			result(f.ID, map[string]any{"sessionId": "stub-session"})
+			result(f.ID, map[string]any{"sessionId": "stub-session", "modes": modes})
 		case "session/load":
 			var p struct {
 				SessionID string `json:"sessionId"`
@@ -171,10 +231,23 @@ func main() {
 			//nolint:errcheck // same
 			_ = json.Unmarshal(f.Params, &p)
 			say(p.SessionID, "reloaded transcript")
-			result(f.ID, map[string]any{"sessionId": p.SessionID})
+			result(f.ID, map[string]any{"modes": modes})
+		case "session/set_mode":
+			var p struct {
+				SessionID string `json:"sessionId"`
+				ModeID    string `json:"modeId"`
+			}
+			//nolint:errcheck // same
+			_ = json.Unmarshal(f.Params, &p)
+			modes["currentModeId"] = p.ModeID
+			say(p.SessionID, "mode set: "+p.ModeID)
+			result(f.ID, map[string]any{})
 		case "session/prompt":
 			go prompt(f)
-		case "session/cancel", "authenticate":
+		case "session/cancel":
+			fireCancel()
+			result(f.ID, map[string]any{})
+		case "authenticate":
 			result(f.ID, map[string]any{})
 		default:
 			result(f.ID, map[string]any{})

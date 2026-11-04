@@ -165,6 +165,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 	}
 
 	commands := map[string]func() error{
+		"agent":   func() error { return agentCmd(ctx, args[1:], stdout) },
 		"get":     func() error { return getCmd(ctx, args[1:], stdin, stdout) },
 		"local":   func() error { return localCmd(ctx, args[1:], stdout) },
 		"comment": func() error { return commentCmd(ctx, args[1:], stdin, stdout) },
@@ -1492,7 +1493,7 @@ func agentStarter(dir string) tui.AgentStarter {
 	argv := slices.Clone(a.Command)
 
 	return func(ctx context.Context, loadID string) (*acp.Session, error) {
-		return acp.Start(ctx, argv, dir, loadID)
+		return acp.Start(ctx, argv, dir, loadID, a.Mode)
 	}
 }
 
