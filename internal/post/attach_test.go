@@ -3,7 +3,11 @@ package post_test
 import (
 	"bytes"
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -111,6 +115,69 @@ func TestRunExpandsBracketedAttach(t *testing.T) {
 	joined := string(bytes.Join(p.bodies, nil))
 	if !strings.Contains(joined, "fake-Screenshot 2026-11-04.png") {
 		t.Errorf("the bracketed path did not upload: %s", joined)
+	}
+}
+
+// uploadsBase points the real upload path at a stubbed uploads host, with
+// gh's GH_TOKEN shortcut answering the token lookup.
+func uploadsBase(t *testing.T, handler http.HandlerFunc) {
+	t.Helper()
+
+	if _, err := exec.LookPath("gh"); err != nil {
+		t.Skip("gh is not installed")
+	}
+
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+
+	t.Setenv("SECOND_LOOK_UPLOADS_BASE", srv.URL)
+	t.Setenv("GH_TOKEN", "stub")
+}
+
+//nolint:paralleltest // t.Setenv inside uploadsBase
+func TestGHUpload(t *testing.T) {
+	uploadsBase(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Content-Type") != r.URL.Query().Get("content_type") {
+			// What uploads.github.com answers a body that does not name the
+			// type the query declared.
+			w.WriteHeader(http.StatusBadRequest)
+
+			if _, err := io.WriteString(w, `{"message":"Invalid Content-Type'"}`); err != nil {
+				t.Errorf("writing the answer: %v", err)
+			}
+
+			return
+		}
+
+		if _, err := io.WriteString(w, `{"url":"https://github.com/user-attachments/assets/abc"}`); err != nil {
+			t.Errorf("writing the answer: %v", err)
+		}
+	})
+
+	href, err := post.GH().Upload(
+		context.Background(), "github.com", 42, "shot.png", "image/png", []byte("png"))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if want := "https://github.com/user-attachments/assets/abc"; href != want {
+		t.Errorf("url = %q, want %q", href, want)
+	}
+}
+
+//nolint:paralleltest // t.Setenv inside uploadsBase
+func TestGHUploadReportsTheServerReason(t *testing.T) {
+	uploadsBase(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+
+		if _, err := io.WriteString(w, `{"message":"denied"}`); err != nil {
+			t.Errorf("writing the answer: %v", err)
+		}
+	})
+
+	_, err := post.GH().Upload(
+		context.Background(), "github.com", 42, "shot.png", "image/png", []byte("png"))
+	if err == nil || !strings.Contains(err.Error(), "denied") {
+		t.Fatalf("wanted the server's message, got %v", err)
 	}
 }
 

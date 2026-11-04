@@ -332,6 +332,8 @@ func uploadAsset(
 		return "", fmt.Errorf("building the upload request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	// The endpoint 400s a body whose Content-Type is unset, which a reader body's is.
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -341,12 +343,17 @@ func uploadAsset(
 	defer resp.Body.Close() //nolint:errcheck // the answer is already read or already failed
 
 	var answer struct {
-		URL string `json:"url"`
+		URL     string `json:"url"`
+		Message string `json:"message"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&answer); err != nil {
 		return "", fmt.Errorf("reading the upload answer (status %d): %w", resp.StatusCode, err)
 	}
 	if answer.URL == "" {
+		if answer.Message != "" {
+			return "", fmt.Errorf("status %d (%s): %w", resp.StatusCode, answer.Message, errNoUploadURL)
+		}
+
 		return "", fmt.Errorf("status %d: %w", resp.StatusCode, errNoUploadURL)
 	}
 
