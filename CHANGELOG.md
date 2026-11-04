@@ -1,3 +1,42 @@
+## v0.50.0 (2026-11-04)
+
+### Feat
+
+- **tui**: preview a comment's images on the terminal itself
+- **post**: expand attach: image paths into user-attachments URLs
+- **tui**: open the agent pane on T and stage lines while it works
+- **agent**: run the configured agent in the mode the config names
+- **tui**: name what the submit chord will not post
+- **tui**: fold the hunks a change only reformats
+- **tui**: draw paired edits as one line with struck-through cuts
+- **get**: say what a pooled diff is doing while it fetches
+- **highlight**: color operators, fields, constants, and escapes apart
+- **tui**: wash changed lines pale, mark only the runs that differ
+- **post**: name skipped comments in the post summary
+- **tui**: draw staged replies inside their thread card
+- **diff**: narrow paired marks to the bytes that differ
+- **tui**: draw changed lines with gutter and marks instead of side bands
+
+### Fix
+
+- **tui**: draw unpaired cut lines where they were cut
+- **post**: carry comments and replies through one pending review
+- **tui**: use cube-safe faces under a 16/256-color profile
+- **tui**: open a capped thread with za from anywhere in it
+- **tui**: quiet the cursor band
+- **tui**: scroll the tour rail to the chapter under the cursor
+- **tui**: collapse far directories into +N groups in the file strip
+- **tui**: collapse far chapters into +N groups in the tour strip
+
+### Refactor
+
+- answer the lint findings the review round raised
+
+### Perf
+
+- **tui**: roll each hunk’s read mark once per diff
+- **diff**: compute the line pairing once per diff
+
 ## v0.49.4 (2026-10-29)
 
 ### Refactor
