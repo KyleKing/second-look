@@ -1,3 +1,9 @@
+## v0.50.1 (2026-11-04)
+
+### Fix
+
+- **tui**: probe the terminal for kitty graphics where the env cannot say
+
 ## v0.50.0 (2026-11-04)
 
 ### Feat
