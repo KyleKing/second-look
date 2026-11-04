@@ -441,7 +441,7 @@ func TestReviewScreenSubmits(t *testing.T) {
 	// lines the post wrote are held back and land in the scrollback.
 	out := sc.text()
 	for _, want := range []string{
-		"posted review 5073185970 on KyleKing/second-look#2",
+		"posted review 5769855073 on KyleKing/second-look#2",
 		"removed the staged review for KyleKing/second-look#2",
 	} {
 		if !strings.Contains(out, want) {

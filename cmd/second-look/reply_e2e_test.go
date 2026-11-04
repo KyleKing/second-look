@@ -40,7 +40,7 @@ func TestPostReportsAReplyThatFailedAfterTheReview(t *testing.T) {
 		c.Interactions[4].Stdout = ""
 		c.Interactions[4].Stderr = "gh: Not Found (HTTP 404)\n"
 		c.Interactions = append(c.Interactions, ghcassette.Interaction{
-			Args:   []string{"api", "--method", "DELETE", "/repos/KyleKing/second-look/pulls/2/reviews/5073201844"},
+			Args:   []string{"api", "--method", "DELETE", "/repos/KyleKing/second-look/pulls/2/reviews/5769869202"},
 			Stdout: "",
 		})
 	})
@@ -63,7 +63,7 @@ func TestPostReportsAReplyThatFailedAfterTheReview(t *testing.T) {
 func TestPostResolvesTheThreadItAnswered(t *testing.T) {
 	t.Parallel()
 
-	const thread = "PRRT_kwDOT-RSFs6BudgetThread"
+	const thread = "PRRT_kwDOT-RSFs6d8L5j"
 
 	cassette := deriveFrom(t, "post-reply", "reply-resolve", func(c *ghcassette.Cassette) {
 		c.Interactions = append(c.Interactions, ghcassette.Interaction{

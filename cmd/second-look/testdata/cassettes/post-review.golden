@@ -1,12 +1,11 @@
 [[interaction]]
-args = ['pr', 'view', '2', '--json', 'number,title,state,url,isDraft,mergeStateStatus,headRefName,headRefOid,headRepositoryOwner,baseRefName,statusCheckRollup', '--repo', 'KyleKing/second-look']
 stdout = """
-{"baseRefName":"main","headRefName":"fixture/review-target","headRefOid":"6bc1218809a6faf83bc266c7a10b6b096f814a74","headRepositoryOwner":{"id":"MDQ6VXNlcjM3ODQzMzk=","name":"Kyle King","login":"KyleKing"},"isDraft":true,"mergeStateStatus":"CLEAN","number":2,"state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:31Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804254","name":"ci","startedAt":"2026-09-01T01:39:55Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:12Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804313","name":"hooks","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:12Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804103","name":"actionlint","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:15Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804383","name":"lint","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:21Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804266","name":"project","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:09Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804319","name":"benchmark","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"}],"title":"test: Add a recording-target pull request for cassette tests","url":"https://github.com/KyleKing/second-look/pull/2"}
+{"baseRefName":"main","headRefName":"fixture/review-target","headRefOid":"6bc1218809a6faf83bc266c7a10b6b096f814a74","headRepositoryOwner":{"id":"MDQ6VXNlcjM3ODQzMzk=","name":"Kyle King","login":"KyleKing"},"isDraft":true,"mergeStateStatus":"UNKNOWN","number":2,"state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:31Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804254","name":"ci","startedAt":"2026-09-01T01:39:55Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:12Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804313","name":"hooks","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:12Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804103","name":"actionlint","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:15Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804383","name":"lint","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:21Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804266","name":"project","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"},{"__typename":"CheckRun","completedAt":"2026-09-01T01:40:09Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/KyleKing/second-look/actions/runs/33459604071/job/99706804319","name":"benchmark","startedAt":"2026-09-01T01:39:54Z","status":"COMPLETED","workflowName":"CI"}],"title":"test: Add a recording-target pull request for cassette tests","url":"https://github.com/KyleKing/second-look/pull/2"}
 """
+args = ['pr', 'view', '2', '--json', 'number,title,state,url,isDraft,mergeStateStatus,headRefName,headRefOid,headRepositoryOwner,baseRefName,statusCheckRollup', '--repo', 'KyleKing/second-look']
 exit = 0
 
 [[interaction]]
-args = ['pr', 'diff', '2', '--repo', 'KyleKing/second-look']
 stdout = """
 diff --git a/testdata/fixture/sample.go b/testdata/fixture/sample.go
 new file mode 100644
@@ -72,34 +71,23 @@ index 0000000..2007e8b
 +	return fmt.Sprintf("%d units", total)
 +}
 """
+args = ['pr', 'diff', '2', '--repo', 'KyleKing/second-look']
 exit = 0
 
 [[interaction]]
+stdout = '{"data":{"repository":{"pullRequest":{"id":"PR_kwDOT-RSFs8AAAABBrq7WA"}}}}'
+stdin = '{"query":"query($owner:String!,$name:String!,$number:Int!){\n  repository(owner:$owner,name:$name){pullRequest(number:$number){id}}\n}","variables":{"name":"second-look","number":2,"owner":"KyleKing"}}'
 args = ['api', 'graphql', '--input', '-']
-stdin = """
-{"query":"query($owner:String!,$name:String!,$number:Int!){\n  repository(owner:$owner,name:$name){pullRequest(number:$number){id}}\n}","variables":{"name":"second-look","number":2,"owner":"KyleKing"}}
-"""
-stdout = """
-{"data":{"repository":{"pullRequest":{"id":"PR_kwDOT-RSFs8AAAAAPR2"}}}}
-"""
 exit = 0
 
 [[interaction]]
+stdout = '{"data":{"addPullRequestReview":{"pullRequestReview":{"id":"PRR_kwDOT-RSFs8AAAABV-kAYQ","databaseId":5769855073}}}}'
+stdin = "{\"query\":\"mutation($input:AddPullRequestReviewInput!){\\n  addPullRequestReview(input:$input){pullRequestReview{id databaseId}}\\n}\",\"variables\":{\"input\":{\"commitOID\":\"6bc1218809a6faf83bc266c7a10b6b096f814a74\",\"pullRequestId\":\"PR_kwDOT-RSFs8AAAABBrq7WA\",\"threads\":[{\"path\":\"testdata/fixture/sample.go\",\"line\":19,\"side\":\"RIGHT\",\"body\":\"This returns os.ReadFile's error with no context, so the caller sees a bare `no such file or directory` and cannot tell which budget failed. Wrap it: `fmt.Errorf(\\\"reading %s: %w\\\", path, err)`.\"},{\"path\":\"testdata/fixture/sample.go\",\"line\":28,\"side\":\"RIGHT\",\"startLine\":25,\"startSide\":\"RIGHT\",\"body\":\"A line that does not parse is skipped silently, so a typo in the budget file reads as a smaller total rather than as an error. Return the failure instead of continuing past it.\"},{\"path\":\"testdata/fixture/sample.go\",\"line\":33,\"side\":\"RIGHT\",\"body\":\"A budget that really does total zero is reported as empty. Check whether any entry parsed instead of checking the total.\"}]}}}"
 args = ['api', 'graphql', '--input', '-']
-stdin = """
-{"query":"mutation($input:AddPullRequestReviewInput!){\n  addPullRequestReview(input:$input){pullRequestReview{id databaseId}}\n}","variables":{"input":{"commitOID":"6bc1218809a6faf83bc266c7a10b6b096f814a74","pullRequestId":"PR_kwDOT-RSFs8AAAAAPR2","threads":[{"path":"testdata/fixture/sample.go","line":19,"side":"RIGHT","body":"This returns os.ReadFile's error with no context, so the caller sees a bare `no such file or directory` and cannot tell which budget failed. Wrap it: `fmt.Errorf(\\\"reading %s: %w\\\", path, err)`."},{"path":"testdata/fixture/sample.go","line":28,"side":"RIGHT","startLine":25,"startSide":"RIGHT","body":"A line that does not parse is skipped silently, so a typo in the budget file reads as a smaller total rather than as an error. Return the failure instead of continuing past it."},{"path":"testdata/fixture/sample.go","line":33,"side":"RIGHT","body":"A budget that really does total zero is reported as empty. Check whether any entry parsed instead of checking the total."}]}}}
-"""
-stdout = """
-{"data":{"addPullRequestReview":{"pullRequestReview":{"id":"PRR_kwDOT-RSFs8AAAABLmKssg","databaseId":5073185970}}}}
-"""
 exit = 0
 
 [[interaction]]
+stdout = '{"data":{"submitPullRequestReview":{"pullRequestReview":{"id":"PRR_kwDOT-RSFs8AAAABV-kAYQ","databaseId":5769855073}}}}'
+stdin = '{"query":"mutation($input:SubmitPullRequestReviewInput!){\n  submitPullRequestReview(input:$input){pullRequestReview{id databaseId}}\n}","variables":{"input":{"body":"A few things on the budget reader.","event":"COMMENT","pullRequestReviewId":"PRR_kwDOT-RSFs8AAAABV-kAYQ"}}}'
 args = ['api', 'graphql', '--input', '-']
-stdin = """
-{"query":"mutation($input:SubmitPullRequestReviewInput!){\n  submitPullRequestReview(input:$input){pullRequestReview{id databaseId}}\n}","variables":{"input":{"body":"A few things on the budget reader.","event":"COMMENT","pullRequestReviewId":"PRR_kwDOT-RSFs8AAAABLmKssg"}}}
-"""
-stdout = """
-{"data":{"submitPullRequestReview":{"pullRequestReview":{"id":"PRR_kwDOT-RSFs8AAAABLmKssg","databaseId":5073185970}}}}
-"""
 exit = 0
