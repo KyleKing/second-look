@@ -360,28 +360,7 @@ func (s screen) hanger(
 		// not under it as a card of its own. A reply whose thread anchors
 		// elsewhere stays on its own, since pretending it landed in one it did
 		// not is worse than a detached card.
-		replies := map[int][]int{}
-		var free []int
-
-		for _, c := range byLine[a] {
-			placed[c] = true
-			to, claimed := r.Comments[c].InReplyTo, false
-
-			if to != 0 {
-				for _, t := range byThread[a] {
-					if ts[t].ReplyTo() == to {
-						replies[t] = append(replies[t], c)
-						claimed = true
-
-						break
-					}
-				}
-			}
-
-			if !claimed {
-				free = append(free, c)
-			}
-		}
+		replies, free := claimReplies(r, ts, byLine[a], byThread[a], placed)
 
 		// What is already on GitHub comes before what this pass is adding, so a
 		// comment reads as an answer to the conversation above it.
@@ -417,6 +396,37 @@ func (s screen) hanger(
 
 		return gapped(out, p)
 	}
+}
+
+// claimReplies sorts the line's staged comments into the replies each thread
+// here claims and the comments that stand alone, marking every one placed.
+func claimReplies(
+	r *artifact.Review, ts []threads.Thread, at, open []int, placed []bool,
+) (map[int][]int, []int) {
+	replies := map[int][]int{}
+	var free []int
+
+	for _, c := range at {
+		placed[c] = true
+		to, claimed := r.Comments[c].InReplyTo, false
+
+		if to != 0 {
+			for _, t := range open {
+				if ts[t].ReplyTo() == to {
+					replies[t] = append(replies[t], c)
+					claimed = true
+
+					break
+				}
+			}
+		}
+
+		if !claimed {
+			free = append(free, c)
+		}
+	}
+
+	return replies, free
 }
 
 // movedRow names where a moved run's other end is, above the run's first line.

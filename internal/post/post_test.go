@@ -67,7 +67,7 @@ func (f *fakePoster) GraphQL(_ context.Context, req []byte) ([]byte, error) {
 		return nil, fmt.Errorf("bad request: %w", err)
 	}
 
-	name, answer := "", ""
+	var name, answer string
 
 	switch {
 	case strings.Contains(call.Query, "addPullRequestReviewThreadReply"):
@@ -89,7 +89,7 @@ func (f *fakePoster) GraphQL(_ context.Context, req []byte) ([]byte, error) {
 		name, answer = "graphql pullRequest",
 			`{"data":{"repository":{"pullRequest":{"id":"PR_42"}}}}`
 	default:
-		return nil, fmt.Errorf("unmatched query: %s", call.Query)
+		return nil, fmt.Errorf("%w: %s", errUnmatched, call.Query)
 	}
 
 	f.endpoints = append(f.endpoints, name)
@@ -136,9 +136,45 @@ func writeArtifact(t *testing.T) string {
 	return path
 }
 
+var errUnmatched = errors.New("unmatched query")
+
 func TestRun(t *testing.T) {
 	t.Parallel()
 
+	for _, tt := range runCases() {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := writeArtifact(t)
+			p := &fakePoster{failOn: tt.failOn, failDel: tt.failDel}
+			var out bytes.Buffer
+
+			err := post.Run(context.Background(), p, path, tt.review, &out)
+
+			checkErr(t, err, tt.wantErr)
+			checkEndpoints(t, p.endpoints, tt.wantEndpoints)
+			checkArtifact(t, path, tt.wantFileGone)
+			checkRecord(t, path, tt.wantRecord)
+		})
+	}
+}
+
+type runCase struct {
+	name          string
+	review        *artifact.Review
+	failOn        int
+	failDel       bool
+	wantErr       string
+	wantEndpoints []string
+	wantFileGone  bool
+	wantRecord    bool
+}
+
+func runCases() []runCase {
+	return append(sentCases(), blockedCases()...)
+}
+
+func sentCases() []runCase {
 	reply := artifact.Comment{
 		ID: "2", InReplyTo: 99, Body: "thanks", Status: artifact.StatusReady, ThreadID: "PRRT_8",
 	}
@@ -148,16 +184,7 @@ func TestRun(t *testing.T) {
 		Resolve: true, ThreadID: "PRRT_9",
 	}
 
-	tests := []struct {
-		name          string
-		review        *artifact.Review
-		failOn        int
-		failDel       bool
-		wantErr       string
-		wantEndpoints []string
-		wantFileGone  bool
-		wantRecord    bool
-	}{
+	return []runCase{
 		{
 			name:   "happy path opens a pending review, adds the reply, and submits once",
 			review: review(inlineComment("1", artifact.StatusReady), reply),
@@ -212,7 +239,7 @@ func TestRun(t *testing.T) {
 			wantRecord:   true,
 		},
 		{
-			name:   "a reply without a thread id looks the thread up by the comment it answers",
+			name: "a reply without a thread id looks the thread up by the comment it answers",
 			review: review(inlineComment("1", artifact.StatusReady),
 				artifact.Comment{ID: "6", InReplyTo: 44, Body: "on it", Status: artifact.StatusReady}),
 			wantEndpoints: []string{
@@ -232,15 +259,22 @@ func TestRun(t *testing.T) {
 			},
 		},
 		{
-			name:   "a todo reply posts like any reply",
-			review: review(artifact.Comment{ID: "5", InReplyTo: 11, Body: "will fix",
-				Status: artifact.StatusTodo, ThreadID: "PRRT_2"}),
+			name: "a todo reply posts like any reply",
+			review: review(artifact.Comment{
+				ID: "5", InReplyTo: 11, Body: "will fix",
+				Status: artifact.StatusTodo, ThreadID: "PRRT_2",
+			}),
 			wantEndpoints: []string{
 				"graphql pullRequest", "graphql addReview", "graphql addReply", "graphql submit",
 			},
 			wantFileGone: true,
 			wantRecord:   true,
 		},
+	}
+}
+
+func blockedCases() []runCase {
+	return []runCase{
 		{
 			name:    "a todo comment of the review's own blocks the post and nothing is sent",
 			review:  review(inlineComment("1", artifact.StatusTodo)),
@@ -256,23 +290,6 @@ func TestRun(t *testing.T) {
 			review:  review(inlineComment("1", artifact.StatusDraft)),
 			wantErr: "still draft",
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			path := writeArtifact(t)
-			p := &fakePoster{failOn: tt.failOn, failDel: tt.failDel}
-			var out bytes.Buffer
-
-			err := post.Run(context.Background(), p, path, tt.review, &out)
-
-			checkErr(t, err, tt.wantErr)
-			checkEndpoints(t, p.endpoints, tt.wantEndpoints)
-			checkArtifact(t, path, tt.wantFileGone)
-			checkRecord(t, path, tt.wantRecord)
-		})
 	}
 }
 

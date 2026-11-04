@@ -166,6 +166,8 @@ func (r *Review) Find(id string) *Comment {
 // DraftThread is one comment as addPullRequestReview takes it. The field names
 // are the input object's own, which unlike REST's keeps the side on the whole
 // range rather than per end.
+//
+//nolint:tagliatelle // GraphQL takes camelCase and these names are GitHub's
 type DraftThread struct {
 	Path      string `json:"path"`
 	Line      int    `json:"line"`

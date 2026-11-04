@@ -209,7 +209,7 @@ func (s *styles) lowcolor() {
 	s.band = s.row
 	s.span = lipgloss.NewStyle().Background(lipgloss.Color("235"))
 	for step := 1; step <= flashSteps; step++ {
-		s.tint[step] = lipgloss.NewStyle().Background(lipgloss.Color(strconv.Itoa(235+step)))
+		s.tint[step] = lipgloss.NewStyle().Background(lipgloss.Color(strconv.Itoa(235 + step)))
 	}
 }
 

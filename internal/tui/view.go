@@ -760,15 +760,8 @@ func (m *Model) tinted(i int, line string, width int) string {
 // than one face for the whole row.
 func (m *Model) rowBodies(r row, width int) []string {
 	if r.kind == rowCode {
-		switch {
-		case m.sideBySide():
-			return m.splitCode(r, width)
-		case m.drawn.rich && r.mate.Kind != 0:
-			return m.mergedCode(r, width)
-		case m.drawn.rich:
-			return m.richCode(r, width)
-		case m.drawn.wrap:
-			return m.plainWrapped(r, width)
+		if out := m.codeBody(r, width); out != nil {
+			return out
 		}
 	}
 
@@ -796,6 +789,23 @@ func (m *Model) rowBodies(r row, width int) []string {
 	}
 
 	return []string{style.Render(cut(text, width))}
+}
+
+// codeBody picks the code renderer for the look the screen is in, and answers
+// nil for the one look that falls through to the plain row path.
+func (m *Model) codeBody(r row, width int) []string {
+	switch {
+	case m.sideBySide():
+		return m.splitCode(r, width)
+	case m.drawn.rich && r.mate.Kind != 0:
+		return m.mergedCode(r, width)
+	case m.drawn.rich:
+		return m.richCode(r, width)
+	case m.drawn.wrap:
+		return m.plainWrapped(r, width)
+	}
+
+	return nil
 }
 
 // plainWrapped is a code row under the plain renderer with wrap on: the

@@ -159,7 +159,7 @@ func replyRows(
 		c := &r.Comments[i]
 		who := whoWord(c.Origin)
 		if who == "" {
-			who = "you"
+			who = youWord
 		}
 
 		out = append(out, row{
@@ -170,14 +170,14 @@ func replyRows(
 		for _, line := range wrap(c.Body, avail-bodyIndent) {
 			out = append(out, row{
 				kind: rowComment, path: path, comment: i, thread: thread, inThread: true,
-				text: strings.Repeat(" ", bodyIndent*2) + line,
+				text: strings.Repeat(" ", holdIndent) + line,
 			})
 		}
 
 		if c.Body == "" && c.Status != artifact.StatusSkip {
 			out = append(out, row{
 				kind: rowNote, path: path, comment: i, thread: thread, inThread: true,
-				text: strings.Repeat(" ", bodyIndent*2) + lay.unwrittenWord(c),
+				text: strings.Repeat(" ", holdIndent) + lay.unwrittenWord(c),
 			})
 		}
 

@@ -146,20 +146,8 @@ func (s screen) codeRows(f *diff.File, want map[int]bool, c codeCtx) []row {
 			switch {
 			case hide:
 				folded++
-			case shut:
-				why := c.lay.mech[hunkAt{p, hunk}]
-				if why != "" {
-					why += "  "
-				}
-
-				rows = append(rows, row{
-					kind: rowHunk, text: codeHeader(c.d, hunk) + "  " + why + "[za] open",
-					path: p, comment: -1, hunk: hunk, folded: true,
-				})
 			default:
-				rows = append(rows, row{
-					kind: rowHunk, text: codeHeader(c.d, hunk), path: p, comment: -1, hunk: hunk,
-				})
+				rows = append(rows, s.hunkHead(p, hunk, shut, c))
 			}
 
 			hide = hide || shut
@@ -196,6 +184,20 @@ func (s screen) codeRows(f *diff.File, want map[int]bool, c codeCtx) []row {
 	}
 
 	return rows
+}
+
+// hunkHead is the row a hunk opens with: its header alone, or the header with
+// why it started folded and how to open it when the fold is mechanical.
+func (screen) hunkHead(p string, hunk int, shut bool, c codeCtx) row {
+	head := row{kind: rowHunk, text: codeHeader(c.d, hunk), path: p, comment: -1, hunk: hunk, folded: shut}
+	if shut {
+		if why := c.lay.mech[hunkAt{p, hunk}]; why != "" {
+			head.text += "  " + why
+		}
+		head.text += "  [za] open"
+	}
+
+	return head
 }
 
 // removed is a run of lines that came out: one row saying how many, and the

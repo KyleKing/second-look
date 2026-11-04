@@ -243,33 +243,23 @@ func newRichStyles(s styles) richStyles {
 // line; a wrapped line is as many as its text takes, and the continuation
 // lines keep the band so they read as the same line rather than as new rows.
 func (m *Model) richCode(r row, width int) []string {
-	room := max(0, width-m.gutterWidth())
-	band := m.bandRoom(r.path, r.line.Hunk, room)
-	segs := m.richSegments(r, r.line, room)
-
-	out := make([]string, len(segs))
-	for i, seg := range segs {
-		seg = m.fill(r, r.line, seg, band, room)
-
-		gutter := m.padTo(r, r.line, m.gutterWidth())
-		if i == 0 {
-			gutter = m.richGutter(r)
-		}
-
-		out[i] = gutter + cut(seg, room)
-	}
-
-	return out
+	return m.frameCode(r, width, m.richSegments)
 }
 
-// rule closes the gutter, so the code has a left edge to run down.
-// mergedCode draws a paired edit as one row: the line's new text, with the
+// MergedCode draws a paired edit as one row: the line's new text, with the
 // runs the old line lost struck through at the places they were cut. It is
 // richCode's frame around its own segment walk.
 func (m *Model) mergedCode(r row, width int) []string {
+	return m.frameCode(r, width, m.mergedSegments)
+}
+
+// frameCode draws code segments under a gutter: the row's own gutter on the
+// first frame line and a blank one on the wraps, the hunk's band behind all
+// of them.
+func (m *Model) frameCode(r row, width int, segsFor func(row, diff.Line, int) []string) []string {
 	room := max(0, width-m.gutterWidth())
 	band := m.bandRoom(r.path, r.line.Hunk, room)
-	segs := m.mergedSegments(r, r.line, room)
+	segs := segsFor(r, r.line, room)
 
 	out := make([]string, len(segs))
 	for i, seg := range segs {
@@ -292,6 +282,13 @@ func (m *Model) mergedCode(r row, width int) []string {
 // at the places they came out. Grammar faces apply to the new text only — the
 // cut text is already saying the loudest thing it can.
 func (m *Model) mergedSegments(r row, l diff.Line, width int) []string {
+	pieces := diff.Merge(r.mate.Text, l.Text)
+	if len(pieces) == 0 {
+		// A pair the merge will not read as one line falls back to the plain
+		// rich rendering of the addition alone.
+		return m.richSegments(r, l, width)
+	}
+
 	base, hasBase := m.lineBase(r, l)
 	mark := m.rich.mark[l.Kind]
 	spans := m.spansFor(r, l)
@@ -300,12 +297,6 @@ func (m *Model) mergedSegments(r row, l diff.Line, width int) []string {
 	if goneWash, ok := m.rich.wash[diff.KindRemove]; ok {
 		gone = gone.Background(goneWash)
 	}
-
-	var segs []string
-
-	var b strings.Builder
-
-	cols := 0
 
 	faces := m.rich.class
 	if m.behind(r) {
@@ -316,38 +307,9 @@ func (m *Model) mergedSegments(r row, l diff.Line, width int) []string {
 		}
 	}
 
+	segs, b, cols := make([]string, 0, len(pieces)), strings.Builder{}, 0
 	write := func(style lipgloss.Style, text string) {
-		text, spent := expandFrom(text, cols)
-		if !m.drawn.wrap {
-			b.WriteString(style.Render(text))
-			if cols = spent; cols >= width {
-				// The caller's cut marks where it ran out; the rest is not drawn.
-				cols = width
-			}
-
-			return
-		}
-
-		for text != "" {
-			room := width - cols
-			if room < 1 {
-				segs = append(segs, b.String())
-				b.Reset()
-				cols, room = 0, width
-			}
-
-			part, rest := takeCells(text, room)
-			b.WriteString(style.Render(part))
-			cols += textWidth(part)
-			text = rest
-		}
-	}
-
-	pieces := diff.Merge(r.mate.Text, l.Text)
-	if len(pieces) == 0 {
-		// A pair the merge will not read as one line falls back to the plain
-		// rich rendering of the addition alone.
-		return m.richSegments(r, l, width)
+		cols = m.writeSeg(&segs, &b, cols, width, style, text)
 	}
 
 	for _, piece := range pieces {
@@ -373,6 +335,34 @@ func (m *Model) mergedSegments(r row, l diff.Line, width int) []string {
 	}
 
 	return append(segs, b.String())
+}
+
+// writeSeg appends text to b under style, wrapping into segs at width, and
+// answers the column the write ends on. Unwrapped, the text past width is left
+// for the caller's cut.
+func (m *Model) writeSeg(segs *[]string, b *strings.Builder, cols, width int, style lipgloss.Style, text string) int {
+	text, spent := expandFrom(text, cols)
+	if !m.drawn.wrap {
+		b.WriteString(style.Render(text))
+
+		return min(spent, width)
+	}
+
+	for text != "" {
+		room := width - cols
+		if room < 1 {
+			*segs = append(*segs, b.String())
+			b.Reset()
+			cols, room = 0, width
+		}
+
+		part, rest := takeCells(text, room)
+		b.WriteString(style.Render(part))
+		cols += textWidth(part)
+		text = rest
+	}
+
+	return cols
 }
 
 const rule = "\u2502"

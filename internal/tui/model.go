@@ -689,15 +689,7 @@ type branchDeletedMsg struct {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.padX, m.padY = pagePad(msg.Width, msg.Height)
-		m.width, m.height = msg.Width-pageSides*m.padX, msg.Height-m.padY
-
-		if m.pane != nil {
-			m.pane.Resize(m.width, m.paneHeight())
-		}
-
-		m.rebuild()
-
+		m.resize(msg)
 		cmd := m.takeCmd()
 
 		return m, cmd
@@ -737,22 +729,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 	case tea.KeyPressMsg:
-		m.gliding = false
-		was := m.pending
-		mod, cmd := m.handleKey(msg)
-		m.settlePeek()
-
-		// A chord that just opened arms the wait that draws its page, the way
-		// which-key surfaces once a prefix sits a moment.
-		if m.pending != 0 && m.pending != was {
-			m.chordSeq++
-			m.waiting = false
-
-			seq := m.chordSeq
-			cmd = tea.Batch(cmd, tea.Tick(chordWait, func(time.Time) tea.Msg {
-				return chordWaitMsg{seq}
-			}))
-		}
+		mod, cmd := m.keyPress(msg)
 
 		return mod, tea.Batch(cmd, m.takeCmd())
 	}
@@ -1858,6 +1835,53 @@ func (m *Model) anyFolded() bool {
 func (m *Model) foldHere(open bool) {
 	r := m.screen.rows[m.cursor]
 
+	if !m.foldCard(r, open) && !m.foldPart(r, open) {
+		return
+	}
+
+	m.rebuild()
+	m.say("", false)
+}
+
+// resize is the window telling the screen its size: everything derived from
+// width and height is recomputed and the frame rebuilt.
+func (m *Model) resize(msg tea.WindowSizeMsg) {
+	m.padX, m.padY = pagePad(msg.Width, msg.Height)
+	m.width, m.height = msg.Width-pageSides*m.padX, msg.Height-m.padY
+
+	if m.pane != nil {
+		m.pane.Resize(m.width, m.paneHeight())
+	}
+
+	m.rebuild()
+}
+
+// keyPress is one keystroke: the key itself, and the which-key wait armed when
+// it opened a chord.
+func (m *Model) keyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	m.gliding = false
+	was := m.pending
+	mod, cmd := m.handleKey(msg)
+	m.settlePeek()
+
+	// A chord that just opened arms the wait that draws its page, the way
+	// which-key surfaces once a prefix sits a moment.
+	if m.pending != 0 && m.pending != was {
+		m.chordSeq++
+		m.waiting = false
+
+		seq := m.chordSeq
+		cmd = tea.Batch(cmd, tea.Tick(chordWait, func(time.Time) tea.Msg {
+			return chordWaitMsg{seq}
+		}))
+	}
+
+	return mod, cmd
+}
+
+// foldCard folds the conversation the row belongs to: a turn of one, a thread
+// card, or a reply living inside one.
+func (m *Model) foldCard(r row, open bool) bool {
 	switch {
 	case r.kind == rowTurn:
 		m.folded.turns[r.comment] = open
@@ -1871,15 +1895,22 @@ func (m *Model) foldHere(open bool) {
 	case r.kind == rowThread && r.head:
 		m.folded.threads[r.thread] = !open
 	case r.kind == rowThread, isMember(r):
-		if !m.foldInside(r, open) {
-			return
-		}
+		return m.foldInside(r, open)
+	default:
+		return false
+	}
+
+	return true
+}
+
+// foldPart folds the part of the diff the row stands for: a skipped run, a
+// chapter, a file, a removed run, or a hunk.
+func (m *Model) foldPart(r row, open bool) bool {
+	switch {
 	case r.skips.path != "":
 		m.folded.skips[r.skips] = open
 	case r.kind == rowGroup:
-		if !m.foldChapter(r, open) {
-			return
-		}
+		return m.foldChapter(r, open)
 	case r.kind == rowFile && r.path != "":
 		m.openFile(r.path, open)
 	case r.gone > 0:
@@ -1887,13 +1918,10 @@ func (m *Model) foldHere(open bool) {
 	case r.hunk > 0:
 		m.folded.hunks[hunkAt{r.path, r.hunk}] = !open
 	default:
-		if !m.setNote(r.comment, open) {
-			return
-		}
+		return m.setNote(r.comment, open)
 	}
 
-	m.rebuild()
-	m.say("", false)
+	return true
 }
 
 // foldChapter makes a chapter draw its hunks or its summary. A shape's summary
@@ -1994,23 +2022,41 @@ func (m *Model) capHeld(t int) bool {
 func (m *Model) openHere() bool {
 	r := m.screen.rows[m.cursor]
 
+	if open, ok := m.openCard(r); ok {
+		return open
+	}
+
+	return m.openPart(r)
+}
+
+// openCard answers whether the conversation the row belongs to is showing, or
+// that the row is not part of one.
+func (m *Model) openCard(r row) (bool, bool) {
 	switch {
 	case r.kind == rowTurn:
-		return m.folded.turns[r.comment]
+		return m.folded.turns[r.comment], true
 	case (r.kind == rowThread || r.inThread) && m.capHeld(r.thread):
 		// A thread holding lines back reads as closed no matter which row of it
 		// the cursor is on, so za opens the cap rather than folding the thread.
-		return false
+		return false, true
 	case r.inThread:
-		return !m.folded.threads[r.thread]
+		return !m.folded.threads[r.thread], true
 	case r.kind == rowThread && r.head:
-		return !m.folded.threads[r.thread]
+		return !m.folded.threads[r.thread], true
 	case r.kind == rowThread:
 		at, ok := foldKey(r)
 
-		return !ok || m.folded.blocks[at]
+		return !ok || m.folded.blocks[at], true
 	case isMember(r):
-		return m.folded.members[r.path]
+		return m.folded.members[r.path], true
+	}
+
+	return false, false
+}
+
+// openPart answers whether the part of the diff the row stands for is showing.
+func (m *Model) openPart(r row) bool {
+	switch {
 	case r.skips.path != "":
 		return m.folded.skips[r.skips]
 	case r.kind == rowGroup:

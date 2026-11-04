@@ -167,17 +167,7 @@ func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.
 
 	// A resolve that fails leaves the review posted either way, so the record
 	// and the cleanup still run; the failure is reported once both are done.
-	var unresolved error
-
-	for _, reply := range replies {
-		if !reply.Resolve || reply.ThreadID == "" || unresolved != nil {
-			continue
-		}
-
-		if err := resolveAfter(ctx, p, reply.ThreadID, out); err != nil {
-			unresolved = fmt.Errorf("the review posted as %d; %w", submitted.DatabaseID, err)
-		}
-	}
+	unresolved := resolveMarked(ctx, p, replies, submitted.DatabaseID, out)
 
 	// The record goes down before the staged file goes away, so what GitHub
 	// holds outlives the artifact that described it. A record that cannot be
@@ -199,13 +189,8 @@ func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.
 		return fmt.Errorf("the review posted; clearing its files: %w", err)
 	}
 
-	// A local review staged for the same head ref describes work that just
-	// published, so it is pruned rather than carried as a second copy.
-	if local, err := artifact.Load(artifact.LocalPath(rootOf(path))); err == nil &&
-		local.HeadRef == r.HeadRef && prepared.DiscardLocal(rootOf(path)) {
-		if err := write(out, "removed the local review, now published\n"); err != nil {
-			return err
-		}
+	if err := prunePublished(path, r, out); err != nil {
+		return err
 	}
 
 	if unresolved != nil {
@@ -213,6 +198,37 @@ func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.
 	}
 
 	return write(out, fmt.Sprintf("removed the staged review for %s/%s#%d\n", r.Owner, r.Repo, r.Number))
+}
+
+// resolveMarked closes the threads the posted replies marked for resolving
+// and answers the first failure, leaving the rest unasked.
+func resolveMarked(
+	ctx context.Context, p Poster, replies []artifact.ReplyPayload, reviewID int64, out io.Writer,
+) error {
+	var unresolved error
+
+	for _, reply := range replies {
+		if !reply.Resolve || reply.ThreadID == "" || unresolved != nil {
+			continue
+		}
+
+		if err := resolveAfter(ctx, p, reply.ThreadID, out); err != nil {
+			unresolved = fmt.Errorf("the review posted as %d; %w", reviewID, err)
+		}
+	}
+
+	return unresolved
+}
+
+// prunePublished drops a local review staged for the head ref that just
+// published, so it is not carried as a second copy of the same work.
+func prunePublished(path string, r *artifact.Review, out io.Writer) error {
+	local, err := artifact.Load(artifact.LocalPath(rootOf(path)))
+	if err != nil || local.HeadRef != r.HeadRef || !prepared.DiscardLocal(rootOf(path)) {
+		return nil //nolint:nilerr // no local review is the common case, not a failure
+	}
+
+	return write(out, "removed the local review, now published\n")
 }
 
 // postReview carries a staged review through the pending-review dance: open
@@ -253,8 +269,8 @@ func postReview(
 
 		if tid == "" {
 			return nil, abandon(ctx, p, r, pending,
-				fmt.Errorf("reply %s answers comment %d, which is not a thread on this pull request",
-					reply.ID, reply.InReplyTo))
+				fmt.Errorf("reply %s answers comment %d, which is %w",
+					reply.ID, reply.InReplyTo, errNotAThread))
 		}
 
 		if err := addReply(ctx, p, pending.ID, tid, reply.Body); err != nil {
@@ -306,59 +322,9 @@ func One(ctx context.Context, p Poster, path string, r *artifact.Review, id stri
 		return fmt.Errorf("posting %s on its own: %w", id, err)
 	}
 
-	var postedID int64
-
-	var nodeID, kind string
-
-	if c.InReplyTo == 0 {
-		body, err := json.Marshal(payload)
-		if err != nil {
-			return fmt.Errorf("encoding the comment: %w", err)
-		}
-
-		body, err = withCommit(body, r.HeadSHA)
-		if err != nil {
-			return err
-		}
-
-		raw, err := p.Post(ctx, commentEndpoint(r), body)
-		if err != nil {
-			return err //nolint:wrapcheck // the caller reports the raw gh failure verbatim
-		}
-
-		var sent struct {
-			ID     int64  `json:"id"`
-			NodeID string `json:"node_id"`
-		}
-		if err := json.Unmarshal(raw, &sent); err == nil {
-			postedID, nodeID = sent.ID, sent.NodeID
-		}
-
-		kind = "comment"
-
-		if err := write(out, fmt.Sprintf("posted comment %d\n", postedID)); err != nil {
-			return err
-		}
-	} else {
-		// A reply posts inside a pending review the same way the review's own
-		// replies do: naming the review is what keeps it visible.
-		one := r.Only(id)
-
-		threads, replies, err := one.Threads()
-		if err != nil {
-			return fmt.Errorf("posting %s on its own: %w", id, err)
-		}
-
-		submitted, err := postReview(ctx, p, one, threads, replies)
-		if err != nil {
-			return err
-		}
-
-		postedID, nodeID, kind = submitted.DatabaseID, submitted.ID, "review"
-
-		if err := write(out, fmt.Sprintf("posted %s in review %d\n", id, postedID)); err != nil {
-			return err
-		}
+	postedID, nodeID, kind, err := postOne(ctx, p, r, payload, c, id, out)
+	if err != nil {
+		return err
 	}
 
 	if c.Resolve && c.ThreadID != "" {
@@ -378,6 +344,78 @@ func One(ctx context.Context, p Poster, path string, r *artifact.Review, id stri
 	}
 
 	return write(out, fmt.Sprintf("removed %s from the staged review for %s/%s#%d\n", id, r.Owner, r.Repo, r.Number))
+}
+
+// postOne sends the one comment or reply One picked, the way each goes out: a
+// standalone comment through the comments endpoint, a reply inside a pending
+// review of its own, because naming the review is what keeps a reply visible.
+// It answers the id GitHub gave what posted and whether that was a comment or
+// a review.
+func postOne(
+	ctx context.Context, p Poster, r *artifact.Review,
+	payload any, c *artifact.Comment, id string, out io.Writer,
+) (int64, string, string, error) {
+	if c.InReplyTo != 0 {
+		return postReplyOne(ctx, p, r, id, out)
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return 0, "", "", fmt.Errorf("encoding the comment: %w", err)
+	}
+
+	body, err = withCommit(body, r.HeadSHA)
+	if err != nil {
+		return 0, "", "", err
+	}
+
+	raw, err := p.Post(ctx, commentEndpoint(r), body)
+	if err != nil {
+		return 0, "", "", err //nolint:wrapcheck // the caller reports the raw gh failure verbatim
+	}
+
+	var sent struct {
+		ID     int64  `json:"id"`
+		NodeID string `json:"node_id"`
+	}
+
+	var postedID int64
+
+	var nodeID string
+
+	if err := json.Unmarshal(raw, &sent); err == nil {
+		postedID, nodeID = sent.ID, sent.NodeID
+	}
+
+	if err := write(out, fmt.Sprintf("posted comment %d\n", postedID)); err != nil {
+		return 0, "", "", err
+	}
+
+	return postedID, nodeID, "comment", nil
+}
+
+// postReplyOne runs one staged reply through the same pending-review dance a
+// whole review takes, since the reply names the review it belongs to by id.
+func postReplyOne(
+	ctx context.Context, p Poster, r *artifact.Review, id string, out io.Writer,
+) (int64, string, string, error) {
+	one := r.Only(id)
+
+	threads, replies, err := one.Threads()
+	if err != nil {
+		return 0, "", "", fmt.Errorf("posting %s on its own: %w", id, err)
+	}
+
+	submitted, err := postReview(ctx, p, one, threads, replies)
+	if err != nil {
+		return 0, "", "", err
+	}
+
+	if err := write(out, fmt.Sprintf("posted %s in review %d\n", id, submitted.DatabaseID)); err != nil {
+		return 0, "", "", err
+	}
+
+	return submitted.DatabaseID, submitted.ID, "review", nil
 }
 
 // withCommit adds the head the comment was anchored against. A standalone
@@ -411,7 +449,7 @@ func DryRun(out io.Writer, r *artifact.Review) error {
 		event = artifact.EventComment
 	}
 
-	add, err := request(addReviewMutation, map[string]any{"input": map[string]any{
+	add, err := request(addReviewMutation, map[string]any{keyInput: map[string]any{
 		"pullRequestId": "<the pull request's node id>", "commitOID": r.HeadSHA,
 		"threads": threads,
 	}})
@@ -424,10 +462,10 @@ func DryRun(out io.Writer, r *artifact.Review) error {
 	}
 
 	for _, reply := range replies {
-		body, err := request(addReplyMutation, map[string]any{"input": map[string]any{
-			"pullRequestReviewId":       "<the pending review's id>",
-			"pullRequestReviewThreadId": reply.ThreadID,
-			"body":                      reply.Body,
+		body, err := request(addReplyMutation, map[string]any{keyInput: map[string]any{
+			keyPullRequestReviewID:  "<the pending review's id>",
+			keyPullRequestReviewTID: reply.ThreadID,
+			keyBody:                 reply.Body,
 		}})
 		if err != nil {
 			return fmt.Errorf("encoding a reply: %w", err)
@@ -443,8 +481,8 @@ func DryRun(out io.Writer, r *artifact.Review) error {
 		}
 	}
 
-	submit, err := request(submitReviewMutation, map[string]any{"input": map[string]any{
-		"pullRequestReviewId": "<the pending review's id>", "event": event, "body": r.Body,
+	submit, err := request(submitReviewMutation, map[string]any{keyInput: map[string]any{
+		keyPullRequestReviewID: "<the pending review's id>", "event": event, keyBody: r.Body,
 	}})
 	if err != nil {
 		return fmt.Errorf("encoding the review: %w", err)
@@ -503,12 +541,17 @@ func Summary(r *artifact.Review) string {
 		out = "posted " + strings.Join(sent, " and ")
 	}
 
+	var tail []string
 	if resolved > 0 {
-		out += fmt.Sprintf(" · resolved %d", resolved)
+		tail = append(tail, fmt.Sprintf("resolved %d", resolved))
 	}
 
 	for _, id := range skipped {
-		out += " · skipped " + id
+		tail = append(tail, "skipped "+id)
+	}
+
+	if len(tail) > 0 {
+		out += " · " + strings.Join(tail, " · ")
 	}
 
 	return out

@@ -43,7 +43,7 @@ const (
 // clone. The answer is the same either way; borrowing the checkout only skips
 // the pool and makes a revisit cost an incremental fetch.
 func Diff(ctx context.Context, out io.Writer, work, host, owner, repo, base, head string) ([]byte, error) {
-	note(out, "the diff is past what the API serves; computing it locally")
+	notef(out, "the diff is past what the API serves; computing it locally")
 
 	dir := work
 	if !namesRepo(ctx, dir, owner, repo) {
@@ -53,7 +53,7 @@ func Diff(ctx context.Context, out io.Writer, work, host, owner, repo, base, hea
 		}
 	}
 
-	note(out, "fetching the pull request's history")
+	notef(out, "fetching the pull request's history")
 
 	mb, err := mergeBase(ctx, dir, base, head)
 	if err != nil {
@@ -62,7 +62,7 @@ func Diff(ctx context.Context, out io.Writer, work, host, owner, repo, base, hea
 
 	// Full objects for just the two trees the diff reads: each fetch is a
 	// shallow one-commit pull, which is the whole input and nothing older.
-	note(out, "fetching the merge base and the head")
+	notef(out, "fetching the merge base and the head")
 
 	for _, sha := range []string{mb, head} {
 		if err := git(ctx, dir, "fetch", "--no-filter", "--depth=1", "origin", sha); err != nil {
@@ -70,7 +70,7 @@ func Diff(ctx context.Context, out io.Writer, work, host, owner, repo, base, hea
 		}
 	}
 
-	note(out, "diffing %s...%s", mb[:7], head[:7])
+	notef(out, "diffing %s...%s", mb[:7], head[:7])
 
 	patch, err := output(ctx, dir, "diff", mb+"..."+head)
 	if err != nil {
@@ -80,13 +80,17 @@ func Diff(ctx context.Context, out io.Writer, work, host, owner, repo, base, hea
 	return []byte(patch), nil
 }
 
-// note reports a stage of a fetch that can outlive a reader's patience. A
+// notef reports a stage of a fetch that can outlive a reader's patience. A
 // large repository's clone takes minutes and nothing else prints until it is
 // done, so without this the wait reads as a hang.
-func note(w io.Writer, format string, args ...any) {
-	if w != nil {
-		fmt.Fprintf(w, format+"\n", args...)
+func notef(w io.Writer, format string, args ...any) {
+	if w == nil {
+		return
 	}
+	// Progress is not correctness: a writer that cannot take a note fails the
+	// same fetch the reader is already waiting on, so the write goes unchecked
+	// on purpose.
+	_, _ = fmt.Fprintf(w, format+"\n", args...) //nolint:errcheck // progress, not correctness
 }
 
 // namesRepo reports whether dir is a git checkout of owner/repo, which is
@@ -157,7 +161,7 @@ func slot(ctx context.Context, out io.Writer, host, owner, repo string) (string,
 
 	// --bare: nothing here is a worktree. --filter=blob:none keeps the clone
 	// to commits and trees; the caller fetches the blobs its diff needs.
-	note(out, "cloning %s/%s (commits and trees only)", owner, repo)
+	notef(out, "cloning %s/%s (commits and trees only)", owner, repo)
 
 	if err := git(ctx, "",
 		"-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential",

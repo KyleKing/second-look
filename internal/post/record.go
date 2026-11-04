@@ -30,13 +30,21 @@ type postedMeta struct {
 	At     time.Time `toml:"at"`
 }
 
+// The record's modes: the directory a person may list and the file only they
+// may read, matching the staged file's own modes.
+const (
+	postedDirMode  = 0o750
+	postedFileMode = 0o600
+)
+
 // writeRecord keeps the receipt for a post that reached GitHub. It runs before
 // the staged file is removed, so a failure is reported while the artifact
 // still says everything the record would have.
+
 func writeRecord(root string, r *artifact.Review, id int64, nodeID, kind string) error {
 	dir := filepath.Join(root, artifact.Dir, "posted")
 
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, postedDirMode); err != nil {
 		return fmt.Errorf("creating %s: %w", dir, err)
 	}
 
@@ -49,7 +57,7 @@ func writeRecord(root string, r *artifact.Review, id int64, nodeID, kind string)
 	}
 
 	path := filepath.Join(dir, fmt.Sprintf("pr-%d-%d.toml", r.Number, id))
-	if err := os.WriteFile(path, body, 0o600); err != nil {
+	if err := os.WriteFile(path, body, postedFileMode); err != nil {
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
 

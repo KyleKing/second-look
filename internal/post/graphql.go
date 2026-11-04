@@ -33,7 +33,7 @@ const (
   submitPullRequestReview(input:$input){pullRequestReview{id databaseId}}
 }`
 
-	// threadQuery finds the node id of the thread a hand-staged reply answers,
+	// ThreadQuery finds the node id of the thread a hand-staged reply answers,
 	// which the reply's in_reply_to names by comment database id instead.
 	threadQuery = `query($owner:String!,$name:String!,$number:Int!,$after:String){
   repository(owner:$owner,name:$name){
@@ -45,6 +45,35 @@ const (
     }
   }
 }`
+)
+
+// errGraphQLFailed wraps the messages a GraphQL answer's errors half carries,
+// so a caller can still ask errors.Is about a failed call.
+var errGraphQLFailed = errors.New("the GraphQL call failed")
+
+// errNoPullRequest says the pull request query answered nothing, which for a
+// review read off a pr-*.toml means the artifact names a number that is not a
+// pull request.
+var errNoPullRequest = errors.New("no pull request")
+
+// errNoReviewAnswered says a mutation returned success without the review it
+// was supposed to open or submit, which is GitHub answering out of shape.
+var errNoReviewAnswered = errors.New("GitHub answered no review")
+
+// errNoCommentAnswered says addPullRequestReviewThreadReply returned success
+// without the comment it was supposed to add.
+var errNoCommentAnswered = errors.New("GitHub answered no comment")
+
+// errNotAThread says a reply's in_reply_to names a comment that opens no
+// thread on the pull request, so there is nothing to attach the reply to.
+var errNotAThread = errors.New("not a thread on this pull request")
+
+// The GraphQL variables every mutation shares a name for.
+const (
+	keyInput                = "input"
+	keyPullRequestReviewID  = "pullRequestReviewId"
+	keyPullRequestReviewTID = "pullRequestReviewThreadId"
+	keyBody                 = "body"
 )
 
 // request is one call to gh api graphql --input -.
@@ -77,7 +106,7 @@ func graphql(out any, body []byte) error {
 			msgs = append(msgs, e.Message)
 		}
 
-		return errors.New(strings.Join(msgs, "; "))
+		return fmt.Errorf("%w: %s", errGraphQLFailed, strings.Join(msgs, "; "))
 	}
 
 	if err := json.Unmarshal(envelope.Data, out); err != nil {
@@ -101,6 +130,7 @@ func prNodeID(ctx context.Context, p Poster, r *artifact.Review) (string, error)
 		return "", fmt.Errorf("reading the pull request: %w", err)
 	}
 
+	//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 	var out struct {
 		Repository struct {
 			PullRequest struct {
@@ -114,8 +144,8 @@ func prNodeID(ctx context.Context, p Poster, r *artifact.Review) (string, error)
 	}
 
 	if out.Repository.PullRequest.ID == "" {
-		return "", fmt.Errorf("reading the pull request: no pull request %s/%s#%d",
-			r.Owner, r.Repo, r.Number)
+		return "", fmt.Errorf("reading the pull request: %w %s/%s#%d",
+			errNoPullRequest, r.Owner, r.Repo, r.Number)
 	}
 
 	return out.Repository.PullRequest.ID, nil
@@ -124,6 +154,8 @@ func prNodeID(ctx context.Context, p Poster, r *artifact.Review) (string, error)
 // pendingReview is what addPullRequestReview answered: the review everything
 // else hangs off. Its databaseId is what the cleanup delete and the posted
 // record name, since neither speaks GraphQL ids.
+//
+//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 type pendingReview struct {
 	ID         string `json:"id"`
 	DatabaseID int64  `json:"databaseId"`
@@ -135,7 +167,7 @@ type pendingReview struct {
 func openReview(
 	ctx context.Context, p Poster, prID string, r *artifact.Review, threads []artifact.DraftThread,
 ) (*pendingReview, error) {
-	body, err := request(addReviewMutation, map[string]any{"input": map[string]any{
+	body, err := request(addReviewMutation, map[string]any{keyInput: map[string]any{
 		"pullRequestId": prID,
 		"commitOID":     r.HeadSHA,
 		"threads":       threads,
@@ -149,6 +181,7 @@ func openReview(
 		return nil, fmt.Errorf("opening the review: %w", err)
 	}
 
+	//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 	var out struct {
 		AddPullRequestReview struct {
 			PullRequestReview pendingReview `json:"pullRequestReview"`
@@ -160,7 +193,7 @@ func openReview(
 	}
 
 	if out.AddPullRequestReview.PullRequestReview.ID == "" {
-		return nil, fmt.Errorf("opening the review: GitHub answered no review")
+		return nil, fmt.Errorf("opening the review: %w", errNoReviewAnswered)
 	}
 
 	return &out.AddPullRequestReview.PullRequestReview, nil
@@ -187,6 +220,7 @@ func threadIDs(ctx context.Context, p Poster, r *artifact.Review) (map[int64]str
 			return nil, fmt.Errorf("reading the pull request's threads: %w", err)
 		}
 
+		//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 		var page struct {
 			Repository struct {
 				PullRequest struct {
@@ -233,10 +267,10 @@ func threadIDs(ctx context.Context, p Poster, r *artifact.Review) (map[int64]str
 func addReply(
 	ctx context.Context, p Poster, reviewID, threadID, body string,
 ) error {
-	req, err := request(addReplyMutation, map[string]any{"input": map[string]any{
-		"pullRequestReviewId":       reviewID,
-		"pullRequestReviewThreadId": threadID,
-		"body":                      body,
+	req, err := request(addReplyMutation, map[string]any{keyInput: map[string]any{
+		keyPullRequestReviewID:  reviewID,
+		keyPullRequestReviewTID: threadID,
+		keyBody:                 body,
 	}})
 	if err != nil {
 		return err
@@ -247,6 +281,7 @@ func addReply(
 		return fmt.Errorf("adding a reply: %w", err)
 	}
 
+	//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 	var out struct {
 		AddPullRequestReviewThreadReply struct {
 			Comment struct {
@@ -260,7 +295,7 @@ func addReply(
 	}
 
 	if out.AddPullRequestReviewThreadReply.Comment.DatabaseID == 0 {
-		return fmt.Errorf("adding a reply: GitHub answered no comment")
+		return fmt.Errorf("adding a reply: %w", errNoCommentAnswered)
 	}
 
 	return nil
@@ -271,10 +306,10 @@ func addReply(
 func submitReview(
 	ctx context.Context, p Poster, reviewID, event, body string,
 ) (*pendingReview, error) {
-	req, err := request(submitReviewMutation, map[string]any{"input": map[string]any{
-		"pullRequestReviewId": reviewID,
-		"event":               event,
-		"body":                body,
+	req, err := request(submitReviewMutation, map[string]any{keyInput: map[string]any{
+		keyPullRequestReviewID: reviewID,
+		"event":                event,
+		keyBody:                body,
 	}})
 	if err != nil {
 		return nil, err
@@ -285,6 +320,7 @@ func submitReview(
 		return nil, fmt.Errorf("submitting the review: %w", err)
 	}
 
+	//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 	var out struct {
 		SubmitPullRequestReview struct {
 			PullRequestReview pendingReview `json:"pullRequestReview"`
@@ -296,7 +332,7 @@ func submitReview(
 	}
 
 	if out.SubmitPullRequestReview.PullRequestReview.ID == "" {
-		return nil, fmt.Errorf("submitting the review: GitHub answered no review")
+		return nil, fmt.Errorf("submitting the review: %w", errNoReviewAnswered)
 	}
 
 	return &out.SubmitPullRequestReview.PullRequestReview, nil

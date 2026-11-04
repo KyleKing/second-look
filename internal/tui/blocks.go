@@ -465,7 +465,7 @@ func titled(c *artifact.Comment, inThread bool) string {
 }
 
 // commentParts is a title's pieces apart from who wrote it: the state, how
-// much it matters, and what it answers. inThread drops the "reply to" a card
+// much it matters, and what it answers. InThread drops the "reply to" a card
 // inside its thread no longer has to say.
 func commentParts(c *artifact.Comment, inThread bool) []string {
 	parts := []string{statusGlyph(c.Status) + " " + c.Status}
@@ -494,13 +494,16 @@ func whoWord(origin string) string {
 	case "":
 		return ""
 	case artifact.OriginMe:
-		return "you"
+		return youWord
 	}
 
 	return agentGlyph + " " + origin
 }
 
 const agentGlyph = "◆"
+
+// youWord is what a comment of the reader's own calls its author.
+const youWord = "you"
 
 func agentOrigin(origin string) bool { return origin != "" && origin != artifact.OriginMe }
 

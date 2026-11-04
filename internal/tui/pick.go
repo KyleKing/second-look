@@ -72,9 +72,11 @@ func (m *Model) identsOf(r row) []ident {
 
 func notCode(spans []highlight.Span, at int) bool {
 	switch classAt(spans, at) {
-	case highlight.Comment, highlight.String, highlight.Number, highlight.Keyword:
+	case highlight.Comment, highlight.String, highlight.Number, highlight.Keyword,
+		highlight.Operator, highlight.Constant, highlight.Escape:
 		return true
-	case highlight.Plain, highlight.Name, highlight.Function, highlight.Type, highlight.Punctuation:
+	case highlight.Plain, highlight.Name, highlight.Function, highlight.Type, highlight.Punctuation,
+		highlight.Field, highlight.Namespace:
 	}
 
 	return false

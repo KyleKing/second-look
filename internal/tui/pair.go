@@ -111,21 +111,12 @@ func (p *pairer) flushMerged() {
 
 	at := 0
 	for _, c := range p.came {
-		mate, paired := p.mates[refOf(p.path, c)]
-		if paired && claimed[mate] {
-			for at < len(p.gone) && p.gone[at] != mate {
-				if !claimed[p.gone[at]] {
-					p.emit(p.gone[at], diff.Line{})
-				}
-				at++
-			}
-			if at < len(p.gone) {
-				at++
-			}
-			p.emit(c, mate)
-		} else {
-			p.emit(c, diff.Line{})
+		mate := diff.Line{}
+		if g, ok := p.mates[refOf(p.path, c)]; ok && claimed[g] {
+			at = p.emitGoneBefore(at, g, claimed)
+			mate = g
 		}
+		p.emit(c, mate)
 	}
 
 	for at < len(p.gone) {
@@ -136,6 +127,20 @@ func (p *pairer) flushMerged() {
 	}
 
 	p.gone, p.came = nil, nil
+}
+
+// emitGoneBefore draws the unpaired removals that sat ahead of mate in the
+// patch, and answers the position just past it. A claimed removal draws inside
+// its partner's row, so walking past one emits nothing for it.
+func (p *pairer) emitGoneBefore(at int, mate diff.Line, claimed map[diff.Line]bool) int {
+	for at < len(p.gone) && p.gone[at] != mate {
+		if !claimed[p.gone[at]] {
+			p.emit(p.gone[at], diff.Line{})
+		}
+		at++
+	}
+
+	return min(at+1, len(p.gone))
 }
 
 // emit is one row and everything hanging off the lines it draws. The mate's
