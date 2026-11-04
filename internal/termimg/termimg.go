@@ -81,8 +81,8 @@ const probeWindow = 300 * time.Millisecond
 // ProbeKitty asks the terminal itself rather than the environment, which is
 // the only answer inside tmux: the pane's TERM_PROGRAM says "tmux" no matter
 // what sits outside it. The query rides the same passthrough a drawn image
-// would, so an answer proves both the protocol and the passthrough.
-// in has to be the real tty in raw mode, since the answer arrives as input.
+// would, so an answer proves both the protocol and the passthrough. The
+// reader has to be the real tty in raw mode, since the answer arrives as input.
 func ProbeKitty(in io.Reader, out io.Writer) bool {
 	query := []byte("\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\")
 	if InTMUX() {
