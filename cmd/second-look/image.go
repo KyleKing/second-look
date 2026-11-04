@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 
+	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/termimg"
 )
 
@@ -100,6 +102,10 @@ func fetch(ctx context.Context, arg string) (string, error) {
 		return "", fmt.Errorf("fetching %s: %w", arg, err)
 	}
 
+	if token := bearer(ctx, arg); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
 	//nolint:gosec // same fetch as above: the URL is the caller's own
 	resp, err := (&http.Client{Timeout: fetchTimeout * time.Second}).Do(req)
 	if err != nil {
@@ -122,6 +128,22 @@ func fetch(ctx context.Context, arg string) (string, error) {
 	}
 
 	return file.Name(), nil
+}
+
+// bearer is the token gh holds for the URL's own host: a private repository's
+// user-attachments link 404s anonymously.
+func bearer(ctx context.Context, arg string) string {
+	u, err := url.Parse(arg)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+
+	out, err := ghrun.Output(ctx, ".", "auth", "token", "--hostname", u.Host)
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(string(out))
 }
 
 // probeProto is the fallback for an environment that names no protocol, which
