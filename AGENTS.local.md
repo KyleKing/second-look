@@ -37,8 +37,13 @@ a real comment id. Deleting that thread on GitHub would break it.
 
 The post writes GraphQL now — `gh api graphql --input -` with the request on stdin — so the
 review, its replies, and the submit replay as one mutation sequence rather than REST posts.
-Recording needs the real `gh` authenticated, but the child's isolated `HOME` hides its
-credentials, so the token goes through the environment:
+The reply posts after the submit with no review named, because one filed under the review
+draws a second time on the conversation view as a lone comment on the line rather than
+inside the thread it answers. With none named, GitHub publishes it on the spot — unless a
+pending review the author has open captures it, which the answer's `PENDING` state reports
+and a `deletePullRequestReviewComment` undoes. Recording needs the real `gh` authenticated,
+but the child's isolated `HOME` hides its credentials, so the token goes through the
+environment:
 `GH_TOKEN="$(gh auth token)" GHCASSETTE_RECORD=1 go test ./cmd/second-look/ -run 'TestPostReview$'`.
 The reply fixtures' `thread_id` names the real thread on #2 that holds comment
 `3900038873`; inventing one makes the recorded mutation fail.

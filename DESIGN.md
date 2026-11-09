@@ -26,7 +26,7 @@ The store is one directory per repository under the user config directory, keyed
 
 ### Posting is one call
 
-`S` sends the review body and every line comment to GitHub's reviews endpoint in one request, so a failure leaves none of them posted. Replies to existing threads cannot ride in a review, so they follow as one request each. Before anything is sent, each comment's anchor is checked against the live diff and the pull request's head is compared with the one the review was written against. A comment that no longer anchors, or a head that moved, stops the post and says which. A draft present at submit time blocks the post instead of being posted or dropped. The artifact is deleted once GitHub has the review, and GitHub is the source of truth from then on.
+`S` sends the review body and every line comment to GitHub's reviews endpoint in one request, so a failure leaves none of them posted. Replies follow after the submit, one request each on their own thread: a reply sent inside the review is drawn a second time under it, as a lone comment on the line rather than inside the thread it answers. Before anything is sent, each comment's anchor is checked against the live diff and the pull request's head is compared with the one the review was written against. A comment that no longer anchors, or a head that moved, stops the post and says which. A draft present at submit time blocks the post instead of being posted or dropped. The artifact is deleted once GitHub has the review, and GitHub is the source of truth from then on; when a reply fails after the submit, the staged file keeps only what did not go out.
 
 ### Seen-state is a content hash
 
