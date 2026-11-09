@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/kyleking/aragonite/ghcassette"
 
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/resolve"
 )
 
@@ -28,21 +29,18 @@ func TestPostReply(t *testing.T) {
 	s.RequireAllPlayed(t)
 }
 
-// TestPostReportsAReplyThatFailedAfterTheReview is the reply failing inside a
-// review that has not submitted yet: the pending review is abandoned, nothing
-// reached GitHub, and the staged file is still on disk for a clean retry.
+// TestPostReportsAReplyThatFailedAfterTheReview is the reply failing after the
+// review already submitted: the review is on GitHub for good, so the staged
+// file keeps only the reply rather than pretending nothing posted.
 func TestPostReportsAReplyThatFailedAfterTheReview(t *testing.T) {
 	t.Parallel()
 
 	cassette := deriveFrom(t, "post-reply", "reply-failed", func(c *ghcassette.Cassette) {
-		// The addReply call fails, and the abandon cleans up behind it.
-		c.Interactions[4].Exit = 1
-		c.Interactions[4].Stdout = ""
-		c.Interactions[4].Stderr = "gh: Not Found (HTTP 404)\n"
-		c.Interactions = append(c.Interactions, ghcassette.Interaction{
-			Args:   []string{"api", "--method", "DELETE", "/repos/KyleKing/second-look/pulls/2/reviews/5769869202"},
-			Stdout: "",
-		})
+		// The reply is the last call, after the review's submit.
+		last := len(c.Interactions) - 1
+		c.Interactions[last].Exit = 1
+		c.Interactions[last].Stdout = ""
+		c.Interactions[last].Stderr = "gh: Not Found (HTTP 404)\n"
 	})
 
 	s := ghcassette.Replay(t, cassette)
@@ -53,8 +51,21 @@ func TestPostReportsAReplyThatFailedAfterTheReview(t *testing.T) {
 		t.Fatal("expected a failed reply to fail the command")
 	}
 
-	if !strings.Contains(res.stderr, "nothing reached GitHub") {
-		t.Errorf("want the abandoned pending review reported, got %q", res.stderr)
+	if !strings.Contains(res.stderr, "the review posted as") {
+		t.Errorf("want the posted review named, got %q", res.stderr)
+	}
+	if !strings.Contains(res.stderr, "only what did not go out") {
+		t.Errorf("want the retry shape explained, got %q", res.stderr)
+	}
+
+	review, err := artifact.Load(artifact.Path(stored(t, dir), 2))
+	if err != nil {
+		t.Fatalf("the staged review that remains: %v", err)
+	}
+	for i := range review.Comments {
+		if review.Comments[i].InReplyTo == 0 {
+			t.Error("a comment the review already carried is still staged and would post twice")
+		}
 	}
 }
 
