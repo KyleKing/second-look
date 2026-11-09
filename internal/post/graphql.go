@@ -14,8 +14,9 @@ import (
 // posted to the REST replies endpoint lands in whatever pending review the
 // author has open, which may not be the one that just submitted — it returns
 // 200 and stays invisible until a review nobody knows about is submitted. The
-// GraphQL path names the review every reply belongs to, so the review and its
-// replies become public in one submitPullRequestReview call.
+// reply mutation has the same trap, so the answer is asked which review took
+// the comment: anything but PENDING means it published on its own, and PENDING
+// means a pending review captured it and deleteComment puts it back.
 const (
 	prNodeQuery = `query($owner:String!,$name:String!,$number:Int!){
   repository(owner:$owner,name:$name){pullRequest(number:$number){id}}
@@ -30,7 +31,13 @@ const (
 }`
 
 	addReplyMutation = `mutation($input:AddPullRequestReviewThreadReplyInput!){
-  addPullRequestReviewThreadReply(input:$input){comment{databaseId}}
+  addPullRequestReviewThreadReply(input:$input){
+    comment{id databaseId pullRequestReview{databaseId state}}
+  }
+}`
+
+	deleteCommentMutation = `mutation($input:DeletePullRequestReviewCommentInput!){
+  deletePullRequestReviewComment(input:$input){pullRequestReviewComment{id}}
 }`
 
 	submitReviewMutation = `mutation($input:SubmitPullRequestReviewInput!){
@@ -71,6 +78,11 @@ var errNoCommentAnswered = errors.New("GitHub answered no comment")
 // errNotAThread says a reply's in_reply_to names a comment that opens no
 // thread on the pull request, so there is nothing to attach the reply to.
 var errNotAThread = errors.New("not a thread on this pull request")
+
+// errReplyCaptured says a pending review the author has open elsewhere took
+// the reply instead of it publishing. AddReply deletes the comment back out
+// before this is returned, so nothing is left sitting invisibly in it.
+var errReplyCaptured = errors.New("a pending review on this pull request captured the reply")
 
 // The GraphQL variables every mutation shares a name for.
 const (
@@ -293,17 +305,76 @@ func threadIDs(ctx context.Context, p Poster, r *artifact.Review) (map[int64]str
 	}
 }
 
-// addReply puts one reply into the pending review. Naming pullRequestReviewId
-// is the whole point of this path: the REST endpoint picked whichever pending
-// review existed, and a reply that landed in one nobody submitted stayed
-// invisible while returning success.
+// addReply posts one reply on its thread with no review named — naming one
+// files the reply under it, and the conversation view then draws it a second
+// time as a lone comment on the line. The answer's review state guards the
+// other side of that: PENDING means a pending review captured the reply
+// instead of publishing it, which deleteComment undoes. It answers the
+// comment's GraphQL and database ids.
 func addReply(
-	ctx context.Context, p Poster, reviewID, threadID, body string,
-) error {
+	ctx context.Context, p Poster, threadID, body string,
+) (string, int64, error) {
 	req, err := request(addReplyMutation, map[string]any{keyInput: map[string]any{
-		keyPullRequestReviewID:  reviewID,
 		keyPullRequestReviewTID: threadID,
 		keyBody:                 body,
+	}})
+	if err != nil {
+		return "", 0, err
+	}
+
+	raw, err := p.GraphQL(ctx, req)
+	if err != nil {
+		return "", 0, fmt.Errorf("adding a reply: %w", err)
+	}
+
+	//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
+	var out struct {
+		AddPullRequestReviewThreadReply struct {
+			Comment struct {
+				ID         string `json:"id"`
+				DatabaseID int64  `json:"databaseId"`
+				Review     struct {
+					DatabaseID int64  `json:"databaseId"`
+					State      string `json:"state"`
+				} `json:"pullRequestReview"`
+			} `json:"comment"`
+		} `json:"addPullRequestReviewThreadReply"`
+	}
+
+	if err := graphql(&out, raw); err != nil {
+		return "", 0, fmt.Errorf("adding a reply: %w", err)
+	}
+
+	comment := out.AddPullRequestReviewThreadReply.Comment
+	if comment.DatabaseID == 0 {
+		return "", 0, fmt.Errorf("adding a reply: %w", errNoCommentAnswered)
+	}
+
+	if comment.Review.State == "PENDING" {
+		return "", 0, uncapture(ctx, p, comment.ID, comment.Review.DatabaseID)
+	}
+
+	return comment.ID, comment.DatabaseID, nil
+}
+
+// uncapture deletes a reply back out of the pending review that took it. The
+// review is left alone — it may hold comments still being drafted — and a
+// failed delete names where the reply is sitting.
+func uncapture(ctx context.Context, p Poster, commentID string, reviewID int64) error {
+	if err := deleteComment(ctx, p, commentID); err != nil {
+		return fmt.Errorf("%w; it is sitting in pending review %d and removing it failed: %w",
+			errReplyCaptured, reviewID, err)
+	}
+
+	return fmt.Errorf("%w; it was removed — submit or discard that review on GitHub, then post again",
+		errReplyCaptured)
+}
+
+// deleteComment removes a comment from a pending review, the only place a
+// deletable review comment lives — a published one is permanent.
+func deleteComment(ctx context.Context, p Poster, commentID string) error {
+	req, err := request(deleteCommentMutation, map[string]any{keyInput: map[string]any{
+		"id": commentID,
 	}})
 	if err != nil {
 		return err
@@ -311,24 +382,20 @@ func addReply(
 
 	raw, err := p.GraphQL(ctx, req)
 	if err != nil {
-		return fmt.Errorf("adding a reply: %w", err)
+		return fmt.Errorf("deleting the captured reply: %w", err)
 	}
 
 	//nolint:tagliatelle // GraphQL answers in camelCase and these names are GitHub's
 	var out struct {
-		AddPullRequestReviewThreadReply struct {
+		DeletePullRequestReviewComment struct {
 			Comment struct {
-				DatabaseID int64 `json:"databaseId"`
-			} `json:"comment"`
-		} `json:"addPullRequestReviewThreadReply"`
+				ID string `json:"id"`
+			} `json:"pullRequestReviewComment"`
+		} `json:"deletePullRequestReviewComment"`
 	}
 
 	if err := graphql(&out, raw); err != nil {
-		return fmt.Errorf("adding a reply: %w", err)
-	}
-
-	if out.AddPullRequestReviewThreadReply.Comment.DatabaseID == 0 {
-		return fmt.Errorf("adding a reply: %w", errNoCommentAnswered)
+		return fmt.Errorf("deleting the captured reply: %w", err)
 	}
 
 	return nil

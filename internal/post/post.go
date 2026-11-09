@@ -147,35 +147,40 @@ func Guard(ctx context.Context, dir, remoteRepo string, r *artifact.Review, out 
 }
 
 // Run posts an already-guarded review — its comments as threads on a pending
-// review, its replies against that review by name, and one submit that makes
-// all of it visible at once — then records what posted and removes the
-// artifact file at path.
+// review submitted in one call, then each reply on its own thread — then
+// records what posted and removes the artifact file at path.
 func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.Writer) error {
 	threads, replies, err := r.Threads()
 	if err != nil {
 		return fmt.Errorf("building the payload: %w", err)
 	}
 
-	submitted, err := postReview(ctx, p, r, rootOf(path), threads, replies)
+	res, err := postReview(ctx, p, r, rootOf(path), threads, replies)
 	if err != nil {
-		return err
+		return salvage(ctx, p, path, r, replies, res, err, out)
 	}
 
-	if err := write(out, fmt.Sprintf("posted review %d on %s/%s#%d\n",
-		submitted.DatabaseID, r.Owner, r.Repo, r.Number)); err != nil {
+	var reviewID int64
+	if res.review != nil {
+		reviewID = res.review.DatabaseID
+		if err := write(out, fmt.Sprintf("posted review %d on %s/%s#%d\n",
+			reviewID, r.Owner, r.Repo, r.Number)); err != nil {
+			return err
+		}
+	} else if err := write(out, fmt.Sprintf("posted %s on %s/%s#%d\n",
+		humanize.Plural(len(res.replies), "reply", "replies"), r.Owner, r.Repo, r.Number)); err != nil {
 		return err
 	}
 
 	// A resolve that fails leaves the review posted either way, so the record
 	// and the cleanup still run; the failure is reported once both are done.
-	unresolved := resolveMarked(ctx, p, replies, submitted.DatabaseID, out)
+	unresolved := resolveMarked(ctx, p, replies, reviewID, out)
 
 	// The record goes down before the staged file goes away, so what GitHub
 	// holds outlives the artifact that described it. A record that cannot be
 	// written keeps the staged file rather than leaving neither.
-	if err := writeRecord(rootOf(path), r, submitted.DatabaseID, submitted.ID, "review"); err != nil {
-		return fmt.Errorf("the review posted as %d; keeping the staged file as its record: %w",
-			submitted.DatabaseID, err)
+	if err := recordPosted(rootOf(path), r, res); err != nil {
+		return fmt.Errorf("%w; keeping the staged file as its record", err)
 	}
 
 	// GitHub is the source of truth from here, and a prepared review left on
@@ -202,7 +207,8 @@ func Run(ctx context.Context, p Poster, path string, r *artifact.Review, out io.
 }
 
 // resolveMarked closes the threads the posted replies marked for resolving
-// and answers the first failure, leaving the rest unasked.
+// and answers the first failure, leaving the rest unasked. ReviewID names the
+// review in the failure's message; it is 0 when only replies posted.
 func resolveMarked(
 	ctx context.Context, p Poster, replies []artifact.ReplyPayload, reviewID int64, out io.Writer,
 ) error {
@@ -213,8 +219,10 @@ func resolveMarked(
 			continue
 		}
 
-		if err := resolveAfter(ctx, p, reply.ThreadID, out); err != nil {
+		if err := resolveAfter(ctx, p, reply.ThreadID, out); err != nil && reviewID != 0 {
 			unresolved = fmt.Errorf("the review posted as %d; %w", reviewID, err)
+		} else if err != nil {
+			unresolved = err
 		}
 	}
 
@@ -232,19 +240,118 @@ func prunePublished(path string, r *artifact.Review, out io.Writer) error {
 	return write(out, "removed the local review, now published\n")
 }
 
-// postReview carries a staged review through the pending-review dance: open
-// one holding the comments, add each reply to it by id, then submit. Any
-// failure between open and submit abandons the pending review, because one
-// left behind is a reply's invisible landing place — the failure that lost a
-// reply while reporting success.
+// outcome is what reached GitHub before postReview answered: the review when
+// the post needed one, and each reply that landed. An error with a non-empty
+// outcome is a partial post — the staged file must drop what it holds, or a
+// retry sends it twice.
+type outcome struct {
+	review  *pendingReview
+	replies []sentReply
+}
+
+// sentReply is one reply that published, keyed by the staged comment's id.
+type sentReply struct {
+	stagedID   string
+	nodeID     string
+	databaseID int64
+}
+
+func (o *outcome) empty() bool {
+	return o == nil || (o.review == nil && len(o.replies) == 0)
+}
+
+// reviewNeeded is whether the post carries anything a review has to hold:
+// comments, a body, or a verdict that is not the bare comment event. A staged
+// set that is only replies asks for no review at all — each posts on its own
+// thread and an empty one would only be a stray "commented" card.
+func reviewNeeded(r *artifact.Review, threads []artifact.DraftThread) bool {
+	return len(threads) > 0 || r.Body != "" || (r.Event != "" && r.Event != artifact.EventComment)
+}
+
+// postReview sends a staged review. What a review has to hold — its comments,
+// body, and verdict — goes through the pending-review dance so it still posts
+// all at once or not at all. Replies then post one each on their own threads,
+// which is what keeps them replies: one sent inside the review is drawn a
+// second time as a lone comment under it rather than inside its thread. A
+// failure after the submit is answered with what did land, since those replies
+// are already public.
 func postReview(
 	ctx context.Context, p Poster, r *artifact.Review, root string,
 	threads []artifact.DraftThread, replies []artifact.ReplyPayload,
-) (*pendingReview, error) {
+) (*outcome, error) {
 	if err := expandAttachments(ctx, p, r, root, threads, replies); err != nil {
 		return nil, err
 	}
 
+	if err := replyThreads(ctx, p, r, replies); err != nil {
+		return nil, err
+	}
+
+	var res outcome
+
+	if reviewNeeded(r, threads) {
+		review, err := submitPrepared(ctx, p, r, threads)
+		if err != nil {
+			return nil, err
+		}
+
+		res.review = review
+	}
+
+	var failed []error
+
+	for i := range replies {
+		nodeID, databaseID, err := addReply(ctx, p, replies[i].ThreadID, replies[i].Body)
+		if err != nil {
+			failed = append(failed, fmt.Errorf("reply %s: %w", replies[i].ID, err))
+
+			continue
+		}
+
+		res.replies = append(res.replies, sentReply{
+			stagedID: replies[i].ID, nodeID: nodeID, databaseID: databaseID,
+		})
+	}
+
+	return &res, errors.Join(failed...)
+}
+
+// replyThreads fills in the thread each reply answers. The screen stages the
+// id with the reply; a hand-staged one names only the comment, which the pull
+// request's threads are read for. A reply whose comment opens no thread is
+// refused here, where refusing still costs nothing.
+func replyThreads(ctx context.Context, p Poster, r *artifact.Review, replies []artifact.ReplyPayload) error {
+	var lookup map[int64]string
+
+	for i := range replies {
+		if replies[i].ThreadID != "" {
+			continue
+		}
+
+		if lookup == nil {
+			var err error
+			if lookup, err = threadIDs(ctx, p, r); err != nil {
+				return err
+			}
+		}
+
+		replies[i].ThreadID = lookup[replies[i].InReplyTo]
+		if replies[i].ThreadID == "" {
+			return fmt.Errorf("reply %s answers comment %d, which is %w",
+				replies[i].ID, replies[i].InReplyTo, errNotAThread)
+		}
+	}
+
+	return nil
+}
+
+// submitPrepared runs the pending-review dance for what a review holds: open
+// one carrying the comments, then submit. Any failure between abandons it,
+// because one left behind is a reply's invisible landing place — the failure
+// that lost a reply while reporting success.
+func submitPrepared(
+	ctx context.Context, p Poster, r *artifact.Review, threads []artifact.DraftThread,
+) (*pendingReview, error) {
 	prID, err := prNodeID(ctx, p, r)
 	if err != nil {
 		return nil, err
@@ -253,34 +360,6 @@ func postReview(
 	pending, err := openReview(ctx, p, prID, r, threads)
 	if err != nil {
 		return nil, err
-	}
-
-	var lookup map[int64]string
-
-	for _, reply := range replies {
-		tid := reply.ThreadID
-
-		if tid == "" {
-			var err error
-			if lookup == nil {
-				lookup, err = threadIDs(ctx, p, r)
-				if err != nil {
-					return nil, abandon(ctx, p, r, pending, err)
-				}
-			}
-
-			tid = lookup[reply.InReplyTo]
-		}
-
-		if tid == "" {
-			return nil, abandon(ctx, p, r, pending,
-				fmt.Errorf("reply %s answers comment %d, which is %w",
-					reply.ID, reply.InReplyTo, errNotAThread))
-		}
-
-		if err := addReply(ctx, p, pending.ID, tid, reply.Body); err != nil {
-			return nil, abandon(ctx, p, r, pending, fmt.Errorf("reply %s: %w", reply.ID, err))
-		}
 	}
 
 	event := r.Event
@@ -294,6 +373,97 @@ func postReview(
 	}
 
 	return submitted, nil
+}
+
+// salvage finishes a post that failed with something already public: the
+// review's id is recorded, the replies that landed keep their resolve marks,
+// and the staged file is rewritten to only what did not go out. When nothing
+// reached GitHub the file stands as it was — a retry sends the whole review
+// again, which is the clean retry abandoning the pending review leaves.
+func salvage(
+	ctx context.Context, p Poster, path string, r *artifact.Review,
+	replies []artifact.ReplyPayload, res *outcome, cause error, out io.Writer,
+) error {
+	if res.empty() {
+		return cause
+	}
+
+	if res.review != nil {
+		if err := writeRecord(rootOf(path), r, res.review.DatabaseID, res.review.ID, "review"); err != nil {
+			return fmt.Errorf("%w; writing the posted review's record failed too: %w", cause, err)
+		}
+	}
+
+	landed := dropPosted(r, res, replies)
+
+	if err := artifact.Save(path, r); err != nil {
+		return fmt.Errorf("%w; the staged review could not be cut down to what is left: %w", cause, err)
+	}
+
+	var reviewID int64
+	if res.review != nil {
+		reviewID = res.review.DatabaseID
+	}
+	if err := resolveMarked(ctx, p, landed, reviewID, out); err != nil {
+		cause = errors.Join(cause, err)
+	}
+
+	if res.review != nil {
+		return fmt.Errorf("the review posted as %d; %w; the staged review now holds only what did not go out",
+			res.review.DatabaseID, cause)
+	}
+
+	return fmt.Errorf("%w; the staged review now holds only what did not go out", cause)
+}
+
+// dropPosted removes what res says reached GitHub from the staged review — the
+// comments the submitted review carried, and each reply that landed — and
+// answers the replies that posted, so their resolve marks still run.
+func dropPosted(
+	r *artifact.Review, res *outcome, replies []artifact.ReplyPayload,
+) []artifact.ReplyPayload {
+	sentIDs := make(map[string]bool, len(res.replies))
+	for _, rp := range res.replies {
+		sentIDs[rp.stagedID] = true
+	}
+
+	kept := r.Comments[:0]
+	for i := range r.Comments {
+		c := r.Comments[i]
+		posted := sentIDs[c.ID] ||
+			(res.review != nil && c.InReplyTo == 0 && c.Status != artifact.StatusSkip)
+		if !posted {
+			kept = append(kept, c)
+		}
+	}
+	r.Comments = kept
+
+	var landed []artifact.ReplyPayload
+	for _, rp := range replies {
+		if sentIDs[rp.ID] {
+			landed = append(landed, rp)
+		}
+	}
+
+	return landed
+}
+
+// recordPosted writes the receipt for what went out: the one review record
+// when a review submitted, or one per reply when only replies posted — a
+// replies-only post names the comments it became rather than a review that
+// never was.
+func recordPosted(root string, r *artifact.Review, res *outcome) error {
+	if res.review != nil {
+		return writeRecord(root, r, res.review.DatabaseID, res.review.ID, "review")
+	}
+
+	for _, rp := range res.replies {
+		if err := writeRecord(root, r, rp.databaseID, rp.nodeID, "comment"); err != nil {
+			return fmt.Errorf("reply %s posted as comment %d: %w", rp.stagedID, rp.databaseID, err)
+		}
+	}
+
+	return nil
 }
 
 // abandon deletes the pending review a failed post left open and reports what
@@ -361,8 +531,7 @@ func One(ctx context.Context, p Poster, path string, r *artifact.Review, id stri
 }
 
 // postOne sends the one comment or reply One picked, the way each goes out: a
-// standalone comment through the comments endpoint, a reply inside a pending
-// review of its own, because naming the review is what keeps a reply visible.
+// standalone comment through the comments endpoint, a reply on its own thread.
 // It answers the id GitHub gave what posted and whether that was a comment or
 // a review.
 func postOne(
@@ -408,8 +577,10 @@ func postOne(
 	return postedID, nodeID, "comment", nil
 }
 
-// postReplyOne runs one staged reply through the same pending-review dance a
-// whole review takes, since the reply names the review it belongs to by id.
+// postReplyOne posts one staged reply on its thread, the way every reply goes
+// out. The review it was staged inside only submits too when the staged file
+// gave it something to carry — a body or a verdict — and the record names the
+// comment otherwise, which is all that reached GitHub.
 func postReplyOne(
 	ctx context.Context, p Poster, r *artifact.Review, root, id string, out io.Writer,
 ) (int64, string, string, error) {
@@ -420,16 +591,25 @@ func postReplyOne(
 		return 0, "", "", fmt.Errorf("posting %s on its own: %w", id, err)
 	}
 
-	submitted, err := postReview(ctx, p, one, root, threads, replies)
+	res, err := postReview(ctx, p, one, root, threads, replies)
 	if err != nil {
 		return 0, "", "", err
 	}
 
-	if err := write(out, fmt.Sprintf("posted %s in review %d\n", id, submitted.DatabaseID)); err != nil {
+	if res.review != nil {
+		if err := write(out, fmt.Sprintf("posted %s in review %d\n", id, res.review.DatabaseID)); err != nil {
+			return 0, "", "", err
+		}
+
+		return res.review.DatabaseID, res.review.ID, "review", nil
+	}
+
+	reply := res.replies[0]
+	if err := write(out, fmt.Sprintf("posted %s as comment %d\n", id, reply.databaseID)); err != nil {
 		return 0, "", "", err
 	}
 
-	return submitted.DatabaseID, submitted.ID, "review", nil
+	return reply.databaseID, reply.nodeID, "comment", nil
 }
 
 // withCommit adds the head the comment was anchored against. A standalone
@@ -450,34 +630,22 @@ func withCommit(body []byte, sha string) ([]byte, error) {
 	return out, nil
 }
 
-// DryRun prints what Run would send without sending it: the four GraphQL
-// calls the review posts through, with the replies spelled out one each.
+// DryRun prints what Run would send without sending it: the review's calls
+// when there is one, then each reply spelled out on its own thread.
 func DryRun(out io.Writer, r *artifact.Review) error {
 	threads, replies, err := r.Threads()
 	if err != nil {
 		return fmt.Errorf("building the payload: %w", err)
 	}
 
-	event := r.Event
-	if event == "" {
-		event = artifact.EventComment
-	}
-
-	add, err := request(addReviewMutation, map[string]any{keyInput: map[string]any{
-		"pullRequestId": "<the pull request's node id>", "commitOID": r.HeadSHA,
-		"threads": threads,
-	}})
-	if err != nil {
-		return fmt.Errorf("encoding the review: %w", err)
-	}
-
-	if err := write(out, fmt.Sprintf("graphql %s\n%s\n\n", prNodeQuery, add)); err != nil {
-		return err
+	if reviewNeeded(r, threads) {
+		if err := dryRunReview(out, r, threads, len(replies) > 0); err != nil {
+			return err
+		}
 	}
 
 	for _, reply := range replies {
 		body, err := request(addReplyMutation, map[string]any{keyInput: map[string]any{
-			keyPullRequestReviewID:  "<the pending review's id>",
 			keyPullRequestReviewTID: reply.ThreadID,
 			keyBody:                 reply.Body,
 		}})
@@ -495,6 +663,35 @@ func DryRun(out io.Writer, r *artifact.Review) error {
 		}
 	}
 
+	if mentionsAttach(r.Body, threads, replies) {
+		return write(out, "\nattach: paths upload to user-attachments when this posts; "+
+			"the posted bodies carry the URLs it answers\n")
+	}
+
+	return nil
+}
+
+// dryRunReview prints the review half of a dry run — the pull request lookup
+// and the open, then the submit — since nothing of it is real until the post.
+// A trailing blank line splits it from the replies when there are any.
+func dryRunReview(out io.Writer, r *artifact.Review, threads []artifact.DraftThread, more bool) error {
+	event := r.Event
+	if event == "" {
+		event = artifact.EventComment
+	}
+
+	add, err := request(addReviewMutation, map[string]any{keyInput: map[string]any{
+		"pullRequestId": "<the pull request's node id>", "commitOID": r.HeadSHA,
+		"threads": threads,
+	}})
+	if err != nil {
+		return fmt.Errorf("encoding the review: %w", err)
+	}
+
+	if err := write(out, fmt.Sprintf("graphql %s\n%s\n\n", prNodeQuery, add)); err != nil {
+		return err
+	}
+
 	submit, err := request(submitReviewMutation, map[string]any{keyInput: map[string]any{
 		keyPullRequestReviewID: "<the pending review's id>", "event": event, keyBody: r.Body,
 	}})
@@ -506,9 +703,8 @@ func DryRun(out io.Writer, r *artifact.Review) error {
 		return err
 	}
 
-	if mentionsAttach(r.Body, threads, replies) {
-		return write(out, "\nattach: paths upload to user-attachments when this posts; "+
-			"the posted bodies carry the URLs it answers\n")
+	if more {
+		return write(out, "\n")
 	}
 
 	return nil

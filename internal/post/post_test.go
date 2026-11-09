@@ -20,10 +20,11 @@ var errBoom = errors.New("boom")
 // fakePoster answers the GraphQL calls the post makes by which mutation the
 // request carries, the way gh api graphql --input - would.
 type fakePoster struct {
-	endpoints []string
-	bodies    [][]byte
-	failOn    int
-	failDel   bool
+	endpoints  []string
+	bodies     [][]byte
+	failOn     int
+	failDel    bool
+	replyState string
 }
 
 func (f *fakePoster) Resolve(_ context.Context, threadID string) error {
@@ -83,8 +84,16 @@ func (f *fakePoster) GraphQL(_ context.Context, req []byte) ([]byte, error) {
 
 	switch {
 	case strings.Contains(call.Query, "addPullRequestReviewThreadReply"):
+		state := f.replyState
+		if state == "" {
+			state = "COMMENTED"
+		}
 		name, answer = "graphql addReply",
-			`{"data":{"addPullRequestReviewThreadReply":{"comment":{"databaseId":777}}}}`
+			`{"data":{"addPullRequestReviewThreadReply":{"comment":{"id":"PRRC_777","databaseId":777,`+
+				`"pullRequestReview":{"databaseId":888,"state":"`+state+`"}}}}}`
+	case strings.Contains(call.Query, "deletePullRequestReviewComment"):
+		name, answer = "graphql deleteComment",
+			`{"data":{"deletePullRequestReviewComment":{"pullRequestReviewComment":{"id":"PRRC_777"}}}}`
 	case strings.Contains(call.Query, "addPullRequestReview"):
 		name, answer = "graphql addReview",
 			`{"data":{"addPullRequestReview":{"pullRequestReview":{"id":"PRR_pending","databaseId":555}}}}`
@@ -161,7 +170,7 @@ func TestRun(t *testing.T) {
 			t.Parallel()
 
 			path := writeArtifact(t)
-			p := &fakePoster{failOn: tt.failOn, failDel: tt.failDel}
+			p := &fakePoster{failOn: tt.failOn, failDel: tt.failDel, replyState: tt.replyState}
 			var out bytes.Buffer
 
 			err := post.Run(context.Background(), p, path, tt.review, &out)
@@ -170,6 +179,7 @@ func TestRun(t *testing.T) {
 			checkEndpoints(t, p.endpoints, tt.wantEndpoints)
 			checkArtifact(t, path, tt.wantFileGone)
 			checkRecord(t, path, tt.wantRecord)
+			checkStaged(t, path, tt.wantStaged)
 		})
 	}
 }
@@ -179,14 +189,16 @@ type runCase struct {
 	review        *artifact.Review
 	failOn        int
 	failDel       bool
+	replyState    string
 	wantErr       string
 	wantEndpoints []string
 	wantFileGone  bool
-	wantRecord    bool
+	wantRecord    string
+	wantStaged    []string
 }
 
 func runCases() []runCase {
-	return append(sentCases(), blockedCases()...)
+	return append(append(sentCases(), postSubmitCases()...), blockedCases()...)
 }
 
 func sentCases() []runCase {
@@ -201,21 +213,21 @@ func sentCases() []runCase {
 
 	return []runCase{
 		{
-			name:   "happy path opens a pending review, adds the reply, and submits once",
+			name:   "happy path submits the review, then posts the reply on its own thread",
 			review: review(inlineComment("1", artifact.StatusReady), reply),
 			wantEndpoints: []string{
-				"graphql pullRequest", "graphql addReview", "graphql addReply", "graphql submit",
+				"graphql pullRequest", "graphql addReview", "graphql submit", "graphql addReply",
 			},
 			wantFileGone: true,
-			wantRecord:   true,
+			wantRecord:   "pr-42-555.toml",
 		},
 		{
-			name:    "a reply failure abandons the pending review rather than leaving it invisible",
+			name:    "a submit failure abandons the pending review rather than leaving it invisible",
 			review:  review(inlineComment("1", artifact.StatusReady), reply),
 			failOn:  3,
 			wantErr: "the pending review it left was deleted",
 			wantEndpoints: []string{
-				"graphql pullRequest", "graphql addReview", "graphql addReply",
+				"graphql pullRequest", "graphql addReview", "graphql submit",
 				"delete /repos/kyleking/second-look/pulls/42/reviews/555",
 			},
 		},
@@ -226,20 +238,20 @@ func sentCases() []runCase {
 			failDel: true,
 			wantErr: "close it on GitHub before posting again",
 			wantEndpoints: []string{
-				"graphql pullRequest", "graphql addReview", "graphql addReply",
+				"graphql pullRequest", "graphql addReview", "graphql submit",
 				"delete /repos/kyleking/second-look/pulls/42/reviews/555",
 			},
 		},
 		{
-			name:   "a resolving reply resolves its thread after the submit",
+			name:   "a resolving reply resolves its thread once the reply lands",
 			review: review(reply, wontFix),
 			wantEndpoints: []string{
-				"graphql pullRequest", "graphql addReview",
-				"graphql addReply", "graphql addReply", "graphql submit",
+				"graphql pullRequest", "graphql addReview", "graphql submit",
+				"graphql addReply", "graphql addReply",
 				"resolve PRRT_9",
 			},
 			wantFileGone: true,
-			wantRecord:   true,
+			wantRecord:   "pr-42-555.toml",
 		},
 		{
 			name:    "a thread that will not resolve still leaves the posted record",
@@ -247,30 +259,29 @@ func sentCases() []runCase {
 			failOn:  5,
 			wantErr: "the review posted as 555; the reply posted but its thread did not resolve",
 			wantEndpoints: []string{
-				"graphql pullRequest", "graphql addReview", "graphql addReply",
-				"graphql submit", "resolve PRRT_9",
+				"graphql pullRequest", "graphql addReview", "graphql submit", "graphql addReply",
+				"resolve PRRT_9",
 			},
 			wantFileGone: true,
-			wantRecord:   true,
+			wantRecord:   "pr-42-555.toml",
 		},
 		{
 			name: "a reply without a thread id looks the thread up by the comment it answers",
 			review: review(inlineComment("1", artifact.StatusReady),
 				artifact.Comment{ID: "6", InReplyTo: 44, Body: "on it", Status: artifact.StatusReady}),
 			wantEndpoints: []string{
-				"graphql pullRequest", "graphql addReview", "graphql threads",
-				"graphql addReply", "graphql submit",
+				"graphql threads", "graphql pullRequest", "graphql addReview",
+				"graphql submit", "graphql addReply",
 			},
 			wantFileGone: true,
-			wantRecord:   true,
+			wantRecord:   "pr-42-555.toml",
 		},
 		{
-			name:    "a reply answering nothing on the pull request is refused",
+			name:    "a reply answering nothing on the pull request is refused before anything sends",
 			review:  review(artifact.Comment{ID: "7", InReplyTo: 9999, Body: "huh", Status: artifact.StatusReady}),
 			wantErr: "not a thread on this pull request",
 			wantEndpoints: []string{
-				"graphql pullRequest", "graphql addReview", "graphql threads",
-				"delete /repos/kyleking/second-look/pulls/42/reviews/555",
+				"graphql threads",
 			},
 		},
 		{
@@ -280,12 +291,65 @@ func sentCases() []runCase {
 				Status: artifact.StatusTodo, ThreadID: "PRRT_2",
 			}),
 			wantEndpoints: []string{
-				"graphql pullRequest", "graphql addReview", "graphql addReply", "graphql submit",
+				"graphql pullRequest", "graphql addReview", "graphql submit", "graphql addReply",
 			},
 			wantFileGone: true,
-			wantRecord:   true,
+			wantRecord:   "pr-42-555.toml",
 		},
 	}
+}
+
+// postSubmitCases are the shapes the standalone replies add: a review holding
+// nothing but replies sends no review at all, and a pending review the author
+// has open elsewhere can still swallow one.
+func postSubmitCases() []runCase {
+	reply := artifact.Comment{
+		ID: "2", InReplyTo: 99, Body: "thanks", Status: artifact.StatusReady, ThreadID: "PRRT_8",
+	}
+
+	return []runCase{
+		{
+			name:    "a reply that fails after the submit keeps only what did not go out",
+			review:  review(inlineComment("1", artifact.StatusReady), reply),
+			failOn:  4,
+			wantErr: "the review posted as 555; reply 2: adding a reply: boom",
+			wantEndpoints: []string{
+				"graphql pullRequest", "graphql addReview", "graphql submit", "graphql addReply",
+			},
+			wantRecord: "pr-42-555.toml",
+			wantStaged: []string{"2"},
+		},
+		{
+			name:   "a review holding only replies submits nothing — each posts on its own",
+			review: reviewWithoutBody(reply),
+			wantEndpoints: []string{
+				"graphql addReply",
+			},
+			wantFileGone: true,
+			wantRecord:   "pr-42-777.toml",
+		},
+		{
+			name:       "a reply captured by a pending review is deleted back out and reported",
+			review:     review(inlineComment("1", artifact.StatusReady), reply),
+			replyState: "PENDING",
+			wantErr:    "a pending review on this pull request captured the reply",
+			wantEndpoints: []string{
+				"graphql pullRequest", "graphql addReview", "graphql submit",
+				"graphql addReply", "graphql deleteComment",
+			},
+			wantRecord: "pr-42-555.toml",
+			wantStaged: []string{"2"},
+		},
+	}
+}
+
+// reviewWithoutBody is review with no body or verdict, which is what a staged
+// file holds after the review's own part already posted.
+func reviewWithoutBody(comments ...artifact.Comment) *artifact.Review {
+	r := review(comments...)
+	r.Body = ""
+
+	return r
 }
 
 func blockedCases() []runCase {
@@ -352,21 +416,60 @@ func checkArtifact(t *testing.T, path string, wantGone bool) {
 	}
 }
 
-// checkRecord asserts the posted record exists under posted/ and names the
-// id the review landed as.
-func checkRecord(t *testing.T, path string, want bool) {
+// checkRecord asserts the posted record exists under posted/, named for the
+// id what posted landed as — the review, or the comment a lone reply became.
+// An empty want asserts nothing, since the blocked cases post nothing and the
+// abandoned ones leave no record either.
+func checkRecord(t *testing.T, path, want string) {
 	t.Helper()
 
-	record := filepath.Join(filepath.Dir(path), "posted", "pr-42-555.toml")
+	posted := filepath.Join(filepath.Dir(path), "posted")
 
-	info, err := os.Stat(record)
+	if want == "" {
+		entries, err := os.ReadDir(posted)
+		if err == nil && len(entries) > 0 {
+			t.Fatalf("posted records exist after a post that sent nothing: %v", entries)
+		}
+
+		return
+	}
+
+	info, err := os.Stat(filepath.Join(posted, want))
 	switch {
-	case want && err != nil:
-		t.Fatalf("no posted record at %s: %v", record, err)
-	case !want && err == nil:
-		t.Fatalf("a posted record exists after a failed post: %s", record)
-	case want && info.Size() == 0:
-		t.Fatalf("the posted record at %s is empty", record)
+	case err != nil:
+		t.Fatalf("no posted record at %s: %v", want, err)
+	case info.Size() == 0:
+		t.Fatalf("the posted record at %s is empty", want)
+	}
+}
+
+// checkStaged loads the staged file the post left behind and names the
+// comments it should still hold — nil when the file is expected to be gone or
+// untouched.
+func checkStaged(t *testing.T, path string, want []string) {
+	t.Helper()
+
+	if want == nil {
+		return
+	}
+
+	r, err := artifact.Load(path)
+	if err != nil {
+		t.Fatalf("loading the staged review the post left: %v", err)
+	}
+
+	got := make([]string, 0, len(r.Comments))
+	for i := range r.Comments {
+		got = append(got, r.Comments[i].ID)
+	}
+
+	if len(got) != len(want) {
+		t.Fatalf("staged comments = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("staged comments = %v, want %v", got, want)
+		}
 	}
 }
 
