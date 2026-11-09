@@ -1,3 +1,9 @@
+## v0.50.4 (2026-11-09)
+
+### Fix
+
+- **post**: send replies on their own threads so GitHub threads them
+
 ## v0.50.3 (2026-11-04)
 
 ### Fix
