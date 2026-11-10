@@ -17,10 +17,10 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
+	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/ghcassette"
 
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/seen"
 )
 

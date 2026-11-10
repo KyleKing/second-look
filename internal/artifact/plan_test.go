@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/aragonite/diff"
+
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/order"
 	"github.com/kyleking/second-look/internal/plan"
 )

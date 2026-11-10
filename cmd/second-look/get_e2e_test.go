@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/exp/golden"
+	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/ghcassette"
 
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/seen"
 )
 

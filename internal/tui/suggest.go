@@ -4,9 +4,9 @@ import (
 	"strconv"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/diff"
 
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/diff"
 )
 
 // suggest answers s: the line under the cursor is opened as the text it will be

@@ -15,7 +15,8 @@ import (
 	"math"
 	"slices"
 
-	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/aragonite/diff"
+
 	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/structure"
 )

@@ -7,8 +7,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-
-	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/aragonite/diff"
 )
 
 const stripFiles = 120

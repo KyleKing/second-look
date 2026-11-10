@@ -8,12 +8,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	xansi "github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/diff"
 
 	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/checkouts"
 	"github.com/kyleking/second-look/internal/conversations"
-	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/local"

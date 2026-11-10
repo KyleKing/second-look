@@ -9,10 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/aragonite/diff"
+
 	main "github.com/kyleking/second-look/cmd/second-look"
 	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/diag"
-	"github.com/kyleking/second-look/internal/diff"
 )
 
 // The wiring is what this covers: a review's own blob reader, the commit it

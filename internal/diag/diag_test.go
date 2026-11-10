@@ -3,8 +3,9 @@ package diag_test
 import (
 	"testing"
 
+	"github.com/kyleking/aragonite/diff"
+
 	"github.com/kyleking/second-look/internal/diag"
-	"github.com/kyleking/second-look/internal/diff"
 )
 
 const patch = `diff --git a/a.ts b/a.ts

@@ -52,6 +52,8 @@ github.com/kyleking/aragonite v1.5.1 h1:zGKa/Gr9jbwX2mcVgM7quevkpjzRNLnJeK1w72qu
 github.com/kyleking/aragonite v1.5.1/go.mod h1:9XtVN15SVrOW7s2Yy9cHKZCTiBo+g1D3XJ25vFEmwP4=
 github.com/kyleking/aragonite v1.7.0 h1:L1oCZ6qYougrdYGunxK521+JNxQ2/sQcrTlbpGGOssk=
 github.com/kyleking/aragonite v1.7.0/go.mod h1:9XtVN15SVrOW7s2Yy9cHKZCTiBo+g1D3XJ25vFEmwP4=
+github.com/kyleking/aragonite v1.10.2-0.20261110005045-253d4ccd673b h1:PhW8kaR6BaKrRSxCTsw+Fpggi9gtVO7+VmEm8yOFj54=
+github.com/kyleking/aragonite v1.10.2-0.20261110005045-253d4ccd673b/go.mod h1:bQrAlFdwR1/2FP5o8LrlRlJkR4o2Y+ylArW6DPNlMZA=
 github.com/lucasb-eyer/go-colorful v1.4.1 h1:1EO+WB73+EH8EVbzlrG3KLAfEypQWVHIBqlTf+2hNss=
 github.com/lucasb-eyer/go-colorful v1.4.1/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/mattn/go-runewidth v0.0.30 h1:+KUuiDA4fF0R1p5FeueHefjDm+GIM+kWfFnDjybOPgk=

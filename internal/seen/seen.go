@@ -11,7 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
-	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/aragonite/diff"
 )
 
 // ID is the identity of one hunk, as a hex digest.

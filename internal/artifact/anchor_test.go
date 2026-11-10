@@ -4,8 +4,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/kyleking/aragonite/diff"
+
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/diff"
 )
 
 const patch = `diff --git a/internal/one.go b/internal/one.go

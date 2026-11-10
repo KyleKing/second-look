@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/aragonite/diff"
 )
 
 // Row is one dependency the lockfile changed. An empty From is an addition and

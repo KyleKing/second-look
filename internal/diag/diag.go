@@ -14,7 +14,7 @@ import (
 	"cmp"
 	"slices"
 
-	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/aragonite/diff"
 )
 
 // Severity is how much a note wants attention. The four are LSP's, because

@@ -10,9 +10,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/forge/github"
 
-	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/rate"
 )
 

@@ -11,9 +11,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/tui/theme"
 
-	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/highlight"
 )
 

@@ -5,9 +5,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kyleking/aragonite/diff"
+
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diag"
-	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/highlight"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/order"

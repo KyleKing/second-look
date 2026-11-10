@@ -7,9 +7,9 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/diff"
 
 	"github.com/kyleking/second-look/internal/advisory"
-	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/meta"
 )
 

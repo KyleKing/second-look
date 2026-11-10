@@ -12,13 +12,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/forge"
 	"github.com/kyleking/aragonite/forge/github"
 	"github.com/kyleking/aragonite/vcs"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/pool"
 	"github.com/kyleking/second-look/internal/prepared"

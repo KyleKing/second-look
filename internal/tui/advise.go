@@ -6,8 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-
-	"github.com/kyleking/second-look/internal/diff"
+	"github.com/kyleking/aragonite/diff"
 )
 
 // Asker is a one-shot question put to an agent: the prompt in, the answer's

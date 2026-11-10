@@ -1,6 +1,6 @@
 package seen
 
-import "github.com/kyleking/second-look/internal/diff"
+import "github.com/kyleking/aragonite/diff"
 
 // Carry reports how many of a new head's hunks were already read.
 //

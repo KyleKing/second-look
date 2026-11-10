@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kyleking/aragonite/diff"
+
 	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/config"
 	"github.com/kyleking/second-look/internal/diag"
 	"github.com/kyleking/second-look/internal/diag/lsp"
 	"github.com/kyleking/second-look/internal/diag/scan"
-	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/tui"
 )
 

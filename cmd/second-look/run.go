@@ -16,6 +16,7 @@ import (
 
 	"github.com/charmbracelet/x/term"
 	"github.com/kyleking/aragonite/cache"
+	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/vcs"
 
 	"github.com/kyleking/second-look/internal/acp"
@@ -26,7 +27,6 @@ import (
 	"github.com/kyleking/second-look/internal/brief"
 	"github.com/kyleking/second-look/internal/config"
 	"github.com/kyleking/second-look/internal/conversations"
-	"github.com/kyleking/second-look/internal/diff"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"

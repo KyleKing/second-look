@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/kyleking/second-look/internal/diff"
+import "github.com/kyleking/aragonite/diff"
 
 // pairer turns a hunk's lines into code rows and whatever hangs off each.
 //
