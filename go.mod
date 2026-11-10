@@ -6,10 +6,10 @@ require github.com/pelletier/go-toml/v2 v2.4.3
 
 require (
 	charm.land/bubbles/v2 v2.2.1
-	charm.land/bubbletea/v2 v2.1.0
+	charm.land/bubbletea/v2 v2.1.1
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/alecthomas/chroma/v2 v2.27.0
-	github.com/caelis-labs/acp-go-sdk v1.4.0
+	github.com/caelis-labs/acp-go-sdk v1.6.0
 	github.com/charmbracelet/colorprofile v0.4.3
 	github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4
 	github.com/charmbracelet/x/ansi v0.11.9
@@ -21,9 +21,9 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.4.1
 	github.com/mattn/go-sixel v0.0.14
 	golang.org/x/image v0.47.0
-	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.49.0
-	golang.org/x/term v0.38.0
+	golang.org/x/sync v0.25.0
+	golang.org/x/sys v0.50.0
+	golang.org/x/term v0.47.0
 )
 
 require (
