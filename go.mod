@@ -17,7 +17,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/creack/pty v1.1.24
-	github.com/kyleking/aragonite v1.12.1
+	github.com/kyleking/aragonite v1.13.1
 	github.com/lucasb-eyer/go-colorful v1.4.1
 	github.com/mattn/go-sixel v0.0.14
 	golang.org/x/image v0.47.0
