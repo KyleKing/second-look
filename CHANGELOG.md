@@ -1,3 +1,9 @@
+## v0.50.5 (2026-11-10)
+
+### Refactor
+
+- consume diff parsing from aragonite/diff
+
 ## v0.50.4 (2026-11-09)
 
 ### Fix
