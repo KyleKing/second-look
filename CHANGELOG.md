@@ -1,3 +1,9 @@
+## v0.51.0 (2026-11-10)
+
+### Feat
+
+- **review**: read the change's accrue/paydown shape with slop-strata
+
 ## v0.50.5 (2026-11-10)
 
 ### Refactor
