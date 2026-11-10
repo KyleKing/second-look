@@ -115,6 +115,17 @@ func WithHeadCheck(check HeadCheck) Option {
 	return func(m *Model) { m.head = check }
 }
 
+// SlopRead runs a slop-strata change reading against the checkout the review
+// sits on: the accrue/paydown sentence behind the diff's numbers, or empty
+// where the binary or the reading is absent.
+type SlopRead func(ctx context.Context) (string, error)
+
+// WithSlop asks for the reading behind the first frame and says it when it
+// lands; without one the screen says nothing either way.
+func WithSlop(read SlopRead) Option {
+	return func(m *Model) { m.slop = read }
+}
+
 // Restaged is a review prepared again against the head the pull request is on
 // now: the diff its comments anchor to, the conversations open on it, and the
 // hunks an earlier pass had already read. Blobs and Prober re-read context and

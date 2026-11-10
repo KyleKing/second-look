@@ -538,6 +538,10 @@ func reviewScreen(
 		tui.WithRestage(restager(t)),
 		tui.WithRounds(rounds(t)), tui.WithCommitReader(commitReader(t)))
 
+	if opened.Work != "" {
+		opts = append(opts, tui.WithSlop(slopReader(t, opened.Work, opened.Review.HeadSHA)))
+	}
+
 	// A checker runs in a checkout or not at all: a language server resolves
 	// what a file imports from the tree around it, and a review staged with
 	// none has no tree.
@@ -2160,4 +2164,30 @@ func helpText(arg string) string {
 	}
 
 	return longHelp
+}
+
+// slopReader asks slop-strata what the change accrued or paid down, behind the
+// first frame; a missing binary or a failed read says nothing either way.
+func slopReader(t get.Target, work, head string) tui.SlopRead {
+	return func(ctx context.Context) (string, error) {
+		base, err := get.MergeBase(ctx, t)
+		if err != nil {
+			return "", err
+		}
+		out, err := exec.CommandContext(ctx, "slop-strata", "change",
+			"--repo", work, "--base", base, "--rev", head, "--json").Output() //nolint:gosec // fixed args on the review's own checkout
+		if err != nil {
+			return "", err
+		}
+		var payload struct {
+			Result struct {
+				Reading string `json:"reading"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(out, &payload); err != nil {
+			return "", err
+		}
+
+		return payload.Result.Reading, nil
+	}
 }

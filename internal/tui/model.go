@@ -165,6 +165,7 @@ type Model struct {
 	merge   Merger
 	cleanup Cleanup
 	head    HeadCheck
+	slop    SlopRead
 	// commitReader reads the commits behind the diff once the frame is up.
 	commitReader CommitReader
 	browser      Opener
@@ -495,6 +496,7 @@ func (m *Model) Init() tea.Cmd {
 	m.wrote, _ = stampOf(m.path)
 
 	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe(), m.probeAgent(), m.askHead(), m.readCommits()}
+	cmds = append(cmds, m.readSlop())
 	cmds = append(cmds, m.fetchVersions()...)
 
 	if structure.Available() {
@@ -604,6 +606,34 @@ func (m *Model) applyStructure(msg structureMsg) {
 	// reading order take their answers from it the moment it lands rather than
 	// on the next keystroke.
 	m.rebuild()
+}
+
+// slopMsg is what the change reading answered; empty means nothing to say.
+type slopMsg struct {
+	text string
+	err  error
+}
+
+// readSlop runs the change read behind the first frame.
+func (m *Model) readSlop() tea.Cmd {
+	if m.slop == nil {
+		return nil
+	}
+	read, ctx := m.slop, m.ctx
+
+	return func() tea.Msg {
+		text, err := read(ctx)
+
+		return slopMsg{text: text, err: err}
+	}
+}
+
+// applySlop reports the reading once it lands; a failed or empty read leaves
+// the screen as it was, since the number is context, not the review.
+func (m *Model) applySlop(msg slopMsg) {
+	if msg.err == nil && msg.text != "" {
+		m.say(msg.text, false)
+	}
 }
 
 // headMsg is what the head check answered.
@@ -900,6 +930,8 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applyAsked(msg)
 	case versionedMsg:
 		m.applyVersions(msg)
+	case slopMsg:
+		m.applySlop(msg)
 	case headMsg:
 		m.applyHead(msg)
 	case headedMsg:
