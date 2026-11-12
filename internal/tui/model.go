@@ -2741,11 +2741,19 @@ func isKind(k rowKind) func(row) bool {
 	return func(r row) bool { return r.kind == k }
 }
 
-// isHead is anything tab walks: a staged comment or an open thread, either one
-// still wanting a decision. A resolved thread is neither, so it is skipped the
-// same way isThread skips it on its own.
+// isSignature is the head of the review's own body or note, which tab reaches
+// the way it reaches any other block: the prose is the last thing written
+// before the review posts.
+func isSignature(r row) bool {
+	return r.head && r.kind == rowComment &&
+		(r.comment == reviewBody || r.comment == reviewNote)
+}
+
+// isHead is anything tab walks: a staged comment, an open thread, or the
+// review's own prose, each still wanting a decision. A resolved thread is
+// none of them, so it is skipped the same way isThread skips it on its own.
 func isHead(r row) bool {
-	return isComment(r) || isThread(r)
+	return isComment(r) || isThread(r) || isSignature(r)
 }
 
 func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

@@ -3399,6 +3399,37 @@ func TestTabAtTheEdgeSaysThereIsNothingFurther(t *testing.T) {
 	}
 }
 
+// The review's own prose is the last thing written before the review posts, so
+// tab walks to it the way it walks every other block.
+func TestTabReachesTheReviewProse(t *testing.T) {
+	t.Parallel()
+
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+		Body: "lgtm", Note: "the run log",
+		Comments: []artifact.Comment{comment("c1", parsed, artifact.SideRight, 15, "on the add")},
+	}
+	m, _, _ := modelFor(t, r, patch)
+
+	// tab lands on the comment first, then the body, then the note, then says so.
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+
+	for _, want := range []string{"REVIEW BODY", "REVIEW NOTE"} {
+		press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+
+		if got := cursorText(m); !strings.Contains(got, want) {
+			t.Fatalf("the cursor landed on %q, want %s:\n%s", got, want, plain(m.Frame()))
+		}
+	}
+
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "no comment or thread after this one") {
+		t.Errorf("tab past the note said nothing:\n%s", got)
+	}
+}
+
 // cursorRow is which line of the frame carries the cursor, counting the body
 // from zero, or -1 where the frame does not draw it.
 func cursorRow(m *tui.Model) int {
