@@ -243,6 +243,8 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer,
 // this directory is it, and leased for the sitting so a second second-look
 // does not move the same tree.
 func checkoutRef(ctx context.Context, at ref, stdin io.Reader, stdout io.Writer) error {
+	ctx = github.WithRunner(ctx, echo(stdout))
+
 	repo := at.owner + "/" + at.repo
 	if at.here() {
 		repo = currentRepo(ctx)
@@ -258,6 +260,10 @@ func checkoutRef(ctx context.Context, at ref, stdin io.Reader, stdout io.Writer)
 		if pr, err := github.GetPR(ctx, ".", repo, at.number); err == nil {
 			head = pr.HeadRef
 		}
+	}
+
+	if err := write(stdout, "looking for checkouts of "+repo+"\n"); err != nil {
+		return err
 	}
 
 	cands, err := clonesFor(ctx, checkouts.Dashboard(), repo, head)

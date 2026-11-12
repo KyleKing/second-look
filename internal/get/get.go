@@ -133,6 +133,10 @@ func cacheDiff(ctx context.Context, out io.Writer, t Target, pr *forge.PullReque
 // and confirm what was addressed. Every run refreshes them, which is what
 // makes get the way to pick up what was said since.
 func cacheThreads(ctx context.Context, out io.Writer, t Target, sha string) error {
+	if err := say(out, "reading the review threads\n"); err != nil {
+		return err
+	}
+
 	all, about, err := threads.Fetch(ctx, t.Dir(), t.Owner, t.Repo, t.Number)
 	if err != nil {
 		//nolint:wrapcheck // Fetch's own error already names the pull request
@@ -308,6 +312,10 @@ func checkout(ctx context.Context, out io.Writer, t Target, pr *forge.PullReques
 // recovering from a rebased or force-pushed upstream rather than surfacing a
 // raw pull failure.
 func catchUp(ctx context.Context, out io.Writer, t Target, pr *forge.PullRequest, head string) error {
+	if err := say(out, fmt.Sprintf("pulling %s up to its upstream\n", pr.HeadRef)); err != nil {
+		return err
+	}
+
 	err := vcs.PullFastForward(ctx, t.Work)
 	if err == nil {
 		return nil
