@@ -20,6 +20,7 @@ require (
 	github.com/kyleking/aragonite v1.13.1
 	github.com/lucasb-eyer/go-colorful v1.4.1
 	github.com/mattn/go-sixel v0.0.14
+	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	golang.org/x/image v0.47.0
 	golang.org/x/sync v0.23.0
 	golang.org/x/sys v0.49.0

@@ -8,6 +8,8 @@ extend-exclude = ["CHANGELOG.md"]
 # "f3a9ba6" is not a misspelling of anything; PNG, the image format the demo
 # stills write, reads to it as a misspelling too.
 extend-ignore-identifiers-re = ["^[0-9a-f]{7,40}$", "^PNGs?$"]
+# "[r]eleases"-style key hints: the suffix after the bracket is a word fragment.
+extend-ignore-re = ['\[[a-z]\][A-Za-z]+']
 
 # Names typos reads as misspellings: golangci-lint's linter identifiers, and
 # Ratatui, which is a Rust terminal library rather than a French stew.

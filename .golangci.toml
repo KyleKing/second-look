@@ -182,6 +182,10 @@ disabled-checks = [
   "whyNoLint",
 ]
 
+[linters.settings.gocritic.settings.ruleguard]
+failOn = "dsl"
+rules = ".golangci/rules.go"
+
 [linters.settings.gocyclo]
 min-complexity = 15
 

@@ -64,11 +64,14 @@ type cluster struct {
 // keeps when the names around it had to go.
 func (c cluster) shown(labels bool) bool { return c.label != "" && (labels || c.more > 0) }
 
+// groupSides is the "+N" groups a window can gain: one ahead and one behind.
+const groupSides = 2
+
 // windowed is the clusters near at kept whole, with everything further out
 // summed into a "+N" group on each side, still weighted by what it holds.
 func windowed(cs []cluster, at, near int) []cluster {
 	lo, hi := max(0, at-near), min(len(cs), at+near+1)
-	out := make([]cluster, 0, max(0, hi-lo+2))
+	out := make([]cluster, 0, max(0, hi-lo+groupSides))
 
 	if lo > 0 {
 		out = append(out, sumClusters(cs[:lo]))
