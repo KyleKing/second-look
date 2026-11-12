@@ -209,10 +209,11 @@ func (s *inboxScreen) tab() tui.Tab {
 	}
 }
 
-// perform runs what the screen closed for. A failure is reported and the queue
-// comes back, because a checkout that could not move or an editor that was
-// closed empty is not a reason to lose the queue.
-func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer, did *touched) error {
+// perform runs what the screen closed for and reports whether it landed. A
+// failure is reported and the queue comes back, because a checkout that could
+// not move or an editor that was closed empty is not a reason to lose the
+// queue.
+func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer, did *touched) (bool, error) {
 	var err error
 
 	switch h.act {
@@ -223,7 +224,7 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer,
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
 		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActMerge, tui.ActFold,
 		tui.ActScope:
-		return nil
+		return false, nil
 	}
 
 	if err == nil {
@@ -231,10 +232,10 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer,
 			did.addRef(h.at.owner, h.at.repo, h.at.number)
 		}
 
-		return nil
+		return true, nil
 	}
 
-	return write(stdout, err.Error()+"\n")
+	return false, write(stdout, err.Error()+"\n")
 }
 
 // checkoutRef moves a working copy onto a pull request from the queue. The

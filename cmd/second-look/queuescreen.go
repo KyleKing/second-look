@@ -231,8 +231,24 @@ func afterQueue(
 
 	// A checkout that could not move or an editor closed empty is not a reason
 	// to lose the queue, so the failure is reported and the screen comes back.
-	if err := perform(ctx, in.next, stdin, stdout, did); err != nil {
+	done, err := perform(ctx, in.next, stdin, stdout, did)
+	if err != nil {
 		return -1, err
+	}
+
+	// C is the queue's way to work on a pull request, so a checkout that moved
+	// opens the review it moved for rather than dropping back to the list.
+	if done && in.next.act == tui.ActCheckout {
+		r := in.next.at
+
+		t, err := get.Resolve(ctx, ".", r.owner, r.repo, r.number)
+		if err != nil {
+			return at, fmt.Errorf("opening %s: %w", r, err)
+		}
+
+		if err := openReview(ctx, adoptLease(ctx, t), stdin, stdout, 0); err != nil {
+			return at, err
+		}
 	}
 
 	return at, nil
