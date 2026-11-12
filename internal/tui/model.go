@@ -909,7 +909,7 @@ func (m *Model) childAnswered(msg tea.Msg) (tea.Cmd, bool) {
 // absorb takes the messages that only add data, which is every answered()
 // case that hands nothing back to run.
 func (m *Model) absorb(msg tea.Msg) {
-	if m.absorbAgent(msg) {
+	if m.absorbAgent(msg) || m.absorbTurn(msg) {
 		return
 	}
 
@@ -926,12 +926,19 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applyNotes(msg)
 	case advisedMsg:
 		m.applyAdvisories(msg)
-	case askedMsg:
-		m.applyAsked(msg)
 	case versionedMsg:
 		m.applyVersions(msg)
 	case slopMsg:
 		m.applySlop(msg)
+	}
+}
+
+// absorbTurn is absorb's share of the messages that move the review's own
+// state rather than add a new fact to it.
+func (m *Model) absorbTurn(msg tea.Msg) bool {
+	switch msg := msg.(type) {
+	case askedMsg:
+		m.applyAsked(msg)
 	case headMsg:
 		m.applyHead(msg)
 	case headedMsg:
@@ -942,7 +949,11 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applyRound(msg)
 	case branchDeletedMsg:
 		m.applyBranchDeleted(msg)
+	default:
+		return false
 	}
+
+	return true
 }
 
 func (m *Model) absorbForge(msg tea.Msg) bool {

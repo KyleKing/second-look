@@ -2172,12 +2172,13 @@ func slopReader(t get.Target, work, head string) tui.SlopRead {
 	return func(ctx context.Context) (string, error) {
 		base, err := get.MergeBase(ctx, t)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("reading the merge base: %w", err)
 		}
+		//nolint:gosec // slop-strata gets fixed arguments on the review's own checkout.
 		out, err := exec.CommandContext(ctx, "slop-strata", "change",
-			"--repo", work, "--base", base, "--rev", head, "--json").Output() //nolint:gosec // fixed args on the review's own checkout
+			"--repo", work, "--base", base, "--rev", head, "--json").Output()
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("running slop-strata: %w", err)
 		}
 		var payload struct {
 			Result struct {
@@ -2185,7 +2186,7 @@ func slopReader(t get.Target, work, head string) tui.SlopRead {
 			} `json:"result"`
 		}
 		if err := json.Unmarshal(out, &payload); err != nil {
-			return "", err
+			return "", fmt.Errorf("reading slop-strata's answer: %w", err)
 		}
 
 		return payload.Result.Reading, nil
