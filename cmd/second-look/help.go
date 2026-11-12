@@ -287,7 +287,7 @@ NAMING A PULL REQUEST
 
   second-look inbox [--json]
       The review queue, as the sections your config names or five built-in lanes
-      when it names none: ready to merge, back to you, new for you, waiting on
+      when it names none: ready to merge, back to you, to review, waiting on
       others, and merged. Each line carries the repository, the author,
       how stale it is, and the title, which is enough to triage without opening
       anything. A terminal gets the screen and a pipe or --json gets the text.
@@ -451,7 +451,7 @@ CONFIG
   Optional. Without it the inbox shows the five built-in lanes.
 
     limit = 25                        # rows per section, 30 by default
-    priority = ["priority", "urgent"] # labels that lead "new for you"
+    priority = ["priority", "urgent"] # labels that lead "to review"
     work_orgs = ["acme"]              # owners w counts as work; the rest is personal
 
     [[section]]

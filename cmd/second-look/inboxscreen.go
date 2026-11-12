@@ -186,7 +186,7 @@ var inboxHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	{refreshKey, "run the searches again"},
 }, helpLeave(), prose(
 	"The lanes are the sections your config names, or the built-in five: ready to",
-	"merge, back to you, new for you, waiting on others, and merged. They are",
+	"merge, back to you, to review, waiting on others, and merged. They are",
 	"ordered so that finishing comes before beginning. Rows draw in a provisional",
 	"lane from the searches and move once the one batched read of reviews lands.",
 	"Opening one needs no checkout, and C is what gets one when this laptop has a",
@@ -974,7 +974,7 @@ func (s *inboxScreen) yours() int {
 	rows := 0
 
 	for i := range s.lanes {
-		if s.configured || i <= int(inbox.LaneNew) {
+		if s.configured || i <= int(inbox.LaneReview) {
 			rows += len(s.lanes[i].Items)
 		}
 	}

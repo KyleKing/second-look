@@ -14,7 +14,7 @@ type Lane int
 const (
 	LaneReady Lane = iota
 	LaneBack
-	LaneNew
+	LaneReview
 	LaneWaiting
 	LaneMerged
 )
@@ -24,7 +24,7 @@ const (
 	changesRequested = "CHANGES_REQUESTED"
 )
 
-var laneNames = [...]string{"ready to merge", "back to you", "new for you", "waiting on others", "merged"}
+var laneNames = [...]string{"ready to merge", "back to you", "to review", "waiting on others", "merged"}
 
 func (l Lane) String() string { return laneNames[l] }
 
@@ -73,7 +73,7 @@ const (
 const ShortWidth = 14
 
 // Judgement is what a row's lane, columns, and ordering signals come to. The
-// three booleans are only ever set in LaneNew.
+// three booleans are only ever set in LaneReview.
 //
 // Why is the prose that --json and the plain queue print. Glyph, Short, Long,
 // and Tone say the same thing to a screen, which draws the glyph in the tone's
@@ -121,8 +121,9 @@ var (
 	statusYouApproved = same("you approved", "✓", ToneMuted)
 	statusYouComment  = same("you commented", "○", ToneMuted)
 	statusYouReviewed = same("you reviewed", "○", ToneMuted)
-	statusPriority    = status{"priority", "", "priority", "priority label", ToneWarn}
-	statusArea        = same("same area", "", ToneMuted)
+	statusOnlyYou     = status{"asked of you alone", "◆", "only you", "asked of you alone", ToneWarn}
+	statusTeam        = status{"asked of your team", "○", "your team", "asked of your team", ToneMuted}
+	statusReasked     = status{"asked for your review again", "↻", "re-asked", "asked for your review again", ToneNew}
 )
 
 func comments(n int) status {
@@ -168,7 +169,7 @@ func Judge(p *PullRequest, via Source, f *Facts, c Context) Judgement {
 	j.Lane, s = others(via, f, c.Viewer)
 	j.say(s)
 
-	if j.Lane == LaneNew {
+	if j.Lane == LaneReview {
 		j.signal(p, f, c)
 	}
 
@@ -177,25 +178,22 @@ func Judge(p *PullRequest, via Source, f *Facts, c Context) Judgement {
 
 func provisional(via Source) Judgement {
 	if via&Requested != 0 && via&Authored == 0 {
-		return Judgement{Lane: LaneNew}
+		return Judgement{Lane: LaneReview}
 	}
 
 	return Judgement{Lane: LaneWaiting}
 }
 
+// signal sets the flags the review lane's order reads: a priority label, an
+// ask of you alone, and the area of the pull request opened last. They order
+// the lane rather than name its rows, since a row's status says why the ask
+// is yours and a priority or area word would paint over that.
 func (j *Judgement) signal(p *PullRequest, f *Facts, c Context) {
 	j.Priority = slices.ContainsFunc(p.Labels, func(l string) bool {
 		return slices.ContainsFunc(c.Priority, func(w string) bool { return strings.EqualFold(w, l) })
 	})
 	j.Alone = len(f.Requested) == 1 && f.Requested[0] == c.Viewer
 	j.Area = slices.ContainsFunc(f.Dirs, func(d string) bool { return c.Area[d] })
-
-	switch {
-	case j.Priority:
-		j.say(statusPriority)
-	case j.Area:
-		j.say(statusArea)
-	}
 }
 
 func authored(p *PullRequest, f *Facts, me string) (Lane, status) {
@@ -267,11 +265,13 @@ func others(via Source, f *Facts, me string) (Lane, status) {
 
 	switch {
 	case !ok && via&Reviewed == 0:
-		return LaneNew, status{}
+		return LaneReview, asked(f, me)
 	case !ok:
 		return LaneWaiting, statusYouReviewed
 	case !f.Pushed.IsZero() && f.Pushed.After(mine.At):
-		return LaneBack, statusPushed
+		return LaneReview, statusPushed
+	case slices.Contains(f.Requested, me):
+		return LaneReview, statusReasked
 	}
 
 	switch mine.State {
@@ -282,6 +282,29 @@ func others(via Source, f *Facts, me string) (Lane, status) {
 	}
 
 	return LaneWaiting, statusYouComment
+}
+
+// asked is why a first-time ask is yours to answer: you alone, you with other
+// reviewers, or your team, which Requested reads as "not you" when the
+// search's --review-requested=@me matched on a team's ask.
+func asked(f *Facts, me string) status {
+	if !slices.Contains(f.Requested, me) {
+		return statusTeam
+	}
+	if len(f.Requested) == 1 {
+		return statusOnlyYou
+	}
+
+	rest := slices.DeleteFunc(slices.Clone(f.Requested), func(l string) bool { return l == me })
+
+	var why string
+	if len(rest) == 1 {
+		why = "asked of you and " + rest[0]
+	} else {
+		why = fmt.Sprintf("asked of you and %d others", len(rest))
+	}
+
+	return status{why, "○", who(f.Requested, me), why, ToneNew}
 }
 
 func latestBy(events []Event, login string) (Event, bool) {
@@ -321,8 +344,8 @@ func who(requested []string, me string) string {
 
 func feeds(l Lane) Source {
 	switch l {
-	case LaneNew:
-		return Requested
+	case LaneReview:
+		return Requested | Reviewed
 	case LaneMerged:
 		return Merged
 	case LaneReady, LaneBack, LaneWaiting:

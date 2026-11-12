@@ -99,7 +99,16 @@ func line(p *PullRequest, now time.Time, nameWidth, authorWidth int) string {
 		b.WriteString("  draft")
 	}
 
-	for _, word := range []string{p.Who, p.Why, p.stackWord()} {
+	words := []string{p.Who, p.Why}
+	if p.Priority {
+		words = append(words, "priority")
+	}
+	if p.Area {
+		words = append(words, "same area")
+	}
+	words = append(words, p.stackWord())
+
+	for _, word := range words {
 		if word != "" {
 			b.WriteString("  " + word)
 		}

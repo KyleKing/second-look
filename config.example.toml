@@ -4,7 +4,7 @@
 # How many pull requests each queue section asks for.
 limit = 25
 
-# Labels that put a pull request at the top of "new for you".
+# Labels that put a pull request at the top of "to review".
 priority = ["priority", "urgent", "hotfix"]
 
 # Extra generated paths to fold, on top of lockfiles, go.sum, *.pb.go, and the

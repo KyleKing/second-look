@@ -86,7 +86,7 @@ func (s *inboxScreen) upcoming() []inbox.PullRequest {
 	var out []inbox.PullRequest
 
 	for i := range s.lanes {
-		if !s.configured && i != int(inbox.LaneBack) && i != int(inbox.LaneNew) {
+		if !s.configured && i != int(inbox.LaneBack) && i != int(inbox.LaneReview) {
 			continue
 		}
 

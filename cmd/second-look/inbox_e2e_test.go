@@ -44,7 +44,7 @@ func TestInbox(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"ready to merge", "back to you", "new for you", "waiting on others", "merged",
+		"ready to merge", "back to you", "to review", "waiting on others", "merged",
 		"only you", "+ 2", "approved, checks passing", "2 new comments", "pushed since your review",
 	} {
 		if !strings.Contains(res.stdout, want) {
@@ -105,7 +105,7 @@ func TestInboxJSON(t *testing.T) {
 	}
 
 	want := []string{
-		"back to you/104@new for you:kyleking/aragonite#104/1", "back to you/105@back to you:kyleking/aragonite#104/2",
+		"to review/104@to review:kyleking/aragonite#104/1", "to review/105@to review:kyleking/aragonite#104/2",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("the stack is %q, want %q", got, want)
@@ -168,7 +168,7 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 	var lane int
 
 	for i := range buckets {
-		if buckets[i].Bucket == "new for you" {
+		if buckets[i].Bucket == "to review" {
 			lane = i
 		}
 	}
@@ -209,7 +209,7 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	s := ghcassette.Replay(t, inboxThenReview(t))
 
 	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
-	sc.await("new for you")
+	sc.await("to review")
 	sc.await("aragonite#100")
 
 	// The queue is ordered for triage rather than by the order the searches
@@ -567,7 +567,7 @@ func TestInboxWithABrokenConfig(t *testing.T) {
 	}
 
 	// The built-in buckets are what a broken config falls back to.
-	if !strings.Contains(res.stdout, "new for you") {
+	if !strings.Contains(res.stdout, "to review") {
 		t.Errorf("the queue is empty rather than built-in:\n%s", res.stdout)
 	}
 
