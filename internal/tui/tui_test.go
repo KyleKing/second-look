@@ -2058,6 +2058,48 @@ func TestSubmitAsksFirst(t *testing.T) {
 	}
 }
 
+// A review carrying no comments is still a review on GitHub — a verdict with
+// no words is the common case — so S asks which one it is rather than refusing.
+// Only a bare comment is refused, at the key that names it.
+func TestAnEmptyReviewPostsAVerdict(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		key   rune
+		posts int
+		want  string
+	}{
+		{"approving", 'a', 1, "posted 3 comments"},
+		{"requesting changes", 'r', 1, "posted 3 comments"},
+		{"a bare comment is still refused", 'c', 0, "nothing to post"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := &artifact.Review{
+				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff",
+				Number: 42, HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+			}
+			m, _, sub := modelFor(t, r, patch)
+
+			press(t, m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+			if got := plain(m.Frame()); !strings.Contains(got, "empty review") {
+				t.Fatalf("S never asked what the empty review is:\n%s", got)
+			}
+
+			press(t, m, tea.KeyPressMsg{Code: tc.key, Text: string(tc.key)})
+
+			if sub.n != tc.posts {
+				t.Errorf("posted %d time(s), want %d", sub.n, tc.posts)
+			}
+			if got := plain(m.Frame()); !strings.Contains(got, tc.want) {
+				t.Errorf("the footer never said %q:\n%s", tc.want, got)
+			}
+		})
+	}
+}
+
 // A review of the checkout's own change has no pull request to be named by or
 // posted to: the title says what is diffed rather than a number nobody
 // assigned, and S says the comments are notes rather than asking what kind of

@@ -3447,12 +3447,6 @@ func (m *Model) askSubmit() {
 		return
 	}
 
-	if m.review.Empty() {
-		m.say(artifact.ErrNothingToPost.Error(), true)
-
-		return
-	}
-
 	c := m.counts()
 	if c.draft > 0 {
 		_ = m.focus(m.firstDraft())
@@ -3467,6 +3461,9 @@ func (m *Model) askSubmit() {
 	// What will not post is said too: a skipped comment is a decision made
 	// earlier, and the confirm is where it can still be revisited.
 	word := "S  " + plural(c.ready, "comment")
+	if m.review.Empty() {
+		word = "S  empty review"
+	}
 	if c.skip > 0 {
 		word += " · " + plural(c.skip, "skipped")
 	}
@@ -3488,6 +3485,12 @@ func (m *Model) submitAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		event = artifact.EventComment
 	default:
 		m.say("canceled, nothing was posted", false)
+
+		return m, nil
+	}
+
+	if event == artifact.EventComment && m.review.Empty() {
+		m.say(artifact.ErrNothingToPost.Error(), true)
 
 		return m, nil
 	}
