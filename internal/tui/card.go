@@ -221,11 +221,11 @@ func (m *Model) footEdge(r row, edge lipgloss.Style, width int) string {
 
 	edge = m.on(edge)
 	if line == "" {
-		return edge.Render("╰" + strings.Repeat("─", width-capCells) + "╯")
+		return edge.Render("╰" + strings.Repeat("─", max(0, width-capCells)) + "╯")
 	}
 
 	return edge.Render("╰─") + m.filler(1) + line + m.filler(1) +
-		edge.Render(strings.Repeat("─", room-textWidth(line))+"─╯")
+		edge.Render(strings.Repeat("─", max(0, room-textWidth(line)))+"─╯")
 }
 
 func (m *Model) cardTitle(r row) lipgloss.Style {

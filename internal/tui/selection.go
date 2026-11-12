@@ -80,7 +80,7 @@ func rangeWord(path string, from, to int) string {
 // rangeText is the file's own text for every line a suggestion would replace,
 // which is what its editor opens on.
 func (m *Model) rangeText(path, side string, from, to int) (string, bool) {
-	lines := make([]string, 0, to-from+1)
+	lines := make([]string, 0, max(0, to-from+1))
 
 	for line := from; line <= to; line++ {
 		text, ok := m.diff.Anchor(path, side, line)

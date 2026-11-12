@@ -115,6 +115,24 @@ func TestALongSkipReasonStillDrawsTheCardEdge(t *testing.T) {
 	}
 }
 
+// A card is drawn at whatever width the frame leaves it, and every count that
+// reaches strings.Repeat is clamped: a negative one panics. The sweep is the
+// invariant the single-width tests sample.
+func TestCardEdgesSurviveEveryFrameWidth(t *testing.T) {
+	t.Parallel()
+
+	skipped := comment("c1", parsed, artifact.SideRight, 15, "the skipped body")
+	skipped.Status, skipped.SkipReason = artifact.StatusSkip,
+		"the finding was fixed on the current head by the guard two lines up, which the check job confirms green"
+
+	m, _ := fixture(t, skipped)
+
+	for width := 80; width <= 200; width++ {
+		m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
+		m.Frame()
+	}
+}
+
 // A comment wraps to the card measure: 69 cells at 80 columns and 88 at 120, so
 // eight seven-letter words fit a line at the first and eleven at the second.
 func TestACommentWrapsToTheCardMeasure(t *testing.T) {

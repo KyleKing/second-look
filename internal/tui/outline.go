@@ -306,7 +306,7 @@ func (m *Model) outlineLines() []string {
 	rest := h - lh - 1
 
 	out := m.listLines(p, m.width, lh)
-	out = append(out, m.styles.edge.Render(strings.Repeat("─", m.width-1)))
+	out = append(out, m.styles.edge.Render(strings.Repeat("─", max(0, m.width-1))))
 
 	return append(out, fitRows(p.detail(m.width), rest, m.width, m.styles.note.Render)...)
 }
@@ -464,7 +464,7 @@ func (m *Model) hunkStrip(refs []order.Ref, width int) string {
 		k += run
 	}
 
-	return b.String() + strings.Repeat(" ", width-cells)
+	return b.String() + strings.Repeat(" ", max(0, width-cells))
 }
 
 // judgeWidth is the width of the widest "N to judge" any row can show, 0 where

@@ -200,7 +200,7 @@ func (m *Model) labeled(lines []string, r row, width int) []string {
 
 		first, _ := utf8.DecodeRuneInString(n.name)
 		span := max(1, textWidth(string(first)))
-		chip := m.styles.cursor.Render(string(nameLetters[i]) + strings.Repeat(" ", span-1))
+		chip := m.styles.cursor.Render(string(nameLetters[i]) + strings.Repeat(" ", max(0, span-1)))
 		col := origin + x
 
 		lines[k] = ansi.Cut(lines[k], 0, col) + chip + ansi.Cut(lines[k], col+span, textWidth(lines[k]))

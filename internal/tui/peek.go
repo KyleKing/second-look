@@ -253,7 +253,7 @@ func (m *Model) excerptRows(site diag.Site, above, n int) []row {
 
 	spans := highlight.Lines(site.Path, lines[lo-1:hi])
 	num := len(strconv.Itoa(hi))
-	out := make([]row, 0, hi-lo+1)
+	out := make([]row, 0, max(0, hi-lo+1))
 
 	for at := lo; at <= hi; at++ {
 		mark := "  "

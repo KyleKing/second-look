@@ -79,7 +79,7 @@ func nameGlob(members []plan.Member) string {
 	}
 
 	dir := sharedDir(members)
-	dir += strings.Repeat("*/", depth-strings.Count(dir, "/"))
+	dir += strings.Repeat("*/", max(0, depth-strings.Count(dir, "/")))
 
 	start, end := names[0], names[0]
 

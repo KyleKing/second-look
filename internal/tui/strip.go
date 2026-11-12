@@ -68,7 +68,7 @@ func (c cluster) shown(labels bool) bool { return c.label != "" && (labels || c.
 // summed into a "+N" group on each side, still weighted by what it holds.
 func windowed(cs []cluster, at, near int) []cluster {
 	lo, hi := max(0, at-near), min(len(cs), at+near+1)
-	out := make([]cluster, 0, hi-lo+2)
+	out := make([]cluster, 0, max(0, hi-lo+2))
 
 	if lo > 0 {
 		out = append(out, sumClusters(cs[:lo]))
@@ -369,7 +369,7 @@ func (m *Model) segment(s seg, width int) string {
 	k := max(0, min(width-1, int(s.at*float64(width))))
 
 	return line.Render(strings.Repeat(stripGlyph(s), k)) + m.styles.cursor.Render(stripMark) +
-		line.Render(strings.Repeat(stripGlyph(s), width-k-1))
+		line.Render(strings.Repeat(stripGlyph(s), max(0, width-k-1)))
 }
 
 const stripMark = "●"
