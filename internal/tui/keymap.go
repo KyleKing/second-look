@@ -119,6 +119,11 @@ type keyMap struct {
 	SendSet key.Binding
 	// DropQueued drops the last message staged for the agent.
 	DropQueued key.Binding
+	// Expand unfolds a run of tool calls in the agent pane into one line a
+	// call, with what each returned. It shares ctrl+o with JumpBack: the pane
+	// owns the key while it is open, and there is nowhere to jump back to in
+	// a transcript.
+	Expand key.Binding
 	// JumpBack and JumpForward walk the jump list. A terminal sends tab for
 	// ctrl+i, so tab walks forward too, but only once ctrl+o has left a place
 	// ahead, and otherwise keeps its own job.
@@ -202,6 +207,7 @@ func defaultKeyMap() keyMap {
 		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c", escKey), key.WithHelp("q", quitWord)),
 		SendSet:      key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "hand the todos over")),
 		DropQueued:   key.NewBinding(key.WithKeys("ctrl+w"), key.WithHelp("ctrl+w", "drop the last queued")),
+		Expand:       key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "the tool calls")),
 		JumpBack:     key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "back")),
 		JumpForward:  key.NewBinding(key.WithKeys("ctrl+i"), key.WithHelp("ctrl+i", "forward")),
 	}

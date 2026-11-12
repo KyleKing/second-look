@@ -431,6 +431,80 @@ func TestLinesStagedDuringATurnSendInOrder(t *testing.T) {
 	}
 }
 
+// A run of calls folds to one line so the agent's own words stay in frame,
+// and ctrl+o unfolds it into a line a call with each call's output.
+func TestThePaneFoldsARunOfToolCalls(t *testing.T) {
+	t.Parallel()
+
+	stub := stubPath(t)
+
+	sub := &counter{}
+	home := t.TempDir()
+	path := filepath.Join(home, "pr-42.toml")
+	review := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+	if err := artifact.Save(path, review); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithStore(home),
+		tui.WithAgent(func(ctx context.Context, loadID string) (*acp.Session, error) {
+			return acp.Start(ctx, []string{stub}, home, loadID, "")
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	run := looped(m)
+	run.key(letter('T'))
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "talk to stub")
+	})
+
+	run.typeLine("tools:6")
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "· done")
+	})
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "· 6 tool calls · completed") {
+		t.Fatalf("the run did not fold to one line:\n%s", frame)
+	}
+
+	if strings.Contains(frame, "tool number") {
+		t.Errorf("a folded run still draws a line a call:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "6 tools done") {
+		t.Errorf("the agent's own words are not in frame:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "· done") {
+		t.Errorf("the transcript does not say the turn ended:\n%s", frame)
+	}
+
+	run.key(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
+
+	frame = plain(m.Frame())
+	for _, want := range []string{"tool number 6", "output of tool 6"} {
+		if !strings.Contains(frame, want) {
+			t.Errorf("ctrl+o did not unfold %q:\n%s", want, frame)
+		}
+	}
+
+	if strings.Contains(frame, "tool calls · ctrl+o unfolds") {
+		t.Errorf("an unfolded run still draws the fold line:\n%s", frame)
+	}
+
+	run.key(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "· 6 tool calls") {
+		t.Errorf("ctrl+o did not fold the run back up:\n%s", frame)
+	}
+}
+
 // Esc peels one layer at a time while the pane is open: staged lines first.
 // The pane itself goes only once none is staged, and ctrl+w on an empty
 // prompt drops just the last staged line.

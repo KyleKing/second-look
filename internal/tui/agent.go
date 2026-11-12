@@ -41,6 +41,8 @@ const (
 	scrollHalf = 2
 	// What a transcript line yields to the frame's edge.
 	agentPad = 2
+	// How far a tool call's output sits under the call's own line.
+	detailIndent = 4
 )
 
 // agentUpMsg is the session the adapter just opened, or why it would not.
@@ -323,6 +325,10 @@ func (m *Model) agentKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.agentHandoff()
 
 		return m, cmd
+	case key.Matches(msg, m.keys.Expand):
+		m.agentExpand = !m.agentExpand
+
+		return m, nil
 	case key.Matches(msg, m.keys.HalfUp):
 		m.agentOff += m.paneHeight() / scrollHalf
 
@@ -411,20 +417,44 @@ func (m *Model) agentDivider() string {
 
 // agentRows is the transcript wrapped to the frame. An entry keeps its own
 // voice: the reviewer on a rail marker, the agent plain, a thought in note
-// italic, a tool call wearing its status.
+// italic, a tool call wearing its status. A run of calls draws as one line —
+// the detail of what ran is noise next to what the agent said — and ctrl+o
+// unfolds it into a line a call with each call's output. A turn's end is a
+// rule so scrolling back can tell where one answer stopped and the next
+// prompt began.
 func (m *Model) agentRows(width int) []string {
 	var rows []string
 
-	for _, e := range m.agent.Entries() {
-		mark, face := m.entryFace(e)
-		text := e.Text
-		if e.Status != "" {
-			text += " · " + e.Status
+	var tools []acp.Entry
+
+	flush := func() {
+		rows = append(rows, m.toolRunRows(tools, width)...)
+		tools = nil
+	}
+
+	entries := m.agent.Entries()
+	for i, e := range entries {
+		if e.Kind == acp.Tool {
+			tools = append(tools, e)
+
+			continue
 		}
 
-		for _, line := range wrap(text, width-textWidth(mark)) {
-			rows = append(rows, face.Render(cut(mark+line, width)))
+		flush()
+
+		if e.Kind == acp.You && i > 0 {
+			rows = append(rows, m.styles.hunk.Render(strings.Repeat("─", width)))
 		}
+
+		rows = append(rows, m.entryRows(e, width)...)
+	}
+	flush()
+
+	switch {
+	case m.agent.Busy() || m.agentSending:
+		rows = append(rows, m.styles.note.Render(cut("· working…", width)))
+	case m.agentSaw:
+		rows = append(rows, m.styles.note.Render(cut("· done", width)))
 	}
 
 	for _, q := range m.agentQueue {
@@ -435,11 +465,63 @@ func (m *Model) agentRows(width int) []string {
 	return rows
 }
 
+// entryRows draws one transcript entry, marked and faced for its kind.
+func (m *Model) entryRows(e acp.Entry, width int) []string {
+	mark, face := m.entryFace(e)
+	text := e.Text
+	if e.Status != "" {
+		text += " · " + e.Status
+	}
+
+	rows := make([]string, 0, strings.Count(text, "\n")+1)
+	for _, line := range wrap(text, width-textWidth(mark)) {
+		rows = append(rows, face.Render(cut(mark+line, width)))
+	}
+
+	return rows
+}
+
+// toolRunRows draws one run of consecutive tool calls: each on a line of its
+// own when expanded — with the output it returned underneath — or folded to
+// a count when not, so a long turn of calls stays one line of the transcript.
+func (m *Model) toolRunRows(run []acp.Entry, width int) []string {
+	if len(run) == 0 {
+		return nil
+	}
+
+	if m.agentExpand {
+		var rows []string
+		for _, e := range run {
+			rows = append(rows, m.entryRows(e, width)...)
+			for _, line := range wrap(e.Detail, width-detailIndent) {
+				rows = append(rows, m.styles.note.Render(cut(strings.Repeat(" ", detailIndent)+line, width)))
+			}
+		}
+
+		return rows
+	}
+
+	if len(run) == 1 {
+		return m.entryRows(run[0], width)
+	}
+
+	line := fmt.Sprintf("· %d tool calls", len(run))
+	if last := run[len(run)-1]; last.Status != "" {
+		line += " · " + last.Status
+	}
+
+	line += " · ctrl+o unfolds"
+
+	return []string{m.styles.hunk.Render(cut(line, width))}
+}
+
 // entryFace is the gutter marker and style a transcript kind draws in.
 func (m *Model) entryFace(e acp.Entry) (string, lipgloss.Style) {
 	switch e.Kind {
 	case acp.You:
 		return "› ", m.styles.rail
+	case acp.Agent:
+		return "● ", m.styles.body
 	case acp.Thought:
 		return "  ", m.styles.note
 	case acp.Tool:

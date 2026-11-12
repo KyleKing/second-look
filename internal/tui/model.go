@@ -102,6 +102,7 @@ type Model struct {
 	// agentOpen is the pane its transcript draws in, which esc leaves without
 	// ending the session; agentDead is how it ended, agentOff how far back
 	// the transcript is scrolled, and agentSaw whether a turn has answered.
+	// agentExpand unfolds the tool calls a run collapses into one line.
 	// agentQueue is what the person staged while a turn was running, and
 	// agentSending marks one already dispatched, so a pump cannot start a
 	// second turn beside the first.
@@ -111,6 +112,7 @@ type Model struct {
 	agentDead    error
 	agentOff     int
 	agentSaw     bool
+	agentExpand  bool
 	agentIn      textinput.Model
 	agentQueue   []string
 	agentSending bool
