@@ -10,6 +10,7 @@ package acp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -28,11 +29,13 @@ var ErrBusy = errors.New("a turn is still running")
 var ErrNoAdapter = errors.New("no adapter to run")
 
 // Entry is one block of the transcript the pane draws. Tool entries carry a
-// Status word the agent reports; the other kinds leave it empty.
+// Status word the agent reports and Detail what the call returned; the other
+// kinds leave both empty.
 type Entry struct {
 	Kind   EntryKind
 	Text   string
 	Status string
+	Detail string
 }
 
 // EntryKind is which voice a transcript line speaks in.
@@ -408,7 +411,8 @@ func (s *Session) SessionUpdate(_ context.Context, n wire.SessionNotification) e
 	case u.AgentThoughtChunk != nil:
 		s.append("thought:"+mid(u.AgentThoughtChunk.MessageId), Thought, blockText(u.AgentThoughtChunk.Content))
 	case u.ToolCall != nil:
-		s.tool(string(u.ToolCall.ToolCallId), toolTitle(u.ToolCall.Name, u.ToolCall.Title), string(u.ToolCall.Status))
+		s.tool(string(u.ToolCall.ToolCallId), toolTitle(u.ToolCall.Name, u.ToolCall.Title),
+			string(u.ToolCall.Status), toolDetail(u.ToolCall.Content, u.ToolCall.RawOutput))
 	case u.ToolCallUpdate != nil:
 		title := ""
 		if u.ToolCallUpdate.Title != nil {
@@ -420,7 +424,8 @@ func (s *Session) SessionUpdate(_ context.Context, n wire.SessionNotification) e
 			status = string(*u.ToolCallUpdate.Status)
 		}
 
-		s.tool(string(u.ToolCallUpdate.ToolCallId), title, status)
+		s.tool(string(u.ToolCallUpdate.ToolCallId), title, status,
+			toolDetail(u.ToolCallUpdate.Content, u.ToolCallUpdate.RawOutput))
 	case u.Plan != nil:
 		s.plan(u.Plan.Entries)
 	}
@@ -489,7 +494,7 @@ func (s *Session) append(id string, kind EntryKind, text string) {
 
 // tool opens or patches a tool entry: the id says which, and an empty field
 // keeps what was there because an update that omits it is leaving it alone.
-func (s *Session) tool(id, title, status string) {
+func (s *Session) tool(id, title, status, detail string) {
 	at, ok := s.seen["tool:"+id]
 	if !ok {
 		at = len(s.lines)
@@ -503,6 +508,10 @@ func (s *Session) tool(id, title, status string) {
 
 	if status != "" {
 		s.lines[at].Status = status
+	}
+
+	if detail != "" {
+		s.lines[at].Detail = detail
 	}
 }
 
@@ -572,6 +581,43 @@ func blockText(b wire.ContentBlock) string {
 	}
 
 	return ""
+}
+
+// detailCap is how much of one call's output the transcript keeps: a long
+// one's tail, where the error a run ended on tends to live.
+const detailCap = 4096
+
+// toolDetail is what a call returned, distilled for the transcript: its
+// content blocks' text, its diffs' paths and text, or the raw output
+// marshaled when nothing better came back.
+func toolDetail(content []wire.ToolCallContent, raw any) string {
+	var b strings.Builder
+
+	for _, c := range content {
+		switch {
+		case c.Content != nil && c.Content.Content.Text != nil:
+			b.WriteString(c.Content.Content.Text.Text)
+			b.WriteByte('\n')
+		case c.Diff != nil:
+			fmt.Fprintf(&b, "%s\n%s\n", c.Diff.Path, c.Diff.NewText)
+		case c.Terminal != nil:
+			fmt.Fprintf(&b, "terminal %s\n", c.Terminal.TerminalId)
+		}
+	}
+
+	text := strings.TrimSpace(b.String())
+	if text == "" && raw != nil {
+		j, err := json.Marshal(raw)
+		if err == nil {
+			text = string(j)
+		}
+	}
+
+	if len(text) > detailCap {
+		text = "…\n" + text[len(text)-detailCap:]
+	}
+
+	return text
 }
 
 // The agent's own title says more than its tool's name; the name is the

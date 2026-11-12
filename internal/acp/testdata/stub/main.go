@@ -134,6 +134,10 @@ func prompt(f frame) {
 	text := p.Prompt[0].Text
 
 	switch {
+	case strings.HasPrefix(text, "tools:"):
+		tools(f, p.SessionID, text)
+
+		return
 	case strings.HasPrefix(text, "fast:"):
 		result(f.ID, map[string]any{"stopReason": "end_turn"})
 
@@ -185,8 +189,38 @@ func prompt(f frame) {
 
 	notify(p.SessionID, "tool_call_update", map[string]any{
 		"toolCallId": "t1", "status": "completed",
+		"content": []map[string]any{
+			{"type": "content", "content": map[string]any{"type": "text", "text": "the suite passed"}},
+		},
 	})
 	say(p.SessionID, "permission said: "+said)
+	result(f.ID, map[string]any{"stopReason": "end_turn"})
+}
+
+// tools answers a "tools:N" prompt with N calls streaming by, each finishing
+// with a text output block, so the pane's collapse has a run to fold.
+func tools(f frame, session, text string) {
+	n, err := strconv.Atoi(strings.TrimPrefix(text, "tools:"))
+	if err != nil || n < 1 {
+		n = 1
+	}
+
+	for i := 1; i <= n; i++ {
+		id := fmt.Sprintf("tool-%d", i)
+		notify(session, "tool_call", map[string]any{
+			"toolCallId": id, "title": fmt.Sprintf("tool number %d", i), "status": "in_progress",
+		})
+		notify(session, "tool_call_update", map[string]any{
+			"toolCallId": id, "status": "completed",
+			"content": []map[string]any{
+				{"type": "content", "content": map[string]any{
+					"type": "text", "text": fmt.Sprintf("output of tool %d", i),
+				}},
+			},
+		})
+	}
+
+	say(session, fmt.Sprintf("%d tools done", n))
 	result(f.ID, map[string]any{"stopReason": "end_turn"})
 }
 

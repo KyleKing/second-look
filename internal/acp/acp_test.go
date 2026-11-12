@@ -128,6 +128,10 @@ func TestSessionStreamsAWholeTurn(t *testing.T) {
 		t.Errorf("the tool call reads %q / %q", tool.Text, tool.Status)
 	}
 
+	if tool := toolEntry(t, s); tool.Detail != "the suite passed" {
+		t.Errorf("the tool call kept %q for detail, not its output", tool.Detail)
+	}
+
 	// The stub names every message m1, and a second turn's reply is its own
 	// entry all the same.
 	turnThrough(t, s, "and again")
