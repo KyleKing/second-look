@@ -1,20 +1,20 @@
 
-second-look               ╭─ keys ────────────────────────────────────────────╮e
-──────────────────────────│ j/k, ctrl+u/d, g/G  move, half page, top and      │─
-  new since you looked  2 │                     bottom                        │
-▌ kyleking/tlr#118    ● go│      ctrl+e/ctrl+y  scroll without moving the     │ 
-  …repository-name#7  ● tw│                     cursor                        │
-  waiting on you  0       │       1/2/3, ] / [  the queue to read             │
-  awaiting others  1      │                tab  the next group                │
-  kyleking/wavez#7      no│                  /  narrow to the rows carrying a │
-                          │                     word; esc puts them back      │
-                          │              enter  read the whole conversation,  │
-                          │                     and mark it read              │
-                          │              space  mark read without opening it  │
-                          │                  r  reply, staged into the        │
-                          │                     prepared review               │
-                          │                  R  resolve the thread, or        │
-                          │                     thumbs-up what cannot be      │ 
-good catch, pushed a defer│                     resolved                      │ 
-alice · internal/pool/pool╰ · · ·─────────────────────────────────────────────╯ 
+second-look              ╭─ keys ─────────────────────────────────────────────╮e
+─────────────────────────│ j/k, ctrl+u/d, gg/G  move, half page, top and      │─
+  new since you looked  2│                      bottom                        │
+▌ kyleking/tlr#118    ● g│       ctrl+e/ctrl+y  scroll without moving the     │ 
+  …repository-name#7  ● t│                      cursor                        │
+  waiting on you  0      │        1/2/3, ] / [  the queue to read             │
+  awaiting others  1     │                 tab  the next group                │
+  kyleking/wavez#7      n│                   /  narrow to the rows carrying a │
+                         │                      word; esc puts them back      │
+                         │               enter  read the whole conversation,  │
+                         │                      and mark it read              │
+                         │               space  mark read without opening it  │
+                         │                   r  reply, staged into the        │
+                         │                      prepared review               │
+                         │                   R  resolve the thread, or        │
+                         │                      thumbs-up what cannot be      │ 
+good catch, pushed a defe│                      resolved                      │ 
+alice · internal/pool/poo╰ · · ·──────────────────────────────────────────────╯ 
 enter read   space mark read   r reply   R resolve   o GitHub   ? help          

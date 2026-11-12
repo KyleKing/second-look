@@ -90,7 +90,7 @@ const (
 // should not have to learn three vocabularies for the same keys.
 func helpMove() [][2]string {
 	return [][2]string{
-		{"j/k, ctrl+u/d, g/G", "move, half page, top and bottom"},
+		{"j/k, ctrl+u/d, gg/G", "move, half page, top and bottom"},
 		{"ctrl+e/ctrl+y", "scroll without moving the cursor"},
 		{"u/U", "the next and previous row that still needs a look"},
 		{"1/2/3, ] / [", "the queue to read: the inbox, the conversations, what is staged here"},

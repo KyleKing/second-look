@@ -509,7 +509,7 @@ func (s *threadsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 	case tui.ActRefresh:
 		return "", false, nil
 	case tui.ActCheckout, tui.ActComment, tui.ActApprove, tui.ActDiscard,
-		tui.ActMerge, tui.ActFold, tui.ActScope:
+		tui.ActMerge, tui.ActFold, tui.ActScope, tui.ActClean, tui.ActCleanStale:
 		return "", false, errNotOnAConversation
 	}
 

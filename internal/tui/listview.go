@@ -351,7 +351,7 @@ func (l *List) helpOver(lines []string) []string {
 
 func defaultListHelp() [][2]string {
 	return [][2]string{
-		{"j/k, ctrl+u/d, g/G", "move, half page, top and bottom"},
+		{"j/k, ctrl+u/d, gg/G", "move, half page, top and bottom"},
 		{"ctrl+e/ctrl+y", "scroll without moving the cursor"},
 		{"1/2/3, ] / [", "the queue to read"},
 		{tabKey, "the next group"},

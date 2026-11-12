@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +44,12 @@ type reviewsScreen struct {
 	// armed is the row d was pressed on. Discarding is the one thing here that
 	// deletes work, and every comment staged in the row goes with it.
 	armed string
+	// clean is the gc the screen was left for -- stale or not -- which the
+	// shell runs once the terminal is handed back, the way a checkout is.
+	clean *bool
+	// showDead is z on the merged-or-closed lane, folded the way the inbox
+	// folds its own merged lane.
+	showDead bool
 	// remote is what the forge says of each row, asked for all of them when
 	// the list opens and of a row the cursor rests on after a refresh. A
 	// staged review is local work and the one thing the file cannot say is
@@ -236,6 +241,7 @@ var reviewsHints = [][2]string{
 	{enterKey, "open"},
 	{"C", "checkout"},
 	{"d", "discard"},
+	{"gc", "clean"},
 	{refreshKey, "refresh"},
 	{"?", helpArg},
 }
@@ -246,10 +252,15 @@ var reviewsHelp = helpFor(helpMove(), [][2]string{
 	{"f, F", "read one repository across all three queues, and every one again"},
 	{"C", "move this checkout onto it, pulling where it is already on the branch"},
 	{"d", "throw the review away with everything cached for it; d again confirms"},
+	{"gc, gs", "drop what the forge says is finished; gs also drops stale empties"},
+	{"z", "show or hide the finished lane"},
 	{refreshKey, "read the directory again"},
 }, helpLeave(), prose(
 	"blocked means a comment is still a draft, which stops the submit.",
 	"Every review here is unfinished: the file is deleted when it posts.",
+	"The lanes order by what is left to do, the way the inbox's do: blocked,",
+	"ready to post, empty, unreadable, then what was left in a working copy,",
+	"and what the forge says is finished, dimmed and folded until z opens it.",
 	"A review with no checkout of its repository is listed in its own group and",
 	"opens the same way, from the API.",
 	"here marks the one row this directory is standing on; a C pressed on a",
@@ -257,7 +268,6 @@ var reviewsHelp = helpFor(helpMove(), [][2]string{
 	"The row is what the pull request is called, then what the review holds and",
 	"its state. At 140 columns it says what the forge thinks of it as well, and",
 	"what its agent is doing; below that the line under the list says them.",
-	"A row dims once the forge has merged or closed the pull request.",
 	"A pull request based on another one staged here is grouped with it, bottom",
 	"first, which is the order the diffs read in.",
 ))
@@ -311,16 +321,54 @@ func (s *reviewsScreen) state() tui.State {
 	return tui.State{Text: humanize.Plural(waiting, "agent") + " waiting"}
 }
 
-// sections puts each stack in its own group, then splits what is left by where
-// the review is kept, because that is what says whether the code under review is
-// on this disk. A stack keeps its reading order; the rest sort by what needs a
-// hand, with dead work last.
+// The lanes the staged queue reads in, ordered by what is left to do with a
+// row.
+const (
+	laneBlocked = iota
+	laneReady
+	laneEmpty
+	laneUnreadable
+	laneAway
+	laneDead
+	laneCount
+)
+
+var stagedLaneNames = [laneCount]string{
+	"blocked", "ready to post", "empty", "unreadable", "left in a working copy", "merged or closed",
+}
+
+// laneOf is the lane a review's own state puts it in where it is not dead or
+// a stray; a state with no lane of its own reads as empty.
+func laneOf(state string) int {
+	switch state {
+	case prepared.StateBlocked:
+		return laneBlocked
+	case prepared.StateReady:
+		return laneReady
+	case prepared.StateUnreadable:
+		return laneUnreadable
+	default:
+		return laneEmpty
+	}
+}
+
+// dead reports a staged review whose pull request the forge has finished
+// with, which makes the staged work moot however much the file holds.
+func (s *reviewsScreen) dead(r *prepared.Review) bool {
+	st, ok := s.remote[r.Where()]
+
+	return ok && (st.Merged() || st.Closed())
+}
+
+// sections puts each stack in its own group, then lanes the rest the way the
+// inbox does: what needs a hand first, the forge's finished last, dimmed and
+// folded.
 func (s *reviewsScreen) sections() []tui.Section {
 	now := time.Now()
 	shared := sharedNames(s.places())
 	stacks, alone := prepared.Split(s.rows)
 
-	out := make([]tui.Section, 0, len(stacks)+2)
+	out := make([]tui.Section, 0, len(stacks)+laneCount)
 
 	for i := range stacks {
 		rows := make([]tui.Row, 0, len(stacks[i].Rows))
@@ -331,62 +379,45 @@ func (s *reviewsScreen) sections() []tui.Section {
 		out = append(out, tui.Section{Name: stackName(&stacks[i]), Rows: rows})
 	}
 
-	var here, away []prepared.Review
+	lanes := make([][]prepared.Review, laneCount)
 
 	for i := range alone {
-		if alone[i].Stray {
-			away = append(away, alone[i])
-		} else {
-			here = append(here, alone[i])
-		}
-	}
+		r := &alone[i]
 
-	sort.SliceStable(here, func(i, j int) bool { return s.rank(&here[i]) < s.rank(&here[j]) })
-	sort.SliceStable(away, func(i, j int) bool { return s.rank(&away[i]) < s.rank(&away[j]) })
+		lane := laneOf(prepared.State(r))
 
-	hereRows := make([]tui.Row, 0, len(here))
-	for i := range here {
-		hereRows = append(hereRows, s.reviewRow(&here[i], shared, now))
-	}
-
-	out = append(out, tui.Section{Name: wordStaged, Rows: hereRows})
-
-	if len(away) > 0 {
-		awayRows := make([]tui.Row, 0, len(away))
-		for i := range away {
-			awayRows = append(awayRows, s.reviewRow(&away[i], shared, now))
+		switch {
+		case s.dead(r):
+			lane = laneDead
+		case r.Stray:
+			lane = laneAway
 		}
 
-		out = append(out, tui.Section{Name: "left in a working copy", Rows: awayRows})
+		lanes[lane] = append(lanes[lane], *r)
+	}
+
+	for lane := range lanes {
+		// A lane of leftovers is drawn only when there are any: it is an
+		// anomaly, not a state a review moves through.
+		if lane == laneAway && len(lanes[lane]) == 0 {
+			continue
+		}
+
+		rows := make([]tui.Row, 0, len(lanes[lane]))
+		for i := range lanes[lane] {
+			rows = append(rows, s.reviewRow(&lanes[lane][i], shared, now))
+		}
+
+		sec := tui.Section{Name: stagedLaneNames[lane], Rows: rows}
+		if lane == laneDead {
+			sec.Recedes = true
+			sec.Fold = !s.showDead
+		}
+
+		out = append(out, sec)
 	}
 
 	return out
-}
-
-// rank is where a row sorts in its group: what needs a hand first, what is
-// ready next, then what is empty or unreadable, and dead work last. The sort
-// is stable, so rows inside a level keep the recency order they were listed
-// in.
-const (
-	rankBlocked = iota
-	rankReady
-	rankWaiting
-	deadLast
-)
-
-func (s *reviewsScreen) rank(r *prepared.Review) int {
-	if st, ok := s.remote[r.Where()]; ok && (st.Merged() || st.Closed()) {
-		return deadLast
-	}
-
-	switch prepared.State(r) {
-	case prepared.StateBlocked:
-		return rankBlocked
-	case prepared.StateReady:
-		return rankReady
-	default:
-		return rankWaiting
-	}
 }
 
 // stackName says what the chain lands on and that its order is the reading
@@ -405,7 +436,7 @@ func (s *reviewsScreen) reviewRow(r *prepared.Review, shared map[string]bool, no
 		Unread: r.Blocked() || r.Broken != "",
 		// A pull request the forge has closed or merged makes the staged work
 		// moot, so the row recedes.
-		Dim:   s.rank(r) == deadLast,
+		Dim:   s.dead(r),
 		Cells: s.reviewCells(r, shared, now),
 		About: s.reviewAbout(r, now),
 	}
@@ -541,6 +572,14 @@ func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return s.discard(row.Key)
 	case tui.ActCheckout:
 		return s.checkout(row.Key)
+	case tui.ActClean:
+		return s.cleaning(false)
+	case tui.ActCleanStale:
+		return s.cleaning(true)
+	case tui.ActFold:
+		s.showDead = !s.showDead
+
+		return "", false, nil
 	case tui.ActRefresh:
 		rows, err := staged()
 		if err != nil {
@@ -552,7 +591,7 @@ func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 
 		return s.counts(), false, nil
 	case tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
-		tui.ActComment, tui.ActApprove, tui.ActMerge, tui.ActFold, tui.ActScope:
+		tui.ActComment, tui.ActApprove, tui.ActMerge, tui.ActScope:
 		return "", false, errNotHere
 	}
 
@@ -579,6 +618,18 @@ func (s *reviewsScreen) checkout(key string) (string, bool, error) {
 	}
 
 	return "", false, fmt.Errorf("%w: %s", errUnknownRow, key)
+}
+
+// cleaning leaves the screen so gc can say what it dropped with the terminal
+// back, the handoff a checkout takes; it runs `second-look gc` itself.
+func (s *reviewsScreen) cleaning(stale bool) (string, bool, error) {
+	s.clean = &stale
+
+	if stale {
+		return "cleaning staged reviews, stale included", true, nil
+	}
+
+	return "cleaning staged reviews", true, nil
 }
 
 // discard takes the key twice, and throws away the staged review along with the

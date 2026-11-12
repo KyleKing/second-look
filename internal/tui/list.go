@@ -2,12 +2,14 @@ package tui
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/tui/frame"
+	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
 	"github.com/kyleking/aragonite/tui/table"
 
@@ -107,7 +109,21 @@ const (
 	// ActScope is w: narrow the queue to the work organizations, then to
 	// everything else, then back to all of it.
 	ActScope
+	// ActClean is g then c: drop local state the queue no longer needs. The
+	// action is the queue's, so the row an Act is passed may be nil.
+	ActClean
+	// ActCleanStale is g then s: the same clean, also dropping what has sat
+	// untouched.
+	ActCleanStale
 )
+
+// GoKey is one second key a tab's g chord answers; a second g is the top and
+// needs no entry.
+type GoKey struct {
+	Key  string
+	What string
+	Act  Action
+}
 
 // Act performs an action on a row. What it returns is the one line the footer
 // shows, so it stays short enough to survive a narrow frame. Returning done
@@ -116,7 +132,8 @@ type Act func(a Action, r *Row) (status string, done bool, err error)
 
 // listKeys are the keys a list screen adds to the shared movement keys. The
 // letters are the first letter of the verb, and none is chorded except the
-// refresh, because a queue is read far more often than it is re-read.
+// refresh, because a queue is read far more often than it is re-read. The g
+// chord is handleKey's, where the review screen keeps its own.
 type listKeys struct {
 	Mark     key.Binding
 	Browse   key.Binding
@@ -227,6 +244,10 @@ type List struct {
 	// in as its searches answer keeps the cursor at the top, since a row that
 	// arrives above the cursor should not leave it in the middle of the list.
 	touched bool
+	// pending is the g waiting on the key that finishes its chord, and goes is
+	// the second keys the current tab declared for it.
+	pending rune
+	goes    []GoKey
 
 	// held is a refreshed order waiting on the keyboard. baseline is the rows as
 	// last drawn and shifts the ones the last refresh moved.
@@ -606,6 +627,19 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return l.typeFilter(msg)
 	}
 
+	if l.pending != 0 {
+		return l.completeGo(msg)
+	}
+
+	// g opens the list's one chord: another g is the top, and the second keys
+	// the tab declared. The chord, not the jump, is what a bare g now says.
+	if msg.String() == "g" {
+		l.pending = 'g'
+		l.say(l.goCaption(), false)
+
+		return l, nil
+	}
+
 	switch {
 	case key.Matches(msg, l.keys.Quit):
 		cmd := l.leave(msg)
@@ -702,6 +736,62 @@ func (l *List) perform(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return l, nil
 }
 
+// completeGo answers the g chord's second key: itself for the top, one the
+// tab declared, and anything else a cancel that says what the chord takes.
+func (l *List) completeGo(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	l.pending = 0
+
+	if key.Matches(msg, l.keys.Quit) {
+		l.say("", false)
+
+		return l, nil
+	}
+
+	if msg.String() == "g" {
+		l.to(0)
+		l.touched = true
+
+		cmd := l.rest()
+
+		return l, cmd
+	}
+
+	for _, o := range l.goes {
+		if o.Key == msg.String() {
+			return l.run(o.Act, l.current())
+		}
+	}
+
+	l.say("no go for "+msg.String()+"; "+l.goObjects(), false)
+
+	return l, nil
+}
+
+// goObjects is what the chord accepts, as the words a refusal repeats.
+func (l *List) goObjects() string {
+	var b strings.Builder
+
+	b.WriteString("g top")
+
+	for _, o := range l.goes {
+		b.WriteString(", " + o.Key + " " + o.What)
+	}
+
+	return b.String()
+}
+
+// goCaption is the same answer drawn as keyhints while the chord waits.
+func (l *List) goCaption() string {
+	hints := make([][2]string, 0, len(l.goes)+1)
+	hints = append(hints, [2]string{"g", "top"})
+
+	for _, o := range l.goes {
+		hints = append(hints, [2]string{o.Key, o.What})
+	}
+
+	return "g" + keyhint.Gap + keyhint.Line(keyhint.Styles{}, asHints(hints))
+}
+
 func (l *List) run(a Action, row *Row) (tea.Model, tea.Cmd) {
 	if l.act == nil {
 		l.status, l.failed = "nothing here can do that", true
@@ -719,7 +809,9 @@ func (l *List) run(a Action, row *Row) (tea.Model, tea.Cmd) {
 	l.status, l.failed = status, false
 
 	if done {
-		l.chosen = row.Key
+		if row != nil {
+			l.chosen = row.Key
+		}
 
 		// What leaving means is the shell's: a chosen review opens in place and
 		// everything else gives the terminal back.

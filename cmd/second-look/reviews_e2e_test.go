@@ -137,7 +137,9 @@ func TestReviewsScreen(t *testing.T) {
 
 	sc := openReview(t, s, dir, "reviews")
 	sc.await("staged")
+	sc.await("ready to post")
 	sc.await("left in a working copy")
+	sc.await("merged or closed")
 	sc.await("second-look#2")
 	sc.await("✗ unreadable")
 
@@ -234,6 +236,63 @@ func TestGC(t *testing.T) {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Errorf("%s is still on disk: %v", path, err)
 		}
+	}
+}
+
+// gc lives on the queue as the g chord, and the queue gives the terminal back
+// for the run the way a checkout does.
+func TestTheStagedQueueDropsWhatFinished(t *testing.T) {
+	t.Parallel()
+
+	dir, sha := scratchRepo(t, headBranch)
+	seedReview(t, dir, sha)
+
+	batch, err := prstate.BatchArgs([]prstate.Ref{{Repository: "KyleKing/second-look", Number: 2}})
+	if err != nil {
+		t.Fatalf("naming the sweep: %v", err)
+	}
+
+	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "staged-gc", func(c *ghcassette.Cassette) {
+		inCheckout(c)
+		c.Interactions = []ghcassette.Interaction{
+			{
+				Args: batch,
+				Stdout: `{"data":{"r0":{"pullRequest":{"state":"MERGED",` +
+					`"reviewDecision":"APPROVED","viewerLatestReview":{"state":"APPROVED"}}}}}`,
+			},
+			{
+				Args: []string{
+					"api", "graphql",
+					"-F", "owner=KyleKing", "-F", "repo=second-look", "-F", "pr=2",
+					"-f", "query=" + prstate.Query,
+				},
+				Stdout: `{"data":{"repository":{"pullRequest":{"state":"MERGED",` +
+					`"reviewDecision":"APPROVED","viewerLatestReview":{"state":"APPROVED"}}}}}`,
+			},
+		}
+	}))
+
+	sc := openReview(t, s, dir, "reviews")
+	sc.await("merged or closed")
+
+	// The row moves to the finished lane once the batched state lands, which is
+	// the call the journal counts rather than anything drawn.
+	sc.awaitPlayed(s, 1)
+
+	sc.press("g")
+	sc.await("lean finished")
+
+	sc.press("c")
+	sc.await("dropped KyleKing/second-look#2 (merged)")
+
+	if _, err := os.Stat(artifact.Path(stored(t, dir), 2)); !os.IsNotExist(err) {
+		t.Errorf("the finished review is still on disk: %v", err)
+	}
+
+	sc.press("q")
+
+	if code := sc.wait(); code != 0 {
+		t.Fatalf("the list exited %d:\n%s", code, sc.text())
 	}
 }
 
@@ -343,9 +402,8 @@ func TestAStagedRowSaysWhatItsAgentIsDoing(t *testing.T) {
 	}
 }
 
-// The staged tab is a queue, not a history: what needs a hand sorts ahead of
-// what is already finished, and a pull request the forge has closed or merged
-// sorts after everything, however much work the file holds.
+// The staged tab is a queue, not a history: the lanes read what needs a hand
+// first and the forge's finished last, a stray ahead of only them.
 func TestTheStagedTabReadsAsAQueue(t *testing.T) {
 	t.Parallel()
 
@@ -355,13 +413,18 @@ func TestTheStagedTabReadsAsAQueue(t *testing.T) {
 		{Repository: "acme/api", Number: 3, Draft: 1},
 		{Repository: "acme/api", Number: 4, Broken: "nope"},
 		{Repository: "acme/api", Number: 2, Ready: 2},
+		{Repository: "acme/api", Number: 6, Todo: 1},
+		{Repository: "acme/api", Number: 7, Ready: 1, Stray: true},
 	}
 	remote := map[string]prstate.State{
 		"acme/api#2": {State: "MERGED"},
 		"acme/api#3": {State: "CLOSED"},
 	}
 
-	want := []string{"acme/api#1", "acme/api#5", "acme/api#4", "acme/api#3", "acme/api#2"}
+	want := []string{
+		"acme/api#6", "acme/api#1", "acme/api#5", "acme/api#4", "acme/api#7",
+		"acme/api#3", "acme/api#2",
+	}
 	if got := main.StagedOrder(rows, remote); !slices.Equal(got, want) {
 		t.Errorf("the queue reads %v, want %v", got, want)
 	}

@@ -223,7 +223,7 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer,
 		err = commentOn(ctx, h.at, stdout)
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
 		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActMerge, tui.ActFold,
-		tui.ActScope:
+		tui.ActScope, tui.ActClean, tui.ActCleanStale:
 		return false, nil
 	}
 
@@ -1245,7 +1245,8 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return "opened " + row.Key, false, nil
 	case tui.ActRefresh:
 		return "", false, nil
-	case tui.ActMark, tui.ActReply, tui.ActResolve, tui.ActDiscard:
+	case tui.ActMark, tui.ActReply, tui.ActResolve, tui.ActDiscard, tui.ActClean,
+		tui.ActCleanStale:
 		return "", false, errNotInInbox
 	case tui.ActFold, tui.ActScope:
 		// They need no row, so they return before this switch is reached.
@@ -1310,7 +1311,7 @@ func leaving(a tui.Action) string {
 		return "commenting on"
 	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
 		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActMerge, tui.ActFold,
-		tui.ActScope:
+		tui.ActScope, tui.ActClean, tui.ActCleanStale:
 	}
 
 	return "opening"

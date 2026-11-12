@@ -51,6 +51,9 @@ type Tab struct {
 	// records a label put on or taken off it. A tab with neither has no labels to pick.
 	Labeled func(r *Row) (labels.Target, []string, bool)
 	Relabel func(row, name string, on bool)
+	// Go is the second keys the tab's g chord answers past the top g itself
+	// always is. A tab with none takes only gg.
+	Go []GoKey
 }
 
 // Badge is a tab's count chip.
@@ -126,6 +129,7 @@ func (l *List) adopt() {
 	l.state, l.hints, l.helpLines, l.inert = t.State, t.Hints, t.Help, t.Inert
 	l.loader, l.onRest, l.columns = t.Loader, t.Rest, t.Columns
 	l.labeled, l.relabel = t.Labeled, t.Relabel
+	l.goes = t.Go
 
 	v := &l.views[l.at]
 	l.cursor, l.offset, l.touched, l.armed = v.cursor, v.offset, v.touched, v.armed
@@ -171,6 +175,11 @@ func (l *List) StartAll() tea.Cmd {
 func (l *List) switchTo(at int) tea.Cmd {
 	if at < 0 || at >= len(l.tabs) || at == l.at {
 		return nil
+	}
+
+	if l.pending != 0 {
+		l.pending = 0
+		l.status, l.failed = "", false
 	}
 
 	l.remember()

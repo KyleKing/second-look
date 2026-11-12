@@ -28,6 +28,13 @@ const (
 	tabReviews
 )
 
+// stagedGo is the g chord's second keys on the staged tab: the cleanup `gc`
+// runs, split by whether reviews gone stale go with the finished ones.
+var stagedGo = []tui.GoKey{
+	{Key: "c", What: "clean finished", Act: tui.ActClean},
+	{Key: "s", What: "clean stale too", Act: tui.ActCleanStale},
+}
+
 // openQueue is the queue screen: three tabs over one cursor, one filter
 // vocabulary, and one set of movement keys.
 //
@@ -76,7 +83,7 @@ func queueOnce(
 			Name:     wordStaged,
 			Sections: rv.sections, Act: rv.act, State: rv.state,
 			Hints: reviewsHints, Help: reviewsHelp, Loader: rv, Rest: rv.restedOn,
-			Badge: rv.badge, Columns: rv.columns,
+			Badge: rv.badge, Columns: rv.columns, Go: stagedGo,
 		},
 	}, at).
 		WithLabeling(labeling(".")).
@@ -223,6 +230,13 @@ func afterQueue(
 	switch {
 	case rv.move != nil:
 		return at, checkoutRef(ctx, *rv.move, stdin, stdout)
+	case rv.clean != nil:
+		var args []string
+		if *rv.clean {
+			args = append(args, "--stale")
+		}
+
+		return at, gcCmd(ctx, args, stdout)
 	case th.reply != nil:
 		return at, answer(ctx, th.reply, th.repo, stdin, stdout)
 	case in.next == nil:
