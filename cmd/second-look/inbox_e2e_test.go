@@ -16,6 +16,7 @@ import (
 
 	main "github.com/kyleking/second-look/cmd/second-look"
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/checkouts"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/labels"
 )
@@ -329,6 +330,110 @@ func inboxThenReview(t *testing.T) string {
 	}
 
 	return path
+}
+
+// TestInboxScreenChecksOutThenOpensTheReview is C on a row whose repository is
+// already cloned here: the screen gives the terminal back, the checkout's own
+// progress is written into it, and a checkout that lands opens the review it
+// moved for rather than dropping back to the list.
+//
+// The clone stands on the pull request head from the start, which is the only
+// way a cassette can make the move land: gh is replayed but git is not, so the
+// head check after a checkout has to be real.
+func TestInboxScreenChecksOutThenOpensTheReview(t *testing.T) {
+	t.Parallel()
+
+	home := quietHome(t)
+	clone, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, inboxThenCheckout(t, clone, sha))
+
+	sc := openReview(t, s, t.TempDir(),
+		"HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "XDG_CACHE_HOME="+home+"/.cache", "inbox")
+	sc.await("to review")
+	sc.await("second-look#101")
+
+	sc.press("/second-look#101")
+	sc.press("\r")
+	sc.press("C")
+
+	// While the terminal is handed over, what a silent checkout used to cost
+	// is written: the note naming what is happening and the gh calls behind it.
+	sc.await("looking for checkouts of kyleking/second-look")
+	sc.await("gh pr view 101")
+	sc.await("leased " + clone)
+	sc.await("testdata/fixture/sample.go")
+
+	// Leaving the review returns to the same queue, its filter still on.
+	at := sc.mark()
+
+	sc.press("q")
+	sc.awaitFrom(at, "showing 1 of")
+
+	sc.press("q")
+	sc.wait()
+
+	s.RequireAllPlayed(t)
+}
+
+// inboxThenCheckout is the queue's own cost plus what C on the fixture row
+// spends: the pull request's branch so the dashboard's clones can be ranked,
+// the dashboard itself, the reads preparing the review costs inside the clone,
+// and the head check and commit list an attached review screen makes once it
+// is open. The row is the one pull request the searches address to
+// kyleking/second-look, the repository the scratch remote names, and the clone
+// stands on the head the cassette reports.
+func inboxThenCheckout(t *testing.T, clone, sha string) string {
+	t.Helper()
+
+	c := onScreen(t)
+	recorded := load(t, "post-review")
+
+	// inside is the recorded call made from the clone, where gh names the
+	// repository off the remote rather than carrying --repo. The remote's
+	// capitalization is what the calls inside it carry, which is why they are
+	// addressed to KyleKing rather than to the row's kyleking.
+	inside := func(in ghcassette.Interaction) ghcassette.Interaction {
+		in = addressed(in, "KyleKing/second-look", 101)
+		if i := slices.Index(in.Args, "--repo"); i >= 0 {
+			in.Args = slices.Delete(in.Args, i, i+2)
+		}
+
+		return in
+	}
+
+	c.Interactions = append(c.Interactions,
+		addressed(recorded.Interactions[0], "kyleking/second-look", 101),
+		dashboardInteraction(clone),
+		inside(recorded.Interactions[0]),
+		inside(recorded.Interactions[1]),
+		inside(recorded.Interactions[0]),
+		inside(commitsInteraction(nil, nil)),
+	)
+
+	for _, in := range threadInteraction(t) {
+		c.Interactions = append(c.Interactions, addressed(in, "KyleKing/second-look", 101))
+	}
+
+	restamp(c, sha)
+
+	path := filepath.Join(t.TempDir(), "inbox-checkout.golden")
+	if err := ghcassette.Save(path, c); err != nil {
+		t.Fatalf("writing the derived cassette: %v", err)
+	}
+
+	return path
+}
+
+// dashboardInteraction is gh repo-dashboard naming the clone the test made as
+// the one checkout of the fixture repository, clean enough to lease without a
+// stash question.
+func dashboardInteraction(clone string) ghcassette.Interaction {
+	return ghcassette.Interaction{
+		Args: []string{"repo-dashboard", "--cli", "-depth", checkouts.Depth},
+		Stdout: fmt.Sprintf(
+			`{"repos":[{"path":%q,"branch":%q,"remote":"kyleking/second-look","worktrees":[],"dirty":false}]}`,
+			clone, headBranch),
+	}
 }
 
 // TestInboxScreenApprovesOnTheSecondPress is the one verb on a row that sends
