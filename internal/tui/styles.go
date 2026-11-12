@@ -80,7 +80,10 @@ type styles struct {
 	edge      lipgloss.Style
 	agentEdge lipgloss.Style
 	fill      color.Color
-	severity  map[string]lipgloss.Style
+	// cardNote is the note face on the card's raised fill, where Muted reads
+	// under the legibility floor; it stays one step under body text.
+	cardNote lipgloss.Style
+	severity map[string]lipgloss.Style
 }
 
 // loadStyles is the one palette this process draws with: Ink, whatever the
@@ -148,6 +151,7 @@ func newStyles() styles {
 		edge:        base.Foreground(p.Overlay2),
 		agentEdge:   base.Foreground(p.Mauve),
 		fill:        p.Surface0,
+		cardNote:    base.Foreground(p.Subtext0).Italic(true),
 		severity: map[string]lipgloss.Style{
 			"blocker": base.Foreground(p.Red).Bold(true),
 			"major":   base.Foreground(p.Peach).Bold(true),

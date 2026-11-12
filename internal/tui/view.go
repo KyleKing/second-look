@@ -859,7 +859,7 @@ func (m *Model) pastedCode(r row) string {
 	for _, piece := range spanRuns(r.lit, len(r.text)) {
 		face, ok := m.rich.class[piece.class]
 		if !ok {
-			face = m.styles.note
+			face = m.styles.cardNote
 		}
 
 		b.WriteString(under(face, m.styles.fill, r.role != 0).Render(r.text[piece.from:piece.to]))
@@ -953,7 +953,7 @@ func (m *Model) commentRow(r row) (string, lipgloss.Style) {
 
 	switch {
 	case r.kind == rowNote, r.kind == rowTurn:
-		return text, m.styles.note
+		return text, m.styles.cardNote
 	case !r.head:
 		return text, m.styles.body
 	case r.comment < 0:

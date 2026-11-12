@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"image/color"
+	"sort"
 	"strings"
 	"time"
 
@@ -339,6 +340,22 @@ func Readings() []Reading {
 		"quiet label": &st.lanes.quietLabel, "quiet count": &st.lanes.quietCount,
 	} {
 		add(name, c.GetForeground(), base)
+	}
+
+	// The card's text faces read on its raised fill rather than the frame.
+	fill := st.fill
+	add("card note on the fill", st.cardNote.GetForeground(), fill)
+	add("card title on the fill", st.rail.GetForeground(), fill)
+	add("card body on the fill", st.body.GetForeground(), fill)
+
+	names := make([]string, 0, len(st.severity))
+	for name := range st.severity {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		add(name+" on the fill", st.severity[name].GetForeground(), fill)
 	}
 
 	return out

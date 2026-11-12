@@ -236,9 +236,14 @@ func (m *Model) cardTitle(r row) lipgloss.Style {
 	return m.styles.forSeverity(m.review.Comments[r.comment].Severity)
 }
 
+// bodyFace is what a card's inner rows read in: notes and turns one step under
+// the prose, and a reply's head at the severity a card of its own would carry.
 func (m *Model) bodyFace(r row) lipgloss.Style {
-	if r.kind == rowNote || r.kind == rowTurn {
-		return m.styles.note
+	switch {
+	case r.kind == rowNote || r.kind == rowTurn:
+		return m.styles.cardNote
+	case r.head:
+		return m.cardTitle(r)
 	}
 
 	return m.styles.body
