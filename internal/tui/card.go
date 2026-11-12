@@ -126,7 +126,8 @@ func (m *Model) topEdge(r row, edge lipgloss.Style, width int) string {
 		state = " · " + r.answer
 	}
 
-	title := cut(r.text, room-textWidth(state))
+	// The title leaves a cell for the rule: filling room exactly gives strings.Repeat a negative count.
+	title := cut(r.text, room-textWidth(state)-1)
 	used := textWidth(title) + textWidth(state)
 
 	aside := ""
@@ -134,9 +135,9 @@ func (m *Model) topEdge(r row, edge lipgloss.Style, width int) string {
 		aside = r.aside
 	}
 
-	rule := room - used - 1
+	rule := max(0, room-used-1)
 	if aside != "" {
-		rule = room - used - textWidth(aside) - asideGaps
+		rule = max(0, room-used-textWidth(aside)-asideGaps)
 	}
 
 	edge = m.on(edge)
