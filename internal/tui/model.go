@@ -3933,7 +3933,7 @@ func (m *Model) buildRows(lay layout) screen {
 	case viewTrouble:
 		return buildTrouble(m.diff, m.trouble, m.probing, m.troubled, lay)
 	case viewComments:
-		return buildList(m.review, m.diff, lay)
+		return buildList(m.review, m.diff, m.threads, lay)
 	case viewCode:
 		return buildCode(m.review, m.diff, m.threads, lay)
 	case viewThreads:

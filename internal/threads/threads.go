@@ -90,6 +90,23 @@ func (t *Thread) ReplyTo() int64 {
 	return t.Notes[0].ID
 }
 
+// For is the thread a reply to inReplyTo belongs to, nil where the cache does
+// not carry it. A reply is allowed to anchor nowhere of its own, so every
+// place that hangs it on a line finds its thread through this.
+func For(ts []Thread, inReplyTo int64) *Thread {
+	if inReplyTo == 0 {
+		return nil
+	}
+
+	for i := range ts {
+		if ts[i].ReplyTo() == inReplyTo {
+			return &ts[i]
+		}
+	}
+
+	return nil
+}
+
 // ForReply is a thread as a caller writing a reply needs it: where it anchors,
 // what was said, and the one id in_reply_to takes. ReplyTo is computed rather
 // than stored, so the cache never carries a value that could disagree with the

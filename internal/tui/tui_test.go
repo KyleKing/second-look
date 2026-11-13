@@ -2809,6 +2809,62 @@ func TestReplyingToAnOpenThread(t *testing.T) {
 	t.Errorf("no reply was staged: %+v", saved.Comments)
 }
 
+// A reply is allowed to carry no anchor of its own, which is the shape
+// `comment add` writes when the batch names only in_reply_to. It hangs under
+// the comment it answers rather than listing under "not in this diff" as if
+// the diff had moved under it.
+func TestAnAnchorlessReplyDrawsInItsThread(t *testing.T) {
+	t.Parallel()
+
+	open := threads.Thread{
+		Path: parsed, Side: artifact.SideRight, Line: 15,
+		Notes: []threads.Note{{ID: 77, Author: "KyleKing", Body: "does this handle nil?"}},
+	}
+
+	reply := artifact.Comment{
+		ID: "r1", InReplyTo: 77, Body: "it does, os.ReadFile is nil-safe",
+		Status: artifact.StatusReady,
+	}
+
+	_, path, _ := fixtureWith(t, patch, reply)
+	m := tui.New(t.Context(), reviewAt(t, path), diff.Parse([]byte(patch)), path,
+		func(context.Context, *artifact.Review) (string, error) { return "", nil },
+		tui.WithThreads([]threads.Thread{open}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	got := plain(m.Frame())
+
+	if !strings.Contains(got, "it does, os.ReadFile is nil-safe") {
+		t.Errorf("the reply is not on screen:\n%s", got)
+	}
+	if strings.Contains(got, "not in this diff") {
+		t.Errorf("a reply its thread claimed listed as unanchored:\n%s", got)
+	}
+}
+
+// A reply whose thread is not in the cache cannot draw in a card that is not
+// there, so it lands in the unanchored list saying what it answers rather than
+// pointing at a blank anchor.
+func TestAReplyToAnUncachedThreadSaysWhatItAnswers(t *testing.T) {
+	t.Parallel()
+
+	reply := artifact.Comment{
+		ID: "r1", InReplyTo: 77, Body: "yes, resolved in the next push",
+		Status: artifact.StatusReady,
+	}
+
+	m, _, _ := fixtureWith(t, patch, reply)
+	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+	got := plain(m.Frame())
+
+	if !strings.Contains(got, "not in this diff") ||
+		!strings.Contains(got, "answers comment 77, not in the cached threads") {
+		t.Errorf("an unanswerable reply did not say what it answers:\n%s", got)
+	}
+}
+
 // A resolved thread has nothing left to ask, so it starts folded, does not
 // count toward what is left to judge, and tab -- which walks whatever still
 // wants a decision -- skips it and stops on an open one only.

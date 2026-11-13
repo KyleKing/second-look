@@ -10,12 +10,13 @@ import (
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/meta"
+	"github.com/kyleking/second-look/internal/threads"
 )
 
 // shutHead is a folded file's heading: what it holds, whatever can be asked of
 // it, and the key that shows its lines.
-func shutHead(head row, words []string, r *artifact.Review, hints ...chunk) row {
-	if n := staged(r, head.path); n != "" {
+func shutHead(head row, words []string, r *artifact.Review, ts []threads.Thread, hints ...chunk) row {
+	if n := staged(r, head.path, ts); n != "" {
 		words = append(words, n)
 	}
 
@@ -32,12 +33,12 @@ func foldedFile(f *diff.File, head row, c fileCtx) []row {
 	word, deps := lockRows(f, head.path, c.lay)
 
 	if word == "" {
-		head = shutHead(head, []string{plural(hunkCount(f), "hunk")}, c.r)
+		head = shutHead(head, []string{plural(hunkCount(f), "hunk")}, c.r, c.ts)
 	} else {
 		asking, ask := askedWords(f, c.lay.answered[head.path])
 		words := append([]string{word}, asking...)
 		words = append(words, versionedWords(c.lay.versioned[head.path])...)
-		head = shutHead(head, words, c.r, ask...)
+		head = shutHead(head, words, c.r, c.ts, ask...)
 	}
 
 	for _, ln := range f.Lines {

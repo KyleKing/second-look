@@ -44,17 +44,30 @@ func review() *artifact.Review {
 
 // The marked diff is the change and what is said about it as one thing, with a
 // comment on a removed line marked where it was removed rather than beside
-// whatever now sits at that number.
+// whatever now sits at that number, and a reply that anchors nowhere of its
+// own marked on the line its thread hangs from.
 func TestDiffMarksEveryComment(t *testing.T) {
 	t.Parallel()
 
-	out := brief.Diff(diff.Parse([]byte(patch)), review())
+	r := review()
+	r.Comments = append(r.Comments, artifact.Comment{
+		ID: "reply", InReplyTo: 91, Body: "Fixed in the next push.",
+		Status: artifact.StatusReady,
+	})
+
+	open := []threads.Thread{{
+		Path: "pkg/read.go", Side: artifact.SideRight, Line: 4,
+		Notes: []threads.Note{{ID: 91, Author: "kyleking", Body: "Does this drop the error?"}},
+	}}
+
+	out := brief.Diff(diff.Parse([]byte(patch)), r, open)
 
 	for _, want := range []string{
 		"pkg/read.go",
 		"@@ -1,4 +1,5 @@",
 		"<<< wrap  major/ready",
 		"<<< gone  question/draft",
+		"<<< reply  ready",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("%q is missing from:\n%s", want, out)
@@ -63,12 +76,20 @@ func TestDiffMarksEveryComment(t *testing.T) {
 
 	lines := strings.Split(out, "\n")
 	for i, l := range lines {
-		if !strings.Contains(l, "<<< gone") {
-			continue
-		}
+		switch {
+		case strings.Contains(l, "<<< gone"):
+			if !strings.Contains(lines[i-1], "- func Read() error") {
+				t.Errorf("the comment on the removed line marks %q", lines[i-1])
+			}
+		case strings.Contains(l, "<<< reply"):
+			j := i - 1
+			for strings.Contains(lines[j], "<<<") {
+				j--
+			}
 
-		if !strings.Contains(lines[i-1], "- func Read() error") {
-			t.Errorf("the comment on the removed line marks %q", lines[i-1])
+			if !strings.Contains(lines[j], "return open(path)") {
+				t.Errorf("the anchorless reply marks %q rather than its thread's line", lines[j])
+			}
 		}
 	}
 }

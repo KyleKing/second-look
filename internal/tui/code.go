@@ -80,7 +80,7 @@ func buildCode(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout
 	s := screen{numWidth: numberWidth(d)}
 	placed := make([]bool, len(r.Comments))
 	ctx := codeCtx{
-		d: d, r: r, ts: ts, byLine: indexComments(r), byThread: indexThreads(ts),
+		d: d, r: r, ts: ts, byLine: indexComments(r, ts), byThread: indexThreads(ts),
 		placed: placed, lay: lay,
 	}
 
@@ -119,7 +119,7 @@ func (s screen) codeRows(f *diff.File, want map[int]bool, c codeCtx) []row {
 	rows := []row{{kind: rowFile, text: p, path: p, comment: -1}}
 
 	if c.lay.shut(p) {
-		rows[0] = shutHead(rows[0], []string{plural(hunkCount(f), "hunk")}, c.r)
+		rows[0] = shutHead(rows[0], []string{plural(hunkCount(f), "hunk")}, c.r, c.ts)
 
 		for _, ln := range f.Lines {
 			claim(c.byLine, c.placed, p, ln)

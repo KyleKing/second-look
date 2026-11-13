@@ -27,8 +27,8 @@ const numbers = 5
 
 // Diff prints the diff with each staged comment marked on the line it anchors
 // to, so an agent reads the change and what is said about it as one thing.
-func Diff(d *diff.Diff, r *artifact.Review) string {
-	at := anchored(r)
+func Diff(d *diff.Diff, r *artifact.Review, ts []threads.Thread) string {
+	at := anchored(r, ts)
 
 	var b strings.Builder
 
@@ -171,37 +171,42 @@ func conversation(c *artifact.Comment, ts []threads.Thread) string {
 		return ""
 	}
 
-	for i := range ts {
-		if ts[i].ReplyTo() != c.InReplyTo {
-			continue
-		}
-
-		var b strings.Builder
-
-		b.WriteString("\nIT ANSWERS\n")
-
-		for _, n := range ts[i].Notes {
-			fmt.Fprintf(&b, "  @%s\n%s\n", n.Author, indent("  "+n.Body))
-		}
-
-		return b.String()
+	t := threads.For(ts, c.InReplyTo)
+	if t == nil {
+		return fmt.Sprintf("\nIT ANSWERS comment %d, which is not in the cached threads.\n", c.InReplyTo)
 	}
 
-	return fmt.Sprintf("\nIT ANSWERS comment %d, which is not in the cached threads.\n", c.InReplyTo)
+	var b strings.Builder
+
+	b.WriteString("\nIT ANSWERS\n")
+
+	for _, n := range t.Notes {
+		fmt.Fprintf(&b, "  @%s\n%s\n", n.Author, indent("  "+n.Body))
+	}
+
+	return b.String()
 }
 
 // anchored indexes the comments by the line they hang from, since a line can
-// carry several and the diff is walked once.
-func anchored(r *artifact.Review) map[anchor][]*artifact.Comment {
+// carry several and the diff is walked once. A reply is allowed to carry no
+// anchor of its own, and one without hangs from the line its thread does.
+func anchored(r *artifact.Review, ts []threads.Thread) map[anchor][]*artifact.Comment {
 	out := map[anchor][]*artifact.Comment{}
 
 	for i := range r.Comments {
 		c := &r.Comments[i]
-		if c.InReplyTo != 0 && c.Path == "" {
-			continue
+		a := anchor{c.Path, c.Side, c.Line}
+
+		if c.Path == "" {
+			t := threads.For(ts, c.InReplyTo)
+			if t == nil {
+				continue
+			}
+
+			a = anchor{t.Path, t.Side, t.Line}
 		}
 
-		out[anchor{c.Path, c.Side, c.Line}] = append(out[anchor{c.Path, c.Side, c.Line}], c)
+		out[a] = append(out[a], c)
 	}
 
 	return out

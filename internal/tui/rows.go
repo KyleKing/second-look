@@ -179,7 +179,7 @@ type screen struct {
 // dropped, because a comment nobody can see is a comment nobody can retract.
 func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) screen {
 	s := screen{numWidth: numberWidth(d)}
-	byLine := indexComments(r)
+	byLine := indexComments(r, ts)
 	byThread := indexThreads(ts)
 	placed := make([]bool, len(r.Comments))
 
@@ -630,8 +630,8 @@ func claim(byLine map[anchor][]int, placed []bool, p string, l diff.Line) {
 
 // staged is what a folded file is holding, since a fold that hid work would
 // make the outline the one view that cannot be trusted.
-func staged(r *artifact.Review, path string) string {
-	c := countFor(r, path)
+func staged(r *artifact.Review, path string, ts []threads.Thread) string {
+	c := countFor(r, path, ts)
 	if n := c.ready + c.draft + c.todo; n > 0 {
 		return plural(n, "comment")
 	}
@@ -659,9 +659,12 @@ func (s screen) appendUnanchored(r *artifact.Review, placed []bool, lay layout) 
 
 	for _, i := range loose {
 		c := &r.Comments[i]
-		s.rows = append(s.rows, row{
-			kind: rowHunk, text: fmt.Sprintf("%s %s %d", c.Path, c.Side, c.Line), comment: -1,
-		})
+		where := fmt.Sprintf("%s %s %d", c.Path, c.Side, c.Line)
+		if c.InReplyTo != 0 && c.Path == "" {
+			where = fmt.Sprintf("answers comment %d, not in the cached threads", c.InReplyTo)
+		}
+
+		s.rows = append(s.rows, row{kind: rowHunk, text: where, comment: -1})
 		s.rows = append(s.rows, commentRows(c, i, c.Path, lay, s.numWidth, inRun{})...)
 	}
 
@@ -685,12 +688,22 @@ func anchorOf(path string, l diff.Line) anchor {
 	return anchor{path: path, side: artifact.SideRight, line: l.New}
 }
 
-func indexComments(r *artifact.Review) map[anchor][]int {
+// indexComments groups staged comments by the diff line they anchor to. A
+// reply is allowed to carry no anchor of its own, and one without hangs where
+// the comment it answers hangs, so its thread's card claims it.
+func indexComments(r *artifact.Review, ts []threads.Thread) map[anchor][]int {
 	out := make(map[anchor][]int, len(r.Comments))
 
 	for i := range r.Comments {
 		c := &r.Comments[i]
 		a := anchor{path: c.Path, side: c.Side, line: c.Line}
+
+		if c.Path == "" {
+			if t := threads.For(ts, c.InReplyTo); t != nil {
+				a = anchor{path: t.Path, side: t.Side, line: t.Line}
+			}
+		}
+
 		out[a] = append(out[a], i)
 	}
 
@@ -704,18 +717,18 @@ func indexComments(r *artifact.Review) map[anchor][]int {
 // every action work in it unchanged. Skipped comments are counted rather than
 // listed: a finding considered and declined is worth recording and not worth
 // re-reading, and the diff view still shows it where it sits.
-func buildList(r *artifact.Review, d *diff.Diff, lay layout) screen {
+func buildList(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) screen {
 	s := screen{numWidth: numberWidth(d)}
 
-	for _, path := range commentPaths(r) {
-		c := countFor(r, path)
+	for _, path := range commentPaths(r, ts) {
+		c := countFor(r, path, ts)
 		s.rows = append(s.rows, row{kind: rowBlank, comment: -1}, row{
 			kind: rowFile, path: path, comment: -1,
 			text: path + "  " + strings.Join(c.words(), " · "),
 		})
 
 		for i := range r.Comments {
-			if r.Comments[i].Path != path || r.Comments[i].Status == artifact.StatusSkip {
+			if onPath(&r.Comments[i], ts) != path || r.Comments[i].Status == artifact.StatusSkip {
 				continue
 			}
 
@@ -733,15 +746,27 @@ func buildList(r *artifact.Review, d *diff.Diff, lay layout) screen {
 	return s
 }
 
+// onPath is the file a comment belongs to: its own, or the file of the thread
+// a reply that carries no anchor answers.
+func onPath(c *artifact.Comment, ts []threads.Thread) string {
+	if c.Path == "" {
+		if t := threads.For(ts, c.InReplyTo); t != nil {
+			return t.Path
+		}
+	}
+
+	return c.Path
+}
+
 // commentPaths is every file a comment sits on, in the order the diff carries
 // them, so the list reads in the same order as the diff behind it.
-func commentPaths(r *artifact.Review) []string {
+func commentPaths(r *artifact.Review, ts []threads.Thread) []string {
 	seenPath := map[string]bool{}
 
 	var out []string
 
 	for i := range r.Comments {
-		if p := r.Comments[i].Path; p != "" && !seenPath[p] {
+		if p := onPath(&r.Comments[i], ts); p != "" && !seenPath[p] {
 			seenPath[p] = true
 
 			out = append(out, p)
@@ -751,11 +776,11 @@ func commentPaths(r *artifact.Review) []string {
 	return out
 }
 
-func countFor(r *artifact.Review, path string) tally {
+func countFor(r *artifact.Review, path string, ts []threads.Thread) tally {
 	var out tally
 
 	for i := range r.Comments {
-		if r.Comments[i].Path != path {
+		if onPath(&r.Comments[i], ts) != path {
 			continue
 		}
 

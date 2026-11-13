@@ -1059,7 +1059,12 @@ func showCmd(ctx context.Context, args []string, stdout io.Writer) error {
 			return fmt.Errorf("reading the cached diff: %w", err)
 		}
 
-		return write(stdout, brief.Diff(diff.Parse(cached), r))
+		var open []threads.Thread
+		if err := artifact.LoadThreads(t.Store, r.HeadSHA, &open); err != nil {
+			return fmt.Errorf("reading the cached review threads: %w", err)
+		}
+
+		return write(stdout, brief.Diff(diff.Parse(cached), r, open))
 	}
 
 	payloadOnly := flag == "--payload"

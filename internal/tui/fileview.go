@@ -146,7 +146,7 @@ func buildWhole(
 	}
 
 	ctx := codeCtx{
-		d: d, r: r, ts: ts, byLine: indexComments(r), byThread: indexThreads(ts),
+		d: d, r: r, ts: ts, byLine: indexComments(r, ts), byThread: indexThreads(ts),
 		placed: make([]bool, len(r.Comments)), lay: lay,
 	}
 
