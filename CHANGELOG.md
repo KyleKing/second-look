@@ -1,3 +1,23 @@
+## v0.52.0 (2026-11-13)
+
+### Feat
+
+- **tui**: fold the agent pane’s tool calls into a count
+- **acp**: keep what a tool call returned on its transcript entry
+- **tui**: let S post a verdict on a review with no comments
+- **tui**: tab reaches the review body and note
+- **reviews**: lane the staged tab and clean it with a g chord
+- **inbox**: show the commands and progress behind a checkout
+- **inbox**: C checks out then opens the review
+- **inbox**: a "to review" lane
+
+### Fix
+
+- **tui**: draw card notes and nested reply heads at legible contrast
+- **review**: wrap slop-strata's errors and put the gosec nolint on the call
+- **tui**: clamp the rest of the counts that reach strings.Repeat
+- **tui**: leave room for the card edge rule so a full title can't panic
+
 ## v0.51.1 (2026-11-10)
 
 ### Fix
