@@ -164,12 +164,15 @@ func queueScreens(ctx context.Context, snaps *snapshot.Store) (*inboxScreen, *th
 		ahead:      keepAhead(cfg),
 		priority:   cfg.PriorityLabels(),
 		plan:       func() []inbox.Bucket { return planQueue(cfg) },
+		seen:       map[string]bool{},
 	}
 
 	th, err := newThreadsScreen(ctx, snaps)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+
+	th.seen = in.seen
 
 	rows, err := staged()
 	if err != nil {

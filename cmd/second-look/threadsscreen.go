@@ -73,6 +73,9 @@ type threadsScreen struct {
 	// disk when the queue opens. A thread on a pull request with a review
 	// staged here is work already started, which is what the inbox says too.
 	local map[string]inbox.Known
+	// seen is every pull request a review was opened on this sitting, shared
+	// with the inbox, which owns it.
+	seen map[string]bool
 }
 
 // newThreadsScreen reads the read marks, which are local, and leaves the queue
@@ -140,6 +143,39 @@ func (s *threadsScreen) Start() tea.Cmd {
 
 		return noticeMsg{threads: threads, err: err}
 	})
+}
+
+// Resume re-reads the pull request a review was opened on, and only it: a
+// thread resolved or a review posted there moves nothing its record checks,
+// so the record is dropped for the read to fetch it again.
+func (s *threadsScreen) Resume() tea.Cmd {
+	if len(s.seen) == 0 || s.waiting {
+		return nil
+	}
+
+	s.local = localKnowledge()
+
+	prior := &conversations.Prior{Queue: *s.queue, Records: s.vouched()}
+
+	return func() tea.Msg {
+		read, err := conversations.ReadQueue(s.ctx, ".", conversations.DefaultLimit, prior, time.Now())
+
+		return queueMsg{read: read, err: err}
+	}
+}
+
+// vouched is the records a read may still stand on: every pull request's but
+// the opened ones'.
+func (s *threadsScreen) vouched() map[string]conversations.Record {
+	records := make(map[string]conversations.Record, len(s.records))
+
+	for key, rec := range s.records {
+		if !s.seen[key] {
+			records[key] = rec
+		}
+	}
+
+	return records
 }
 
 // paint puts the snapshot on screen as rows nothing has confirmed yet, and says

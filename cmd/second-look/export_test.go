@@ -195,6 +195,24 @@ func ResumedInbox(
 	return s.local, s.Resume() != nil
 }
 
+// ResumedThreads is what the conversations tab stops vouching for coming back
+// from a review opened on seen: every pull request's record but theirs, the
+// local marks re-read, and whether a queue read went out. The command it
+// returns reaches the forge, so the test asks only that it exists.
+func ResumedThreads(
+	records map[string]conversations.Record, seen ...string,
+) (map[string]inbox.Known, map[string]conversations.Record, bool) {
+	opened := make(map[string]bool, len(seen))
+	for _, key := range seen {
+		opened[key] = true
+	}
+
+	s := &threadsScreen{queue: &conversations.Queue{}, records: records, seen: opened}
+	cmd := s.Resume()
+
+	return s.local, s.vouched(), cmd != nil
+}
+
 // QueueFrame is the inbox's list, stripped of styling, drawn on a terminal of
 // width by height.
 func QueueFrame(lanes []inbox.Bucket, width, height int) string {

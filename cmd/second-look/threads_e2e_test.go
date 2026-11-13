@@ -9,10 +9,12 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kyleking/aragonite/ghcassette"
 
 	main "github.com/kyleking/second-look/cmd/second-look"
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/conversations"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/notice"
@@ -375,6 +377,54 @@ func TestThreadsScreen(t *testing.T) {
 // readLine is what the footer says after a conversation is read: the pull
 // request and the anchor, which is what the mark on disk has to name.
 var readLine = regexp.MustCompile(`read (\S+#\d+ \S+)`)
+
+// Coming back from a review fetches the pull request it was opened on again:
+// a thread resolved there is gone from the queue but moves none of what its
+// record checks, so the record is the thing that has to go. Not parallel: the
+// staged files the screen reads are under HOME.
+func TestThreadsResumeRereadsTheOpenedRow(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+
+	const (
+		key   = "acme/widget#7"
+		other = "acme/widget#9"
+	)
+
+	records := map[string]conversations.Record{
+		key:   {Fetched: time.Now()},
+		other: {Fetched: time.Now()},
+	}
+
+	local, vouched, fetching := main.ResumedThreads(records, key)
+
+	if _, ok := vouched[key]; ok {
+		t.Error("the opened pull request is still vouched for")
+	}
+	if _, ok := vouched[other]; !ok {
+		t.Error("a pull request nobody opened lost its record")
+	}
+	if !fetching {
+		t.Error("no queue read went out for the opened row")
+	}
+	if local[key].Reviewed {
+		t.Errorf("a review that posted still reads as staged: %+v", local[key])
+	}
+
+	// A review still staged after the sitting puts its mark back.
+	root := storeFor(t, home, "acme", "widget")
+	write(t, artifact.Path(root, 7), []byte("version = 1\nhost = 'github.com'\n"+
+		"owner = 'acme'\nrepo = 'widget'\nnumber = 7\nhead_sha = '"+fixtureHeadSHA+"'\n"+
+		"[[comment]]\nid = 'c1'\npath = 'a.go'\nline = 3\nside = 'RIGHT'\n"+
+		"status = 'ready'\nbody = 'name it'\n"))
+
+	local, _, _ = main.ResumedThreads(records, key)
+
+	if !local[key].Reviewed {
+		t.Errorf("the staged review's mark did not come back: %+v", local[key])
+	}
+}
 
 // The notification stream rides in the same tab as the conversations: the
 // fixture's invented repositories stand in for a real stream, which would
