@@ -14,6 +14,7 @@ type Lane int
 const (
 	LaneReady Lane = iota
 	LaneBack
+	LaneInProgress
 	LaneReview
 	LaneWaiting
 	LaneMerged
@@ -24,7 +25,7 @@ const (
 	changesRequested = "CHANGES_REQUESTED"
 )
 
-var laneNames = [...]string{"ready to merge", "back to you", "to review", "waiting on others", "merged"}
+var laneNames = [...]string{"ready to merge", "back to you", "in progress", "to review", "waiting on others", "merged"}
 
 func (l Lane) String() string { return laneNames[l] }
 
@@ -73,7 +74,7 @@ const (
 const ShortWidth = 14
 
 // Judgement is what a row's lane, columns, and ordering signals come to. The
-// three booleans are only ever set in LaneReview.
+// three booleans are only ever set on a row judged yours to review.
 //
 // Why is the prose that --json and the plain queue print. Glyph, Short, Long,
 // and Tone say the same thing to a screen, which draws the glyph in the tone's
@@ -344,7 +345,7 @@ func who(requested []string, me string) string {
 
 func feeds(l Lane) Source {
 	switch l {
-	case LaneReview:
+	case LaneInProgress, LaneReview:
 		return Requested | Reviewed
 	case LaneMerged:
 		return Merged
@@ -354,7 +355,9 @@ func feeds(l Lane) Source {
 	return Requested | Reviewed | Authored
 }
 
-// Lanes sorts what the searches found into the five lanes, each ranked by order.
+// Lanes sorts what the searches found into the six lanes, each ranked by order.
+// A row yours to review that a staged review already holds comments for draws
+// in progress rather than under the new asks.
 // Each row's Judgement is recorded in known, which is what order reads.
 //
 // A lane is pending while any search feeding it is, and carries the first
@@ -424,6 +427,10 @@ func record(p *PullRequest, via Source, facts map[string]Facts, c Context, known
 	j := Judge(p, via, f, c)
 
 	k := known[key]
+	if j.Lane == LaneReview && k.Holds() {
+		j.Lane = LaneInProgress
+	}
+
 	k.Judgement, k.Stack = j, Stack{}
 	known[key] = k
 

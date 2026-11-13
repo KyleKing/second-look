@@ -185,8 +185,8 @@ var inboxHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	{"s", "cycle to the next row order"},
 	{refreshKey, "run the searches again"},
 }, helpLeave(), prose(
-	"The lanes are the sections your config names, or the built-in five: ready to",
-	"merge, back to you, to review, waiting on others, and merged. They are",
+	"The lanes are the sections your config names, or the built-in six: ready to",
+	"merge, back to you, in progress, to review, waiting on others, and merged. They are",
 	"ordered so that finishing comes before beginning. Rows draw in a provisional",
 	"lane from the searches and move once the one batched read of reviews lands.",
 	"Opening one needs no checkout, and C is what gets one when this laptop has a",
@@ -1373,7 +1373,7 @@ func (s *inboxScreen) merge(key string, at ref) (string, bool, error) {
 	switch {
 	case !k.Mergeable():
 		return "", false, fmt.Errorf("%w: %s", errNotReady, key)
-	case k.Ready+k.Draft+k.Replies > 0:
+	case k.Holds():
 		return "", false, fmt.Errorf("%w: %s", errStaged, key)
 	case s.armed != "M "+key:
 		s.armed = "M " + key

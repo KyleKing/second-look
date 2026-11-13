@@ -37,6 +37,10 @@ type Known struct {
 	Removed int `json:"removed,omitempty"`
 }
 
+// Holds reports whether the staged review carries any comments, which is what
+// sets a review underway apart from one only ever staged.
+func (k Known) Holds() bool { return k.Ready+k.Draft+k.Replies > 0 }
+
 // WorthRating is how many rows a bucket needs before its order is worth an API
 // read per row. Recency orders a screenful well enough, and a bucket you can
 // see all of at once is one you can order yourself; past that the rating is
@@ -84,9 +88,10 @@ func Recall(items []PullRequest, ratings artifact.Ratings, known map[string]Know
 // Rank orders a lane the way triage goes rather than the way a feed does.
 //
 // A draft sinks whatever else it is, since nobody is waiting on it. What you
-// have already started comes next, because finishing a review costs less than
-// beginning one. Then a priority label, then a row you are the only human asked
-// to review, then one touching the area of the pull request you opened last,
+// have already staged comes next, because picking a fetched review back up
+// costs less than beginning one. Then a priority label, then a row you are
+// the only human asked to review, then one touching the area of the pull
+// request you opened last,
 // and last the oldest, since a pull request that has waited a week has waited
 // longer than one from this morning. The rating and the line count order
 // nothing: they are drawn beside the row for a reader to weigh.

@@ -1,6 +1,6 @@
 // Package inbox is the review queue, in lanes ordered by how much of the work is
-// yours to do now: what you can merge, what came back to you, what is new, what
-// waits on others, and what has merged.
+// yours to do now: what you can merge, what came back to you, what you have
+// started, what is new, what waits on others, and what has merged.
 //
 // A flat list of pull requests says nothing about what to do next. The lanes
 // keep the work in flight small by finishing before beginning.

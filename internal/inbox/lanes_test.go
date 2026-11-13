@@ -233,6 +233,45 @@ func TestLanesDrawAStackWhereItsMostUrgentMemberIs(t *testing.T) {
 	}
 }
 
+// A request a staged review already holds comments for is underway rather than
+// new, while one only ever staged stays a request.
+func TestLanesSeparateAReviewUnderway(t *testing.T) {
+	t.Parallel()
+
+	const me = "kyle"
+
+	searched := inbox.Plan(30)
+	searched[0].Items = []inbox.PullRequest{
+		{Repository: "o/r", Number: 1, Author: "maria"},
+		{Repository: "o/r", Number: 2, Author: "maria"},
+		{Repository: "o/r", Number: 3, Author: "maria"},
+	}
+
+	facts := map[string]inbox.Facts{
+		"o/r#1": {Requested: []string{me}},
+		"o/r#2": {Requested: []string{me}},
+		"o/r#3": {Requested: []string{me}},
+	}
+	known := map[string]inbox.Known{
+		"o/r#1": {Reviewed: true, Draft: 2},
+		"o/r#2": {Reviewed: true},
+	}
+
+	lanes := inbox.Lanes(searched, facts, inbox.Context{Viewer: me}, known, inbox.Rank)
+
+	if got := numbers(lanes[inbox.LaneInProgress].Items); got != "1" {
+		t.Errorf("in progress lane holds %q, want the review underway", got)
+	}
+
+	if got := numbers(lanes[inbox.LaneReview].Items); got != "2 3" {
+		t.Errorf("to review lane holds %q, want the untouched and the unstaged", got)
+	}
+
+	if got := known["o/r#1"].Lane; got != inbox.LaneInProgress {
+		t.Errorf("the judgement records %v, want in progress", got)
+	}
+}
+
 func numbers(items []inbox.PullRequest) string {
 	out := make([]string, 0, len(items))
 	for i := range items {

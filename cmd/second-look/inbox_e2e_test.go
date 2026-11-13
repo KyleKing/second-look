@@ -45,7 +45,7 @@ func TestInbox(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"ready to merge", "back to you", "to review", "waiting on others", "merged",
+		"ready to merge", "back to you", "in progress", "to review", "waiting on others", "merged",
 		"only you", "+ 2", "approved, checks passing", "2 new comments", "pushed since your review",
 	} {
 		if !strings.Contains(res.stdout, want) {
@@ -123,9 +123,8 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 	dir := t.TempDir()
 	s := ghcassette.Replay(t, inboxCassettePath(t))
 
-	// The row of the new lane that was staged and rated here already, which is
-	// what puts it ahead of the one carrying a priority label: finishing a
-	// review costs less than beginning one.
+	// The review staged and rated here already is underway, which is what puts
+	// its pull request in the in progress lane ahead of the new asks.
 	const (
 		sha  = "aa11bb22cc33dd44ee55ff6677889900aabbccdd"
 		cost = 37
@@ -169,7 +168,7 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 	var lane int
 
 	for i := range buckets {
-		if buckets[i].Bucket == "to review" {
+		if buckets[i].Bucket == "in progress" {
 			lane = i
 		}
 	}
