@@ -532,7 +532,11 @@ func (m *Model) agentRows(width int) []string {
 
 	for i, t := range turns {
 		if !t.hasYou {
-			rows = append(rows, m.agentBlockRows(t.entries, width)...)
+			if !m.agentExpand && len(m.agentBlockRows(t.entries, width)) > turnKeep {
+				rows = append(rows, m.foldedPreamble(t, width))
+			} else {
+				rows = append(rows, m.agentBlockRows(t.entries, width)...)
+			}
 
 			continue
 		}
@@ -619,6 +623,21 @@ func (m *Model) foldedTurn(t agentTurn, width int) string {
 	return cut(m.styles.rail.Render("› "+prompt)+m.styles.hunk.Render(tail), width)
 }
 
+// foldedPreamble is output that landed before any prompt — a loaded session's
+// replayed tail — too tall to draw open: a count keeps the line instead.
+func (m *Model) foldedPreamble(t agentTurn, width int) string {
+	n := 0
+	for _, e := range t.entries {
+		if e.Kind != acp.End {
+			n++
+		}
+	}
+
+	line := fmt.Sprintf("· earlier output · %s · ctrl+o unfolds", plural(n, "entry"))
+
+	return m.styles.hunk.Render(cut(line, width))
+}
+
 // turnDone is the word a turn that ended well closes with.
 const turnDone = "done"
 
@@ -676,12 +695,29 @@ func (m *Model) workingLine() string {
 // each wearing the mark again.
 func (m *Model) entryRows(e acp.Entry, width int) []string {
 	mark, face := m.entryFace(e)
+	indent := strings.Repeat(" ", textWidth(mark))
+
+	if e.Kind == acp.Agent || e.Kind == acp.Thought {
+		lines := m.markdownLines(e.Text, face, width-textWidth(mark))
+		rows := make([]string, 0, len(lines))
+
+		for i, line := range lines {
+			gutter := mark
+			if i > 0 {
+				gutter = indent
+			}
+
+			rows = append(rows, cut(face.Render(gutter)+line, width))
+		}
+
+		return rows
+	}
+
 	text := e.Text
 	if e.Status != "" {
 		text += " · " + e.Status
 	}
 
-	indent := strings.Repeat(" ", textWidth(mark))
 	rows := make([]string, 0, strings.Count(text, "\n")+1)
 
 	for i, line := range wrap(text, width-textWidth(mark)) {

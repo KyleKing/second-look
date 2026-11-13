@@ -83,6 +83,9 @@ type styles struct {
 	// cardNote is the note face on the card's raised fill, where Muted reads
 	// under the legibility floor; it stays one step under body text.
 	cardNote lipgloss.Style
+	// code is the chip inline code and fenced blocks draw in on the agent
+	// transcript: a raised cell so code stands off the prose around it.
+	code     lipgloss.Style
 	severity map[string]lipgloss.Style
 }
 
@@ -152,6 +155,7 @@ func newStyles() styles {
 		agentEdge:   base.Foreground(p.Mauve),
 		fill:        p.Surface0,
 		cardNote:    base.Foreground(p.Subtext0).Italic(true),
+		code:        base.Foreground(p.Sky).Background(p.Surface0),
 		severity: map[string]lipgloss.Style{
 			"blocker": base.Foreground(p.Red).Bold(true),
 			"major":   base.Foreground(p.Peach).Bold(true),

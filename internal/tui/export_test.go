@@ -347,6 +347,7 @@ func Readings() []Reading {
 	add("card note on the fill", st.cardNote.GetForeground(), fill)
 	add("card title on the fill", st.rail.GetForeground(), fill)
 	add("card body on the fill", st.body.GetForeground(), fill)
+	add("agent code on its cell", st.code.GetForeground(), st.code.GetBackground())
 
 	names := make([]string, 0, len(st.severity))
 	for name := range st.severity {
@@ -359,6 +360,14 @@ func Readings() []Reading {
 	}
 
 	return out
+}
+
+// MarkdownLines renders agent markdown the way the pane does, so a test can
+// read the styled lines without standing a session up.
+func MarkdownLines(text string, width int) []string {
+	m := &Model{styles: loadStyles()}
+
+	return m.markdownLines(text, m.styles.body, width)
 }
 
 // SetClock replaces the wall clock the idle hold reads.
