@@ -191,20 +191,26 @@ func queueScreens(ctx context.Context, snaps *snapshot.Store) (*inboxScreen, *th
 // rather than read: what stays behind is what the screen is asked about next,
 // and a row already opened is not a row to open again.
 func chosen(in *inboxScreen, rv *reviewsScreen) (ref, bool) {
+	var r ref
+
 	switch {
 	case rv.open != nil:
-		r := *rv.open
+		r = *rv.open
 		rv.open = nil
-
-		return r, true
 	case in.next != nil && in.next.act == tui.ActChoose:
-		r := in.next.at
+		r = in.next.at
 		in.next = nil
-
-		return r, true
+	default:
+		return ref{}, false
 	}
 
-	return ref{}, false
+	if in.seen == nil {
+		in.seen = map[string]bool{}
+	}
+
+	in.seen[r.String()] = true
+
+	return r, true
 }
 
 // keepAhead is how many reviews the queue stages in front of the cursor. An

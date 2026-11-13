@@ -289,10 +289,9 @@ func (s *Shell) back(esc bool) tea.Cmd {
 	}
 
 	s.list.spinOn(false)
-	s.list.resumed()
 	s.pending.Add(1)
 
-	return tea.Batch(tea.ClearScreen, func() tea.Msg {
+	return tea.Batch(tea.ClearScreen, s.list.resumed(), func() tea.Msg {
 		defer s.pending.Done()
 		closing.close()
 

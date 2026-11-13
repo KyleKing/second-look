@@ -84,14 +84,16 @@ func (s *reviewsScreen) Start() tea.Cmd {
 // Resume rereads the staged list when the queue comes back after a review:
 // posting or discarding one is exactly what a review closes for, so the rows
 // drawn when the screen first opened are the ones that changed under it.
-func (s *reviewsScreen) Resume() {
+func (s *reviewsScreen) Resume() tea.Cmd {
 	rows, err := staged()
 	if err != nil {
-		return
+		return nil
 	}
 
 	s.rows = rows
 	s.remote, s.asked = nil, nil
+
+	return tea.Batch(s.askAll(), s.probeAgents())
 }
 
 // agentsMsg is every session the configured listing answered, keyed by the id

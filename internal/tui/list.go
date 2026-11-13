@@ -371,12 +371,16 @@ func (l *List) labels(msg tea.Msg) {
 
 // resumed asks every tab that can reload itself to, which is how a review that
 // deleted its own artifact comes back off the staged list it was drawn from.
-func (l *List) resumed() {
+func (l *List) resumed() tea.Cmd {
+	var cmds []tea.Cmd
+
 	for i := range l.tabs {
-		if r, ok := l.tabs[i].Loader.(interface{ Resume() }); ok {
-			r.Resume()
+		if r, ok := l.tabs[i].Loader.(interface{ Resume() tea.Cmd }); ok {
+			cmds = append(cmds, r.Resume())
 		}
 	}
+
+	return tea.Batch(cmds...)
 }
 
 // settleFor is how long the cursor holds still before what is under it is paid

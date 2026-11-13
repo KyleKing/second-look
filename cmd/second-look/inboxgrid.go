@@ -82,7 +82,17 @@ func (s *inboxScreen) places() []place {
 func (s *inboxScreen) cells(
 	p *inbox.PullRequest, k inbox.Known, shared map[string]bool, now time.Time,
 ) map[string]tui.Cell {
-	_, have := s.facts[keyOf(p)]
+	key := keyOf(p)
+	_, have := s.facts[key]
+
+	status := statusCell(p, k, have)
+	if s.seen[key] {
+		opened := tui.Span{Text: " · opened", Role: tui.RoleMuted}
+		status.Spans = append(status.Spans, opened)
+		if len(status.Long) > 0 {
+			status.Long = append(status.Long, opened)
+		}
+	}
 
 	return map[string]tui.Cell{
 		colRef:    {Spans: place{repo: p.Repository, number: p.Number}.spans(shared)},
@@ -90,14 +100,14 @@ func (s *inboxScreen) cells(
 		colAuthor: plain(p.Author, tui.RoleCell),
 		colAge:    plain(humanize.Ago(p.Updated, now), tui.RoleAge),
 		colSize:   fact(sizeCell(k)),
-		colStatus: fact(statusCell(p, k, have)),
+		colStatus: fact(status),
 	}
 }
 
 // about is what the inspector says of a row: everything the grid dropped or
 // never had room for, in the order a reader asks for it. The change's size is
 // said only where the grid hid it.
-func about(p *inbox.PullRequest, k inbox.Known, now time.Time) *tui.About {
+func about(p *inbox.PullRequest, k inbox.Known, now time.Time, opened bool) *tui.About {
 	prefix := conventional.FindString(p.Title)
 
 	a := tui.About{
@@ -110,6 +120,10 @@ func about(p *inbox.PullRequest, k inbox.Known, now time.Time) *tui.About {
 			statusFact(p, k),
 			{Text: k.Who},
 		},
+	}
+
+	if opened {
+		a.Facts = append(a.Facts, tui.Fact{Text: "opened this sitting"})
 	}
 
 	if k.Stack.Size > 0 {

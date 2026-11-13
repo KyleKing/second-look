@@ -134,6 +134,11 @@ type inboxScreen struct {
 	// that to the read.
 	started bool
 	forced  bool
+	// seen is every pull request a review was opened on this sitting, which is
+	// what a return from the screen refreshes: the staged review it was opened
+	// on may have posted under it, and its facts moved for the same reason.
+	// Nothing on disk records it, so closing the sitting forgets it.
+	seen map[string]bool
 }
 
 // howManyAtOnce bounds the diffs the rating pool fetches. It is small because
@@ -636,6 +641,57 @@ func (s *inboxScreen) absorbFacts(answered factsMsg) tea.Cmd {
 	return tea.Batch(say, s.prefetch())
 }
 
+// Resume re-reads what the sitting knows about the rows a review was opened
+// on. A review that posted takes its staged file with it, and the row it was
+// drawn from still says it holds comments, so the local map is rebuilt for
+// those rows and their facts read again: the rest of the queue is left alone.
+func (s *inboxScreen) Resume() tea.Cmd {
+	fresh := localKnowledge()
+
+	for key := range s.seen {
+		known := fresh[key]
+
+		if r, ok := s.ratings[key]; ok {
+			known.Added, known.Removed = r.Added, r.Removed
+
+			if r.Rated {
+				known.Cost, known.Rated = r.Cost, true
+			}
+		}
+
+		s.local[key] = known
+	}
+
+	s.regroup()
+
+	var rows []inbox.PullRequest
+	asked := map[string]bool{}
+
+	for i := range s.buckets {
+		for j := range s.buckets[i].Items {
+			p := &s.buckets[i].Items[j]
+			key := keyOf(p)
+
+			if s.seen[key] && !asked[key] && p.ID != "" {
+				asked[key] = true
+				rows = append(rows, *p)
+			}
+		}
+	}
+
+	if len(rows) == 0 {
+		return nil
+	}
+
+	s.factsOut = true
+
+	return func() tea.Msg {
+		fetched, err := inbox.Fetch(s.ctx, ".", rows)
+
+		return factsMsg{fetched: fetched, asked: asked, err: err}
+	}
+}
+
 // regroup rebuilds what is drawn from the searches, the facts, and the ratings
 // held so far. The list keeps the cursor on the row it was on, so a row moving
 // lane under a reader who has started reading does not move the reader.
@@ -1091,7 +1147,7 @@ func (s *inboxScreen) rows(items []inbox.PullRequest, lane inbox.Lane, now time.
 			Key:   key,
 			Repo:  p.Repository,
 			Cells: s.cells(p, k, shared, now),
-			About: about(p, k, now),
+			About: about(p, k, now, s.seen[key]),
 			Dim:   waits || stacked,
 			Stale: s.stale[key],
 		})

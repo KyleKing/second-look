@@ -11,6 +11,7 @@ import (
 	"github.com/kyleking/aragonite/diff"
 
 	"github.com/kyleking/second-look/internal/agents"
+	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/checkouts"
 	"github.com/kyleking/second-look/internal/conversations"
@@ -171,6 +172,27 @@ func QueueRows(items []inbox.PullRequest, lane inbox.Lane, known map[string]inbo
 	s := &inboxScreen{local: known}
 
 	return s.rows(items, lane, time.Now())
+}
+
+// ResumedInbox is what the queue re-reads coming back from a review opened on
+// seen: the local map rebuilt for those rows alone, and whether a facts read
+// went out for them. The command it returns reaches the forge, so the test
+// asks only that it exists.
+func ResumedInbox(
+	items []inbox.PullRequest, known map[string]inbox.Known,
+	ratings artifact.Ratings, seen ...string,
+) (map[string]inbox.Known, bool) {
+	opened := make(map[string]bool, len(seen))
+	for _, key := range seen {
+		opened[key] = true
+	}
+
+	s := &inboxScreen{
+		local: known, ratings: ratings, seen: opened,
+		buckets: []inbox.Bucket{{Items: items}},
+	}
+
+	return s.local, s.Resume() != nil
 }
 
 // QueueFrame is the inbox's list, stripped of styling, drawn on a terminal of

@@ -58,6 +58,8 @@ The refresh asks for what changed. The four searches stay, since each result car
 
 Acting on a pull request evicts it from the snapshots, so the next read brings it back in the lane it now belongs in. GitHub search is eventually consistent, and waiting for it would show the old lane. An approve also takes its row off the screen at once.
 
+Coming back from a review repays only the row it was opened on, because the review is the one change the queue already knows happened: its staged file is re-read, so a posted or discarded review stops holding comments on the spot, and its facts are fetched again so the lane it now belongs in arrives without a search. The row keeps an `opened` mark for the rest of the sitting — a fact the snapshot does not carry, so it dies with the screen — because what was already read should not read as new work.
+
 A refreshed order is held until the keyboard has been quiet for 400 ms, so rows never shift in the middle of a burst of `j`. Only incoming data waits and a key is never delayed. Rows that moved lane or rank, or are new, are then tinted for about 600 ms in steps, and the tint stays below the cursor's band so it never reads as a second cursor. The cursor stays on its row by key. The other options were a slide, which on a one-line grid is a few discrete hops that read as flicker, and a "3 updates" hint, which leaves the screen knowingly out of date. An identical order and a cold open with no snapshot flash nothing, and under `NO_COLOR` a marker glyph replaces the tint.
 
 ### Verdicts are reply states

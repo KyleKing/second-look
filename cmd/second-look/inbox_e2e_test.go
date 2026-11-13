@@ -198,6 +198,59 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 	}
 }
 
+// Coming back from a review re-reads only the pull request it was opened on:
+// a review that posted took its file with it, so the row stops counting as
+// started on the spot rather than after the next search, and the rating the
+// sitting already paid for survives the re-read. Not parallel: the store the
+// screen reads is under HOME.
+func TestInboxResumeRereadsTheOpenedRow(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+
+	const (
+		key   = "acme/widget#7"
+		other = "acme/widget#9"
+	)
+
+	items := []inbox.PullRequest{{ID: "PR_one", Repository: "acme/widget", Number: 7}}
+	known := map[string]inbox.Known{
+		key:   {Reviewed: true, Draft: 2},
+		other: {Reviewed: true, Draft: 1},
+	}
+	ratings := artifact.Ratings{
+		key: {Rated: true, Cost: 4, Added: 10, Removed: 2},
+	}
+
+	got, fetching := main.ResumedInbox(items, known, ratings, key)
+
+	if got[key].Reviewed || got[key].Holds() {
+		t.Errorf("a review that posted still reads as staged: %+v", got[key])
+	}
+	if !got[key].Rated || got[key].Cost != 4 || got[key].Added != 10 || got[key].Removed != 2 {
+		t.Errorf("the sitting's rating did not survive the re-read: %+v", got[key])
+	}
+	if got[other].Draft != 1 {
+		t.Errorf("a row nobody opened was re-read: %+v", got[other])
+	}
+	if !fetching {
+		t.Error("no facts read went out for the opened row")
+	}
+
+	// A review still staged after the sitting picks its counts back up.
+	root := storeFor(t, home, "acme", "widget")
+	write(t, artifact.Path(root, 7), []byte("version = 1\nhost = 'github.com'\n"+
+		"owner = 'acme'\nrepo = 'widget'\nnumber = 7\nhead_sha = '"+fixtureHeadSHA+"'\n"+
+		"[[comment]]\nid = 'c1'\npath = 'a.go'\nline = 3\nside = 'RIGHT'\n"+
+		"status = 'ready'\nbody = 'name it'\n"))
+
+	got, _ = main.ResumedInbox(items, known, ratings, key)
+
+	if !got[key].Reviewed || got[key].Ready != 1 {
+		t.Errorf("the staged review's comments did not come back: %+v", got[key])
+	}
+}
+
 // TestInboxScreenOpensAReviewWithNoClone is the queue doing what a dashboard is
 // for: enter on a row opens the review, and the row it lands on is a repository
 // this laptop has no clone of, so opening it costs the two API reads and
