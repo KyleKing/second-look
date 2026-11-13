@@ -55,6 +55,9 @@ const (
 	// Note is the client speaking for itself: a session that would not load,
 	// an ended run. It is not something the agent said.
 	Note
+	// End is a turn's close, recorded when its prompt returns: the agent's
+	// stop reason, or "interrupted" and "failed" for the ends it never gave.
+	End
 )
 
 // Permit is an agent waiting on permission to run a tool call. Answer carries
@@ -295,9 +298,14 @@ func (s *Session) Prompt(ctx context.Context, text string) (string, error) {
 	s.mu.Unlock()
 	s.wake()
 
+	// The turn's close goes on the transcript while the lock is held, so a
+	// reader never sees a finished turn still marked busy.
+	end := "failed"
+
 	defer func() {
 		s.mu.Lock()
 		s.busy = false
+		s.lines = append(s.lines, Entry{Kind: End, Text: end})
 		s.mu.Unlock()
 		s.wake()
 	}()
@@ -306,11 +314,25 @@ func (s *Session) Prompt(ctx context.Context, text string) (string, error) {
 		SessionId: s.id,
 		Prompt:    []wire.ContentBlock{wire.TextBlock(text)},
 	})
-	if err != nil {
+	switch {
+	case err != nil && ctx.Err() != nil:
+		// The caller stopped waiting on the answer; that is an end the turn
+		// took, not a failure to report.
+		end = "interrupted"
+
+		return end, nil
+	case err != nil:
+		end = "failed"
+
 		return "", fmt.Errorf("prompting the agent: %w", err)
 	}
 
-	return string(res.StopReason), nil
+	end = string(res.StopReason)
+	if end == "cancelled" { //nolint:misspell // the wire's own spelling
+		end = "canceled"
+	}
+
+	return end, nil
 }
 
 // Cancel asks the agent to stop the turn in flight.
@@ -406,6 +428,17 @@ func (s *Session) SessionUpdate(_ context.Context, n wire.SessionNotification) e
 	defer s.mu.Unlock()
 
 	switch u := n.Update; {
+	case u.UserMessageChunk != nil:
+		// A loaded session replays its prompts this way. One arriving while a
+		// turn runs is the agent's own echo, which Prompt already drew.
+		if s.busy {
+			break
+		}
+		if id := mid(u.UserMessageChunk.MessageId); id != "" {
+			s.append("you:"+id, You, blockText(u.UserMessageChunk.Content))
+		} else {
+			s.lines = append(s.lines, Entry{Kind: You, Text: blockText(u.UserMessageChunk.Content)})
+		}
 	case u.AgentMessageChunk != nil:
 		s.append("agent:"+mid(u.AgentMessageChunk.MessageId), Agent, blockText(u.AgentMessageChunk.Content))
 	case u.AgentThoughtChunk != nil:

@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -78,9 +79,15 @@ func notify(session, update string, params map[string]any) {
 	})
 }
 
+var said atomic.Int64
+
+// Each call is a whole message, so it gets a message id of its own: chunks of
+// one id append to one transcript entry and messages are what separate ids
+// keep apart.
 func say(session, text string) {
 	notify(session, "agent_message_chunk", map[string]any{
-		"messageId": "m1", "content": map[string]any{"type": "text", "text": text},
+		"messageId": fmt.Sprintf("m%d", said.Add(1)),
+		"content":   map[string]any{"type": "text", "text": text},
 	})
 }
 
@@ -264,6 +271,9 @@ func main() {
 			}
 			//nolint:errcheck // same
 			_ = json.Unmarshal(f.Params, &p)
+			notify(p.SessionID, "user_message_chunk", map[string]any{
+				"content": map[string]any{"type": "text", "text": "what was asked before"},
+			})
 			say(p.SessionID, "reloaded transcript")
 			result(f.ID, map[string]any{"modes": modes})
 		case "session/set_mode":
