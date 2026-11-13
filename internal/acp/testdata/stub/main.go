@@ -145,6 +145,21 @@ func prompt(f frame) {
 		tools(f, p.SessionID, text)
 
 		return
+	case strings.HasPrefix(text, "lines:"):
+		n, err := strconv.Atoi(strings.TrimPrefix(text, "lines:"))
+		if err != nil || n < 1 {
+			n = 1
+		}
+
+		var b strings.Builder
+		for i := 1; i <= n; i++ {
+			fmt.Fprintf(&b, "line number %d\n", i)
+		}
+
+		say(p.SessionID, strings.TrimRight(b.String(), "\n"))
+		result(f.ID, map[string]any{"stopReason": "end_turn"})
+
+		return
 	case strings.HasPrefix(text, "fast:"):
 		result(f.ID, map[string]any{"stopReason": "end_turn"})
 

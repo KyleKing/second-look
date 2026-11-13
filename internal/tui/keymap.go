@@ -124,6 +124,9 @@ type keyMap struct {
 	// owns the key while it is open, and there is nowhere to jump back to in
 	// a transcript.
 	Expand key.Binding
+	// Interrupt stops the turn the pane's agent is running without ending the
+	// session, the gentler half of what EndPane does to the pane's program.
+	Interrupt key.Binding
 	// JumpBack and JumpForward walk the jump list. A terminal sends tab for
 	// ctrl+i, so tab walks forward too, but only once ctrl+o has left a place
 	// ahead, and otherwise keeps its own job.
@@ -208,6 +211,7 @@ func defaultKeyMap() keyMap {
 		SendSet:      key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "hand the todos over")),
 		DropQueued:   key.NewBinding(key.WithKeys("ctrl+w"), key.WithHelp("ctrl+w", "drop the last queued")),
 		Expand:       key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "the tool calls")),
+		Interrupt:    key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "interrupt the turn")),
 		JumpBack:     key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "back")),
 		JumpForward:  key.NewBinding(key.WithKeys("ctrl+i"), key.WithHelp("ctrl+i", "forward")),
 	}
@@ -340,7 +344,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "E", What: "editing a note"},
 		{Key: "!", What: "a shell"},
 		{Key: "T", What: "todos to an agent, or on an empty review, asks one to draft it"},
-		{What: "T again reopens the pane without asking anything twice; ctrl+\\ ends the session"},
+		{What: "T again reopens the pane; ctrl+x stops the turn, ctrl+\\ ends the session"},
 		{What: "while writing: ctrl+t swaps in what an agent wrote, ctrl+n completes a word"},
 		{What: "conversations", Head: true},
 		{Key: "r/t/x/R", What: "a verdict on a thread: ready, todo, skip, resolve"},

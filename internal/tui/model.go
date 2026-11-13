@@ -101,22 +101,26 @@ type Model struct {
 	// agentStart opens an agent session over ACP, and agent is the live one.
 	// agentOpen is the pane its transcript draws in, which esc leaves without
 	// ending the session; agentDead is how it ended, agentOff how far back
-	// the transcript is scrolled, and agentSaw whether a turn has answered.
-	// agentExpand unfolds the tool calls a run collapses into one line.
+	// the transcript is scrolled, and agentExpand unfolds what the transcript
+	// collapses: a run of tool calls and the finished turns too tall to draw.
 	// agentQueue is what the person staged while a turn was running, and
 	// agentSending marks one already dispatched, so a pump cannot start a
-	// second turn beside the first.
+	// second turn beside the first. agentCancel is the turn ctx's stop,
+	// agentSince when it started, and agentTicking the ticker moving its
+	// clock.
 	agentStart   AgentStarter
 	agent        *acp.Session
 	agentOpen    bool
 	agentDead    error
 	agentOff     int
-	agentSaw     bool
 	agentExpand  bool
 	agentIn      textinput.Model
 	agentQueue   []string
 	agentSending bool
 	agentLoading bool
+	agentSince   time.Time
+	agentCancel  context.CancelFunc
+	agentTicking bool
 	// draftText overrides the instruction T sends an agent over an empty
 	// review, where a config already has its own skill to point at by name.
 	draftText string
@@ -895,6 +899,8 @@ func (m *Model) childAnswered(msg tea.Msg) (tea.Cmd, bool) {
 		m.agentTurned(msg)
 
 		return m.pumpAgent(), true
+	case agentTickMsg:
+		return m.agentTicked(), true
 	case previewedMsg:
 		if msg.err != nil {
 			m.say("the viewer closed badly: "+msg.err.Error(), true)

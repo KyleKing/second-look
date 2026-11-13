@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/kyleking/second-look/internal/acp"
 	"github.com/kyleking/second-look/internal/agents"
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/brief"
@@ -158,7 +159,8 @@ type agentStateMsg struct {
 
 // agentWord is the fact the title carries about the session working the
 // review. A live one knows more than the listing: an open ask is the agent
-// waiting on a person, a running turn is working.
+// waiting on a person, a running turn is working, and a transcript that ends
+// on a turn's close is done.
 func (m *Model) agentWord() string {
 	if m.agent != nil {
 		switch {
@@ -166,9 +168,9 @@ func (m *Model) agentWord() string {
 			return m.styles.warn.Render("agent ended")
 		case m.agent.Pending() != nil:
 			return m.styles.warn.Render("agent waiting")
-		case m.agent.Busy():
+		case m.agent.Busy() || m.agentSending:
 			return "agent working"
-		case m.agentSaw:
+		case lastKind(m.agent) == acp.End:
 			return m.styles.ok.Render("agent done")
 		default:
 			return "agent ready"
@@ -185,4 +187,15 @@ func (m *Model) agentWord() string {
 	default:
 		return "agent " + m.agentState
 	}
+}
+
+// lastKind is the kind of a session's newest transcript entry, or -1 on an
+// empty one.
+func lastKind(s *acp.Session) acp.EntryKind {
+	entries := s.Entries()
+	if len(entries) == 0 {
+		return -1
+	}
+
+	return entries[len(entries)-1].Kind
 }

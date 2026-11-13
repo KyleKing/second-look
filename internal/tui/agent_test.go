@@ -110,6 +110,25 @@ func (l *loop) wait(fn func() bool) {
 	}
 }
 
+// scrollUntil half-pages the pane — up first, then back down, since a scroll
+// too far walks past what it hunted — until the frame shows the line or the
+// transcript stops moving either way.
+func scrollUntil(run *loop, want string) {
+	for _, k := range []rune{'u', 'd'} {
+		for range 8 {
+			if strings.Contains(plain(run.m.Frame()), want) {
+				return
+			}
+
+			before := run.m.Frame()
+			run.key(tea.KeyPressMsg{Code: k, Mod: tea.ModCtrl})
+			if run.m.Frame() == before {
+				break
+			}
+		}
+	}
+}
+
 // Handing a todo set to a configured agent is a conversation, not a process
 // that exits: T opens the pane over the session and spends nothing, ctrl+t
 // hands the owed set over as the prompt, the transcript and the ask draw in
@@ -176,10 +195,9 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 		return strings.Contains(plain(m.Frame()), "agent done")
 	})
 
-	// The pane holds the tail; the start of the turn is a scroll up.
-	for range 3 {
-		run.key(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
-	}
+	// The pane holds the tail; the reply is a scroll up into the turn, or back
+	// down where a scroll too far walked past it into the prompt.
+	scrollUntil(run, "stub heard:")
 	run.wait(func() bool {
 		return strings.Contains(plain(m.Frame()), "stub heard:")
 	})
@@ -465,7 +483,7 @@ func TestThePaneFoldsARunOfToolCalls(t *testing.T) {
 
 	run.typeLine("tools:6")
 	run.wait(func() bool {
-		return strings.Contains(plain(m.Frame()), "· done")
+		return strings.Contains(plain(m.Frame()), "─ done")
 	})
 
 	frame := plain(m.Frame())
@@ -481,7 +499,7 @@ func TestThePaneFoldsARunOfToolCalls(t *testing.T) {
 		t.Errorf("the agent's own words are not in frame:\n%s", frame)
 	}
 
-	if !strings.Contains(frame, "· done") {
+	if !strings.Contains(frame, "─ done") {
 		t.Errorf("the transcript does not say the turn ended:\n%s", frame)
 	}
 
@@ -502,6 +520,124 @@ func TestThePaneFoldsARunOfToolCalls(t *testing.T) {
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "· 6 tool calls") {
 		t.Errorf("ctrl+o did not fold the run back up:\n%s", frame)
+	}
+}
+
+// Once a newer turn opens, a finished turn too tall to read at a glance folds
+// to its prompt and how it ended — the spine of what was asked stays, the
+// wall goes — and ctrl+o opens it back where it was.
+func TestAnOlderTurnFoldsOnceANewerOneOpens(t *testing.T) {
+	t.Parallel()
+
+	stub := stubPath(t)
+
+	sub := &counter{}
+	home := t.TempDir()
+	path := filepath.Join(home, "pr-42.toml")
+	review := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+	if err := artifact.Save(path, review); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithStore(home),
+		tui.WithAgent(func(ctx context.Context, loadID string) (*acp.Session, error) {
+			return acp.Start(ctx, []string{stub}, home, loadID, "")
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	run := looped(m)
+	run.key(letter('T'))
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "talk to stub")
+	})
+
+	run.typeLine("lines:14")
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "─ done")
+	})
+
+	run.typeLine("fast:more")
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "stub heard: fast:more") &&
+			strings.Contains(plain(m.Frame()), "─ done")
+	})
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "› lines:14 · done") {
+		t.Fatalf("the older turn did not fold to its prompt:\n%s", frame)
+	}
+
+	if strings.Contains(frame, "line number") {
+		t.Errorf("a folded turn still draws its lines:\n%s", frame)
+	}
+
+	run.key(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
+
+	if frame := plain(m.Frame()); !strings.Contains(frame, "line number 14") {
+		t.Errorf("ctrl+o did not open the folded turn:\n%s", frame)
+	}
+}
+
+// A turn that never ends on its own is not a life sentence: ctrl+x stops the
+// wait and the transcript closes it as interrupted, leaving the session free
+// to take the next line.
+func TestInterruptingATurnEndsIt(t *testing.T) {
+	t.Parallel()
+
+	stub := stubPath(t)
+
+	sub := &counter{}
+	home := t.TempDir()
+	path := filepath.Join(home, "pr-42.toml")
+	review := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+	if err := artifact.Save(path, review); err != nil {
+		t.Fatal(err)
+	}
+
+	m := tui.New(t.Context(), review, diff.Parse([]byte(patch)), path, sub.post,
+		tui.WithStore(home),
+		tui.WithAgent(func(ctx context.Context, loadID string) (*acp.Session, error) {
+			return acp.Start(ctx, []string{stub}, home, loadID, "")
+		}))
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	run := looped(m)
+	run.key(letter('T'))
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "talk to stub")
+	})
+
+	run.typeLine("hold")
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "working…")
+	})
+
+	frame := plain(m.Frame())
+	if !strings.Contains(frame, "ctrl+x interrupts") {
+		t.Fatalf("the divider does not name the interrupt key while a turn runs:\n%s", frame)
+	}
+
+	run.key(tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "─ interrupted")
+	})
+
+	run.typeLine("fast:alive")
+	run.wait(func() bool {
+		return strings.Contains(plain(m.Frame()), "─ done")
+	})
+
+	if frame := plain(m.Frame()); strings.Contains(frame, "working…") {
+		t.Errorf("an ended turn still says working:\n%s", frame)
 	}
 }
 

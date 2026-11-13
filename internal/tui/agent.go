@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -67,6 +68,12 @@ type agentTurnMsg struct {
 // cleanly.
 type agentGoneMsg struct{ err error }
 
+// agentTickMsg is the working line's second hand: it re-arms while a turn is
+// in flight so the clock beside it moves, and stops itself once it ends.
+type agentTickMsg struct{}
+
+const agentTickEvery = time.Second
+
 // watchAgent wakes the pane when a streamed piece lands or the adapter ends.
 func watchAgent(s *acp.Session) tea.Cmd {
 	return func() tea.Msg {
@@ -87,7 +94,8 @@ func watchAgent(s *acp.Session) tea.Cmd {
 func (m *Model) askAgent() tea.Cmd {
 	if m.agent != nil && m.agentDead != nil {
 		m.agent.Close()
-		m.agent, m.agentDead, m.agentSaw = nil, nil, false
+		m.agent, m.agentDead = nil, nil
+		m.agentSince, m.agentCancel = time.Time{}, nil
 	}
 
 	if m.agent == nil {
@@ -108,7 +116,7 @@ func (m *Model) askAgent() tea.Cmd {
 
 	m.openAgent()
 
-	return watchAgent(m.agent)
+	return tea.Batch(watchAgent(m.agent), m.agentClock())
 }
 
 // agentDraft is the instruction ctrl+t sends on a review with nothing staged
@@ -223,20 +231,71 @@ func (m *Model) pumpAgent() tea.Cmd {
 	}
 
 	m.agentSending = true
+	m.agentSince = time.Now()
 	text := m.agentQueue[0]
 	m.agentQueue = m.agentQueue[1:]
 
-	return m.askSession(m.agent, text)
+	return tea.Batch(m.askSession(m.agent, text), m.agentClock())
 }
 
-// askSession asks text of the session and reports the turn back when it stops.
+// askSession asks text of the session and reports the turn back when it
+// stops. The turn's own context is what ctrl+x cancels, so an agent that
+// never answers its cancel notification still loses the wait.
 func (m *Model) askSession(s *acp.Session, text string) tea.Cmd {
-	ctx := m.ctx
+	ctx, cancel := context.WithCancel(m.ctx)
+	m.agentCancel = cancel
 
 	return func() tea.Msg {
 		reason, err := s.Prompt(ctx, text)
 
 		return agentTurnMsg{reason: reason, err: err, sent: text}
+	}
+}
+
+// agentClock arms the tick that moves the working line's clock. It is nil
+// while one is already armed, so callers can offer it without checking.
+func (m *Model) agentClock() tea.Cmd {
+	if m.agentTicking {
+		return nil
+	}
+
+	m.agentTicking = true
+
+	return tea.Tick(agentTickEvery, func(time.Time) tea.Msg { return agentTickMsg{} })
+}
+
+// agentTicked answers the clock's beat: re-arm it while a turn is in flight
+// so the working line's second hand keeps moving, and let it lapse once the
+// turn ends or the pane closes.
+func (m *Model) agentTicked() tea.Cmd {
+	m.agentTicking = false
+	if m.agentOpen && m.agent != nil && m.agentDead == nil && (m.agent.Busy() || m.agentSending) {
+		return m.agentClock()
+	}
+
+	return nil
+}
+
+// interruptAgent is ctrl+x: cancel the context the turn's Prompt waits on so
+// the wait ends whatever the agent does, and send session/cancel so the agent
+// can stop the work itself where it honors it.
+func (m *Model) interruptAgent() tea.Cmd {
+	if m.agent == nil || m.agentDead != nil || (!m.agent.Busy() && !m.agentSending) {
+		return nil
+	}
+
+	if m.agentCancel != nil {
+		m.agentCancel()
+	}
+
+	s, ctx := m.agent, m.ctx
+	m.say("interrupting the turn…", false)
+
+	return func() tea.Msg {
+		//nolint:errcheck // the wait is already over; this is the agent's own chance to stop
+		_ = s.Cancel(ctx)
+
+		return nil
 	}
 }
 
@@ -264,6 +323,7 @@ func (m *Model) sendLine() tea.Cmd {
 func (m *Model) agentGone(err error) {
 	m.agentDead = err
 	m.agentSending = false
+	m.agentSince, m.agentCancel = time.Time{}, nil
 	if m.agentDead == nil {
 		m.agentDead = errAgentEnded
 	}
@@ -276,6 +336,7 @@ func (m *Model) agentGone(err error) {
 // turn it thought was over — goes back on the queue rather than being lost.
 func (m *Model) agentTurned(msg agentTurnMsg) {
 	m.agentSending = false
+	m.agentSince, m.agentCancel = time.Time{}, nil
 
 	if errors.Is(msg.err, acp.ErrBusy) {
 		m.agentQueue = append([]string{msg.sent}, m.agentQueue...)
@@ -283,11 +344,11 @@ func (m *Model) agentTurned(msg agentTurnMsg) {
 		return
 	}
 
-	m.agentSaw = true
-
 	switch {
 	case msg.err != nil:
 		m.say(fmt.Sprintf("the turn ended badly: %v", msg.err), true)
+	case msg.reason == "interrupted" || msg.reason == "canceled":
+		m.say("the turn was "+msg.reason, false)
 	case msg.reason != "" && msg.reason != "end_turn":
 		m.say("the turn stopped: "+msg.reason, true)
 	}
@@ -329,6 +390,10 @@ func (m *Model) agentKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.agentExpand = !m.agentExpand
 
 		return m, nil
+	case key.Matches(msg, m.keys.Interrupt):
+		cmd := m.interruptAgent()
+
+		return m, cmd
 	case key.Matches(msg, m.keys.HalfUp):
 		m.agentOff += m.paneHeight() / scrollHalf
 
@@ -396,6 +461,8 @@ func (m *Model) agentDivider() string {
 	switch {
 	case m.agentDead != nil:
 		head += " has ended — esc leaves, T starts it again"
+	case m.agent.Busy() || m.agentSending:
+		head += " — esc leaves · ctrl+x interrupts"
 	default:
 		head += " — esc leaves · ctrl+\\ ends"
 		if n := len(m.review.Todos()); n > 0 {
@@ -415,46 +482,79 @@ func (m *Model) agentDivider() string {
 	return m.styles.hunk.Render(cut(head, m.width))
 }
 
-// agentRows is the transcript wrapped to the frame. An entry keeps its own
-// voice: the reviewer on a rail marker, the agent plain, a thought in note
-// italic, a tool call wearing its status. A run of calls draws as one line —
-// the detail of what ran is noise next to what the agent said — and ctrl+o
-// unfolds it into a line a call with each call's output. A turn's end is a
-// rule so scrolling back can tell where one answer stopped and the next
-// prompt began.
-func (m *Model) agentRows(width int) []string {
-	var rows []string
+// agentTurn is one prompt and everything it brought back, up to the next
+// prompt. What lands before the first prompt — session notes, replayed output
+// that carried no prompt of its own — is a turn without a you.
+type agentTurn struct {
+	hasYou  bool
+	you     acp.Entry
+	entries []acp.Entry
+}
 
-	var tools []acp.Entry
+func agentTurns(entries []acp.Entry) []agentTurn {
+	var turns []agentTurn
 
-	flush := func() {
-		rows = append(rows, m.toolRunRows(tools, width)...)
-		tools = nil
-	}
-
-	entries := m.agent.Entries()
-	for i, e := range entries {
-		if e.Kind == acp.Tool {
-			tools = append(tools, e)
+	for _, e := range entries {
+		if e.Kind == acp.You {
+			turns = append(turns, agentTurn{hasYou: true, you: e})
 
 			continue
 		}
 
-		flush()
-
-		if e.Kind == acp.You && i > 0 {
-			rows = append(rows, m.styles.hunk.Render(strings.Repeat("─", width)))
+		if len(turns) == 0 {
+			turns = append(turns, agentTurn{})
 		}
 
-		rows = append(rows, m.entryRows(e, width)...)
+		last := len(turns) - 1
+		turns[last].entries = append(turns[last].entries, e)
 	}
-	flush()
 
-	switch {
-	case m.agent.Busy() || m.agentSending:
-		rows = append(rows, m.styles.note.Render(cut("· working…", width)))
-	case m.agentSaw:
-		rows = append(rows, m.styles.note.Render(cut("· done", width)))
+	return turns
+}
+
+// turnKeep is how tall a finished turn can be and still draw open once a
+// newer turn follows it: taller than that and it folds to its prompt and a
+// count, because a transcript of walls is a transcript nobody reads.
+const turnKeep = 8
+
+// agentRows is the transcript wrapped to the frame, drawn turn by turn. The
+// latest turn draws in full with the state it is in — working, or how it
+// ended — and each earlier one draws open where it is small and folded to its
+// prompt and a count where it is not; ctrl+o opens them all back up. An entry
+// keeps its own voice: the reviewer on a rail marker, the agent plain, a
+// thought in note italic, a tool call wearing its status, a run of calls as
+// one line.
+func (m *Model) agentRows(width int) []string {
+	turns := agentTurns(m.agent.Entries())
+	busy := m.agent.Busy() || m.agentSending
+
+	var rows []string
+
+	for i, t := range turns {
+		if !t.hasYou {
+			rows = append(rows, m.agentBlockRows(t.entries, width)...)
+
+			continue
+		}
+
+		live := i == len(turns)-1
+
+		if !live && !m.agentExpand {
+			if content := m.agentBlockRows(t.entries, width); len(content) > turnKeep {
+				rows = append(rows, m.foldedTurn(t, width))
+
+				continue
+			}
+		}
+
+		rows = append(rows, m.entryRows(t.you, width)...)
+		rows = append(rows, m.agentBlockRows(t.entries, width)...)
+
+		if live && busy {
+			rows = append(rows, m.styles.rail.Render(cut(m.workingLine(), width)))
+		} else {
+			rows = append(rows, m.turnCap(turnEnd(t), width))
+		}
 	}
 
 	for _, q := range m.agentQueue {
@@ -465,7 +565,115 @@ func (m *Model) agentRows(width int) []string {
 	return rows
 }
 
-// entryRows draws one transcript entry, marked and faced for its kind.
+// agentBlockRows draws a run of transcript entries, folding consecutive tool
+// calls into their one-line count. A turn's End entry is not content: it
+// draws as the cap after the turn rather than a row inside it.
+func (m *Model) agentBlockRows(entries []acp.Entry, width int) []string {
+	var (
+		rows  []string
+		tools []acp.Entry
+	)
+
+	flush := func() {
+		rows = append(rows, m.toolRunRows(tools, width)...)
+		tools = nil
+	}
+
+	for _, e := range entries {
+		if e.Kind == acp.Tool {
+			tools = append(tools, e)
+
+			continue
+		}
+
+		flush()
+
+		if e.Kind != acp.End {
+			rows = append(rows, m.entryRows(e, width)...)
+		}
+	}
+	flush()
+
+	return rows
+}
+
+// foldedTurn is a finished turn too tall to draw open: its prompt keeps the
+// line, and how it ended and what it ran join it.
+func (m *Model) foldedTurn(t agentTurn, width int) string {
+	prompt, _, _ := strings.Cut(t.you.Text, "\n")
+
+	calls := 0
+	for _, e := range t.entries {
+		if e.Kind == acp.Tool {
+			calls++
+		}
+	}
+
+	tail := " · " + turnEnd(t)
+	if calls > 0 {
+		tail += " · " + plural(calls, "tool call")
+	}
+
+	tail += " · ctrl+o unfolds"
+
+	return cut(m.styles.rail.Render("› "+prompt)+m.styles.hunk.Render(tail), width)
+}
+
+// turnDone is the word a turn that ended well closes with.
+const turnDone = "done"
+
+// turnEnd is how a finished turn closed: its recorded reason where the
+// session wrote one, done where it did not.
+func turnEnd(t agentTurn) string {
+	for i := len(t.entries) - 1; i >= 0; i-- {
+		if t.entries[i].Kind == acp.End {
+			return turnEndWord(t.entries[i].Text)
+		}
+	}
+
+	return turnDone
+}
+
+func turnEndWord(reason string) string {
+	if reason == "" || reason == "end_turn" {
+		return turnDone
+	}
+
+	return reason
+}
+
+// turnCap is the rule that closes a drawn-open turn: the end it came to on
+// the left so the close reads at a glance, the rule carrying it.
+func (m *Model) turnCap(label string, width int) string {
+	line := "─ " + label + " "
+	if rest := width - textWidth(line); rest > 0 {
+		line += strings.Repeat("─", rest)
+	}
+
+	face := m.styles.hunk
+	switch label {
+	case turnDone, "interrupted", "canceled":
+	default:
+		face = m.styles.warn
+	}
+
+	return face.Render(cut(line, width))
+}
+
+// workingLine is the live tail of a turn in flight, with the clock so a
+// stalled one reads as stalled rather than frozen.
+func (m *Model) workingLine() string {
+	line := "· working…"
+	if !m.agentSince.IsZero() {
+		line += " " + time.Since(m.agentSince).Round(agentTickEvery).String()
+	}
+
+	return line
+}
+
+// entryRows draws one transcript entry, marked and faced for its kind. The
+// gutter mark opens the entry; the lines it wraps to sit under it rather than
+// each wearing the mark again.
 func (m *Model) entryRows(e acp.Entry, width int) []string {
 	mark, face := m.entryFace(e)
 	text := e.Text
@@ -473,9 +681,16 @@ func (m *Model) entryRows(e acp.Entry, width int) []string {
 		text += " · " + e.Status
 	}
 
+	indent := strings.Repeat(" ", textWidth(mark))
 	rows := make([]string, 0, strings.Count(text, "\n")+1)
-	for _, line := range wrap(text, width-textWidth(mark)) {
-		rows = append(rows, face.Render(cut(mark+line, width)))
+
+	for i, line := range wrap(text, width-textWidth(mark)) {
+		gutter := mark
+		if i > 0 {
+			gutter = indent
+		}
+
+		rows = append(rows, face.Render(cut(gutter+line, width)))
 	}
 
 	return rows
@@ -530,6 +745,8 @@ func (m *Model) entryFace(e acp.Entry) (string, lipgloss.Style) {
 		return "≡ ", m.styles.hunk
 	case acp.Note:
 		return "! ", m.styles.warn
+	case acp.End:
+		return "· ", m.styles.note
 	default:
 		return "  ", m.styles.body
 	}
