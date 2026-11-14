@@ -1,3 +1,20 @@
+## v0.53.0 (2026-11-14)
+
+### Feat
+
+- record CLI subcommands and flags in key usage
+- **tui**: record keys per context through aragonite keyusage and add a keys report
+- **conversations**: re-read the opened pull request coming back from a review
+- **inbox**: re-read the opened row coming back from a review
+- **inbox**: separate reviews underway into an in progress lane
+- **tui**: draw agent answers as markdown and fold carried-over output
+- **tui**: draw the agent transcript turn by turn
+- **acp**: close each turn on the transcript and replay its prompts
+
+### Fix
+
+- **tui**: place replies without anchors inside their thread
+
 ## v0.52.0 (2026-11-13)
 
 ### Feat
