@@ -44,6 +44,8 @@ Large diffs open on an outline that splits the change into chapters, with how mu
 
 The keybindings follow vim, so `]c` goes to the next comment, `]u` to the next unread hunk, `za` toggles a fold, and `n` repeats the last motion. The footer shows the keys that apply at the cursor and `?` lists the rest.
 
+Every run also logs its subcommand and the names of the flags it was given, never their values or the pull request, and `second-look keys` reports the subcommands and flags you never use beside the keys.
+
 ## Install
 
 ```bash

@@ -162,34 +162,39 @@ func openSnapshots() *snapshot.Store {
 func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) error {
 	installCache()
 
+	rec := keyusage.Open(usageApp)
+	defer rec.Close() //nolint:errcheck // a usage log that failed to close lost nothing the command needs
+
+	rec.Invoke(cliRoot, args)
+
 	if len(args) == 0 {
 		return reviewCurrent(ctx, stdin, stdout)
 	}
 
 	commands := map[string]func() error{
-		"agent":   func() error { return agentCmd(ctx, args[1:], stdout) },
-		"get":     func() error { return getCmd(ctx, args[1:], stdin, stdout) },
-		"local":   func() error { return localCmd(ctx, args[1:], stdout) },
-		"comment": func() error { return commentCmd(ctx, args[1:], stdin, stdout) },
-		"plan":    func() error { return planCmd(ctx, args[1:], stdin, stdout) },
-		"show":    func() error { return showCmd(ctx, args[1:], stdout) },
-		"context": func() error { return contextCmd(ctx, args[1:], stdout) },
-		"todo":    func() error { return todoCmd(ctx, args[1:], stdout) },
-		"post":    func() error { return postCmd(ctx, args[1:], stdout) },
-		"inbox":   func() error { return inboxCmd(ctx, args[1:], stdin, stdout) },
-		"image":   func() error { return imageCmd(ctx, args[1:], stdin, stdout) },
-		"threads": func() error { return threadsCmd(ctx, args[1:], stdin, stdout) },
-		"reviews": func() error { return reviewsCmd(ctx, args[1:], stdin, stdout) },
-		"session": func() error { return sessionCmd(ctx, args[1:], stdout) },
-		"status":  func() error { return statusCmd(ctx, args[1:], stdout) },
-		"journal": func() error { return journalCmd(args[1:], stdout) },
-		"keys":    func() error { return keysCmd(args[1:], stdout) },
-		"gc":      func() error { return gcCmd(ctx, args[1:], stdout) },
-		"skill":   func() error { return skillCmd(args[1:], stdout) },
+		cmdAgent:   func() error { return agentCmd(ctx, args[1:], stdout) },
+		"get":      func() error { return getCmd(ctx, args[1:], stdin, stdout) },
+		"local":    func() error { return localCmd(ctx, args[1:], stdout) },
+		cmdComment: func() error { return commentCmd(ctx, args[1:], stdin, stdout) },
+		"plan":     func() error { return planCmd(ctx, args[1:], stdin, stdout) },
+		"show":     func() error { return showCmd(ctx, args[1:], stdout) },
+		"context":  func() error { return contextCmd(ctx, args[1:], stdout) },
+		"todo":     func() error { return todoCmd(ctx, args[1:], stdout) },
+		"post":     func() error { return postCmd(ctx, args[1:], stdout) },
+		"inbox":    func() error { return inboxCmd(ctx, args[1:], stdin, stdout) },
+		"image":    func() error { return imageCmd(ctx, args[1:], stdin, stdout) },
+		cmdThreads: func() error { return threadsCmd(ctx, args[1:], stdin, stdout) },
+		"reviews":  func() error { return reviewsCmd(ctx, args[1:], stdin, stdout) },
+		"session":  func() error { return sessionCmd(ctx, args[1:], stdout) },
+		"status":   func() error { return statusCmd(ctx, args[1:], stdout) },
+		"journal":  func() error { return journalCmd(args[1:], stdout) },
+		"keys":     func() error { return keysCmd(args[1:], stdout) },
+		"gc":       func() error { return gcCmd(ctx, args[1:], stdout) },
+		"skill":    func() error { return skillCmd(args[1:], stdout) },
 	}
 
 	switch args[0] {
-	case "-h", "--help", helpArg:
+	case "-h", helpFlag, helpArg:
 		return write(stdout, helpText(args[0]))
 	default:
 		if cmd, ok := commands[args[0]]; ok {
@@ -1280,7 +1285,7 @@ func postFlags(args []string) (postOptions, error) {
 		}
 
 		switch args[i] {
-		case "--dry-run":
+		case dryRunFlag:
 			o.dry = true
 		case "--only":
 			if val == "" {
@@ -1821,7 +1826,7 @@ func gcCmd(ctx context.Context, args []string, stdout io.Writer) error {
 
 	for _, a := range args {
 		switch a {
-		case "--dry-run":
+		case dryRunFlag:
 			dry = true
 		case "--stale":
 			stale = true

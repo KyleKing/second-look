@@ -117,3 +117,36 @@ func configDir(home string) string {
 
 	return filepath.Join(home, ".config")
 }
+
+// A run logs its subcommand and the flags it was given, and never their values
+// or the pull request it was pointed at.
+func TestRunLogsCommandAndFlagNamesOnly(t *testing.T) {
+	t.Parallel()
+
+	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "usage-log", func(c *ghcassette.Cassette) {
+		c.Interactions = nil
+	}))
+	logs := t.TempDir()
+
+	runCLIEnv(t, s, t.TempDir(), []string{"SECOND_LOOK_USAGE_DIR=" + logs}, "post", "4242", "--only", "secret-id")
+
+	files, err := filepath.Glob(filepath.Join(logs, "*.jsonl"))
+	if err != nil || len(files) != 1 {
+		t.Fatalf("want one log file, got %v (%v)", files, err)
+	}
+
+	raw, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(string(raw), `"w":"second-look post --only"`) {
+		t.Errorf("the log %q lacks the command path and flag name", raw)
+	}
+
+	for _, leaked := range []string{"secret-id", "4242"} {
+		if strings.Contains(string(raw), leaked) {
+			t.Errorf("the log %q carries %q", raw, leaked)
+		}
+	}
+}
