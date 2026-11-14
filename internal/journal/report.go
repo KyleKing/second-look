@@ -1,3 +1,6 @@
+// Package journal reads the usage log back as the summary the parked decisions
+// in ROADMAP.md are waiting on: which keys, panes, and agents were reached for,
+// and how long the waits ran.
 package journal
 
 import (
@@ -5,10 +8,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 )
+
+// entry is one logged line, as aragonite's keyusage writes it.
+type entry struct {
+	T  string `json:"t"`
+	S  string `json:"s"`
+	E  string `json:"e"`
+	W  string `json:"w,omitempty"`
+	MS int64  `json:"ms,omitempty"`
+}
 
 // SittingGap is the quiet that ends one sitting and starts the next: longer
 // than any pause inside a review, shorter than the pause between two.
@@ -53,6 +67,35 @@ type Summary struct {
 
 // Sittings is how many sittings the journal covers.
 func (s *Summary) Sittings() int { return len(s.SitLens) }
+
+// SummarizeDir reads every *.jsonl log in dir, in file name order, as one
+// journal. A missing dir is an empty one.
+func SummarizeDir(dir string) (*Summary, error) {
+	files, err := filepath.Glob(filepath.Join(dir, "*.jsonl"))
+	if err != nil {
+		return nil, fmt.Errorf("listing usage logs: %w", err)
+	}
+
+	readers := make([]io.Reader, 0, len(files))
+	opened := make([]*os.File, 0, len(files))
+
+	defer func() {
+		for _, f := range opened {
+			f.Close() //nolint:errcheck,gosec // a read
+		}
+	}()
+
+	for _, path := range files {
+		f, err := os.Open(path) //nolint:gosec // a log found by the glob above
+		if err != nil {
+			return nil, fmt.Errorf("opening %s: %w", path, err)
+		}
+
+		readers, opened = append(readers, f), append(opened, f)
+	}
+
+	return Summarize(io.MultiReader(readers...)), nil
+}
 
 // Summarize reads every line of r, skipping the ones it cannot parse: the
 // journal is best-effort on the way in and stays that way on the way out.
@@ -122,6 +165,8 @@ func (s *Summary) add(e entry, lastKey string) string {
 		return e.W
 	case waits[e.E] || e.MS > 0:
 		s.Waits[e.E] = append(s.Waits[e.E], e.MS)
+	case e.W != "":
+		s.Events[e.E+" "+e.W]++
 	default:
 		s.Events[e.E]++
 	}

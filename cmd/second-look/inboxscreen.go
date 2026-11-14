@@ -207,7 +207,7 @@ const searching = "searching…"
 
 func (s *inboxScreen) tab() tui.Tab {
 	return tui.Tab{
-		Name:     "inbox",
+		Name:     wordInbox,
 		Sections: s.sections, Act: s.act, State: s.state, Columns: s.columns,
 		Hints: inboxHints, Inert: s.inert, Help: inboxHelp, Loader: s, Rest: s.restedOn,
 		Badge: s.badge, Labeled: s.labeled, Relabel: s.relabel,

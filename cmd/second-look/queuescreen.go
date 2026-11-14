@@ -13,7 +13,6 @@ import (
 	"github.com/kyleking/second-look/internal/config"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/inbox"
-	"github.com/kyleking/second-look/internal/journal"
 	"github.com/kyleking/second-look/internal/snapshot"
 	"github.com/kyleking/second-look/internal/tui"
 )
@@ -27,6 +26,12 @@ const (
 	tabConversations
 	tabReviews
 )
+
+// queueTabs is the queue's tabs as `second-look keys` knows them, where the
+// screen itself fills in rows and loaders.
+func queueTabs() []tui.Tab {
+	return []tui.Tab{{Name: wordInbox}, {Name: wordConversations}, {Name: wordStaged, Go: stagedGo}}
+}
 
 // stagedGo is the g chord's second keys on the staged tab: the cleanup `gc`
 // runs, split by whether reviews gone stale go with the finished ones.
@@ -74,7 +79,7 @@ func queueOnce(
 	list := tui.NewTabs([]tui.Tab{
 		in.tab(),
 		{
-			Name:     "conversations",
+			Name:     wordConversations,
 			Sections: th.sections, Act: th.act, State: th.state,
 			Hints: threadsHints, Help: threadsHelp, Loader: th,
 			Badge: th.badge, Columns: th.columns,
@@ -100,6 +105,9 @@ func queueOnce(
 		did    touched
 	)
 
+	rec, seen := openUsage()
+	defer rec.Close() //nolint:errcheck // a usage log that failed to close lost nothing the queue needs
+
 	out, runErr := tui.RunShell(tui.NewShell(ctx, list, func() tui.Reviewer {
 		r, ok := chosen(in, rv)
 		if !ok {
@@ -116,7 +124,7 @@ func queueOnce(
 
 			return reviewScreen(ctx, opened, &log, 0, &did, willing, &log)
 		}
-	}).WithJournal(journal.Open()))
+	}).WithUsage(rec, seen))
 
 	// The marks are worth keeping even when an action failed: what was read was
 	// still read.

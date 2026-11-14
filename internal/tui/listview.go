@@ -326,7 +326,7 @@ func (l *List) footerHints() []keyhint.Hint {
 		}
 	}
 
-	return hints
+	return l.use.brighten(l.keyContext(), hints)
 }
 
 // helpOver floats the legend over the list's bottom corner, the same window

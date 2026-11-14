@@ -7,8 +7,7 @@ import (
 	"unicode"
 
 	tea "charm.land/bubbletea/v2"
-
-	"github.com/kyleking/second-look/internal/journal"
+	"github.com/kyleking/aragonite/keyusage"
 )
 
 // Reviewer opens the review the queue was left on. It runs as a command
@@ -59,8 +58,9 @@ type Shell struct {
 	// queue is set when a review with no queue behind it was left with esc,
 	// which the caller answers by opening the queue.
 	queue bool
-	// j is the usage journal, nil-safe everywhere it is read.
-	j *journal.J
+	// j is the usage recorder, nil-safe everywhere it is read.
+	j   *keyusage.Recorder
+	use *fresher
 }
 
 // NewShell composes the queue and the review screen, so opening a row keeps
@@ -77,12 +77,23 @@ func NewReviewShell(ctx context.Context, m *Model) *Shell {
 	return &Shell{ctx: ctx, review: m, at: modeReview, width: minWidth, height: startHeight}
 }
 
-// WithJournal gives the shell's events somewhere to land. A review opened
-// later gets the same journal the queue had, since a sitting is one story.
-func (s *Shell) WithJournal(j *journal.J) *Shell {
-	s.j = j
+// WithUsage gives the shell's keys and events somewhere to land, and draws the
+// keys seen has not counted lately brighter. A review opened later gets the
+// same recorder the queue had, since a sitting is one story. A nil seen
+// brightens nothing.
+func (s *Shell) WithUsage(rec *keyusage.Recorder, seen *keyusage.Usage) *Shell {
+	var tabs []Tab
+	if s.list != nil {
+		tabs = s.list.tabs
+	}
+
+	s.j, s.use = rec, newFresher(seen, tabs)
+	if s.list != nil {
+		s.list.use = s.use
+	}
+
 	if s.review != nil {
-		s.review.j = j
+		s.review.j, s.review.use = s.j, s.use
 	}
 
 	return s
@@ -177,7 +188,7 @@ func (s *Shell) key(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case modeReview:
 		if !s.review.writing() {
-			s.j.Key("review", msg.String())
+			s.j.Key(s.review.keyContext(msg), msg.String())
 		}
 
 		_, cmd := s.review.Update(msg)
@@ -185,7 +196,7 @@ func (s *Shell) key(msg tea.KeyPressMsg) tea.Cmd {
 		return cmd
 	case modeList:
 		if !s.list.filter.typing {
-			s.j.Key("queue", msg.String())
+			s.j.Key(s.list.keyContext(), msg.String())
 		}
 
 		_, cmd := s.list.Update(msg)
@@ -254,8 +265,8 @@ func (s *Shell) opened(msg openedMsg) tea.Cmd {
 	}
 
 	s.review, s.at = msg.review, modeReview
-	s.review.j = s.j
-	s.j.Event("shell", "open")
+	s.review.j, s.review.use = s.j, s.use
+	s.j.Event("shell", "open", "")
 	// The screen is built at the assumed size, and no resize follows an open
 	// that nothing outside the program made.
 	s.review.Update(tea.WindowSizeMsg{Width: s.width, Height: s.height})

@@ -1,31 +1,33 @@
 package tui_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/keyusage"
 
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/journal"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
-// The journal hears every command a screen answers and nothing a text field
-// was typing: a filter's letters and a search's are not keys anyone reached
-// for. What it hears is the answer to "which of these did I use".
-func TestJournalHearsCommandsAndNotText(t *testing.T) {
+// The log hears every command a screen answers, under the context the key
+// landed in, and nothing a text field was typing: a filter's letters and a
+// search's are not keys anyone reached for.
+func TestUsageLogsCommandsByContextAndNotText(t *testing.T) {
 	t.Parallel()
 
-	var buf bytes.Buffer
+	dir := t.TempDir()
+	rec := keyusage.Open("second-look", keyusage.WithDir(dir))
 
 	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 16, "check err"))
 	s := tui.NewShell(t.Context(), chooses(t), func() tui.Reviewer {
 		return func(context.Context) (*tui.Model, error) { return m, nil }
-	}).WithJournal(journal.New(&buf))
+	}).WithUsage(rec, nil)
 
 	pump(t, s, s.Init())
 
@@ -38,15 +40,32 @@ func TestJournalHearsCommandsAndNotText(t *testing.T) {
 	sendTo(t, s, enter())
 	m.HeadChecked("deadbeef")
 	sendTo(t, s, letter('j'))
+	sendTo(t, s, letter('?')) // the legend owns the keys that follow
+	sendTo(t, s, letter('j'))
+	sendTo(t, s, esc)
 	sendTo(t, s, letter('/')) // the review's search, the same rule
 	sendTo(t, s, letter('x'))
 	sendTo(t, s, esc)
 	sendTo(t, s, letter('q'))
 
+	if err := rec.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := filepath.Glob(filepath.Join(dir, "*.jsonl"))
+	if err != nil || len(files) != 1 {
+		t.Fatalf("want one log file, got %v (%v)", files, err)
+	}
+
+	raw, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	type event struct{ S, E, W string }
 	var got []event
 
-	for l := range strings.Lines(strings.TrimSpace(buf.String())) {
+	for l := range strings.Lines(strings.TrimSpace(string(raw))) {
 		var e struct {
 			S string `json:"s"`
 			E string `json:"e"`
@@ -60,12 +79,12 @@ func TestJournalHearsCommandsAndNotText(t *testing.T) {
 	}
 
 	want := []event{
-		{"queue", "key", "j"},
-		{"queue", "key", "/"},
-		{"queue", "key", "enter"},
+		{"queue/conversations", "key", "/"},
+		{"queue/conversations", "key", "enter"},
 		{"shell", "open", ""},
 		{"review", "head", ""},
-		{"review", "key", "j"},
+		{"review", "key", "?"},
+		{"review/help", "key", "esc"},
 		{"review", "key", "/"},
 		{"review", "key", "q"},
 		{"shell", "leave", ""},

@@ -37,6 +37,7 @@ const (
 	chapterNoun = "chapter"
 	featureNoun = "feature"
 	draftWord   = "draft"
+	topWord     = "top"
 )
 
 type keyMap struct {
@@ -136,8 +137,8 @@ type keyMap struct {
 
 func defaultKeyMap() keyMap {
 	return keyMap{
-		Up:      key.NewBinding(key.WithKeys("k", "up"), key.WithHelp(walkKeys, "line")),
-		Down:    key.NewBinding(key.WithKeys("j", "down"), key.WithHelp(walkKeys, "line")),
+		Up:      key.NewBinding(key.WithKeys("k", upKey), key.WithHelp(walkKeys, "line")),
+		Down:    key.NewBinding(key.WithKeys("j", downKey), key.WithHelp(walkKeys, "line")),
 		Callers: key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/l", "side")),
 		Callees: key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("h/l", "side")),
 		HalfUp:  key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
@@ -148,8 +149,8 @@ func defaultKeyMap() keyMap {
 			key.WithKeys("ctrl+e", "shift+down", "Y"), key.WithHelp("ctrl+y/e", "scroll a line"),
 		),
 		HalfDown:     key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
-		Top:          key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("gg/G", "top, bottom")),
-		Bottom:       key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("gg/G", "top, bottom")),
+		Top:          key.NewBinding(key.WithKeys("g", homeKey), key.WithHelp("gg/G", "top, bottom")),
+		Bottom:       key.NewBinding(key.WithKeys("G", endKey), key.WithHelp("gg/G", "top, bottom")),
 		Forward:      key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "go")),
 		Backward:     key.NewBinding(key.WithKeys("["), key.WithHelp("[", "go back")),
 		Again:        key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "again")),
@@ -207,7 +208,7 @@ func defaultKeyMap() keyMap {
 		Help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		EndPane:      key.NewBinding(key.WithKeys("ctrl+\\"), key.WithHelp("ctrl+\\", "end the pane's program")),
 		Back:         key.NewBinding(key.WithKeys(escKey), key.WithHelp(escKey, "back")),
-		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c", escKey), key.WithHelp("q", quitWord)),
+		Quit:         key.NewBinding(key.WithKeys("q", ctrlCKey, escKey), key.WithHelp("q", quitWord)),
 		SendSet:      key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "hand the todos over")),
 		DropQueued:   key.NewBinding(key.WithKeys("ctrl+w"), key.WithHelp("ctrl+w", "drop the last queued")),
 		Expand:       key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "the tool calls")),
@@ -259,7 +260,11 @@ func lookObjects() [][2]string {
 // $EDITOR at the line the cursor is on.
 func goObjects() [][2]string {
 	return [][2]string{
-		{"g", "top"}, {"d", "where defined"}, {"r", "where used"}, {"c", "who calls, who is called"}, {"f", "the file"},
+		{"g", topWord},
+		{"d", "where defined"},
+		{"r", "where used"},
+		{"c", "who calls, who is called"},
+		{"f", "the file"},
 	}
 }
 

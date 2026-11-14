@@ -25,6 +25,7 @@ const shortHelp = `second-look — prepare a code review locally, then post it i
   second-look gc                   drop reviews for merged or closed PRs, sweep caches
   second-look status               one line of what the queue holds, for a prompt
   second-look journal              read the usage journal back: keys, waits, sittings
+  second-look keys                 which keys you use, never use, or press for nothing
   second-look session <pr> <id>    record the agent session working this review
   second-look skill                print the agent instructions this binary carries
 
@@ -421,6 +422,12 @@ NAMING A PULL REQUEST
       a review held the screen. Typed text is never in it, so the counts are
       about reaching, not writing. It is the evidence the parked decisions in
       ROADMAP.md are waiting on.
+
+  second-look keys
+      Read the usage log against the keymap: the keys never pressed, the ones
+      pressed with nothing bound, and the keys that mean different things in
+      different places. A key not pressed in 30 days is drawn bold and
+      underlined in the footer and the legend.
 
   second-look session <pr> [<session-id> [tool]]
       Record the agent session this review is being worked in, or print the one

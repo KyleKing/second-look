@@ -475,7 +475,7 @@ func (m *Model) hints() []keyhint.Hint {
 		out = append([]keyhint.Hint{{Key: escKey, What: "back", Priority: shedLast}}, out...)
 	}
 
-	return out
+	return m.use.brighten(ctxReview, out)
 }
 
 // writeWord is what e does where the cursor is: answer a conversation, rewrite
@@ -557,7 +557,7 @@ func (m *Model) onCode() bool {
 // helpTree is the legend with the H chord's page filled in from the rounds
 // this review was read at, which is the one page a static tree cannot write.
 func (m *Model) helpTree() []keyhint.Hint {
-	return helpTree(m.roundPage(time.Now()))
+	return m.use.brighten(ctxReview, helpTree(m.roundPage(time.Now())))
 }
 
 // helpPage is the page the path into the legend reaches, falling back to the

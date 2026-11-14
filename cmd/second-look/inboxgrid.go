@@ -28,9 +28,13 @@ const (
 // wordDraft is what a draft pull request reads as, before and after the facts land.
 const wordDraft = "draft"
 
-// wordStaged is what a review staged here with nothing in it yet reads as, and
-// the name of the tab and lane that hold such reviews.
-const wordStaged = "staged"
+// The queue's tab names, of which wordStaged is also what a review staged here
+// with nothing in it yet reads as.
+const (
+	wordConversations = "conversations"
+	wordInbox         = "inbox"
+	wordStaged        = "staged"
+)
 
 // The grid's widths. A change is drawn in a count of at most four cells and a
 // sign, so the size column holds two of those and the space between them. The

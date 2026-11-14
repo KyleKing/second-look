@@ -158,7 +158,7 @@ func (m *Model) agentUp(msg agentUpMsg) tea.Cmd {
 
 	m.agent = msg.s
 	m.openAgent()
-	m.j.Event("review", "agent "+msg.s.Name())
+	m.j.Event(ctxReview, "agent", msg.s.Name())
 
 	if id := msg.s.ID(); id != m.review.Agent.Session {
 		m.review.Agent.Session = id

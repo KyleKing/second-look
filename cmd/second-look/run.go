@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/kyleking/aragonite/cache"
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/keyusage"
 	"github.com/kyleking/aragonite/vcs"
 
 	"github.com/kyleking/second-look/internal/acp"
@@ -70,6 +71,7 @@ var (
 	errUsageGC       = errors.New("usage: second-look gc [--dry-run] [--stale]")
 	errUsageStatus   = errors.New("usage: second-look status")
 	errUsageJournal  = errors.New("usage: second-look journal")
+	errUsageKeys     = errors.New("usage: second-look keys")
 	errCheckoutMoved = errors.New("the checkout has moved past the reviewed head")
 )
 
@@ -181,6 +183,7 @@ func run(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer) 
 		"session": func() error { return sessionCmd(ctx, args[1:], stdout) },
 		"status":  func() error { return statusCmd(ctx, args[1:], stdout) },
 		"journal": func() error { return journalCmd(args[1:], stdout) },
+		"keys":    func() error { return keysCmd(args[1:], stdout) },
 		"gc":      func() error { return gcCmd(ctx, args[1:], stdout) },
 		"skill":   func() error { return skillCmd(args[1:], stdout) },
 	}
@@ -461,7 +464,10 @@ func review(
 		return tui.Outcome{}, err
 	}
 
-	out, runErr := tui.RunShell(tui.NewReviewShell(ctx, m).WithJournal(journal.Open()))
+	rec, seen := openUsage()
+	defer rec.Close() //nolint:errcheck // a usage log that failed to close lost nothing the review needs
+
+	out, runErr := tui.RunShell(tui.NewReviewShell(ctx, m).WithUsage(rec, seen))
 
 	// The log is written either way: a post that failed partway through still
 	// names the endpoints it reached, which is what says whether anything
@@ -649,7 +655,10 @@ func localCmd(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 
-	if _, err := tui.RunShell(tui.NewReviewShell(ctx, m).WithJournal(journal.Open())); err != nil {
+	rec, seen := openUsage()
+	defer rec.Close() //nolint:errcheck // a usage log that failed to close lost nothing the review needs
+
+	if _, err := tui.RunShell(tui.NewReviewShell(ctx, m).WithUsage(rec, seen)); err != nil {
 		return fmt.Errorf("reviewing the local change: %w", err)
 	}
 
@@ -1737,23 +1746,17 @@ func journalCmd(args []string, stdout io.Writer) error {
 		return errUsageJournal
 	}
 
-	path, err := journal.Path()
-	if err != nil {
-		return fmt.Errorf("finding the journal: %w", err)
-	}
-
-	f, err := os.Open(path) //nolint:gosec // the state home plus a constant name
-	if errors.Is(err, os.ErrNotExist) {
+	dir := keyusage.Dir(usageApp)
+	if dir == "" {
 		return write(stdout, "no journal yet\n")
 	}
 
+	sum, err := journal.SummarizeDir(dir)
 	if err != nil {
-		return fmt.Errorf("opening the journal: %w", err)
+		return fmt.Errorf("reading the journal back: %w", err)
 	}
 
-	defer f.Close() //nolint:errcheck // a read
-
-	if err := journal.Summarize(f).Write(stdout); err != nil {
+	if err := sum.Write(stdout); err != nil {
 		return fmt.Errorf("reading the journal back: %w", err)
 	}
 

@@ -247,6 +247,7 @@ type List struct {
 	// pending is the g waiting on the key that finishes its chord, and goes is
 	// the second keys the current tab declared for it.
 	pending rune
+	use     *fresher
 	goes    []GoKey
 
 	// held is a refreshed order waiting on the keyboard. baseline is the rows as
@@ -597,17 +598,17 @@ func (l *List) readHelp(msg tea.KeyPressMsg) {
 	const halfPage = 2
 
 	switch msg.String() {
-	case "up":
+	case upKey:
 		l.helpAt--
-	case "down":
+	case downKey:
 		l.helpAt++
-	case "pgup":
+	case pgUpKey:
 		l.helpAt -= l.height / halfPage
-	case "pgdown":
+	case pgDownKey:
 		l.helpAt += l.height / halfPage
-	case "home":
+	case homeKey:
 		l.helpAt = 0
-	case "end":
+	case endKey:
 		l.helpAt = pastEnd
 	default:
 		l.help, l.helpAt = false, 0
@@ -787,7 +788,7 @@ func (l *List) goObjects() string {
 // goCaption is the same answer drawn as keyhints while the chord waits.
 func (l *List) goCaption() string {
 	hints := make([][2]string, 0, len(l.goes)+1)
-	hints = append(hints, [2]string{"g", "top"})
+	hints = append(hints, [2]string{"g", topWord})
 
 	for _, o := range l.goes {
 		hints = append(hints, [2]string{o.Key, o.What})

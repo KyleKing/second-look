@@ -57,8 +57,13 @@ func setLabel(ctx context.Context, l Labeling, at labels.Target, rowKey, name st
 }
 
 const (
-	upKey   = "up"
-	downKey = "down"
+	upKey     = "up"
+	downKey   = "down"
+	pgUpKey   = "pgup"
+	pgDownKey = "pgdown"
+	homeKey   = "home"
+	endKey    = "end"
+	ctrlCKey  = "ctrl+c"
 )
 
 const labelRows = 10
@@ -130,7 +135,7 @@ func (p *labelPicker) key(msg tea.KeyPressMsg) labelStep {
 	shown := p.shown()
 
 	switch msg.String() {
-	case escKey, "ctrl+c":
+	case escKey, ctrlCKey:
 		return labelStep{done: true}
 	case upKey, "ctrl+p":
 		p.cursor = wrapIndex(p.cursor-1, len(shown))

@@ -15,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/keyusage"
 	"github.com/kyleking/aragonite/tui/handoff"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
@@ -27,7 +28,6 @@ import (
 	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/highlight"
-	"github.com/kyleking/second-look/internal/journal"
 	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/rate"
 	"github.com/kyleking/second-look/internal/seen"
@@ -395,8 +395,11 @@ type Model struct {
 	failure error
 	// j is the usage journal and built is when the screen was made, which is
 	// the start a "how long did the open take" measures from.
-	j     *journal.J
+	j     *keyusage.Recorder
 	built time.Time
+	use   *fresher
+	// headLogged keeps the head check to one usage line per review.
+	headLogged bool
 }
 
 // Option configures the review screen.
@@ -654,7 +657,10 @@ type headMsg struct {
 // problem, and the diff on screen is as good as it was before the question.
 func (m *Model) applyHead(msg headMsg) {
 	m.verifying = false
-	m.j.Since("review", "head", m.built)
+	if !m.headLogged {
+		m.headLogged = true
+		m.j.Since(ctxReview, "head", m.built)
+	}
 
 	switch {
 	case msg.err != nil:
@@ -1358,19 +1364,19 @@ func (m *Model) readHelp(msg tea.KeyPressMsg) tea.Model {
 			m.help = false
 		}
 		m.helpAt, m.helpNote = 0, nil
-	case "?", "ctrl+c":
+	case "?", ctrlCKey:
 		m.help, m.helpAt, m.helpPath, m.helpNote = false, 0, nil, nil
-	case "up":
+	case upKey:
 		m.helpAt--
-	case "down":
+	case downKey:
 		m.helpAt++
-	case "pgup", "ctrl+u":
+	case pgUpKey, "ctrl+u":
 		m.helpAt -= m.viewHeight() / halfPage
-	case "pgdown", "ctrl+d":
+	case pgDownKey, "ctrl+d":
 		m.helpAt += m.viewHeight() / halfPage
-	case "home":
+	case homeKey:
 		m.helpAt = 0
-	case "end":
+	case endKey:
 		m.helpAt = pastEnd
 	default:
 		m.helpNote = m.helpNoteFor(msg.String())
@@ -3136,7 +3142,7 @@ func (m *Model) open(start string, msg editedMsg) tea.Cmd {
 func (m *Model) seat(p *pane.Pane, name string, msg editedMsg, title string) tea.Cmd {
 	m.pane, m.paneFile, m.paneMsg = p, name, msg
 	m.paneTitle = title
-	m.j.Event("review", "pane "+title)
+	m.j.Event(ctxReview, "pane", title)
 
 	// A hover answer still in flight would draw over the shrunken body while
 	// the pane holds the keyboard, so it is dismissed rather than left up.
@@ -3725,7 +3731,7 @@ func (m *Model) applySubmit(msg submittedMsg) {
 	}
 
 	m.posted = true
-	m.j.Event("review", "post")
+	m.j.Event(ctxReview, "post", "")
 
 	hint := msg.summary + "; enter reviews the next one staged, o opens it on GitHub, "
 	if m.cleanup != nil && !m.branchDeleted {
@@ -3747,7 +3753,7 @@ func (m *Model) applyMerge(msg mergedMsg) {
 	}
 
 	m.merged = true
-	m.j.Event("review", "merge")
+	m.j.Event(ctxReview, "merge", "")
 	m.say(msg.summary+", press q to leave", false)
 }
 
