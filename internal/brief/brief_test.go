@@ -256,8 +256,9 @@ func TestOwed(t *testing.T) {
 }
 
 // A reply is only readable beside what it answers, so the cached thread is
-// printed with it and a thread that is no longer cached says so rather than
-// leaving the reply looking like it addresses nothing.
+// printed with it, on its thread's line and hunk since it carries no anchor of
+// its own, and a thread that is no longer cached says so rather than leaving
+// the reply looking like it addresses nothing.
 func TestCommentShowsTheThreadItAnswers(t *testing.T) {
 	t.Parallel()
 
@@ -277,10 +278,17 @@ func TestCommentShowsTheThreadItAnswers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, want := range []string{"IT ANSWERS", "@kyleking", "Does this drop the error?"} {
+	for _, want := range []string{
+		"reply  ready  pkg/read.go RIGHT 4\n", ">>    4 + \treturn open(path)\n",
+		"IT ANSWERS", "@kyleking", "Does this drop the error?",
+	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("%q is missing from:\n%s", want, out)
 		}
+	}
+
+	if strings.Contains(out, "head has moved") {
+		t.Errorf("a reply on a line the diff carries read as moved:\n%s", out)
 	}
 
 	out, err = brief.Comment(r, "reply", diff.Parse([]byte(patch)), nil, 0)
@@ -288,7 +296,7 @@ func TestCommentShowsTheThreadItAnswers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(out, "not in the cached threads") {
+	if !strings.Contains(out, "not in the cached threads") || strings.Contains(out, "head has moved") {
 		t.Errorf("a reply with no cached thread said nothing about it:\n%s", out)
 	}
 }

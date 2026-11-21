@@ -75,9 +75,11 @@ func Comment(
 		return "", fmt.Errorf("%q: %w", id, ErrNoComment)
 	}
 
+	at := hungFrom(c, ts)
+
 	var b strings.Builder
 
-	fmt.Fprintf(&b, "%s  %s\n", mark(c), where(c))
+	fmt.Fprintf(&b, "%s  %s\n", mark(c), where(at))
 	fmt.Fprintf(&b, "\n%s\n", indent(c.Body))
 
 	if strings.TrimSpace(c.Note) != "" {
@@ -89,7 +91,10 @@ func Comment(
 	}
 
 	b.WriteString(Turns(c))
-	b.WriteString(hunkOf(d, c, around))
+	if at.Path != "" {
+		b.WriteString(hunkOf(d, at, around))
+	}
+
 	b.WriteString(conversation(c, ts))
 
 	return b.String(), nil
@@ -185,6 +190,24 @@ func conversation(c *artifact.Comment, ts []threads.Thread) string {
 	}
 
 	return b.String()
+}
+
+// hungFrom is the comment as it sits in the diff: a reply that carries no
+// anchor of its own takes its thread's.
+func hungFrom(c *artifact.Comment, ts []threads.Thread) *artifact.Comment {
+	if c.Path != "" {
+		return c
+	}
+
+	t := threads.For(ts, c.InReplyTo)
+	if t == nil {
+		return c
+	}
+
+	at := *c
+	at.Path, at.Side, at.Line, at.StartLine = t.Path, t.Side, t.Line, 0
+
+	return &at
 }
 
 // anchored indexes the comments by the line they hang from, since a line can
