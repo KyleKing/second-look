@@ -214,7 +214,7 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 		}
 	}
 
-	s = s.appendUnanchored(r, placed, lay)
+	s = s.appendUnanchored(r, ts, placed, lay)
 	s.rows = append(s.rows, signature(r, lay, s.numWidth)...)
 
 	return s
@@ -641,7 +641,9 @@ func staged(r *artifact.Review, path string, ts []threads.Thread) string {
 
 // appendUnanchored lists comments no diff line claimed. Staging refuses those,
 // so reaching one means the diff moved under a review that was already staged.
-func (s screen) appendUnanchored(r *artifact.Review, placed []bool, lay layout) screen {
+func (s screen) appendUnanchored(
+	r *artifact.Review, ts []threads.Thread, placed []bool, lay layout,
+) screen {
 	var loose []int
 
 	for i := range r.Comments {
@@ -660,8 +662,13 @@ func (s screen) appendUnanchored(r *artifact.Review, placed []bool, lay layout) 
 	for _, i := range loose {
 		c := &r.Comments[i]
 		where := fmt.Sprintf("%s %s %d", c.Path, c.Side, c.Line)
+
 		if c.InReplyTo != 0 && c.Path == "" {
 			where = fmt.Sprintf("answers comment %d, not in the cached threads", c.InReplyTo)
+			if t := threads.For(ts, c.InReplyTo); t != nil {
+				where = fmt.Sprintf("answers comment %d on %s %s %d", c.InReplyTo, t.Path, t.Side, t.Line)
+				c = hungFrom(c, ts)
+			}
 		}
 
 		s.rows = append(s.rows, row{kind: rowHunk, text: where, comment: -1})
@@ -732,7 +739,7 @@ func buildList(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout
 				continue
 			}
 
-			s.rows = append(s.rows, commentRows(&r.Comments[i], i, path, lay, s.numWidth, inRun{})...)
+			s.rows = append(s.rows, commentRows(hungFrom(&r.Comments[i], ts), i, path, lay, s.numWidth, inRun{})...)
 		}
 	}
 
@@ -744,6 +751,24 @@ func buildList(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout
 	s.rows = append(s.rows, signature(r, lay, s.numWidth)...)
 
 	return s
+}
+
+// hungFrom is the comment as it sits in the diff: a reply that carries no
+// anchor of its own takes its thread's, so its card names a real line.
+func hungFrom(c *artifact.Comment, ts []threads.Thread) *artifact.Comment {
+	if c.Path != "" {
+		return c
+	}
+
+	t := threads.For(ts, c.InReplyTo)
+	if t == nil {
+		return c
+	}
+
+	at := *c
+	at.Path, at.Side, at.Line, at.StartLine = t.Path, t.Side, t.Line, 0
+
+	return &at
 }
 
 // onPath is the file a comment belongs to: its own, or the file of the thread

@@ -95,7 +95,7 @@ func buildCode(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout
 		}
 	}
 
-	s = s.appendUnanchored(r, placed, lay)
+	s = s.appendUnanchored(r, ts, placed, lay)
 	s.rows = append(s.rows, signature(r, lay, s.numWidth)...)
 
 	return s

@@ -2818,10 +2818,12 @@ func TestAnAnchorlessReplyDrawsInItsThread(t *testing.T) {
 	}
 }
 
-// A reply whose thread is not in the cache cannot draw in a card that is not
-// there, so it lands in the unanchored list saying what it answers rather than
-// pointing at a blank anchor.
-func TestAReplyToAnUncachedThreadSaysWhatItAnswers(t *testing.T) {
+// A reply that carries no anchor of its own is drawn where its thread hangs.
+// Whose thread is not in the cache lands in the unanchored list saying what it
+// answers rather than pointing at a blank anchor, one whose cached thread the
+// diff no longer carries says where that thread is rather than that the cache
+// lacks it, and its card in the comments view names the thread's line.
+func TestAnAnchorlessReplySaysWhatItAnswers(t *testing.T) {
 	t.Parallel()
 
 	reply := artifact.Comment{
@@ -2829,14 +2831,63 @@ func TestAReplyToAnUncachedThreadSaysWhatItAnswers(t *testing.T) {
 		Status: artifact.StatusReady,
 	}
 
-	m, _, _ := fixtureWith(t, patch, reply)
-	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
+	for _, tc := range []struct {
+		name    string
+		threads []threads.Thread
+		views   int
+		want    []string
+		mustNot string
+	}{
+		{
+			name: "uncached",
+			want: []string{"not in this diff", "answers comment 77, not in the cached threads"},
+		},
+		{
+			name:    "outdated",
+			threads: []threads.Thread{thread77(900, true)},
+			want:    []string{"not in this diff", "answers comment 77 on " + parsed + " RIGHT 900"},
+			mustNot: "not in the cached threads",
+		},
+		{
+			name:    "listed",
+			threads: []threads.Thread{thread77(15, false)},
+			views:   2,
+			want:    []string{"diff.go:15"},
+			mustNot: "diff.go:0",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	got := plain(m.Frame())
+			m, _, _ := modelFor(t, &artifact.Review{
+				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+				HeadSHA: "a1b2c3d", Event: artifact.EventComment, Comments: []artifact.Comment{reply},
+			}, patch, tui.WithThreads(tc.threads))
 
-	if !strings.Contains(got, "not in this diff") ||
-		!strings.Contains(got, "answers comment 77, not in the cached threads") {
-		t.Errorf("an unanswerable reply did not say what it answers:\n%s", got)
+			for range tc.views {
+				nextView(t, m)
+			}
+
+			m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
+
+			got := plain(m.Frame())
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("%q is missing from:\n%s", want, got)
+				}
+			}
+
+			if tc.mustNot != "" && strings.Contains(got, tc.mustNot) {
+				t.Errorf("%q is in:\n%s", tc.mustNot, got)
+			}
+		})
+	}
+}
+
+func thread77(line int, outdated bool) threads.Thread {
+	return threads.Thread{
+		Path: parsed, Side: artifact.SideRight, Line: line, Outdated: outdated,
+		Notes: []threads.Note{{ID: 77, Author: "KyleKing", Body: "does this handle nil?"}},
 	}
 }
 
