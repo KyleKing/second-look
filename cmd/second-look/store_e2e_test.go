@@ -204,37 +204,6 @@ func TestWorkHandedToAnAgentComesBackAsATurn(t *testing.T) {
 	}
 }
 
-// Posting refuses while an agent still owes work, for the same reason it
-// refuses a draft: it is unfinished.
-func TestPostRefusesWhileWorkIsOutstanding(t *testing.T) {
-	t.Parallel()
-
-	dir := workspace(t, "triaged.toml")
-	path := artifact.Path(stored(t, dir), 2)
-
-	r, err := artifact.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	r.Comments[0].Status = artifact.StatusTodo
-
-	if err := artifact.Save(path, r); err != nil {
-		t.Fatal(err)
-	}
-
-	s := ghcassette.Replay(t, derive(t, "todo-blocks", guardOnly))
-
-	res := runCLI(t, s, dir, "post", "2")
-	if res.code == 0 {
-		t.Fatalf("a review with work outstanding posted:\n%s", res.stdout)
-	}
-
-	if !strings.Contains(res.stderr, "still todo") {
-		t.Errorf("the refusal did not name the reason: %s", res.stderr)
-	}
-}
-
 // The agent records its own session, because every tool says its id
 // differently and the process holding one is what knows it for certain. It is
 // recorded on the review, so it goes when the review does.

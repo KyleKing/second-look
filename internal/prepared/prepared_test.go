@@ -394,3 +394,21 @@ func TestOrderLeavesAListWithNoStackAlone(t *testing.T) {
 		t.Errorf("the list reads %v, want %v", got, want)
 	}
 }
+
+// Short is the head at the length a person reads, and a head already that short
+// or shorter as it is.
+func TestShort(t *testing.T) {
+	t.Parallel()
+
+	for sha, want := range map[string]string{
+		"0123456789abcdef": "0123456",
+		"0123456":          "0123456",
+		"abc":              "abc",
+		"":                 "",
+	} {
+		r := prepared.Review{HeadSHA: sha}
+		if got := r.Short(); got != want {
+			t.Errorf("Short(%q) = %q, want %q", sha, got, want)
+		}
+	}
+}

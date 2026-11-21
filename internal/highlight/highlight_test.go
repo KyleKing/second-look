@@ -29,55 +29,62 @@ func classed(text string, spans []highlight.Span) string {
 	return b.String() + text[at:]
 }
 
-func TestLinesClassifiesByGrammar(t *testing.T) {
+// TestHighlight lexes by file name or by a fence's tag. A whole slice is lexed
+// as one, because a line inside a raw string reads as code on its own and the
+// state that says otherwise is on the line above it; a path or a tag no grammar
+// answers for draws as plain text rather than as whatever chroma guesses.
+func TestHighlight(t *testing.T) {
 	t.Parallel()
 
-	src := []string{
+	goSrc := []string{
 		"// count the entries",
 		"const limit = 5",
 		`var name = "second-look"`,
 	}
-
-	got := highlight.Lines("internal/rate/rate.go", src)
-	if len(got) != len(src) {
-		t.Fatalf("lexed %d lines, want %d", len(got), len(src))
-	}
-
-	for i, want := range []string{
+	goWant := []string{
 		"c[// count the entries]",
 		"k[const] i[limit] p[=] n[5]",
 		"k[var] i[name] p[=] s[\"second-look\"]",
+	}
+
+	for _, tc := range []struct {
+		name string
+		got  [][]highlight.Span
+		src  []string
+		want []string
+	}{
+		{"by file name", highlight.Lines("internal/rate/rate.go", goSrc), goSrc, goWant},
+		{"by a fence's tag", highlight.Tagged("go", goSrc), goSrc, goWant},
+		{
+			"across lines",
+			highlight.Lines("a.go", []string{"var q = `", "func not() {}", "`"}),
+			[]string{"var q = `", "func not() {}", "`"},
+			[]string{"k[var] i[q] p[=] s[`]", "s[func not() {}]", "s[`]"},
+		},
+		{"an unknown extension", highlight.Lines("data/records.unknownext", goSrc), goSrc, nil},
+		{"an untagged fence", highlight.Tagged("", goSrc), goSrc, nil},
+		{"a tag no grammar answers", highlight.Tagged("no-such-language", goSrc), goSrc, nil},
 	} {
-		if line := classed(src[i], got[i]); line != want {
-			t.Errorf("line %d lexed as\n  %s\nwant\n  %s", i, line, want)
-		}
-	}
-}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-// A line is not a program: one inside a raw string reads as code on its own,
-// and the state that says otherwise is on the line above it.
-func TestLinesCarryStateBetweenThem(t *testing.T) {
-	t.Parallel()
+			if tc.want == nil {
+				if tc.got != nil {
+					t.Errorf("answered %v, want nothing", tc.got)
+				}
 
-	got := highlight.Lines("a.go", []string{"var q = `", "func not() {}", "`"})
+				return
+			}
 
-	if len(got) != 3 {
-		t.Fatalf("lexed %d lines, want 3", len(got))
-	}
+			if len(tc.got) != len(tc.want) {
+				t.Fatalf("lexed %d lines, want %d", len(tc.got), len(tc.want))
+			}
 
-	for _, s := range got[1] {
-		if s.Class != highlight.String {
-			t.Errorf("a line inside a raw string was lexed as %d, want a string", s.Class)
-		}
-	}
-}
-
-// A path no grammar answers for draws as plain text rather than as whatever
-// chroma guesses a fragment to be.
-func TestAnUnknownGrammarYieldsNothing(t *testing.T) {
-	t.Parallel()
-
-	if got := highlight.Lines("data/records.unknownext", []string{"anything at all"}); got != nil {
-		t.Errorf("an unknown grammar answered %v", got)
+			for i, want := range tc.want {
+				if line := classed(tc.src[i], tc.got[i]); line != want {
+					t.Errorf("line %d lexed as\n  %s\nwant\n  %s", i, line, want)
+				}
+			}
+		})
 	}
 }

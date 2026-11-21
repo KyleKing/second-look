@@ -56,67 +56,11 @@ func TestInbox(t *testing.T) {
 	s.RequireAllPlayed(t)
 }
 
-// --json carries what the human view trims: the whole of a failure, and the
-// fields a script sorts on.
-func TestInboxJSON(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	s := ghcassette.Replay(t, inboxCassettePath(t))
-
-	res := runCLI(t, s, dir, "inbox", "--json")
-	if res.code != 0 {
-		t.Fatalf("inbox --json failed: %s%s", res.stdout, res.stderr)
-	}
-
-	if !strings.HasPrefix(strings.TrimSpace(res.stdout), "[") {
-		t.Errorf("--json did not print JSON:\n%s", res.stdout)
-	}
-
-	for _, want := range []string{`"bucket"`, `"repository"`, `"updated"`} {
-		if !strings.Contains(res.stdout, want) {
-			t.Errorf("the %s field is missing:\n%s", want, res.stdout)
-		}
-	}
-
-	var buckets []struct {
-		Bucket string `json:"bucket"`
-		Items  []struct {
-			Number int         `json:"number"`
-			Lane   string      `json:"lane"`
-			Stack  inbox.Stack `json:"stack"`
-		} `json:"items"`
-	}
-
-	if err := json.Unmarshal([]byte(res.stdout), &buckets); err != nil {
-		t.Fatalf("reading the queue: %v", err)
-	}
-
-	// The stack is drawn in the lane of its most urgent member, bottom first,
-	// and each row still says which lane it belongs to on its own.
-	var got []string
-
-	for _, b := range buckets {
-		for _, it := range b.Items {
-			if it.Stack.Size > 0 {
-				got = append(got, fmt.Sprintf("%s/%d@%s:%s/%d",
-					b.Bucket, it.Number, it.Lane, it.Stack.ID, it.Stack.Position))
-			}
-		}
-	}
-
-	want := []string{
-		"to review/104@to review:kyleking/aragonite#104/1", "to review/105@to review:kyleking/aragonite#104/2",
-	}
-	if !slices.Equal(got, want) {
-		t.Errorf("the stack is %q, want %q", got, want)
-	}
-}
-
 // Whatever reviews a queue in turn reads the piped shape, so it has to arrive in
 // the order the screen draws and carry the rating the screen shows. Without
 // both, a driver re-fetches every diff to work out which row is cheap and then
-// works through them by recency anyway.
+// works through them by recency anyway. It also carries what the human view
+// trims: the lane each row belongs to on its own, and where it sits in a stack.
 func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 	t.Parallel()
 
@@ -165,6 +109,8 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 		t.Fatalf("reading the queue: %v\n%s", err, res.stdout)
 	}
 
+	requireStackDrawnBottomFirst(t, res.stdout)
+
 	var lane int
 
 	for i := range buckets {
@@ -195,6 +141,44 @@ func TestInboxJSONCarriesTheRatingAndTheTriageOrder(t *testing.T) {
 	// and the screen draws it beside the row.
 	if first.Ready != 1 {
 		t.Errorf("the row carries %d ready comment(s), want the one staged here", first.Ready)
+	}
+}
+
+// requireStackDrawnBottomFirst holds the piped queue to drawing a stack in the
+// lane of its most urgent member, bottom first, with each row still saying
+// which lane it belongs to on its own.
+func requireStackDrawnBottomFirst(t *testing.T, stdout string) {
+	t.Helper()
+
+	var buckets []struct {
+		Bucket string `json:"bucket"`
+		Items  []struct {
+			Number int         `json:"number"`
+			Lane   string      `json:"lane"`
+			Stack  inbox.Stack `json:"stack"`
+		} `json:"items"`
+	}
+
+	if err := json.Unmarshal([]byte(stdout), &buckets); err != nil {
+		t.Fatalf("reading the queue: %v", err)
+	}
+
+	var stacked []string
+
+	for _, b := range buckets {
+		for _, it := range b.Items {
+			if it.Stack.Size > 0 {
+				stacked = append(stacked, fmt.Sprintf("%s/%d@%s:%s/%d",
+					b.Bucket, it.Number, it.Lane, it.Stack.ID, it.Stack.Position))
+			}
+		}
+	}
+
+	want := []string{
+		"to review/104@to review:kyleking/aragonite#104/1", "to review/105@to review:kyleking/aragonite#104/2",
+	}
+	if !slices.Equal(stacked, want) {
+		t.Errorf("the stack is %q, want %q", stacked, want)
 	}
 }
 

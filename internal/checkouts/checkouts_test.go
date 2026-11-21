@@ -79,42 +79,42 @@ func TestFindRanksEveryCloneAndWorktree(t *testing.T) {
 	}
 }
 
-// A repository with no clone here is the cross-repository case, and an empty
-// answer is what says so.
-func TestFindAnswersNothingForARepositoryWithNoClone(t *testing.T) {
+// What Find answers short of a ranking: an empty list for a repository with no
+// clone here, which is the cross-repository case; ErrNoRemotes for an older
+// dashboard that prints no remote at all, since reporting no clone for a
+// repository sitting right there would be wrong; and the install command where
+// the extension is missing.
+func TestFindShortOfARanking(t *testing.T) {
 	t.Parallel()
 
-	got, err := checkouts.Find(t.Context(), &answerer{body: fleet(t)}, "acme/unrelated", "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, tc := range []struct {
+		name, repo string
+		a          *answerer
+		is         error
+		says       string
+	}{
+		{name: "no clone", repo: "acme/unrelated", a: &answerer{body: fleet(t)}},
+		{
+			name: "no remotes", repo: "acme/app",
+			a:  &answerer{body: []byte(`{"repos":[{"path":"/home/me/Developer/acme/app","branch":"main"}]}`)},
+			is: checkouts.ErrNoRemotes,
+		},
+		{
+			name: "no extension", repo: "acme/app", a: &answerer{err: errMissing},
+			is: errMissing, says: "gh extension install",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	if len(got) != 0 {
-		t.Fatalf("found %+v for a repository that is not cloned here", got)
-	}
-}
+			got, err := checkouts.Find(t.Context(), tc.a, tc.repo, "")
+			if len(got) != 0 || !errors.Is(err, tc.is) || (err != nil) != (tc.is != nil) {
+				t.Fatalf("found %+v and %v, want nothing and %v", got, err, tc.is)
+			}
 
-// An older dashboard prints no remote at all, so every directory in its answer
-// is unmatchable. Saying that beats reporting no clone for a repository that is
-// sitting right there.
-func TestFindNamesAnAnswerWithNoRemotes(t *testing.T) {
-	t.Parallel()
-
-	body := []byte(`{"repos":[{"path":"/home/me/Developer/acme/app","branch":"main"}]}`)
-
-	_, err := checkouts.Find(t.Context(), &answerer{body: body}, "acme/app", "")
-	if !errors.Is(err, checkouts.ErrNoRemotes) {
-		t.Fatalf("answered %v, want ErrNoRemotes", err)
-	}
-}
-
-func TestFindNamesTheMissingExtension(t *testing.T) {
-	t.Parallel()
-
-	a := &answerer{err: errMissing}
-
-	if _, err := checkouts.Find(t.Context(), a, "acme/app", ""); err == nil ||
-		!strings.Contains(err.Error(), "gh extension install") {
-		t.Fatalf("answered %v, want it to name the install command", err)
+			if tc.says != "" && !strings.Contains(err.Error(), tc.says) {
+				t.Errorf("answered %v, want it to name %q", err, tc.says)
+			}
+		})
 	}
 }

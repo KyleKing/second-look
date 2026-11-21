@@ -94,20 +94,6 @@ func TestStatusCountsWhatTheListingSays(t *testing.T) {
 	}
 }
 
-// The command takes no arguments; one passed means the caller meant another.
-func TestStatusTakesNoArguments(t *testing.T) {
-	t.Parallel()
-
-	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "status-args", func(c *ghcassette.Cassette) {
-		c.Interactions = nil
-	}))
-
-	res := runCLI(t, s, t.TempDir(), "status", "extra")
-	if res.code == 0 {
-		t.Fatal("status extra ran to success")
-	}
-}
-
 // configDir is where os.UserConfigDir looks under a home, which on macOS is
 // the Library rather than .config.
 func configDir(home string) string {

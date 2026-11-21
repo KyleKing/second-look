@@ -174,11 +174,9 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 
 	// The hand-off is the pane's own key, not something the open spends.
 	run.key(tea.KeyPressMsg{Code: 't', Mod: tea.ModCtrl})
-	run.wait(func() bool {
-		frame := plain(m.Frame())
-
-		return strings.Contains(frame, "1 Allow") && strings.Contains(frame, "stub heard:")
-	})
+	// The ask holds the pane's tail, so the turn's opening line is above it and
+	// is looked for by scrolling below.
+	run.wait(func() bool { return strings.Contains(plain(m.Frame()), "1 Allow") })
 
 	frame := plain(m.Frame())
 	for _, want := range []string{

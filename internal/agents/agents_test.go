@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/kyleking/second-look/internal/agents"
 )
@@ -27,37 +28,38 @@ func TestListReadsTheSessionShape(t *testing.T) {
 		t.Fatalf("List: %v", err)
 	}
 
-	if len(live) != 2 {
-		t.Fatalf("List returned %d sessions, want the two carrying ids: %v", len(live), live)
+	want := map[string]agents.Live{
+		"bfef1969-ccdc-4165-aefd-1ddffb81e357": {
+			Session: "bfef1969-ccdc-4165-aefd-1ddffb81e357", State: agents.Blocked, Name: "Implement plan",
+			Started: time.UnixMilli(1784694451272),
+		},
+		"502f4e3f-9e0a-4c6c-b443-533df62d8992": {
+			Session: "502f4e3f-9e0a-4c6c-b443-533df62d8992", State: "busy", Name: "watch",
+			Started: time.UnixMilli(1791410082371),
+		},
 	}
 
-	if got := live["bfef1969-ccdc-4165-aefd-1ddffb81e357"].State; got != agents.Blocked {
-		t.Errorf("background session's state = %q, want blocked", got)
-	}
-	if got := live["502f4e3f-9e0a-4c6c-b443-533df62d8992"].State; got != "busy" {
-		t.Errorf("interactive session's status = %q, want busy", got)
-	}
-	if live["bfef1969-ccdc-4165-aefd-1ddffb81e357"].Started.IsZero() {
-		t.Error("startedAt did not parse")
-	}
-}
-
-// A listing that fails, prints something else, or is never configured all
-// arrive as an error the screen keeps quiet rather than a half-answer.
-func TestListRefusesWhatIsNotAList(t *testing.T) {
-	t.Parallel()
-
-	if _, err := agents.List(t.Context(), nil); err == nil {
-		t.Error("no argv listed fine")
+	if len(live) != len(want) {
+		t.Fatalf("List returned %v, want the two sessions carrying ids", live)
 	}
 
-	if _, err := agents.List(t.Context(), []string{stub(t, `not json`)}); err == nil {
-		t.Error("unreadable output listed fine")
+	for id, w := range want {
+		if got := live[id]; got.Session != w.Session || got.State != w.State || got.Name != w.Name ||
+			!got.Started.Equal(w.Started) {
+			t.Errorf("session %s read as %+v, want %+v", id, got, w)
+		}
 	}
 
-	missing := filepath.Join(t.TempDir(), "no-such-command")
-	if _, err := agents.List(t.Context(), []string{missing}); err == nil {
-		t.Error("a command that is not there listed fine")
+	// A listing that fails, prints something else, or is never configured all
+	// arrive as an error the screen keeps quiet rather than a half-answer.
+	for name, argv := range map[string][]string{
+		"no argv":                 nil,
+		"unreadable output":       {stub(t, `not json`)},
+		"a command not installed": {filepath.Join(t.TempDir(), "no-such-command")},
+	} {
+		if got, err := agents.List(t.Context(), argv); err == nil {
+			t.Errorf("%s listed %v", name, got)
+		}
 	}
 }
 

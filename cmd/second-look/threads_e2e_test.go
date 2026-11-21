@@ -34,8 +34,9 @@ func TestThreads(t *testing.T) {
 	t.Parallel()
 
 	s := ghcassette.Replay(t, queueCassette(t))
+	home := quietHome(t)
 
-	res := runCLI(t, s, t.TempDir(), "threads")
+	res := runCLIEnv(t, s, t.TempDir(), homeEnv(home), "threads")
 	if res.code != 0 {
 		t.Fatalf("threads failed: %s%s", res.stdout, res.stderr)
 	}
@@ -66,23 +67,56 @@ func TestThreads(t *testing.T) {
 	}
 
 	s.RequireAllPlayed(t)
-}
 
-// Printing the queue is not reading it, so a run that emptied the first bucket
-// by being run would hide the one thing that bucket is for.
-func TestThreadsWritesNoReadMarks(t *testing.T) {
-	t.Parallel()
-
-	s := ghcassette.Replay(t, queueCassette(t))
-	home := quietHome(t)
-
-	res := runCLIEnv(t, s, t.TempDir(), []string{"HOME=" + home, "XDG_CONFIG_HOME=" + home + "/.config"}, "threads")
-	if res.code != 0 {
-		t.Fatalf("threads failed: %s%s", res.stdout, res.stderr)
-	}
-
+	// Printing the queue is not reading it, so a run that emptied the first
+	// bucket by being run would hide the one thing that bucket is for.
 	if found := marks(t, home); found != "" {
 		t.Errorf("printing the queue wrote read marks at %s", found)
+	}
+
+	// --json is what an agent reads, so the buckets and every field a script
+	// needs have to survive it.
+	res = runCLI(t, ghcassette.Replay(t, queueCassette(t)), t.TempDir(), "threads", "--json")
+	if res.code != 0 {
+		t.Fatalf("threads --json failed: %s%s", res.stdout, res.stderr)
+	}
+
+	requireActionableBuckets(t, res.stdout)
+}
+
+// requireActionableBuckets holds the piped queue to the three buckets in order,
+// each conversation carrying enough to act on.
+func requireActionableBuckets(t *testing.T, stdout string) {
+	t.Helper()
+
+	var buckets []struct {
+		Name  string                       `json:"bucket"`
+		Items []conversations.Conversation `json:"items"`
+	}
+
+	if err := json.Unmarshal([]byte(stdout), &buckets); err != nil {
+		t.Fatalf("reading the buckets: %v\n%s", err, stdout)
+	}
+
+	names := make([]string, 0, len(buckets))
+	seen := 0
+
+	for i := range buckets {
+		names = append(names, buckets[i].Name)
+
+		for j := range buckets[i].Items {
+			c := &buckets[i].Items[j]
+			seen++
+
+			if c.Repository == "" || c.Number == 0 || len(c.Notes) == 0 || !c.Why.Any() {
+				t.Errorf("a conversation carries too little to act on: %+v", c)
+			}
+		}
+	}
+
+	want := []string{conversations.BucketNew, conversations.BucketWaiting, conversations.BucketAwaiting}
+	if !slices.Equal(names, want) || seen == 0 {
+		t.Fatalf("printed buckets %q holding %d conversations, want %q holding some", names, seen, want)
 	}
 }
 
@@ -104,49 +138,6 @@ func marks(t *testing.T, home string) string {
 	}
 
 	return found
-}
-
-// --json is what an agent reads, so the buckets and every field a script needs
-// have to survive it.
-func TestThreadsJSON(t *testing.T) {
-	t.Parallel()
-
-	s := ghcassette.Replay(t, queueCassette(t))
-
-	res := runCLI(t, s, t.TempDir(), "threads", "--json")
-	if res.code != 0 {
-		t.Fatalf("threads --json failed: %s%s", res.stdout, res.stderr)
-	}
-
-	var buckets []struct {
-		Name  string                       `json:"name"`
-		Items []conversations.Conversation `json:"items"`
-	}
-
-	if err := json.Unmarshal([]byte(res.stdout), &buckets); err != nil {
-		t.Fatalf("reading the buckets: %v\n%s", err, res.stdout)
-	}
-
-	if len(buckets) != 3 {
-		t.Fatalf("printed %d buckets, want 3:\n%s", len(buckets), res.stdout)
-	}
-
-	var seen int
-
-	for i := range buckets {
-		for j := range buckets[i].Items {
-			c := &buckets[i].Items[j]
-			seen++
-
-			if c.Repository == "" || c.Number == 0 || len(c.Notes) == 0 || !c.Why.Any() {
-				t.Errorf("a conversation carries too little to act on: %+v", c)
-			}
-		}
-	}
-
-	if seen == 0 {
-		t.Fatal("no conversations were printed, so nothing here is exercised")
-	}
 }
 
 // queueFixture is the hand-written queue the conversations package tests

@@ -50,40 +50,8 @@ func TestReviews(t *testing.T) {
 			t.Errorf("%q is missing:\n%s", want, res.stdout)
 		}
 	}
-}
 
-// An empty checkout is the common case on a laptop with nothing staged, and it
-// answers rather than failing.
-func TestReviewsWithNothingStaged(t *testing.T) {
-	t.Parallel()
-
-	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "reviews-empty", func(c *ghcassette.Cassette) {
-		inCheckout(c)
-		c.Interactions = nil
-	}))
-
-	res := runCLI(t, s, t.TempDir(), "reviews")
-	if res.code != 0 {
-		t.Fatalf("reviews failed: %s%s", res.stdout, res.stderr)
-	}
-
-	if !strings.Contains(res.stdout, "nothing") {
-		t.Errorf("an empty checkout said %q", res.stdout)
-	}
-}
-
-func TestReviewsJSON(t *testing.T) {
-	t.Parallel()
-
-	dir, sha := scratchRepo(t, headBranch)
-	seedReview(t, dir, sha)
-
-	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "reviews-json", func(c *ghcassette.Cassette) {
-		inCheckout(c)
-		c.Interactions = nil
-	}))
-
-	res := runCLI(t, s, dir, "reviews", "--json")
+	res = runCLI(t, s, dir, "reviews", "--json")
 	if res.code != 0 {
 		t.Fatalf("reviews --json failed: %s%s", res.stdout, res.stderr)
 	}
@@ -99,8 +67,23 @@ func TestReviewsJSON(t *testing.T) {
 		t.Fatalf("reading the rows: %v\n%s", err, res.stdout)
 	}
 
-	if len(rows) != 1 || rows[0].Number != 2 || rows[0].HeadSHA != sha {
-		t.Errorf("printed %+v, want one row for #2 at %s", rows, sha)
+	numbers := make([]int, 0, len(rows))
+	for _, r := range rows {
+		numbers = append(numbers, r.Number)
+		if r.Number == 2 && (r.HeadSHA != sha || r.Ready == 0 || !strings.HasSuffix(r.Path, "pr-2.toml")) {
+			t.Errorf("#2 printed as %+v, want it at %s with its ready comments", r, sha)
+		}
+	}
+
+	if !slices.Contains(numbers, 2) {
+		t.Errorf("printed %+v, want a row for #2", rows)
+	}
+
+	// An empty checkout is the common case on a laptop with nothing staged, and
+	// it answers rather than failing.
+	res = runCLIEnv(t, s, t.TempDir(), homeEnv(quietHome(t)), "reviews")
+	if res.code != 0 || !strings.Contains(res.stdout, "nothing") {
+		t.Errorf("an empty checkout said %q (%s)", res.stdout, res.stderr)
 	}
 }
 

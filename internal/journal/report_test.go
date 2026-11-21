@@ -60,47 +60,57 @@ func TestSummarizeCountsKeysEventsAndWaits(t *testing.T) {
 	}
 }
 
-func TestWriteReportsWhatWasReachedFor(t *testing.T) {
+// TestWrite pins the report: waits by median and worst, keys by screen and by
+// the chord they followed, and the panes and agents counted under their own
+// names rather than under the event that opened them.
+func TestWrite(t *testing.T) {
 	t.Parallel()
 
-	s := feed(
-		`{"t":"2026-10-11T09:00:00Z","s":"shell","e":"open"}`,
-		`{"t":"2026-10-11T09:00:01Z","s":"review","e":"key","w":"A"}`,
-		`{"t":"2026-10-11T09:00:02Z","s":"review","e":"key","w":"p"}`,
-		`{"t":"2026-10-11T09:10:00Z","s":"review","e":"head","ms":250}`,
-		`{"t":"2026-10-11T09:12:00Z","s":"shell","e":"leave","ms":192000}`,
-	)
-
-	var b bytes.Buffer
-	if err := s.Write(&b); err != nil {
-		t.Fatal(err)
-	}
-
-	got := b.String()
-	for _, want := range []string{
-		"5 events · 1 sitting",
-		"reviews   1 opened · 0 posted · 0 merged",
-		"head      n=1 median 250ms",
-		"leave     n=1 median 3m12s",
-		"review    A 1 · p 1",
-		"after A   p 1",
+	for _, tc := range []struct {
+		name  string
+		lines []string
+		want  string
+	}{
+		{"an empty journal", nil, "no journal yet\n"},
+		{
+			"one sitting",
+			[]string{
+				`{"t":"2026-10-11T09:00:00Z","s":"shell","e":"open"}`,
+				`{"t":"2026-10-11T09:00:01Z","s":"review","e":"key","w":"A"}`,
+				`{"t":"2026-10-11T09:00:02Z","s":"review","e":"key","w":"p"}`,
+				`{"t":"2026-10-11T09:03:00Z","s":"review","e":"pane nvim"}`,
+				`{"t":"2026-10-11T09:04:00Z","s":"review","e":"pane nvim"}`,
+				`{"t":"2026-10-11T09:05:00Z","s":"review","e":"pane lazygit"}`,
+				`{"t":"2026-10-11T09:06:00Z","s":"review","e":"agent claude"}`,
+				`{"t":"2026-10-11T09:10:00Z","s":"review","e":"head","ms":250}`,
+				`{"t":"2026-10-11T09:10:30Z","s":"review","e":"head","ms":900}`,
+				`{"t":"2026-10-11T09:11:00Z","s":"review","e":"head","ms":400}`,
+				`{"t":"2026-10-11T09:12:00Z","s":"shell","e":"leave","ms":192000}`,
+			},
+			`11 events · 1 sitting in Oct 11
+sittings  median 12m00s · longest 12m00s
+reviews   1 opened · 0 posted · 0 merged
+head      n=3 median 400ms · worst 900ms
+leave     n=1 median 3m12s · worst 3m12s
+review    A 1 · p 1
+after A   p 1
+panes     nvim 2 · lazygit 1
+agents    claude 1
+`,
+		},
 	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("the report is missing %q:\n%s", want, got)
-		}
-	}
-}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestWriteAnEmptyJournalSaysSo(t *testing.T) {
-	t.Parallel()
+			var b bytes.Buffer
+			if err := feed(tc.lines...).Write(&b); err != nil {
+				t.Fatal(err)
+			}
 
-	var b bytes.Buffer
-	if err := feed().Write(&b); err != nil {
-		t.Fatal(err)
-	}
-
-	if b.String() != "no journal yet\n" {
-		t.Errorf("an empty journal printed %q", b.String())
+			if got := b.String(); got != tc.want {
+				t.Errorf("the report reads\n%s\nwant\n%s", got, tc.want)
+			}
+		})
 	}
 }
 

@@ -109,12 +109,17 @@ func state(tb testing.TB, m *tui.Model, letter rune) {
 
 // press sends a keystroke and runs whatever it returned, which is what the
 // program loop would do and the only way a submit reaches the submitter. A
-// command that does not answer within the deadlock fails the test.
+// command that does not answer within the deadlock fails the test. A key that
+// opens a chord returns only the wait that draws the chord's page, which a
+// typist outruns, so it is left unrun; ChordWaited delivers it where a test
+// reads that page.
 func press(tb testing.TB, m *tui.Model, k tea.KeyPressMsg) {
 	tb.Helper()
 
+	opened := m.ChordSeq()
+
 	_, cmd := m.Update(k)
-	if cmd == nil {
+	if cmd == nil || m.ChordSeq() != opened {
 		return
 	}
 
@@ -1716,95 +1721,65 @@ func styledLine(t *testing.T, m *tui.Model, want string) string {
 	return ""
 }
 
-// Landing on a comment centers its block. A finding is explained by the code
-// above the line it hangs from, and anchoring the block one row down the frame
-// put every one of those lines off the top.
-func TestLandingOnACommentCentersIt(t *testing.T) {
+// Landing on a comment or a thread centers its block. Either is explained by
+// the code above the line it hangs from, and anchoring the block near the top
+// of the frame put every one of those lines off the top.
+func TestLandingOnABlockCentersIt(t *testing.T) {
 	t.Parallel()
 
 	const deep = 30
 
-	m, _, _ := fixtureWith(t, longPatch(t),
-		comment("c1", "first/file.go", artifact.SideRight, deep, "the last one"))
+	for _, tc := range []struct {
+		name, object, marks string
+		opts                []tui.Option
+		cs                  []artifact.Comment
+	}{
+		{
+			name: "a comment", object: "c", marks: "the last one",
+			cs: []artifact.Comment{comment("c1", "first/file.go", artifact.SideRight, deep, "the last one")},
+		},
+		{
+			name: "a thread", object: "t", marks: "unresolved",
+			opts: []tui.Option{tui.WithThreads([]threads.Thread{{
+				Path: "first/file.go", Side: artifact.SideRight, Line: deep,
+				Notes: []threads.Note{{ID: 1, Author: "KyleKing", Body: "does this handle nil?"}},
+			}})},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
-	press(t, m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+			m, _, _ := modelFor(t, &artifact.Review{
+				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+				HeadSHA: "a1b2c3d", Event: artifact.EventComment, Comments: tc.cs,
+			}, longPatch(t), tc.opts...)
 
-	body := strings.Split(plain(m.Frame()), "\n")
+			go2(t, m, ']', rune(tc.object[0]))
 
-	at := -1
+			body := strings.Split(plain(m.Frame()), "\n")
 
-	for i, l := range body {
-		if strings.Contains(l, "the last one") {
-			at = i
-		}
-	}
+			at := -1
 
-	if at < 0 {
-		t.Fatalf("the comment never rendered:\n%s", strings.Join(body, "\n"))
-	}
+			for i, l := range body {
+				if strings.Contains(l, tc.marks) {
+					at = i
+				}
+			}
 
-	// The title takes the first line, so a third of the frame below it is what
-	// "there is code above this" means without pinning an exact offset.
-	if want := len(body) / 3; at < want {
-		t.Errorf("the comment sits on line %d of %d, want at least %d", at, len(body), want)
-	}
+			if at < 0 {
+				t.Fatalf("the block never rendered:\n%s", strings.Join(body, "\n"))
+			}
 
-	if !strings.Contains(strings.Join(body[:at], "\n"), fmt.Sprintf("first line %d", deep)) {
-		t.Errorf("the line the comment hangs from is off the frame:\n%s", strings.Join(body, "\n"))
-	}
-}
+			// The title takes the first line, so a third of the frame below it is
+			// what "there is code above this" means without pinning an offset.
+			if want := len(body) / 3; at < want {
+				t.Errorf("the block sits on line %d of %d, want at least %d", at, len(body), want)
+			}
 
-// Landing on a thread centers it the same way a comment does. An open
-// conversation is explained by the code it answers, and anchoring it near the
-// top of the frame put that code off the top same as an uncentered comment did.
-func TestLandingOnAThreadCentersIt(t *testing.T) {
-	t.Parallel()
-
-	const deep = 30
-
-	patch := longPatch(t)
-	r := &artifact.Review{
-		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
-		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
-	}
-
-	path := filepath.Join(t.TempDir(), "pr-42.toml")
-	if err := artifact.Save(path, r); err != nil {
-		t.Fatal(err)
-	}
-
-	m := tui.New(t.Context(), r, diff.Parse([]byte(patch)), path,
-		func(context.Context, *artifact.Review) (string, error) { return "", nil },
-		tui.WithThreads([]threads.Thread{{
-			Path: "first/file.go", Side: artifact.SideRight, Line: deep,
-			Notes: []threads.Note{{ID: 1, Author: "KyleKing", Body: "does this handle nil?"}},
-		}}))
-	m.Init()
-	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-
-	go2(t, m, ']', 't')
-
-	body := strings.Split(plain(m.Frame()), "\n")
-
-	at := -1
-
-	for i, l := range body {
-		if strings.Contains(l, "unresolved") {
-			at = i
-		}
-	}
-
-	if at < 0 {
-		t.Fatalf("the thread never rendered:\n%s", strings.Join(body, "\n"))
-	}
-
-	if want := len(body) / 3; at < want {
-		t.Errorf("the thread sits on line %d of %d, want at least %d", at, len(body), want)
-	}
-
-	if !strings.Contains(strings.Join(body[:at], "\n"), fmt.Sprintf("first line %d", deep)) {
-		t.Errorf("the line the thread hangs from is off the frame:\n%s", strings.Join(body, "\n"))
+			if !strings.Contains(strings.Join(body[:at], "\n"), fmt.Sprintf("first line %d", deep)) {
+				t.Errorf("the line the block hangs from is off the frame:\n%s", strings.Join(body, "\n"))
+			}
+		})
 	}
 }
 
@@ -3419,47 +3394,26 @@ func TestEveryHunkIsOneRowToWalk(t *testing.T) {
 	}
 }
 
-// The review's own body and note start folded, unlike every other note on this
-// screen: you wrote them, so they are the text here you least need to read
-// back, and open they cost nine rows before the diff began.
-func TestTheReviewsOwnProseStartsFolded(t *testing.T) {
-	t.Parallel()
-
-	note := "ran the suite twice\nthe first pass missed the empty file"
-
-	m, _, _ := modelFor(t, &artifact.Review{
-		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff",
-		Number: 42, HeadSHA: "a1b2c3d", Event: artifact.EventComment, Note: note,
-	}, patch)
-
-	if got := plain(m.Frame()); !strings.Contains(got, "REVIEW NOTE  2 lines  [za] read") {
-		t.Fatalf("the review's note is not folded:\n%s", got)
-	}
-
-	// Both blocks are drawn after the last hunk, the note under the body.
-	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
-	go2(t, m, 'z', 'a')
-
-	if got := plain(m.Frame()); !strings.Contains(got, "the first pass missed the empty file") {
-		t.Errorf("za did not open the review's note:\n%s", got)
-	}
-}
-
-// The body is what posts, so it is never folded away by default, and it is
-// written after the diff is read, so it is drawn where the reading ends.
-func TestTheReviewBodyIsOpenAndBelowTheDiff(t *testing.T) {
+// The body is what posts, so it is never folded away by default, and the note
+// is the run log, so it starts folded. Both are written after the diff is read,
+// so they are drawn where the reading ends, the note under the body.
+func TestTheReviewsOwnProseFollowsTheDiff(t *testing.T) {
 	t.Parallel()
 
 	m, _, _ := modelFor(t, &artifact.Review{
 		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff",
 		Number: 42, HeadSHA: "a1b2c3d", Event: artifact.EventComment,
-		Note: "ran the suite twice", Body: "Reads the head through the cache.",
+		Note: "ran the suite twice\nthe first pass missed the empty file", Body: "Reads the head through the cache.",
 	}, patch)
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 60})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "Reads the head through the cache.") {
 		t.Fatalf("the body is folded:\n%s", frame)
+	}
+
+	if !strings.Contains(frame, "REVIEW NOTE  2 lines  [za] read") {
+		t.Fatalf("the review's note is not folded:\n%s", frame)
 	}
 
 	note := strings.Index(frame, "REVIEW NOTE")
@@ -3470,35 +3424,19 @@ func TestTheReviewBodyIsOpenAndBelowTheDiff(t *testing.T) {
 		t.Errorf("the diff is at %d, the body at %d, the note at %d; want the prose last:\n%s",
 			code, body, note, frame)
 	}
-}
 
-// tab and shift+tab report a boundary the way n and N do. The two keys walk the
-// same motion, so one of them going quiet at the ends reads as a dead key.
-func TestTabAtTheEdgeSaysThereIsNothingFurther(t *testing.T) {
-	t.Parallel()
+	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
+	go2(t, m, 'z', 'a')
 
-	m, _ := fixture(t,
-		comment("c1", parsed, artifact.SideRight, 15, "first"),
-		comment("c2", parsed, artifact.SideRight, 14, "second"))
-
-	go2(t, m, 'g', 'g')
-	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
-
-	if got := plain(m.Frame()); !strings.Contains(got, "no comment or thread before this one") {
-		t.Errorf("shift+tab at the first one said nothing:\n%s", got)
-	}
-
-	for range 10 {
-		press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
-	}
-
-	if got := plain(m.Frame()); !strings.Contains(got, "no comment or thread after this one") {
-		t.Errorf("tab at the last one said nothing:\n%s", got)
+	if got := plain(m.Frame()); !strings.Contains(got, "the first pass missed the empty file") {
+		t.Errorf("za did not open the review's note:\n%s", got)
 	}
 }
 
 // The review's own prose is the last thing written before the review posts, so
-// tab walks to it the way it walks every other block.
+// tab walks to it the way it walks every other block. Both tab and shift+tab
+// report a boundary the way n and N do: the two keys walk the same motion, so
+// one of them going quiet at the ends reads as a dead key.
 func TestTabReachesTheReviewProse(t *testing.T) {
 	t.Parallel()
 
@@ -3509,6 +3447,12 @@ func TestTabReachesTheReviewProse(t *testing.T) {
 		Comments: []artifact.Comment{comment("c1", parsed, artifact.SideRight, 15, "on the add")},
 	}
 	m, _, _ := modelFor(t, r, patch)
+
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "no comment or thread before this one") {
+		t.Errorf("shift+tab before the first one said nothing:\n%s", got)
+	}
 
 	// tab lands on the comment first, then the body, then the note, then says so.
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
@@ -3675,17 +3619,14 @@ func TestTheContextOverlayCarriesWhatTheDiffCannot(t *testing.T) {
 	if got := plain(m.Frame()); strings.Contains(got, "coverage is 84.2%") {
 		t.Errorf("the overlay outstayed its key:\n%s", got)
 	}
-}
 
-// A review staged before the context was cached has none, and says so rather
-// than drawing an empty box.
-func TestTheContextOverlaySaysWhenNothingWasCached(t *testing.T) {
-	t.Parallel()
+	// A review staged before the context was cached has none, and says so
+	// rather than drawing an empty box.
+	bare, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
+	press(t, bare, tea.KeyPressMsg{Code: 'i', Text: "i"})
 
-	m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
-	press(t, m, tea.KeyPressMsg{Code: 'i', Text: "i"})
-
-	if got := plain(m.Frame()); !strings.Contains(got, "second-look get") {
+	const uncached = "nothing was cached about this pull request; run second-look get 42"
+	if got := plain(bare.Frame()); !strings.Contains(got, uncached) {
 		t.Errorf("the overlay does not say how to read the context:\n%s", got)
 	}
 }
@@ -3943,59 +3884,26 @@ func TestACachedReviewDrawsWhileTheHeadIsChecked(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		sha  string
+		err  error
 		want string
 	}{
-		{"the head still stands", "a1b2c3d", ""},
-		{"the head moved", "9f9f9f9", "head moved"},
+		{"the head still stands", "a1b2c3d", nil, ""},
+		{"the head moved", "9f9f9f9", nil, "head moved"},
+		// The network is not the review's problem, so a failed check draws the
+		// diff with the failure in the footer rather than leaving a spinner.
+		{"the check failed", "", errOffline, "could not check the head"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			r := &artifact.Review{
-				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
-				HeadSHA: "a1b2c3d", Event: artifact.EventComment,
-			}
-
-			path := filepath.Join(t.TempDir(), "pr-42.toml")
-			if err := artifact.Save(path, r); err != nil {
-				t.Fatal(err)
-			}
-
-			m := tui.New(t.Context(), r, diff.Parse([]byte(longPatch(t))), path, (&counter{}).post,
-				tui.WithHeadCheck(func(context.Context) (string, error) { return tc.sha, nil }))
-			m.Init()
-			m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-
-			before := plain(m.Frame())
-			if !strings.Contains(before, "first line 1") {
-				t.Errorf("the cached diff waits on the head check instead of drawing:\n%s", before)
-			}
-
-			if !strings.Contains(before, "checking head") {
-				t.Errorf("nothing says the check is still out:\n%s", before)
-			}
-
-			m.HeadChecked(tc.sha)
-
-			after := plain(m.Frame())
-			if strings.Contains(after, "checking head") {
-				t.Errorf("the check is still claimed after it answered:\n%s", after)
-			}
-
-			if tc.want != "" && !strings.Contains(after, tc.want) {
-				t.Errorf("the frame does not say %q:\n%s", tc.want, after)
-			}
+			headChecked(t, tc.sha, tc.err, tc.want)
 		})
 	}
 }
 
-var errOffline = errors.New("offline")
-
-// A head check that failed answers the question as much as it is going to. The
-// network is not the review's problem, so the diff draws with the failure in
-// the footer rather than leaving the reader on a spinner.
-func TestAFailedHeadCheckStillReleasesTheDiff(t *testing.T) {
-	t.Parallel()
+// headChecked opens a cached review whose head check answers sha or err, and
+// says what the frame showed before and after.
+func headChecked(t *testing.T, sha string, err error, want string) {
+	t.Helper()
 
 	r := &artifact.Review{
 		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
@@ -4008,20 +3916,40 @@ func TestAFailedHeadCheckStillReleasesTheDiff(t *testing.T) {
 	}
 
 	m := tui.New(t.Context(), r, diff.Parse([]byte(longPatch(t))), path, (&counter{}).post,
-		tui.WithHeadCheck(func(context.Context) (string, error) { return "", errOffline }))
+		tui.WithHeadCheck(func(context.Context) (string, error) { return sha, err }))
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	m.HeadFailed(errOffline)
 
-	got := plain(m.Frame())
-	if !strings.Contains(got, "first line 1") {
-		t.Errorf("a failed check left the diff hidden:\n%s", got)
+	before := plain(m.Frame())
+	if !strings.Contains(before, "first line 1") {
+		t.Errorf("the cached diff waits on the head check instead of drawing:\n%s", before)
 	}
 
-	if !strings.Contains(got, "could not check the head") {
-		t.Errorf("the failure is not shown:\n%s", got)
+	if !strings.Contains(before, "checking head") {
+		t.Errorf("nothing says the check is still out:\n%s", before)
+	}
+
+	if err != nil {
+		m.HeadFailed(err)
+	} else {
+		m.HeadChecked(sha)
+	}
+
+	after := plain(m.Frame())
+	if !strings.Contains(after, "first line 1") {
+		t.Errorf("the answer took the diff away:\n%s", after)
+	}
+
+	if strings.Contains(after, "checking head") {
+		t.Errorf("the check is still claimed after it answered:\n%s", after)
+	}
+
+	if want != "" && !strings.Contains(after, want) {
+		t.Errorf("the frame does not say %q:\n%s", want, after)
 	}
 }
+
+var errOffline = errors.New("offline")
 
 // hunkyPatch is one file in several hunks far enough apart that the frame can
 // hold only one of them.

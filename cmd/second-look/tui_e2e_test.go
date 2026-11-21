@@ -914,69 +914,61 @@ func TestReviewWheelGlidesTheView(t *testing.T) {
 }
 
 // The cursor's row is one tint from the page's left edge to the cell before
-// the scrollbar, so it reads as a bar across the page at either size.
-func TestReviewCursorRowIsTintedAcrossThePage(t *testing.T) {
+// the scrollbar, so it reads as a bar across the page at either size. With
+// NO_COLOR set a tint cannot mark the cursor, so its row is the one reversed
+// row instead.
+func TestReviewCursorRowIsMarkedAcrossThePage(t *testing.T) {
 	t.Parallel()
 
 	for _, sz := range queueSizes {
-		t.Run(fmt.Sprintf("%dx%d", sz.cols, sz.rows), func(t *testing.T) {
-			t.Parallel()
-
-			dir, sha := scratchRepo(t, headBranch)
-			s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
-			seedReview(t, dir, sha)
-
-			sc := openAt(t, sz, s, dir, "2")
-			sc.await("testdata/fixture/sample.go")
-
-			for range 3 {
-				sc.press("j")
-			}
-
-			// A first frame can go out at the default width before the real
-			// size arrives, and its tint is a whole row short of this one. The
-			// page's margin is 2 cells to a side, and yields under 84 columns.
-			pad := min(2, max(0, (sz.cols-80)/2))
-			want := sz.cols - 1 - 2*pad
-			sc.awaitFrame("one row tinted across the page", func([]string) bool {
-				rows := sc.tintedRows()
-				return len(rows) == 1 && sc.tintSpan(rows[0]) == want
+		for _, noColor := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%dx%d/NO_COLOR=%v", sz.cols, sz.rows, noColor), func(t *testing.T) {
+				t.Parallel()
+				cursorRowMarked(t, sz, noColor)
 			})
-
-			sc.press("q")
-			sc.wait()
-		})
+		}
 	}
 }
 
-// With NO_COLOR set a tint cannot mark the cursor, so its row is the one reversed
-// row, wherever the cursor has moved and at both sizes.
-func TestReviewCursorRowIsReversedUnderNOCOLOR(t *testing.T) {
-	t.Parallel()
+func cursorRowMarked(t *testing.T, sz size, noColor bool) {
+	t.Helper()
 
-	for _, sz := range queueSizes {
-		t.Run(fmt.Sprintf("%dx%d", sz.cols, sz.rows), func(t *testing.T) {
-			t.Parallel()
+	dir, sha := scratchRepo(t, headBranch)
+	s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
+	seedReview(t, dir, sha)
 
-			dir, sha := scratchRepo(t, headBranch)
-			s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
-			seedReview(t, dir, sha)
+	args := []string{"2"}
+	if noColor {
+		args = []string{"NO_COLOR=1", "2"}
+	}
 
-			sc := openAt(t, sz, s, dir, "NO_COLOR=1", "2")
-			sc.await("testdata/fixture/sample.go")
+	sc := openAt(t, sz, s, dir, args...)
+	sc.await("testdata/fixture/sample.go")
 
-			requireNoColor(t, sc.raw())
+	if noColor {
+		requireNoColor(t, sc.raw())
+	}
 
-			for range 3 {
-				sc.press("j")
-			}
+	for range 3 {
+		sc.press("j")
+	}
 
-			sc.awaitFrame("one reversed row", func([]string) bool { return len(sc.reversedRows()) == 1 })
-
-			sc.press("q")
-			sc.wait()
+	if noColor {
+		sc.awaitFrame("one reversed row", func([]string) bool { return len(sc.reversedRows()) == 1 })
+	} else {
+		// A first frame can go out at the default width before the real size
+		// arrives, and its tint is a whole row short of this one. The page's
+		// margin is 2 cells to a side, and yields under 84 columns.
+		pad := min(2, max(0, (sz.cols-80)/2))
+		want := sz.cols - 1 - 2*pad
+		sc.awaitFrame("one row tinted across the page", func([]string) bool {
+			rows := sc.tintedRows()
+			return len(rows) == 1 && sc.tintSpan(rows[0]) == want
 		})
 	}
+
+	sc.press("q")
+	sc.wait()
 }
 
 // privateMode matches a DEC private mode being set or reset, which is how a

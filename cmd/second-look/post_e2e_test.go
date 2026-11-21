@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"bytes"
 	"os"
 	"strings"
 	"testing"
@@ -103,86 +104,6 @@ func TestPostOneCommentOnItsOwn(t *testing.T) {
 	s.RequireAllPlayed(t)
 }
 
-// A comment that was skipped was declined and a draft has not been ruled on, so
-// neither goes out on its own however directly it is named.
-func TestPostOneRefusesWhatWasNotRuledOn(t *testing.T) {
-	t.Parallel()
-
-	dir := workspace(t, "triaged.toml")
-	s := ghcassette.Replay(t, derive(t, "guard-only-skip", guardOnly))
-
-	res := runCLI(t, s, dir, "post", "2", "--only", "hand-rolled-split")
-	if res.code == 0 {
-		t.Fatalf("a skipped comment posted on its own:\n%s", res.stdout)
-	}
-
-	if !strings.Contains(res.stderr, "not posted") {
-		t.Errorf("the refusal does not say why:\n%s", res.stderr)
-	}
-}
-
-func TestPostRefusesDrafts(t *testing.T) {
-	t.Parallel()
-
-	s := ghcassette.Replay(t, derive(t, "guard-only", guardOnly))
-	dir := workspace(t, "staged.toml")
-
-	res := runCLI(t, s, dir, "post", "2")
-	if res.code == 0 {
-		t.Fatal("expected a draft comment to block the post")
-	}
-
-	if !strings.Contains(res.stderr, "still draft") {
-		t.Errorf("want the drafts named, got %q", res.stderr)
-	}
-
-	if _, err := os.Stat(artifact.Path(stored(t, dir), 2)); err != nil {
-		t.Error("a refused post removed the prepared review")
-	}
-}
-
-// TestPostRefusesMovedHead replays the recorded pull request with a different
-// head commit, since waiting for the real branch to move is not a test.
-func TestPostRefusesMovedHead(t *testing.T) {
-	t.Parallel()
-
-	s := ghcassette.Replay(t, derive(t, "head-moved", headMoved))
-	dir := workspace(t, "triaged.toml")
-
-	res := runCLI(t, s, dir, "post", "2")
-	if res.code == 0 {
-		t.Fatal("expected a moved head to block the post")
-	}
-
-	if !strings.Contains(res.stderr, "new commits") || !strings.Contains(res.stderr, "second-look get 2") {
-		t.Errorf("want the head mismatch and the command that fixes it, got %q", res.stderr)
-	}
-}
-
-// TestCommentAddRefusesAnUnanchoredLine is the bot-cites-line-993 case, caught
-// while staging against the real recorded diff rather than by GitHub.
-func TestCommentAddRefusesAnUnanchoredLine(t *testing.T) {
-	t.Parallel()
-
-	s := ghcassette.Replay(t, derive(t, "no-calls", func(c *ghcassette.Cassette) {
-		c.Interactions = nil
-	}))
-	dir := workspace(t, "triaged.toml")
-	seedDiff(t, dir)
-
-	batch := `{"comments":[{"id":"off-the-end","path":"testdata/fixture/sample.go","line":993,` +
-		`"side":"RIGHT","body":"nope","note":"","severity":"nit","status":"ready"}]}`
-
-	res := runCLIStdin(t, s, dir, batch, "comment", "add", "2")
-	if res.code == 0 {
-		t.Fatal("expected a line the diff does not carry to be refused")
-	}
-
-	if !strings.Contains(res.stderr, "nothing was written") {
-		t.Errorf("want the refusal to say nothing was written, got %q", res.stderr)
-	}
-}
-
 // TestCommentAddHoldsEveryStagedCommentAsADraft is the whole point of staging
 // through a file: what an agent writes is a proposal, and the author rules on
 // each one. A skip is left alone, since that is a finding already declined.
@@ -261,6 +182,129 @@ func TestRestagingKeepsTheAuthorsSavedComment(t *testing.T) {
 
 	if got := review.Find("held").Origin; got != artifact.OriginMe {
 		t.Errorf("restaging turned the author's saved comment into %q, want me", got)
+	}
+}
+
+// TestCommandsRefuse is every command that stops short of what it was asked,
+// and each one leaves the staged review exactly as it was. A skipped comment
+// was declined, a draft has not been ruled on, and a todo is work an agent still
+// owes, so none goes out however directly it is named; a get stops before any
+// gh call where there is no repository; a pull request whose head moved names the get that
+// fixes it, from a recording with a different head since waiting for the real
+// branch to move is not a test; a line the diff does not carry is the
+// bot-cites-line-993 case, caught while staging rather than by GitHub; and a
+// command that takes no arguments keeps a typo from reading as something to do.
+func TestCommandsRefuse(t *testing.T) {
+	t.Parallel()
+
+	noCalls := func(c *ghcassette.Cassette) { c.Interactions = nil }
+	offTheEnd := `{"comments":[{"id":"off-the-end","path":"testdata/fixture/sample.go","line":993,` +
+		`"side":"RIGHT","body":"nope","note":"","severity":"nit","status":"ready"}]}`
+
+	for _, tc := range []refusal{
+		{
+			name: "post --only a skipped comment", fixture: "triaged.toml",
+			cassette: "guard-only-skip", edit: guardOnly,
+			args: []string{"post", "2", "--only", "hand-rolled-split"}, says: []string{"not posted"},
+		},
+		{
+			name: "post over a draft", fixture: "staged.toml", cassette: "guard-only", edit: guardOnly,
+			args: []string{"post", "2"}, says: []string{"still draft"},
+		},
+		{
+			name: "post onto a moved head", fixture: "triaged.toml", cassette: "head-moved", edit: headMoved,
+			args: []string{"post", "2"}, says: []string{"new commits", "second-look get 2"},
+		},
+		{
+			name: "comment add off the diff", fixture: "triaged.toml", cassette: "no-calls", edit: noCalls,
+			stdin: offTheEnd, args: []string{"comment", "add", "2"}, says: []string{"nothing was written"},
+		},
+		{
+			name: "post while work is outstanding", fixture: "triaged.toml", cassette: "todo-blocks", edit: guardOnly,
+			prep: func(r *artifact.Review) { r.Comments[0].Status = artifact.StatusTodo },
+			args: []string{"post", "2"}, says: []string{"still todo"},
+		},
+		{
+			name: "get outside a repository", cassette: "no-calls", edit: noCalls,
+			args: []string{"get", "2"}, says: []string{"not a git or jj repository"},
+		},
+		{
+			name: "skill with an argument", cassette: "no-calls", edit: noCalls,
+			args: []string{"skill", "install"}, says: []string{"usage: second-look skill"},
+		},
+		{
+			name: "status with an argument", cassette: "status-args", edit: noCalls,
+			args: []string{"status", "extra"}, says: []string{"usage: second-look status"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.check(t)
+		})
+	}
+}
+
+// refusal is one command that must stop, run against a staged fixture where it
+// names one, and what its refusal has to say.
+type refusal struct {
+	name, fixture, cassette, stdin string
+	edit                           func(*ghcassette.Cassette)
+	prep                           func(*artifact.Review)
+	args, says                     []string
+}
+
+func (tc *refusal) check(t *testing.T) {
+	t.Helper()
+
+	dir, path := t.TempDir(), ""
+	if tc.fixture != "" {
+		dir = workspace(t, tc.fixture)
+		seedDiff(t, dir)
+		path = artifact.Path(stored(t, dir), 2)
+	}
+
+	if tc.prep != nil {
+		r, err := artifact.Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tc.prep(r)
+
+		if err := artifact.Save(path, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var before []byte
+
+	if path != "" {
+		var err error
+		if before, err = os.ReadFile(path); err != nil { // #nosec G304 -- the fixture this test staged
+			t.Fatal(err)
+		}
+	}
+
+	s := ghcassette.Replay(t, derive(t, tc.cassette, tc.edit))
+
+	res := runCLIStdin(t, s, dir, tc.stdin, tc.args...)
+	if res.code == 0 {
+		t.Fatalf("%v ran to success:\n%s", tc.args, res.stdout)
+	}
+
+	for _, want := range tc.says {
+		if !strings.Contains(res.stderr, want) {
+			t.Errorf("the refusal does not say %q:\n%s", want, res.stderr)
+		}
+	}
+
+	if path == "" {
+		return
+	}
+
+	// #nosec G304 -- the fixture this test staged
+	if after, err := os.ReadFile(path); err != nil || !bytes.Equal(after, before) {
+		t.Errorf("a refused %v changed the staged review (%v)", tc.args, err)
 	}
 }
 

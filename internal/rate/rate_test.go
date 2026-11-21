@@ -1,6 +1,7 @@
 package rate_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/kyleking/second-look/internal/rate"
@@ -16,134 +17,85 @@ func body(n int) []structure.Reading {
 	return out
 }
 
-// The point of the rating is the order it puts changes in, so that is what is
-// pinned rather than the numbers, which are weights and will move.
-func TestOfOrdersChangesByWhatTheyCarry(t *testing.T) {
+// TestOf pins each score whole. What matters is the order the totals put
+// changes in, which the cases are listed in, so a total that moves past its
+// neighbor is a reordering and not a reweighting. A hunk nothing could parse
+// still counts toward the size and the score says so; a cosmetic hunk is not
+// review work, so it is not counted at all; and the sum is bent onto the scale
+// rather than clipped, so substantial changes still rank against each other
+// well short of the ceiling, which only a vast change reaches.
+func TestOf(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
+	signature := structure.Reading{Kind: structure.KindSignature, Parsed: true}
+	gained := structure.Reading{Gained: []structure.Class{structure.ClassNetwork, structure.ClassExec}, Parsed: true}
+	third := structure.Reading{Gained: []structure.Class{structure.ClassSQL, structure.ClassExec}, Parsed: true}
+	exec, network, sql := structure.ClassExec, structure.ClassNetwork, structure.ClassSQL
+
+	for _, tc := range []struct {
 		name     string
 		readings []structure.Reading
+		want     rate.Score
 	}{
-		{name: "a re-indent alone", readings: []structure.Reading{{Change: structure.ChangeLayout}}},
-		{name: "one line of a body", readings: body(1)},
-		{name: "eight hunks of bodies", readings: body(8)},
-		{name: "a symbol deleted", readings: []structure.Reading{{Kind: structure.KindDeleted, Parsed: true}}},
-		{name: "a symbol added", readings: []structure.Reading{{Kind: structure.KindNew, Parsed: true}}},
+		{"a re-indent alone", []structure.Reading{{Change: structure.ChangeLayout}}, rate.Score{}},
+		{"one line of a body", body(1), rate.Score{Total: 2, Hunks: 1, Parsed: 1}},
+		{"nothing parsed", []structure.Reading{{}, {}}, rate.Score{Total: 3, Hunks: 2}},
+		{"eight hunks of bodies", body(8), rate.Score{Total: 12, Hunks: 8, Parsed: 8}},
 		{
-			name:     "a body that reached for a shell",
-			readings: []structure.Reading{{Gained: []structure.Class{structure.ClassExec}, Parsed: true}},
+			"a symbol deleted",
+			[]structure.Reading{{Kind: structure.KindDeleted, Parsed: true}},
+			rate.Score{Total: 14, Deleted: 1, Hunks: 1, Parsed: 1},
 		},
 		{
-			name:     "a signature changed",
-			readings: []structure.Reading{{Kind: structure.KindSignature, Parsed: true}},
+			"a symbol added",
+			[]structure.Reading{{Kind: structure.KindNew, Parsed: true}},
+			rate.Score{Total: 19, New: 1, Hunks: 1, Parsed: 1},
 		},
 		{
-			name: "a signature changed and a capability gained",
-			readings: []structure.Reading{
-				{Kind: structure.KindSignature, Parsed: true},
-				{Gained: []structure.Class{structure.ClassExec, structure.ClassNetwork}, Parsed: true},
-			},
+			"a body that reached for a shell",
+			[]structure.Reading{{Gained: []structure.Class{exec}, Parsed: true}},
+			rate.Score{Total: 35, Gained: []structure.Class{exec}, Hunks: 1, Parsed: 1},
 		},
+		{
+			"a signature changed",
+			[]structure.Reading{signature},
+			rate.Score{Total: 49, Signature: 1, Hunks: 1, Parsed: 1},
+		},
+		{
+			"and two capabilities",
+			[]structure.Reading{signature, gained},
+			rate.Score{Total: 78, Signature: 1, Gained: []structure.Class{exec, network}, Hunks: 2, Parsed: 2},
+		},
+		{
+			"and a third",
+			[]structure.Reading{signature, gained, third},
+			rate.Score{Total: 85, Signature: 1, Gained: []structure.Class{exec, network, sql}, Hunks: 3, Parsed: 3},
+		},
+		{
+			"and ten hunks of bodies", append([]structure.Reading{signature, gained, third}, body(10)...),
+			rate.Score{Total: 87, Signature: 1, Gained: []structure.Class{exec, network, sql}, Hunks: 13, Parsed: 13},
+		},
+		{
+			"vast", append(body(400), signature),
+			rate.Score{Total: rate.Ceiling, Signature: 1, Hunks: 401, Parsed: 401},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := rate.Of(tc.readings)
+			if fmt.Sprint(got) != fmt.Sprint(tc.want) || got.Rated() != (tc.want.Parsed > 0) {
+				t.Errorf("Of = %+v, want %+v", got, tc.want)
+			}
+		})
 	}
 
-	last := -1
-
-	for _, c := range cases {
-		got := rate.Of(c.readings).Total
-		if got <= last {
-			t.Errorf("%s rates %d, which is not above the case before it (%d)", c.name, got, last)
-		}
-
-		last = got
-	}
-}
-
-// A hunk nothing could parse still counts toward the size, and the score says
-// so, because a number that cannot tell a signature change from a comment
-// should not be read as one that can.
-func TestOfSaysWhenNothingParsed(t *testing.T) {
-	t.Parallel()
-
-	s := rate.Of([]structure.Reading{{}, {}})
-
-	if s.Rated() {
-		t.Error("a score with no parsed hunk claims to be rated")
-	}
-
-	if s.Hunks != 2 {
-		t.Errorf("hunks = %d, want 2", s.Hunks)
-	}
-
-	if s.Total == 0 {
-		t.Error("two changed hunks rate zero")
-	}
-}
-
-// A cosmetic hunk is not review work, so it is not in the count the size term
-// reads: hiding it with w or t and rating it have to agree.
-func TestOfSkipsCosmeticHunks(t *testing.T) {
-	t.Parallel()
-
-	s := rate.Of([]structure.Reading{
+	cosmetic := rate.Of([]structure.Reading{
 		{Change: structure.ChangeComment, Parsed: true},
 		{Change: structure.ChangeLayout},
 		{Parsed: true},
 	})
-
-	if s.Hunks != 1 {
-		t.Errorf("hunks = %d, want 1", s.Hunks)
-	}
-}
-
-// The ceiling is what keeps two large changes comparable at a glance.
-// The number pinned at the ceiling on anything substantial and so ranked
-// nothing: a signature change at 40 plus two capability classes at 25 each
-// already passed 99, and so did every change carrying more than that. The sum
-// is bent onto the scale now rather than clipped, so changes that differ still
-// rate differently well past the point the old sum saturated.
-func TestSubstantialChangesStillRankAgainstEachOther(t *testing.T) {
-	t.Parallel()
-
-	signature := structure.Reading{Kind: structure.KindSignature, Parsed: true}
-	gained := structure.Reading{
-		Gained: []structure.Class{structure.ClassExec, structure.ClassNetwork}, Parsed: true,
-	}
-	third := structure.Reading{Gained: []structure.Class{structure.ClassSQL}, Parsed: true}
-
-	// Each of these passed the old sum's ceiling, so all three rated 99.
-	steps := []struct {
-		name     string
-		readings []structure.Reading
-	}{
-		{"a signature and two capabilities", []structure.Reading{signature, gained}},
-		{"and a third capability", []structure.Reading{signature, gained, third}},
-		{"and ten hunks of bodies", append([]structure.Reading{signature, gained, third}, body(10)...)},
-	}
-
-	last := 0
-
-	for _, step := range steps {
-		got := rate.Of(step.readings).Total
-
-		if got <= last {
-			t.Errorf("%s rates %d, which is not above the case before it (%d)", step.name, got, last)
-		}
-
-		if got >= rate.Ceiling {
-			t.Errorf("%s rates %d, which is the ceiling: it ranks nothing above itself", step.name, got)
-		}
-
-		last = got
-	}
-}
-
-func TestOfStopsAtTheCeiling(t *testing.T) {
-	t.Parallel()
-
-	huge := append(body(400), structure.Reading{Kind: structure.KindSignature, Parsed: true})
-
-	if got := rate.Of(huge).Total; got != rate.Ceiling {
-		t.Errorf("total = %d, want the ceiling %d", got, rate.Ceiling)
+	if fmt.Sprint(cosmetic) != fmt.Sprint(rate.Of(body(1))) {
+		t.Errorf("cosmetic hunks were rated: %+v", cosmetic)
 	}
 }
