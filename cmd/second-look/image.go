@@ -66,7 +66,12 @@ func imageCmd(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 		if _, err := io.WriteString(stdout, "\x1b[2J\x1b[H"); err != nil {
 			return fmt.Errorf("writing the image: %w", err)
 		}
-		if err := termimg.Render(stdout, proto, path, cols, box); err != nil {
+		err = termimg.Render(stdout, proto, path, cols, box)
+		if path != arg {
+			// Every protocol here sends the bytes inline, so the download is spent once drawn.
+			os.Remove(path) //nolint:errcheck,gosec // a temp file that outlives this is TMPDIR's to reap
+		}
+		if err != nil {
 			return fmt.Errorf("drawing %s: %w", arg, err)
 		}
 
