@@ -1,7 +1,5 @@
 package tui
 
-import "strings"
-
 // pinned is the line a run of comments answers, held at the top of the frame
 // while the run is read past it.
 //
@@ -25,7 +23,7 @@ func (m *Model) pinned(width int) (string, bool) {
 	}
 
 	text, _ := m.codeRow(m.screen.rows[at])
-	word := strings.ToUpper(plural(n, "comment"))
+	word := capitalize(plural(n, "comment"))
 
 	// The cursor column is a space here, since a pinned row is nowhere the
 	// cursor can be.

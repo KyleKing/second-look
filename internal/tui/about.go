@@ -63,7 +63,7 @@ func (m *Model) readAbout(msg tea.KeyPressMsg) tea.Model {
 func (m *Model) aboutLines() []string {
 	h := m.viewHeight()
 	text := m.aboutText(m.width)
-	bar := scrollbar(h, len(text), m.aboutAt)
+	bar := scrollbar(h, len(text), m.aboutAt, m.styles)
 
 	out := text
 	if m.aboutAt < len(out) {
@@ -74,7 +74,7 @@ func (m *Model) aboutLines() []string {
 		out = append(out, "")
 	}
 
-	return alongside(out[:h], bar, m.styles, m.width)
+	return alongside(out[:h], bar, m.width)
 }
 
 // aboutText is the overlay: what the change is called, who wrote it, how big it

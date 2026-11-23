@@ -25,7 +25,7 @@ func TestARunOfCommentsSaysItIsOne(t *testing.T) {
 
 	frame := plain(m.Frame())
 
-	for _, want := range []string{"2 COMMENTS ON LINE 15", "(1 of 2)", "(2 of 2)"} {
+	for _, want := range []string{"2 comments on line 15", "(1 of 2)", "(2 of 2)"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the run never said %q:\n%s", want, frame)
 		}
@@ -61,7 +61,7 @@ func TestALongRunKeepsTheLineItAnswersInView(t *testing.T) {
 	}
 
 	top := strings.SplitN(plain(m.Frame()), "\n", 5)[3]
-	if !strings.Contains(top, "lines, err := split(r)") || !strings.Contains(top, "COMMENTS") {
+	if !strings.Contains(top, "lines, err := split(r)") || !strings.Contains(top, "comments") {
 		t.Errorf("the line the run answers is not pinned:\n%s", plain(m.Frame()))
 	}
 }

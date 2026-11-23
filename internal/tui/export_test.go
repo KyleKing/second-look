@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/handoff"
+	"github.com/kyleking/aragonite/tui/skin"
 	"github.com/kyleking/aragonite/tui/theme"
 )
 
@@ -93,16 +94,15 @@ func (m *Model) WantsCheckout() bool { return m.checkout }
 // the depth a terminal of the given kind gets. A test measures them against
 // each other, which is the only way to know a mark says anything.
 func DiffColors(p theme.Palette, millions bool) map[string]color.Color {
-	mark := markDepth(millions)
-	wash := washDepth(millions)
+	d := skin.Diff(p, millions)
 
 	return map[string]color.Color{
 		"page":         p.Base,
 		"text":         p.Text,
-		"added mark":   theme.Tint(p.Base, p.Green, mark),
-		"removed mark": theme.Tint(p.Base, p.Red, mark),
-		"added wash":   theme.Tint(p.Base, p.Green, wash),
-		"removed wash": theme.Tint(p.Base, p.Red, wash),
+		"added mark":   d.AddMark,
+		"removed mark": d.RemoveMark,
+		"added wash":   d.AddWash,
+		"removed wash": d.RemoveWash,
 	}
 }
 

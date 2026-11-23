@@ -273,12 +273,24 @@ func (m *Model) divided(lines []string, left bool) []string {
 
 const panelRule = "│"
 
+// countHead titles a list pane by what it lists and where in it the cursor is.
+// It is sentence case at the heading's weight: capitals would make every pane
+// title shout over the rows that need attention.
 func countHead(what string, at, n int) string {
 	if at == 0 {
-		return fmt.Sprintf("%s · %d", strings.ToUpper(what), n)
+		return fmt.Sprintf("%s  %d", capitalize(what), n)
 	}
 
-	return fmt.Sprintf("%s · %d of %d", strings.ToUpper(what), at, n)
+	return fmt.Sprintf("%s  %d of %d", capitalize(what), at, n)
+}
+
+// capitalize upper-cases a word's first letter.
+func capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func (*Model) railMark(here, read bool) string {
@@ -316,7 +328,7 @@ func (m *Model) marginLines(h int) []string {
 	case !ok:
 	case g.stop > 0:
 		s := m.plan.Stops[g.stop-1]
-		add(strings.ToUpper(g.name), m.styles.head.Render)
+		add(g.name, m.styles.head.Render)
 		add(s.What, m.styles.body.Render)
 
 		if s.Then != "" {
@@ -345,7 +357,7 @@ func (m *Model) marginLines(h int) []string {
 
 func (m *Model) chapterNote(at int, add func(string, func(...string) string)) {
 	c := m.plan.Chapters[at]
-	add(fmt.Sprintf("CHAPTER %d OF %d · %s", at+1, len(m.plan.Chapters), c.Mode), m.styles.head.Render)
+	add(fmt.Sprintf("Chapter %d of %d · %s", at+1, len(m.plan.Chapters), c.Mode), m.styles.head.Render)
 	add(c.Name, m.styles.file.Render)
 
 	if c.Why != "" {

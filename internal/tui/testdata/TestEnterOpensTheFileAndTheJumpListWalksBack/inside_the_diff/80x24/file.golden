@@ -1,5 +1,5 @@
 
-jj-diff#42                                    2 files · +2 −1 · checking… ·  75%
+jj-diff#42                                    2 files · +2 −1   checking…    75%
 vcs ───────────────────────────────────────────────────●────────────────┊─  file
    4   line 4 of internal/vcs/diff.go                                          │
    5   line 5 of internal/vcs/diff.go                                          ┃

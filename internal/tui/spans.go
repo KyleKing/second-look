@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"image/color"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/icons"
 	"github.com/kyleking/aragonite/tui/keyhint"
 )
 
@@ -17,12 +19,21 @@ const (
 	faceBody
 	faceMuted
 	faceHint
+	// An icon draws a glyph in its own color, which the chunk carries.
+	faceIcon
 )
 
 type chunk struct {
+	fg   color.Color
 	text string
-	face spanFace
 	key  string
+	face spanFace
+}
+
+// iconSpan is a glyph and the space after it, or nothing where the set draws
+// no glyph there.
+func iconSpan(g icons.Glyph) chunk {
+	return chunk{text: g.Prefix(), face: faceIcon, fg: g.Color}
 }
 
 func muted(text string) chunk { return chunk{text: text, face: faceMuted} }
@@ -76,6 +87,8 @@ func (m *Model) spanFace(f spanFace, base lipgloss.Style, dim bool) lipgloss.Sty
 		return m.styles.body.Bold(true)
 	case f == faceBody:
 		return m.styles.body
+	case f == faceIcon:
+		return base
 	}
 
 	return m.styles.hunk
@@ -85,6 +98,19 @@ func (m *Model) spanFace(f spanFace, base lipgloss.Style, dim bool) lipgloss.Sty
 // not fit is dropped whole, because half a key reads as a different key.
 func (m *Model) spanLine(r row, lead string, base lipgloss.Style, width int, dim bool) string {
 	var b strings.Builder
+
+	// A file's heading sits on a band the frame's width rather than ending in a
+	// rule, so files separate by depth and the name is the brightest thing on it.
+	band := r.kind == rowFile && !dim
+	paint := func(st lipgloss.Style) lipgloss.Style {
+		if band {
+			return st.Background(m.styles.fileBand.GetBackground())
+		}
+
+		return st
+	}
+
+	base = paint(base)
 
 	b.WriteString(base.Render(cut(lead, width)))
 
@@ -108,11 +134,20 @@ func (m *Model) spanLine(r row, lead string, base lipgloss.Style, width int, dim
 		}
 
 		piece := cut(s.text, room)
-		b.WriteString(m.spanFace(s.face, base, dim).Render(piece))
+		face := paint(m.spanFace(s.face, base, dim))
+
+		if s.face == faceIcon && s.fg != nil && !dim {
+			face = face.Foreground(s.fg)
+		}
+
+		b.WriteString(face.Render(piece))
 		used += textWidth(piece)
 	}
 
-	if r.kind == rowFile {
+	switch {
+	case band && width > used:
+		b.WriteString(base.Render(strings.Repeat(" ", max(0, width-used))))
+	case r.kind == rowFile:
 		b.WriteString(m.rule(used, width))
 	}
 

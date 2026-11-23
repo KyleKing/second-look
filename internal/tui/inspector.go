@@ -184,11 +184,11 @@ func spansWidth(spans []Span) int {
 
 // dropped is the grid columns the current width hid.
 func (l *List) dropped() []string {
-	return l.gridLayout(bodyWidth(l.width, scrollbar(l.visible(), len(l.lines), l.offset))).Dropped
+	return l.gridLayout(bodyWidth(l.width, scrollbar(l.visible(), len(l.lines), l.offset, l.styles))).Dropped
 }
 
 func (l *List) gridLayout(width int) table.Layout {
-	return table.FitCompact(l.gridColumns(), width-gridMargin)
+	return table.FitCompact(l.gridColumns(width), width-gridMargin)
 }
 
 // aboutRow is what a row says of itself, which is nothing where it carries no

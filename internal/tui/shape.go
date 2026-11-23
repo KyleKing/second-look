@@ -235,7 +235,7 @@ func (s screen) shapeRows(p *plan.Pattern, c fileCtx) []row {
 	at := fileIndex(c.d)
 	label := func(text string) row { return row{kind: rowShape, head: true, text: text, comment: noComment} }
 
-	rows := []row{label(fmt.Sprintf("SHAPE · %s · %s", plural(len(p.Members), fileNoun),
+	rows := []row{label(fmt.Sprintf("Shape · %s · %s", plural(len(p.Members), fileNoun),
 		p.Representative))}
 
 	var rep plan.Member
@@ -255,7 +255,7 @@ func (s screen) shapeRows(p *plan.Pattern, c fileCtx) []row {
 		in = " in " + dir
 	}
 
-	files := label(fmt.Sprintf("FILES · %d%s · %d exact, %d more",
+	files := label(fmt.Sprintf("Files · %d%s · %d exact, %d more",
 		len(p.Members), in, p.Exactly(), len(p.Members)-p.Exactly()))
 	files.refs = exactRefs(p)
 	rows = append(rows, row{kind: rowBlank, comment: noComment}, files)
@@ -292,7 +292,7 @@ func (s screen) shapeRows(p *plan.Pattern, c fileCtx) []row {
 	}
 
 	if len(more) > 0 {
-		rows = append(rows, row{kind: rowBlank, comment: noComment}, label("BEYOND THE SHAPE"))
+		rows = append(rows, row{kind: rowBlank, comment: noComment}, label("Beyond the shape"))
 		rows = append(rows, more...)
 	}
 
@@ -439,7 +439,7 @@ func firstNew(d *diff.Diff, r order.Ref) int {
 	return first
 }
 
-const notChanged = "NOT CHANGED AT HEAD"
+const notChanged = "Not changed at head"
 
 func headRows(p *plan.Pattern, lay layout, label func(string) row) []row {
 	looks := lookups(p)

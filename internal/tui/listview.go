@@ -159,12 +159,23 @@ func (l *List) bodyView() string {
 		return l.styles.subtitle.Render("  nothing here")
 	}
 
-	width := l.width
-	if l.sidePreview() {
-		width = previewSpec.MainWidth(uisplit.Side, l.width)
+	if !l.sidePreview() {
+		return strings.Join(l.bodyLines(rows, l.width), "\n")
 	}
 
-	bar := scrollbar(rows, len(l.lines), l.offset)
+	// The rows are laid out at the width the split hands the main block, so a
+	// column at the right end is fitted rather than cut by the preview's rule.
+	return strings.Join(previewSpec.Render(
+		uisplit.Side, uisplit.Styles{Rule: l.styles.skin.Edge}, l.width, rows,
+		func(w, h int) []string { return preview.Pad(l.bodyLines(h, w), h, w) },
+		l.previewPane,
+	), "\n")
+}
+
+// bodyLines is the list's rows laid out at width, with the scrollbar on the
+// right edge when the rows overflow.
+func (l *List) bodyLines(rows, width int) []string {
+	bar := scrollbar(rows, len(l.lines), l.offset, l.styles)
 	grid := l.gridLayout(bodyWidth(width, bar))
 
 	// The band runs to the last cell the scrollbar leaves.
@@ -183,16 +194,7 @@ func (l *List) bodyView() string {
 		out = append(out, "")
 	}
 
-	lines := alongside(out, bar, l.styles, width)
-	if !l.sidePreview() {
-		return strings.Join(lines, "\n")
-	}
-
-	return strings.Join(previewSpec.Render(
-		uisplit.Side, uisplit.Styles{Rule: l.styles.skin.Edge}, l.width, rows,
-		func(w, h int) []string { return preview.Pad(lines, h, w) },
-		l.previewPane,
-	), "\n")
+	return alongside(out, bar, width)
 }
 
 // previewPane is the detail half of a wide queue: the row under the cursor,

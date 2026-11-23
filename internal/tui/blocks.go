@@ -330,16 +330,16 @@ func (r inRun) opens() bool { return r.of >= aRun && r.at == 1 }
 // separated by blank rows read as three comments on three consecutive lines,
 // and the line they all answer has scrolled off the top by the last of them.
 func runHead(a anchor, index, n int) []row {
-	side := "LINE"
+	side := "line"
 	if a.side == "LEFT" {
-		side = "LEFT LINE"
+		side = "old line"
 	}
 
 	return []row{
 		{kind: rowBlank, path: a.path, comment: index},
 		{
 			kind: rowComment, path: a.path, comment: index, head: true,
-			text: fmt.Sprintf("%s ON %s %d", strings.ToUpper(plural(n, "comment")), side, a.line),
+			text: fmt.Sprintf("%s on %s %d", capitalize(plural(n, "comment")), side, a.line),
 		},
 	}
 }

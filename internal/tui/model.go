@@ -227,9 +227,8 @@ type Model struct {
 	moves map[diff.LineRef]diff.Move
 	// mates is each paired line's partner on the other side, which a merged row
 	// draws the removed text from.
-	mates    map[diff.LineRef]diff.Line
-	hunkCols map[hunkRef]int
-	lexed    map[string]map[diff.LineRef][]highlight.Span
+	mates map[diff.LineRef]diff.Line
+	lexed map[string]map[diff.LineRef][]highlight.Span
 	// hunkRefs and hunkIDs are each hunk's read mark, rolled once per diff:
 	// hashing a hunk means reading its lines, so asking per hunk on every
 	// rebuild read the whole diff as many times as it has hunks.
@@ -466,7 +465,6 @@ func New(
 		files: newFiles(),
 		width: minWidth, height: startHeight, folded: newFolded(),
 		hugeDiff: diffRows(d) >= asyncRows,
-		hunkCols: hunkWidths(d),
 		refined:  marks, reindented: reindented, moves: moves, mates: mates,
 		lexed:  map[string]map[diff.LineRef][]highlight.Span{},
 		lit:    map[string][][]highlight.Span{},
@@ -2383,7 +2381,7 @@ func (m *Model) fitCursor() {
 	}
 
 	h := m.viewHeight()
-	width := bodyWidth(m.diffWidth(), scrollbar(h, len(m.screen.rows), m.offset))
+	width := bodyWidth(m.diffWidth(), scrollbar(h, len(m.screen.rows), m.offset, m.styles))
 
 	for m.offset < m.cursor {
 		tall := 0

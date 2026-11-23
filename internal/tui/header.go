@@ -54,6 +54,10 @@ func (m *Model) title(files []fileStat) string {
 
 const shortestTitle = "        "
 
+// headerGap separates the header's facts. Space groups them where a dot between
+// every pair made five facts read as one run-on line.
+const headerGap = "   "
+
 func joinFacts(facts []fact, limit int) string {
 	var out []string
 
@@ -63,7 +67,7 @@ func joinFacts(facts []fact, limit int) string {
 		}
 	}
 
-	return strings.Join(out, " · ")
+	return strings.Join(out, headerGap)
 }
 
 func (m *Model) facts(files []fileStat) []fact {
@@ -147,7 +151,7 @@ func (m *Model) agentNotes() []string {
 }
 
 func (m *Model) modes(files []fileStat) string {
-	sep := m.styles.hunk.Render(" · ")
+	sep := m.styles.hunk.Render(headerGap)
 	words := make([]string, 0, 6)
 
 	for _, w := range []string{

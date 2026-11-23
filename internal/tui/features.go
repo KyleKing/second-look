@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/kyleking/second-look/internal/humanize"
@@ -108,9 +109,9 @@ func (m *Model) featureDetail(size sizes, files [][]string, at, w int) []string 
 	room := w - indent
 
 	out := []string{
-		" " + m.styles.head.Render(fmt.Sprintf("FEATURE %d OF %d", at+1, len(m.plan.Features))),
+		" " + m.section(fmt.Sprintf("Feature %d of %d", at+1, len(m.plan.Features)), "", room),
 		" " + m.styles.file.Render(cut(f.Name, room)),
-		"", " " + m.styles.head.Render(fmt.Sprintf("CHAPTERS · %d", len(f.Chapters))),
+		"", " " + m.section("Chapters", strconv.Itoa(len(f.Chapters)), room),
 	}
 
 	for _, c := range f.Chapters {
@@ -120,7 +121,7 @@ func (m *Model) featureDetail(size sizes, files [][]string, at, w int) []string 
 			m.styles.body.Render(cut(line, room-indent-modeCols))+m.styles.note.Render("  "+string(ch.Mode)))
 	}
 
-	out = append(out, "", " "+m.styles.head.Render(fmt.Sprintf("FILES · %d", len(files[at]))))
+	out = append(out, "", " "+m.section("Files", strconv.Itoa(len(files[at])), room))
 
 	mine := slices.Clone(files[at])
 	slices.SortStableFunc(mine, func(a, b string) int {

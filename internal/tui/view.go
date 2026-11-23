@@ -281,43 +281,6 @@ func (m *Model) counts() tally {
 	return out
 }
 
-// elsewhere is where the file under the cursor keeps the hunks nobody has read,
-// as rows, leaving out whatever the frame is already showing. Hunks are
-// gathered by what they touch rather than kept in file order, so the rest of a
-// file sits wherever the reading order put it and the frame says nothing about
-// where.
-func (m *Model) elsewhere(height int) []int {
-	if m.view != viewDiff {
-		return nil
-	}
-
-	path := m.cursorPath()
-	if path == "" {
-		return nil
-	}
-
-	var out []int
-
-	for i := range m.screen.rows {
-		r := m.screen.rows[i]
-		if r.path != path || r.hunk == 0 || (r.kind != rowHunk && r.kind != rowFile) {
-			continue
-		}
-
-		if i >= m.offset && i < m.offset+height {
-			continue
-		}
-
-		if m.read != nil && m.read.Has(m.hunkID(r.path, r.hunk)) {
-			continue
-		}
-
-		out = append(out, i)
-	}
-
-	return out
-}
-
 // cursorPath is the file the cursor stands in, taken from the nearest row above
 // that belongs to one so a blank between two hunks does not read as no file.
 func (m *Model) cursorPath() string {
@@ -651,7 +614,7 @@ func (m *Model) waitLines(body []string) []string {
 // is rewriting so the text stays where it was on the screen.
 func (m *Model) rowLines() []string {
 	h := m.viewHeight()
-	bar := mark(scrollbar(h, len(m.screen.rows), m.offset), len(m.screen.rows), m.elsewhere(h))
+	bar := scrollbar(h, len(m.screen.rows), m.offset, m.styles).Place(m.overviewMarks()...)
 	width := bodyWidth(m.diffWidth(), bar)
 
 	out := make([]string, 0, h)
@@ -692,7 +655,7 @@ func (m *Model) rowLines() []string {
 		out = append(out, "")
 	}
 
-	return alongside(out[:h], bar, m.styles, m.diffWidth())
+	return alongside(out[:h], bar, m.diffWidth())
 }
 
 // rowsTo pads lines, the row each drawn line belongs to, out to n entries of row.

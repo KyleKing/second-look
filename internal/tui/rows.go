@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/tui/icons"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/diag"
@@ -187,6 +188,7 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 	ctx := fileCtx{
 		d: d, r: r, ts: ts, byLine: byLine, byThread: byThread,
 		placed: placed, lay: lay, split: splitFiles(groups), grown: lay.grown,
+		icons: loadStyles().icons,
 	}
 
 	s.groups = groups
@@ -233,7 +235,7 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 
 	merged := mergedHunk(f, at, c, span)
 	rows := []row{spanned(row{kind: rowFile, path: p, comment: noComment, hunk: merged},
-		chunk{text: p}, muted(c.lay.partWord(p, c.split[at.path])+sizeWord(f, at.hunks)))}
+		append(pathSpans(p, c.icons), muted(c.lay.partWord(p, c.split[at.path])+sizeWord(f, at.hunks)))...)}
 
 	if c.lay.shut(p) {
 		return foldedFile(f, rows[0], c)
@@ -324,6 +326,8 @@ type fileCtx struct {
 	// grown is the file's own lines either side of a hunk, for a reader who
 	// asked for more than the patch carried.
 	grown func(path string, hunk int, span [2]int) ([]row, []row)
+	// icons draws each file's type beside its name.
+	icons icons.Set
 }
 
 // fileNotes is what a file says about itself before its first hunk: why it

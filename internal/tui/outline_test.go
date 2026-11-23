@@ -19,7 +19,7 @@ func TestABigChangeOpensOnItsOutline(t *testing.T) {
 	m, _, _ := fixtureWith(t, manyFiles(70))
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "CHAPTERS · 1 of 3") {
+	if got := plain(m.Frame()); !strings.Contains(got, "Chapters  1 of 3") {
 		t.Fatalf("seventy files did not open on the outline:\n%s", got)
 	} else if !strings.Contains(got, "⇢ alpha  ") || !strings.Contains(got, " "+strings.Repeat("─", 12)+" ") {
 		t.Errorf("twenty-four hunks are not folded into a twelve cell strip beside the name:\n%s", got)
@@ -34,7 +34,7 @@ func TestABigChangeOpensOnItsOutline(t *testing.T) {
 
 	pressKey(t, m, 'I')
 
-	if got := plain(m.Frame()); !strings.Contains(got, "CHAPTERS · 2 of 3") {
+	if got := plain(m.Frame()); !strings.Contains(got, "Chapters  2 of 3") {
 		t.Errorf("I did not come back to the chapter it left:\n%s", got)
 	}
 
@@ -44,13 +44,13 @@ func TestABigChangeOpensOnItsOutline(t *testing.T) {
 
 	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "CHAPTERS · 3 of 3") {
+	if got := plain(m.Frame()); !strings.Contains(got, "Chapters  3 of 3") {
 		t.Errorf("the wheel did not move the selection:\n%s", got)
 	}
 
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 
-	if got := plain(m.Frame()); strings.Contains(got, "CHAPTERS ·") {
+	if got := plain(m.Frame()); strings.Contains(got, "Chapters  ") {
 		t.Errorf("esc left the outline up:\n%s", got)
 	}
 }
@@ -68,14 +68,14 @@ func TestTheOutlineLeavesForTheViews(t *testing.T) {
 		finding("x", 15, "doggo", "wrap it"),
 	}))
 
-	if got := plain(m.Frame()); !strings.Contains(got, "CHAPTERS · 1 of 3") {
+	if got := plain(m.Frame()); !strings.Contains(got, "Chapters  1 of 3") {
 		t.Fatalf("the big change did not open on its outline:\n%s", got)
 	}
 
 	pressKey(t, m, 't')
 
 	got := plain(m.Frame())
-	if strings.Contains(got, "CHAPTERS ·") {
+	if strings.Contains(got, "Chapters  ") {
 		t.Fatalf("t left the outline up:\n%s", got)
 	}
 	if !strings.Contains(got, "wrap it") {

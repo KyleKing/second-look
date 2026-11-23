@@ -76,6 +76,12 @@ second-look skill > ~/.claude/skills/second-look/SKILL.md
 
 Re-run it after upgrading so the skill matches the binary. `second-look --help` covers the remaining commands, and [config.example.toml](config.example.toml) documents the settings you can put in `~/.config/second-look/config.toml`.
 
+## Fonts
+
+File headings carry a filetype icon from a [Nerd Font](https://www.nerdfonts.com/), which is
+the default. Set `ARAGONITE_ICONS=unicode` to use glyphs every monospace font has instead; the
+setting is shared with jj-diff and jojo, and no column moves either way.
+
 ## More
 
 - [DESIGN.md](DESIGN.md) covers the problem, the main design decisions, and the architecture

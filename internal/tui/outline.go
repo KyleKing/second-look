@@ -511,7 +511,7 @@ func (m *Model) chapterDetail(size sizes, at, w, jw int) []string {
 		}
 	}
 
-	add(fmt.Sprintf("CHAPTER %d OF %d · %s", at+1, len(m.plan.Chapters), c.Mode), m.styles.head.Render)
+	out = append(out, " "+m.section(fmt.Sprintf("Chapter %d of %d", at+1, len(m.plan.Chapters)), string(c.Mode), room))
 	add(c.Source.Glyph()+" "+c.Name, m.styles.file.Render)
 
 	if c.Why != "" {
@@ -526,7 +526,7 @@ func (m *Model) chapterDetail(size sizes, at, w, jw int) []string {
 	add(placed, m.styles.note.Render)
 
 	if p := c.Pattern; p != nil {
-		out = append(out, "", " "+m.styles.head.Render("SHAPE · "+plural(len(p.Members), fileNoun)))
+		out = append(out, "", " "+m.section("Shape", plural(len(p.Members), fileNoun), room))
 
 		for _, line := range m.shapeWords(p) {
 			add(line, m.styles.note.Render)
@@ -534,7 +534,7 @@ func (m *Model) chapterDetail(size sizes, at, w, jw int) []string {
 	}
 
 	if asks := m.asksIn(c); len(asks) > 0 {
-		out = append(out, "", " "+m.styles.head.Render(fmt.Sprintf("ASKED · %d", len(asks))))
+		out = append(out, "", " "+m.section("Asked", strconv.Itoa(len(asks)), room))
 
 		for _, n := range asks {
 			a := m.plan.Asks[n]
@@ -543,7 +543,7 @@ func (m *Model) chapterDetail(size sizes, at, w, jw int) []string {
 	}
 
 	files := refPaths(c.Hunks)
-	out = append(out, "", " "+m.styles.head.Render(fmt.Sprintf("FILES · %d", len(files))))
+	out = append(out, "", " "+m.section("Files", strconv.Itoa(len(files)), room))
 
 	col := 0
 	for _, p := range files {
@@ -557,7 +557,7 @@ func (m *Model) chapterDetail(size sizes, at, w, jw int) []string {
 	}
 
 	if stops := m.stopsIn(c); len(stops) > 0 {
-		out = append(out, "", " "+m.styles.head.Render(fmt.Sprintf("STOPS · %d", len(stops))))
+		out = append(out, "", " "+m.section("Stops", strconv.Itoa(len(stops)), room))
 
 		for _, n := range stops {
 			s := m.plan.Stops[n]

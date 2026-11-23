@@ -379,7 +379,7 @@ func TestAShapeChapterReadsTheEditOnce(t *testing.T) {
 	}
 
 	for range 10 {
-		if strings.Contains(cursorText(m), "FILES · ") {
+		if strings.Contains(cursorText(m), "Files · ") {
 			break
 		}
 
@@ -407,7 +407,7 @@ func TestAShapeChapterReadsTheEditOnce(t *testing.T) {
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	got := plain(m.Frame())
-	if m.CursorFile() != "cards/RisksCard.tsx" || !strings.Contains(got, "file · outside the diff") {
+	if m.CursorFile() != "cards/RisksCard.tsx" || !strings.Contains(got, "file   outside the diff") {
 		t.Errorf("enter on a file the edit missed did not open it:\n%s", got)
 	}
 }

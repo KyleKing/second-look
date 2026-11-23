@@ -961,8 +961,13 @@ func cursorRowMarked(t *testing.T, sz size, noColor bool) {
 		// margin is 2 cells to a side, and yields under 84 columns.
 		pad := min(2, max(0, (sz.cols-80)/2))
 		want := sz.cols - 1 - 2*pad
-		sc.awaitFrame("one row tinted across the page", func([]string) bool {
-			rows := sc.tintedRows()
+		// A file's heading sits on its own band, so it is set aside: the
+		// cursor's row is the one other row carrying a tint.
+		sc.awaitFrame("one row tinted across the page", func(frame []string) bool {
+			rows := slices.DeleteFunc(sc.tintedRows(), func(y int) bool {
+				return y < len(frame) && strings.Contains(frame[y], "testdata/fixture/sample.go")
+			})
+
 			return len(rows) == 1 && sc.tintSpan(rows[0]) == want
 		})
 	}

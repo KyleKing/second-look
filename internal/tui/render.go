@@ -12,7 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/diff"
-	"github.com/kyleking/aragonite/tui/theme"
+	"github.com/kyleking/aragonite/tui/skin"
 
 	"github.com/kyleking/second-look/internal/highlight"
 )
@@ -129,50 +129,6 @@ func (m *Model) sideBySide() bool {
 	return m.drawn.split && m.view == viewDiff && m.diffWidth() >= splitWidth
 }
 
-// The two depths a changed line is drawn at: the wash is the pale tint the
-// whole line carries, and the mark is the deeper one only the runs inside it
-// that actually differ from the line it is paired with get. A line with no
-// pair — net-new or removed whole — is all wash, so a file of new code reads
-// as a sheet of it rather than a wall of the deep color.
-//
-// A 256-color terminal gets deeper values, since the cube carries almost no
-// dark tints: held back there, added and removed both quantize into the grey
-// ramp and the mark says nothing.
-const (
-	// What a terminal that mixes its own colors gets.
-	trueMarkLift, trueMarkSat = 0.28, 0.70
-	trueWashLift, trueWashSat = 0.10, 0.42
-	// What a 256-color terminal gets, deep enough to survive the cube.
-	cubeMarkLift = 0.34
-	cubeWashLift = 0.12
-	cubeSat      = 1.0
-)
-
-var (
-	markMix  = markDepth(supportsMillions())
-	washMix  = washDepth(supportsMillions())
-	trueMark = theme.Depth{Lift: trueMarkLift, Sat: trueMarkSat}
-	trueWash = theme.Depth{Lift: trueWashLift, Sat: trueWashSat}
-	cubeMark = theme.Depth{Lift: cubeMarkLift, Sat: cubeSat}
-	cubeWash = theme.Depth{Lift: cubeWashLift, Sat: cubeSat}
-)
-
-func markDepth(millions bool) theme.Depth {
-	if millions {
-		return trueMark
-	}
-
-	return cubeMark
-}
-
-func washDepth(millions bool) theme.Depth {
-	if millions {
-		return trueWash
-	}
-
-	return cubeWash
-}
-
 // supportsMillions asks what the terminal can actually mix, which decides how
 // far back the bands are held.
 func supportsMillions() bool {
@@ -201,7 +157,11 @@ type richStyles struct {
 func newRichStyles(s styles) richStyles {
 	p, base := s.palette, lipgloss.NewStyle()
 
-	faces := map[highlight.Class]lipgloss.Style{
+	// The wash and mark are aragonite's, so a changed line here is the same
+	// changed line in jj-diff and jojo.
+	faces := skin.Diff(p, supportsMillions())
+
+	class := map[highlight.Class]lipgloss.Style{
 		highlight.Comment:     base.Foreground(p.Overlay1).Italic(true),
 		highlight.Keyword:     base.Foreground(p.Mauve),
 		highlight.String:      base.Foreground(p.Yellow),
@@ -219,18 +179,18 @@ func newRichStyles(s styles) richStyles {
 	}
 
 	return richStyles{
-		class: faces,
+		class: class,
 		side: map[byte]lipgloss.Style{
 			diff.KindAdd:    base.Foreground(p.Green),
 			diff.KindRemove: base.Foreground(p.Red),
 		},
 		mark: map[byte]color.Color{
-			diff.KindAdd:    theme.Tint(p.Base, p.Green, markMix),
-			diff.KindRemove: theme.Tint(p.Base, p.Red, markMix),
+			diff.KindAdd:    faces.AddMark,
+			diff.KindRemove: faces.RemoveMark,
 		},
 		wash: map[byte]color.Color{
-			diff.KindAdd:    theme.Tint(p.Base, p.Green, washMix),
-			diff.KindRemove: theme.Tint(p.Base, p.Red, washMix),
+			diff.KindAdd:    faces.AddWash,
+			diff.KindRemove: faces.RemoveWash,
 		},
 		gutter:  base.Foreground(p.Overlay1),
 		colored: colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ASCII,
@@ -258,7 +218,7 @@ func (m *Model) mergedCode(r row, width int) []string {
 // of them.
 func (m *Model) frameCode(r row, width int, segsFor func(row, diff.Line, int) []string) []string {
 	room := max(0, width-m.gutterWidth())
-	band := m.bandRoom(r.path, r.line.Hunk, room)
+	band := room
 	segs := segsFor(r, r.line, room)
 
 	out := make([]string, len(segs))
@@ -386,18 +346,22 @@ func (m *Model) richGutter(r row) string {
 	side, changed := m.rich.side[l.Kind]
 	mark := sideGlyph(l.Kind, m.rich.colored)
 
+	// The mark carries the side, so a changed line's number stays quiet and a
+	// column of them does not read as a second, louder bar. It is a step
+	// brighter than a context line's, which is all it needs to say "changed".
+	quiet := m.styles.subtitle
+
 	switch {
 	case r.shared && m.rich.colored:
-		style, mark = side, m.styles.behind.Render(sharedGlyph)
+		style, mark = quiet, m.styles.behind.Render(sharedGlyph)
 	case changed && r.whole:
-		style, mark = side, " "
+		style, mark = quiet, " "
 	case changed && m.rich.colored && m.moves[refOf(r.path, l)].Lines > 0:
-		style, mark = side, side.Render(movedGlyph)
+		style, mark = quiet, side.Render(movedGlyph)
 	case changed && m.rich.colored && wsSignificant(r.path) && m.reindented[refOf(r.path, l)]:
-		style, mark = side, side.Render(m.reindentGlyph(r, l))
+		style, mark = quiet, side.Render(m.reindentGlyph(r, l))
 	case changed:
-		style = side
-		mark = side.Render(mark)
+		style, mark = quiet, side.Render(mark)
 	}
 
 	return style.Render(number(num, m.screen.numWidth)) + " " + mark + " "
@@ -506,36 +470,6 @@ func (m *Model) lineBase(r row, l diff.Line) (color.Color, bool) {
 	wash, ok := m.rich.wash[l.Kind]
 
 	return wash, ok
-}
-
-// bandMargin is the cells a band runs past the widest line of its hunk.
-const bandMargin = 2
-
-// bandRoom is where a hunk's bands end, so its lines end in one column rather
-// than at their own lengths.
-func (m *Model) bandRoom(path string, hunk, room int) int {
-	return min(room, m.hunkCols[hunkRef{path: path, hunk: hunk}]+bandMargin)
-}
-
-type hunkRef struct {
-	path string
-	hunk int
-}
-
-// hunkWidths is the widest line of each hunk in cells.
-func hunkWidths(d *diff.Diff) map[hunkRef]int {
-	widths := map[hunkRef]int{}
-
-	for i := range d.Files {
-		path := pathOf(&d.Files[i])
-
-		for _, l := range d.Files[i].Lines {
-			ref := hunkRef{path: path, hunk: l.Hunk}
-			widths[ref] = max(widths[ref], textWidth(expand(l.Text)))
-		}
-	}
-
-	return widths
 }
 
 // richSegments is the line's text as styled segments no wider than width
@@ -935,7 +869,7 @@ func (m *Model) halfCode(r row, l diff.Line, at, width int) []string {
 	out := make([]string, len(segs))
 
 	for i, seg := range segs {
-		seg = m.fill(r, l, seg, m.bandRoom(r.path, l.Hunk, room), room)
+		seg = m.fill(r, l, seg, room, room)
 
 		lead := head
 		if i > 0 {

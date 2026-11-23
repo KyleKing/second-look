@@ -17,6 +17,7 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/tui/overview"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/order"
@@ -2437,7 +2438,7 @@ func askedWithoutAnAgent(t *testing.T, width, height int) {
 
 	pressKey(t, m, 'I')
 
-	if got := plain(m.Frame()); !strings.Contains(got, "ASKED · 1") {
+	if got := plain(m.Frame()); !strings.Contains(got, "── Asked 1 ") {
 		t.Errorf("the outline does not list the ask:\n%s", got)
 	}
 
@@ -4027,7 +4028,7 @@ func hunkyPatch(t *testing.T) string {
 // The track says where the rest of a file is. Hunks are gathered by what they
 // touch rather than kept in file order, so a reader on one piece of a file has
 // nothing on the frame saying the other pieces are two screens down.
-func TestTheTrackMarksTheHunksStillToRead(t *testing.T) {
+func TestTheTrackSaysWhatWaitsOffScreen(t *testing.T) {
 	t.Parallel()
 
 	m := readable(t, hunkyPatch(t))
@@ -4035,19 +4036,24 @@ func TestTheTrackMarksTheHunksStillToRead(t *testing.T) {
 	press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})
 	press(t, m, tea.KeyPressMsg{Code: 'h', Text: "h"})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "•") {
-		t.Errorf("the track marks nothing while two hunks are unread off screen:\n%s", got)
+	got := plain(m.Frame())
+	if !strings.Contains(got, overview.GlyphChange) {
+		t.Errorf("the track marks no change while hunks sit off screen:\n%s", got)
 	}
 
-	// Reading every hunk leaves nothing to point at, which is the same thing the
-	// read count says at the other end of the title.
+	if strings.Contains(got, overview.GlyphDone) {
+		t.Errorf("the track marks a hunk read before any was:\n%s", got)
+	}
+
+	// A read hunk stays on the track, hollow, so the bar says how far the
+	// reading has got as well as where the change is.
 	for range 3 {
 		press(t, m, tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
 		go2(t, m, ']', 'h')
 	}
 
-	if got := plain(m.Frame()); strings.Contains(got, "•") {
-		t.Errorf("the track still marks a hunk after every one was read:\n%s", got)
+	if got := plain(m.Frame()); !strings.Contains(got, overview.GlyphDone) {
+		t.Errorf("the track marks no read hunk after every one was read:\n%s", got)
 	}
 }
 

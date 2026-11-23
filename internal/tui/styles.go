@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/icons"
 	"github.com/kyleking/aragonite/tui/skin"
 	"github.com/kyleking/aragonite/tui/theme"
 
@@ -34,6 +35,12 @@ type styles struct {
 	title    lipgloss.Style
 	subtitle lipgloss.Style
 	file     lipgloss.Style
+	// fileBand lifts a file's heading row off the frame, so files separate by
+	// depth rather than by another rule.
+	fileBand lipgloss.Style
+	// icons draws a file's type and a thread's mark: Nerd Font glyphs unless
+	// ARAGONITE_ICONS asks for plain unicode.
+	icons    icons.Set
 	hunk     lipgloss.Style
 	add      lipgloss.Style
 	remove   lipgloss.Style
@@ -115,6 +122,8 @@ func newStyles() styles {
 		title:    sk.Title,
 		subtitle: sk.Subtitle,
 		file:     sk.Heading,
+		fileBand: sk.FileBand,
+		icons:    icons.New(icons.Resolve(""), p),
 		hunk:     sk.Muted,
 		// The three diff faces are this screen's own: nothing else here draws a
 		// change, and green-is-added is the one convention a reader brings.
@@ -308,4 +317,11 @@ func newLaneFaces(p theme.Palette) laneFaces {
 		quietLabel: base.Foreground(p.Overlay1),
 		quietCount: base.Foreground(p.Subtext0),
 	}
+}
+
+// section is a heading inside a panel: a quiet rule naming the section, with
+// its count a step back, width cells wide. Color is left for the rows under it
+// that need attention.
+func (m *Model) section(name, count string, width int) string {
+	return m.styles.skin.Rule(name, count, width)
 }

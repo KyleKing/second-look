@@ -1,8 +1,8 @@
 
-  jj-diff#42                                                  2 files · +2 −1 · 1 ready · ◐ 1 draft · 1 skipped ·   0%
+  jj-diff#42                                                  2 files · +2 −1   1 ready · ◐ 1 draft · 1 skipped     0%
   vcs ●───────────────────────────────────────────────────────────────────────────────────────────────────────────┊─  
   ▌                                       ╭─ keys ──────────────────────────────────────────────────────────────────╮┃
-       internal/vcs/diff.go  +2 -1 ───────│ moving                                                                  │┃
+        internal/vcs/diff.go  +2 -1      │ moving                                                                  │┃
          func Parse(r io.Reader) ([]Hunk, │       j/k  a line                                                       │┃
     14       first := 1                   │  ctrl+d/u  half a page                                                  │┃
                                           │  ctrl+e/y  scroll a line                                                │┃
@@ -19,6 +19,6 @@
                                           │         /  search                                                       ││
     16 +     if err != nil {              │            tab in the prompt narrows a search to hunks not yet read     ││
     17       last := 4                    │ what is shown                                                           ││
-       internal/vcs/git.go ───────────────│         v  the next view                                                ││
+        internal/vcs/git.go              │         v  the next view                                                ││
          func Head() string { ────────────╰ · · ·───────────────────────────────────────────────────────────────────╯│
    j/k line   ] go to   v code   m mark   e write   a add   i info   S submit   ? help   esc queue   q quit
