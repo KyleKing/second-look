@@ -89,39 +89,36 @@ func (m *Model) reloaded(msg reloadMsg) tea.Cmd {
 	return tea.Batch(next, m.askHead())
 }
 
-// merge takes the review from disk. What is being typed is never overwritten:
+// take takes the review from disk. What is being typed is never overwritten:
 // the buffer stays, and where the same comment moved under it both versions are
-// offered rather than one of them silently winning.
+// offered rather than one of them silently winning. The cursor keeps its line
+// and its height on the frame, so a reply that posted or an agent's write does
+// not move what is being read.
 func (m *Model) take(fresh *artifact.Review) {
 	said := arrived(m.review, fresh)
 
+	// The place names its comment by id, read off the review it was drawn
+	// from, since the fresh one may have dropped a comment before it.
+	m.holdPlace()
+
 	if m.editing == nil {
-		m.review = fresh
-		m.replan()
-		m.rebuild()
-		m.say(said, false)
+		m.retake(fresh, said)
 
 		return
 	}
 
 	index := m.editing.msg.index
 	if index < 0 || index >= len(m.review.Comments) {
-		m.review = fresh
-		m.replan()
-		m.rebuild()
-		m.say(said, false)
+		m.retake(fresh, said)
 
 		return
 	}
 
 	was := m.review.Comments[index]
-	m.review = fresh
-	m.replan()
-
 	theirs := fresh.Find(was.ID)
+
 	if theirs == nil || theirs.Body == was.Body {
-		m.rebuild()
-		m.say(said, false)
+		m.retake(fresh, said)
 
 		return
 	}
@@ -130,8 +127,16 @@ func (m *Model) take(fresh *artifact.Review) {
 	// buffer wins the screen and the other version is held on ctrl+t, because
 	// resolving it here would throw away one of the two without asking.
 	m.editing.theirs = theirs.Body
+	m.retake(fresh, was.ID+" was rewritten on disk while you were in it; ctrl+t reads that version")
+}
+
+// retake swaps the review in and redraws, saying why before the redraw so what
+// the landing could not keep is added to it.
+func (m *Model) retake(fresh *artifact.Review, said string) {
+	m.review = fresh
+	m.replan()
+	m.say(said, false)
 	m.rebuild()
-	m.say(was.ID+" was rewritten on disk while you were in it; ctrl+t reads that version", false)
 }
 
 // arrived says what the reload brought, since a screen that redraws with no

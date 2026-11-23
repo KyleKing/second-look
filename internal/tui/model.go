@@ -159,6 +159,10 @@ type Model struct {
 	roundDiffs map[string]*diff.Diff
 	roundAsked map[string]bool
 	rereview   map[int]answer
+	// holdAt is where the next rebuild puts the cursor back, set by whatever
+	// changes the rows under it on purpose: a push taken in, a review reloaded
+	// from disk, a step to another round. Nil leaves the cursor to stay.
+	holdAt *linePlace
 	// ticks counts the watcher's beats, which is what paces the head check at a
 	// different cadence from the reload.
 	ticks int
@@ -3960,6 +3964,15 @@ func (m *Model) finish(was where) {
 	m.done = m.readHunks()
 
 	m.stay(was)
+
+	if m.holdAt != nil {
+		if note := m.landBack(*m.holdAt); note != "" {
+			m.say(joined(m.status, note), m.failed)
+		}
+
+		m.holdAt = nil
+	}
+
 	m.cursor = clamp(m.cursor, len(m.screen.rows)-1)
 	m.follow()
 	m.landOpen()

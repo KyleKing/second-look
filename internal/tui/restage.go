@@ -54,7 +54,9 @@ func (m *Model) askRestage() tea.Cmd {
 // the highlight and word-mark caches keyed by line number would draw the old
 // head's coloring onto a line that kept its numbering, and the rating, the
 // found trouble, and the blob reader were all read against it. Each is dropped
-// or re-read, and the folds and the cursor go back to where an open starts.
+// or re-read, and the folds go back to where an open starts. The cursor keeps
+// the line it was on and its height on the frame, found by its text where the
+// push renumbered it, since a push that lands mid-read should not cost the place.
 func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 	if msg.err != nil {
 		m.say("could not restage: "+msg.err.Error(), true)
@@ -63,6 +65,9 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 	}
 
 	was := len(m.review.Comments)
+
+	at := m.linePlaceHere()
+	at.top = true
 
 	m.review = msg.fresh.Review
 	m.diff = msg.fresh.Diff
@@ -118,11 +123,9 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 		cmds = append(cmds, readStructure(m.diff, m.made))
 	}
 
-	m.rebuild()
-	m.cursor = 0
-	m.reveal()
-
 	m.say(restagedWord(was, len(m.review.Comments), msg.fresh.HeadSHA), false)
+	m.holdAt = &at
+	m.rebuild()
 
 	return tea.Batch(cmds...)
 }
