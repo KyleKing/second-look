@@ -130,10 +130,17 @@ func rungIf(first bool, a, b rung) rung {
 
 // gridColumns is the tab's columns with each breakpoint read against the
 // terminal's width, which is what a breakpoint is named in, rather than the
-// narrower page left once the margin and scrollbar are spent.
-func (l *List) gridColumns() []table.Column {
+// narrower page left once the margin and scrollbar are spent. With the preview
+// beside the list, the list is all the width the rows get, so the breakpoints
+// are read against it: read against the terminal, a column the list has no
+// room for stays shown and squeezes the status at the right end.
+func (l *List) gridColumns(width int) []table.Column {
 	cols := l.columns()
+
 	term := l.width + pageSides*l.padX
+	if l.sidePreview() {
+		term = width + gridMargin + pageSides*l.padX
+	}
 
 	for i := range cols {
 		switch {
