@@ -59,7 +59,7 @@ func (m *Model) earlier() []numbered {
 // read behind the frame and fill the box in as they land.
 func (m *Model) askRound() tea.Cmd {
 	if m.since != nil {
-		m.clearSince()
+		m.clearSince(false)
 
 		return nil
 	}
@@ -219,20 +219,20 @@ func (m *Model) readRounds(was []numbered) tea.Cmd {
 	for _, r := range was {
 		if m.roundDiffs[r.SHA] == nil && !m.roundAsked[r.SHA] {
 			m.roundAsked[r.SHA] = true
-			cmds = append(cmds, m.readRound(r.SHA, false))
+			cmds = append(cmds, m.readRound(r.SHA, roundCount))
 		}
 	}
 
 	return tea.Batch(cmds...)
 }
 
-func (m *Model) readRound(sha string, pick bool) tea.Cmd {
+func (m *Model) readRound(sha string, why roundWhy) tea.Cmd {
 	ctx, read := m.ctx, m.rounds
 
 	return func() tea.Msg {
 		old, err := read(ctx, sha)
 
-		return roundMsg{sha: sha, diff: old, err: err, pick: pick}
+		return roundMsg{sha: sha, diff: old, err: err, why: why}
 	}
 }
 
@@ -255,7 +255,7 @@ func (m *Model) sinceRound(key string) tea.Cmd {
 	sha := was[i].SHA
 
 	if m.roundDiffs[sha] != nil {
-		m.compareTo(sha)
+		m.compareTo(sha, false)
 
 		return nil
 	}
@@ -268,24 +268,33 @@ func (m *Model) sinceRound(key string) tea.Cmd {
 
 	m.say("reading the round at "+short(sha)+"…", false)
 
-	return m.readRound(sha, true)
+	return m.readRound(sha, roundPick)
 }
+
+// roundWhy is what a round's diff was read for: to count the box's answers,
+// because the reader picked the round from the box, or because ]r or [r
+// stepped to it, which keeps the cursor's line.
+type roundWhy byte
+
+const (
+	roundCount roundWhy = iota
+	roundPick
+	roundStep
+)
 
 // roundMsg is the diff an earlier round was read against.
 type roundMsg struct {
 	sha  string
 	diff *diff.Diff
 	err  error
-	// pick marks a read the reader asked for by choosing the round, as opposed
-	// to one the box made to count its answers.
-	pick bool
+	why  roundWhy
 }
 
 func (m *Model) applyRound(msg roundMsg) {
 	delete(m.roundAsked, msg.sha)
 
 	if msg.err != nil {
-		if msg.pick {
+		if msg.why != roundCount {
 			m.say("could not read the diff at "+short(msg.sha)+": "+msg.err.Error(), true)
 		}
 
@@ -294,19 +303,88 @@ func (m *Model) applyRound(msg roundMsg) {
 
 	m.roundDiffs[msg.sha] = msg.diff
 
-	if msg.pick {
-		m.compareTo(msg.sha)
+	if msg.why != roundCount {
+		m.compareTo(msg.sha, msg.why == roundStep)
 	}
 }
 
-// compareTo hides every hunk the round already carried.
-func (m *Model) compareTo(sha string) {
+// compareTo hides every hunk the round already carried. Where stay is set the
+// cursor keeps its line and its height on the frame, which is what stepping
+// between rounds is for; a round picked from the box reveals the cursor as a
+// jump does.
+func (m *Model) compareTo(sha string, stay bool) {
 	m.since = hunksOf(m.roundDiffs[sha])
 	m.sinceSHA = sha
 
+	m.say(sinceWord(m.sinceSHA, m.hidden()), false)
+	m.settle(stay)
+}
+
+// settle redraws after the comparison changed.
+func (m *Model) settle(stay bool) {
+	if stay {
+		m.holdPlace()
+		m.rebuild()
+
+		return
+	}
+
 	m.rebuild()
 	m.reveal()
-	m.say(sinceWord(m.sinceSHA, m.hidden()), false)
+}
+
+// stepRound answers ]r and [r: the comparison moves one round newer or older
+// while the cursor stays on its file and line. The whole diff is the oldest
+// place on that walk, since it is what changed since the base, which is older
+// than every round, so [r from round 1 lands on it and ]r from it on round 1.
+// The round's diff can be a fetch away, and the step lands when it does.
+func (m *Model) stepRound(step int) tea.Cmd {
+	was := m.earlier()
+	if len(was) == 0 {
+		m.say("this review has only been read at one head, so there is no earlier round", false)
+
+		return nil
+	}
+
+	at := -1
+	if m.since != nil {
+		at = slices.IndexFunc(was, func(r numbered) bool { return r.SHA == m.sinceSHA })
+	}
+
+	to := at + step
+
+	switch {
+	case to < -1:
+		m.say("already showing the whole diff, which is older than every round", false)
+
+		return nil
+	case to >= len(was):
+		m.say("round "+strconv.Itoa(was[len(was)-1].n)+" is the newest before this head", false)
+
+		return nil
+	case to == -1:
+		m.clearSince(true)
+
+		return nil
+	}
+
+	sha := was[to].SHA
+	if m.roundDiffs[sha] != nil {
+		m.compareTo(sha, true)
+
+		return nil
+	}
+
+	if m.rounds == nil {
+		m.say("this screen cannot read an earlier round's diff", true)
+
+		return nil
+	}
+
+	m.roundAsked[sha] = true
+	m.say("reading round "+strconv.Itoa(was[to].n)+" at "+short(sha)+"…", false)
+
+	return m.readRound(sha, roundStep)
 }
 
 // hunksOf is every hunk a diff carries, by what it says rather than by where it
@@ -322,12 +400,11 @@ func hunksOf(d *diff.Diff) *seen.Set {
 }
 
 // clearSince puts the whole diff back.
-func (m *Model) clearSince() {
+func (m *Model) clearSince(stay bool) {
 	m.since, m.sinceSHA = nil, ""
 
-	m.rebuild()
-	m.reveal()
 	m.say("showing every hunk again", false)
+	m.settle(stay)
 }
 
 // sinceWord says what is left, since a diff showing three of forty hunks has to

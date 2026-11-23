@@ -232,6 +232,7 @@ func objects(bracket string) [][2]string {
 		{"u", "unread hunk"},
 		{"p", "problem"},
 		{"a", "ask"},
+		{"r", "round"},
 	}
 }
 

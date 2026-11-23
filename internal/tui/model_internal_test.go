@@ -926,7 +926,7 @@ func checkComparingSaysWhatItHid(t *testing.T) {
 	m := model(t, onePatch, nil)
 	m.failed = true
 	m.roundDiffs = map[string]*diff.Diff{"0123456789": diff.Parse([]byte(onePatch))}
-	m.compareTo("0123456789")
+	m.compareTo("0123456789", false)
 
 	said(t, m, "showing what changed since 0123456; 1 hunk unchanged since then, hidden", false)
 }

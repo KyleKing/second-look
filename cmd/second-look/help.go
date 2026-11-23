@@ -80,6 +80,11 @@ NAMING A PULL REQUEST
       last change. So triaging a review reads "]c" then "n . n . n .", and
       reading one through reads "]u" then "n" until nothing answers.
 
+      ]r and [r compare against the next newer or older round the review was
+      read at, the way H then a digit does, and leave the cursor on its file and
+      line. The whole diff is the oldest stop. Where the round hides that line,
+      the cursor lands on the nearest one still drawn and the status says so.
+
       S then a, r, or c submits the review: approving, requesting changes, or
       commenting. The second key both confirms the post and says what kind of
       review it is, and what it says is written back, so a review posted as an

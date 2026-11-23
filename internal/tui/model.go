@@ -1681,9 +1681,9 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.act(msg)
 	}
 
-	m.object(prefix, msg)
+	cmd := m.object(prefix, msg)
 
-	return m, nil
+	return m, cmd
 }
 
 // zedKey answers the z chord: za expands the call sites of a graph's selected
@@ -2235,8 +2235,9 @@ func (m *Model) expanded(index int) bool {
 	return true
 }
 
-// object completes a pending ] or [.
-func (m *Model) object(prefix rune, msg tea.KeyPressMsg) {
+// object completes a pending ] or [. A round is the one object that moves no
+// cursor: it moves the comparison under it, and can be a read away.
+func (m *Model) object(prefix rune, msg tea.KeyPressMsg) tea.Cmd {
 	step := 1
 	if prefix == '[' {
 		step = -1
@@ -2261,9 +2262,13 @@ func (m *Model) object(prefix rune, msg tea.KeyPressMsg) {
 		m.repeatable(motion{step: step, what: "problem", want: isTrouble})
 	case "a":
 		m.repeatable(motion{step: step, what: "ask", want: isAsk})
+	case "r":
+		return m.stepRound(step)
 	default:
 		m.say("no motion for "+msg.String(), false)
 	}
+
+	return nil
 }
 
 // repeatable runs a motion and remembers it, so n walks the same object.
