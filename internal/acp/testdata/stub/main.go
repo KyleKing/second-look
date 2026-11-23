@@ -286,9 +286,19 @@ func main() {
 			}
 			//nolint:errcheck // same
 			_ = json.Unmarshal(f.Params, &p)
-			notify(p.SessionID, "user_message_chunk", map[string]any{
-				"content": map[string]any{"type": "text", "text": "what was asked before"},
-			})
+			// Two prompts with no message id stay two entries, and two chunks of
+			// one id join into one.
+			for _, text := range []string{"what was asked before", "and after that"} {
+				notify(p.SessionID, "user_message_chunk", map[string]any{
+					"content": map[string]any{"type": "text", "text": text},
+				})
+			}
+			for _, text := range []string{"one prompt ", "in two chunks"} {
+				notify(p.SessionID, "user_message_chunk", map[string]any{
+					"messageId": "u1",
+					"content":   map[string]any{"type": "text", "text": text},
+				})
+			}
 			say(p.SessionID, "reloaded transcript")
 			result(f.ID, map[string]any{"modes": modes})
 		case "session/set_mode":

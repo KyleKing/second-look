@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -296,9 +297,14 @@ func TestSessionLoadsARecordedOne(t *testing.T) {
 
 	// The replay's own prompts carry their kind, so the transcript keeps the
 	// turn each answer belongs to.
-	got := s.Entries()
-	if len(got) < 2 || got[0].Kind != acp.You || got[0].Text != "what was asked before" {
-		t.Errorf("the replay's first entry reads %v", got)
+	want := []acp.Entry{
+		{Kind: acp.You, Text: "what was asked before"},
+		{Kind: acp.You, Text: "and after that"},
+		{Kind: acp.You, Text: "one prompt in two chunks"},
+		{Kind: acp.Agent, Text: "reloaded transcript"},
+	}
+	if got := s.Entries(); !slices.Equal(got, want) {
+		t.Errorf("the replay reads %+v, want %+v", got, want)
 	}
 }
 

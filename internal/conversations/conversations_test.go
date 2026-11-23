@@ -198,18 +198,114 @@ func TestBucketsSplitOnTheLastWordAndWhenYouLooked(t *testing.T) {
 	}
 }
 
+// The read marks are a file several shells share. A missing file is an empty
+// set, so the first run reports every conversation as new rather than failing.
 // A mark survives a restart, and one for a conversation the queue no longer
-// carries is dropped rather than kept forever.
-func TestLookedSurvivesARestartAndForgetsWhatIsGone(t *testing.T) {
+// carries is dropped rather than kept forever. Two shells open at once each
+// mark a different conversation, and a save that overwrote the file would
+// erase the other's mark, so the save merges: a mark the file holds for a
+// conversation this session never fetched survives, and on a conversation both
+// marked the newer mark wins whichever shell saved it.
+func TestLookedPersists(t *testing.T) {
+	t.Parallel()
+
+	old := at("2026-09-01T12:00:00Z")
+	later := at("2026-09-02T12:00:00Z")
+
+	t.Run("a missing file", lookedAMissingFile)
+
+	t.Run("a restart forgets what is gone", lookedARestartForgetsWhatIsGone)
+
+	for _, order := range [][2]time.Time{{old, later}, {later, old}} {
+		t.Run("two shells, the first marking at "+order[0].Format("Jan 2"), func(t *testing.T) {
+			t.Parallel()
+			lookedTwoShells(t, old, order)
+		})
+	}
+
+	t.Run("an unreadable file", lookedAnUnreadableFile)
+}
+
+// lookedTwoShells is two shells saving marks on one conversation, the first at
+// order[0] and the second at order[1], with old earlier than both.
+func lookedTwoShells(t *testing.T, old time.Time, order [2]time.Time) {
+	t.Helper()
+
+	q := fixture(t)
+	path := filepath.Join(t.TempDir(), "conversations.toml")
+
+	first := conversations.NewLooked()
+	first.Mark(&q.Conversations[0], old)
+	first.Mark(&q.Conversations[1], order[0])
+
+	if err := conversations.SaveLooked(path, first, q.Conversations[:2]); err != nil {
+		t.Fatal(err)
+	}
+
+	// The second shell fetched a queue that no longer carries the first
+	// conversation, marked the second one, and saved.
+	second := conversations.NewLooked()
+	second.Mark(&q.Conversations[1], order[1])
+
+	if err := conversations.SaveLooked(path, second, q.Conversations[1:2]); err != nil {
+		t.Fatal(err)
+	}
+
+	back, err := conversations.LoadLooked(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !back.Since(&q.Conversations[0]) {
+		t.Error("the first shell's mark was erased by the second's save")
+	}
+
+	// A conversation that moved between the two marks reads read under
+	// the newer and unread under the older, so it says which was kept.
+	c := q.Conversations[1]
+	c.Notes[len(c.Notes)-1].Created = at("2026-09-01T13:00:00Z")
+
+	if !back.Since(&c) {
+		t.Error("the file kept the older mark instead of the newer one")
+	}
+
+	newer := order[0]
+	if order[1].After(newer) {
+		newer = order[1]
+	}
+
+	c.Notes[len(c.Notes)-1].Created = newer
+
+	if !back.Since(&c) {
+		t.Error("a conversation updated at the moment it was marked reads unread")
+	}
+}
+
+func lookedAMissingFile(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+
+	looked, err := conversations.LoadLooked(filepath.Join(t.TempDir(), "absent.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	q := fixture(t)
+	if looked.Since(&q.Conversations[0]) {
+		t.Error("nothing has been read and a conversation reports otherwise")
+	}
+}
+
+func lookedARestartForgetsWhatIsGone(t *testing.T) {
+	t.Helper()
 	t.Parallel()
 
 	q := fixture(t)
 	path := filepath.Join(t.TempDir(), "conversations.toml")
-	now := at("2026-09-01T12:00:00Z")
 
 	looked := conversations.NewLooked()
 	for i := range q.Conversations {
-		looked.Mark(&q.Conversations[i], now)
+		looked.Mark(&q.Conversations[i], at("2026-09-01T12:00:00Z"))
 	}
 
 	live := q.Conversations[:1]
@@ -231,74 +327,29 @@ func TestLookedSurvivesARestartAndForgetsWhatIsGone(t *testing.T) {
 			t.Errorf("%s was pruned from the queue and its mark was kept", q.Conversations[i].Key())
 		}
 	}
+
+	back.Unmark(&live[0])
+
+	if back.Since(&live[0]) {
+		t.Error("an unmarked conversation still reads as read")
+	}
 }
 
-// Two shells open at once each mark a different conversation. A save that
-// overwrote the file would erase the other's mark, so the save merges: a mark
-// the file holds for a conversation this session never fetched survives, and
-// on a conversation both marked the newer mark wins.
-func TestSaveLookedMergesWhatAnotherShellMarked(t *testing.T) {
+func lookedAnUnreadableFile(t *testing.T) {
+	t.Helper()
 	t.Parallel()
 
-	q := fixture(t)
 	path := filepath.Join(t.TempDir(), "conversations.toml")
-	old := at("2026-09-01T12:00:00Z")
-	later := at("2026-09-02T12:00:00Z")
-
-	first := conversations.NewLooked()
-	first.Mark(&q.Conversations[0], old)
-	first.Mark(&q.Conversations[1], old)
-
-	if err := conversations.SaveLooked(path, first, q.Conversations[:2]); err != nil {
+	if err := os.WriteFile(path, []byte("[[conversation"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	// The second shell fetched a queue that no longer carries the first
-	// conversation, marked the second one later, and saved.
-	second := conversations.NewLooked()
-	second.Mark(&q.Conversations[1], later)
-
-	if err := conversations.SaveLooked(path, second, q.Conversations[1:2]); err != nil {
-		t.Fatal(err)
+	if _, err := conversations.LoadLooked(path); err == nil {
+		t.Error("an unparsable file loaded as a set")
 	}
 
-	back, err := conversations.LoadLooked(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !back.Since(&q.Conversations[0]) {
-		t.Error("the first shell's mark was erased by the second's save")
-	}
-
-	if !back.Since(&q.Conversations[1]) {
-		t.Error("the second shell's newer mark did not win")
-	}
-
-	// The newer mark winning is only true if the file took it rather than the
-	// old one: a conversation that moved between the two marks reads read
-	// under the newer and unread under the older.
-	c := q.Conversations[1]
-	c.Notes[len(c.Notes)-1].Created = at("2026-09-01T13:00:00Z")
-
-	if !back.Since(&c) {
-		t.Error("the file kept the older mark instead of the newer one")
-	}
-}
-
-// A missing file is an empty set, so the first run reports every conversation
-// as new rather than failing.
-func TestLoadLookedTreatsAMissingFileAsNothingRead(t *testing.T) {
-	t.Parallel()
-
-	looked, err := conversations.LoadLooked(filepath.Join(t.TempDir(), "absent.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	q := fixture(t)
-	if looked.Since(&q.Conversations[0]) {
-		t.Error("nothing has been read and a conversation reports otherwise")
+	if err := conversations.SaveLooked(path, conversations.NewLooked(), nil); err == nil {
+		t.Error("a save over an unparsable file overwrote it")
 	}
 }
 

@@ -158,6 +158,7 @@ func TestComparingAgainstARoundSaysWhichTodosWereAnswered(t *testing.T) {
 	}
 
 	pressKey(t, m, 'H')
+	m.ChordWaited()
 
 	box := plain(m.Frame())
 	for _, want := range []string{

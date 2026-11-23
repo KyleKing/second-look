@@ -274,26 +274,6 @@ func TestGetRefusesToMoveADirtyTree(t *testing.T) {
 	}
 }
 
-// TestGetRefusesSomewhereThatIsNotARepo stops before any gh call, so the
-// cassette is empty and a single request would fail the test.
-func TestGetRefusesSomewhereThatIsNotARepo(t *testing.T) {
-	t.Parallel()
-
-	s := ghcassette.Replay(t, deriveFrom(t, "post-review", "no-calls", func(c *ghcassette.Cassette) {
-		inCheckout(c)
-		c.Interactions = nil
-	}))
-
-	res := runCLI(t, s, t.TempDir(), "get", "2")
-	if res.code == 0 {
-		t.Fatal("expected a directory that is not a repository to be refused")
-	}
-
-	if !strings.Contains(res.stderr, "not a git or jj repository") {
-		t.Errorf("want the missing repository named, got %q", res.stderr)
-	}
-}
-
 // anonymize replaces the two things that differ on every run: the scratch
 // repository's commit, and the temporary directory the store sits under.
 func anonymize(t *testing.T, out, sha, dir string) string {

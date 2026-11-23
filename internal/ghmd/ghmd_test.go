@@ -126,6 +126,30 @@ func TestNothingIsSwallowedByAShapeItDoesNotHave(t *testing.T) {
 			first: "the value of read_budget_total is wrong",
 		},
 		{
+			name:  "an underscore after a digit is a word",
+			body:  "v0_beta_ and x9_y_ stay",
+			kinds: []ghmd.Kind{ghmd.Prose},
+			first: "v0_beta_ and x9_y_ stay",
+		},
+		{
+			name:  "an underscore after a letter at either end of the alphabet is a word",
+			body:  "a_b_ z_y_ A_B_ Z_Y_ stay",
+			kinds: []ghmd.Kind{ghmd.Prose},
+			first: "a_b_ z_y_ A_B_ Z_Y_ stay",
+		},
+		{
+			name:  "emphasis against a boundary loses its markers",
+			body:  "(_one_) **two** __three__ *four*",
+			kinds: []ghmd.Kind{ghmd.Prose},
+			first: "(one) two three four",
+		},
+		{
+			name:  "an underscore after punctuation opens emphasis",
+			body:  "/_x_ and ._y_",
+			kinds: []ghmd.Kind{ghmd.Prose},
+			first: "/x and .y",
+		},
+		{
 			name:  "a marker with no closer is a character",
 			body:  "2 * 3 is six",
 			kinds: []ghmd.Kind{ghmd.Prose},

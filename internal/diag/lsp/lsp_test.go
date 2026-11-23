@@ -60,9 +60,18 @@ func TestNotesWaitsForAServerToCorrectItself(t *testing.T) {
 	s := lsp.New(t.Context(), t.TempDir(), stubServer())
 	defer s.Close()
 
+	start := time.Now()
+
 	got, err := s.Notes(t.Context(), []lsp.Doc{{Path: "a.ts", Text: "one\ntwo\nthree\n"}})
 	if err != nil {
 		t.Fatalf("asking the stub: %v", err)
+	}
+
+	// A server publishes for every file it loaded on the way to the ones asked
+	// about, and the stub never stops: a pass that let that noise restart its
+	// quiet line runs to the deadline instead of settling.
+	if took := time.Since(start); took > patience {
+		t.Errorf("the pass took %s, which is the noise holding it open", took)
 	}
 
 	if len(got) != 1 {
@@ -77,35 +86,6 @@ func TestNotesWaitsForAServerToCorrectItself(t *testing.T) {
 
 	if got[0] != want {
 		t.Errorf("note is\n  %+v\nwant\n  %+v", got[0], want)
-	}
-}
-
-// A server publishes for every file it loaded on the way to the ones asked
-// about, and against a monorepo it never stops. A pass that let that noise hold
-// it open ran to its deadline every time.
-func TestNotesIgnoresFilesNobodyAskedAbout(t *testing.T) {
-	t.Parallel()
-
-	s := lsp.New(t.Context(), t.TempDir(), stubServer())
-	defer s.Close()
-
-	start := time.Now()
-
-	got, err := s.Notes(t.Context(), []lsp.Doc{{Path: "a.ts", Text: "one\ntwo\nthree\n"}})
-	if err != nil {
-		t.Fatalf("asking the stub: %v", err)
-	}
-
-	// The stub never stops publishing for other files, so a pass that let that
-	// restart its quiet line runs to the deadline instead of settling.
-	if took := time.Since(start); took > patience {
-		t.Errorf("the pass took %s, which is the noise holding it open", took)
-	}
-
-	for _, n := range got {
-		if n.Path != "a.ts" {
-			t.Errorf("a note arrived for %s, which nothing asked about", n.Path)
-		}
 	}
 }
 
@@ -171,14 +151,34 @@ func TestHoverCountsCharactersTheWayTheProtocolDoes(t *testing.T) {
 	}
 }
 
-func TestHoverRefusesALineOutsideTheFile(t *testing.T) {
+// A line past the end of the file is refused, and so is anything asked of a
+// session that has been closed: Close ends the servers and the context they
+// would be started under.
+func TestHoverRefuses(t *testing.T) {
 	t.Parallel()
 
-	s := lsp.New(t.Context(), t.TempDir(), stubServer())
-	defer s.Close()
+	for _, tc := range []struct {
+		name   string
+		line   int
+		closed bool
+	}{
+		{"a line outside the file", 9, false},
+		{"a closed session", 1, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	if _, err := s.Hover(t.Context(), lsp.Doc{Path: "a.ts", Text: "one\n"}, 9); err == nil {
-		t.Error("a line past the end of the file was answered")
+			s := lsp.New(t.Context(), t.TempDir(), stubServer())
+			defer s.Close()
+
+			if tc.closed {
+				s.Close()
+			}
+
+			if got, err := s.Hover(t.Context(), lsp.Doc{Path: "a.ts", Text: "one\n"}, tc.line); err == nil {
+				t.Errorf("answered %+v", got)
+			}
+		})
 	}
 }
 
@@ -361,49 +361,120 @@ func TestContextEndsAPassThatIsStillWaiting(t *testing.T) {
 	}
 }
 
-// A monorepo holds a project per directory, and a server started above one
-// compiles the file under settings that are not the project's: rooted at the
-// checkout, a TypeScript server reads a package's imports as unresolvable and
-// reports errors the change did not cause.
-func TestNotesStartsAServerInTheProjectTheFileBelongsTo(t *testing.T) {
+// TestNotesRootsEachServer is where a server is started and what it is told,
+// read back from the stub, which answers root.ts with the directory it was
+// started for and settings.ts with what it was configured with.
+//
+// A server starts in the project the file belongs to, not the checkout. A
+// workspace marker above a file outranks a package marker beside it, because
+// the workspace is what resolves the siblings the file imports. A project that
+// cannot host the server is walked past: rooted there, tsserver finds no
+// typescript to run out of and exits without answering. A server asking for its
+// settings is answered, since what it is told decides what it reports; settings
+// that depend on the project are computed for the root it starts in; and what a
+// config names beats what is detected.
+func TestNotesRootsEachServer(t *testing.T) {
 	t.Parallel()
 
-	checkout := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(checkout, "pkg", "src"), 0o750); err != nil {
-		t.Fatal(err)
+	for _, tc := range []rooting{
+		{
+			name:  "in the file's own project",
+			files: []string{"pkg/tsconfig.json"}, roots: [][]string{{"tsconfig.json"}},
+			want: map[string]string{"pkg/src/root.ts": "{checkout}/pkg", "root.ts": "{checkout}"},
+		},
+		{
+			name:  "at the workspace over a nearer package",
+			files: []string{"workspace.json", "pkg/package.json"},
+			roots: [][]string{{"workspace.json"}, {"package.json"}},
+			want:  map[string]string{"pkg/root.ts": "{checkout}"},
+		},
+		{
+			name:  "past a project that cannot host it",
+			files: []string{"tsconfig.json", "pkg/tsconfig.json", "node_modules/typescript/.keep"},
+			roots: [][]string{{"tsconfig.json"}}, needs: []string{"node_modules/typescript"},
+			want: map[string]string{"pkg/root.ts": "{checkout}"},
+		},
+		{
+			name:     "with the settings it asks for",
+			settings: map[string]any{"stub": map[string]any{"mode": "workspace"}},
+			want:     map[string]string{"settings.ts": "workspace"},
+		},
+		{
+			name:  "with its own root's settings",
+			files: []string{"pkg/tsconfig.json"}, roots: [][]string{{"tsconfig.json"}},
+			detect: func(_, root string) map[string]any { return map[string]any{"stub": map[string]any{"mode": root}} },
+			want:   map[string]string{"pkg/settings.ts": "{checkout}/pkg"},
+		},
+		{
+			name:     "with configured settings over detected ones",
+			settings: map[string]any{"stub": map[string]any{"mode": "configured"}},
+			detect: func(_, _ string) map[string]any {
+				return map[string]any{"stub": map[string]any{"mode": "found"}}
+			},
+			want: map[string]string{"settings.ts": "configured"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.check(t)
+		})
 	}
+}
 
-	if err := os.WriteFile(filepath.Join(checkout, "pkg", "tsconfig.json"), []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
+// rooting is one checkout laid out with files, a stub server configured over
+// it, and the answer each document should come back with.
+type rooting struct {
+	name         string
+	files, needs []string
+	roots        [][]string
+	settings     map[string]any
+	detect       func(checkout, root string) map[string]any
+	want         map[string]string
+}
+
+func (tc *rooting) check(t *testing.T) {
+	t.Helper()
+
+	checkout := t.TempDir()
+
+	for _, f := range tc.files {
+		at := filepath.Join(checkout, filepath.FromSlash(f))
+		if err := os.MkdirAll(filepath.Dir(at), 0o750); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.WriteFile(at, []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	servers := stubServer()
-	servers[0].Roots = [][]string{{"tsconfig.json"}}
+	servers[0].Roots, servers[0].Needs = tc.roots, tc.needs
+	servers[0].Settings, servers[0].SettingsFor = tc.settings, tc.detect
 
 	s := lsp.New(t.Context(), checkout, servers)
 	defer s.Close()
 
-	got, err := s.Notes(t.Context(), []lsp.Doc{
-		{Path: filepath.Join("pkg", "src", "root.ts"), Text: "one\n"},
-		{Path: "root.ts", Text: "one\n"},
-	})
+	docs := make([]lsp.Doc, 0, len(tc.want))
+	for path := range tc.want {
+		docs = append(docs, lsp.Doc{Path: filepath.FromSlash(path), Text: "one\n"})
+	}
+
+	got, err := s.Notes(t.Context(), docs)
 	if err != nil {
 		t.Fatalf("asking the stub: %v", err)
 	}
 
-	// The stub answers with the directory the client said it was started for.
-	want := map[string]string{
-		filepath.Join("pkg", "src", "root.ts"): filepath.Join(checkout, "pkg"),
-		"root.ts":                              checkout,
-	}
-
-	if len(got) != len(want) {
-		t.Fatalf("read %+v, want one note for each file", got)
+	if len(got) != len(tc.want) {
+		t.Fatalf("read %+v, want one note for each of %v", got, tc.want)
 	}
 
 	for _, n := range got {
-		if n.Message != want[n.Path] {
-			t.Errorf("%s was answered by a server in %s, want one in %s", n.Path, n.Message, want[n.Path])
+		want := filepath.FromSlash(
+			strings.ReplaceAll(tc.want[filepath.ToSlash(n.Path)], "{checkout}", filepath.ToSlash(checkout)),
+		)
+		if n.Message != want {
+			t.Errorf("%s was answered with %q, want %q", n.Path, n.Message, want)
 		}
 	}
 }
@@ -442,135 +513,6 @@ func TestNotesRootsAServerFromARelativeCheckout(t *testing.T) {
 
 	if got[0].Message != want {
 		t.Errorf("the server was started for %s, want %s", got[0].Message, want)
-	}
-}
-
-// A workspace marker above the file and a package marker beside it both mark a
-// root, and the workspace is the one that resolves the siblings the file
-// imports. So the markers are ranked before the directories are walked: a
-// go.mod beside a file does not outrank the go.work that joins it to the
-// modules it imports.
-func TestNotesPrefersAWorkspaceMarkerOverANearerPackageOne(t *testing.T) {
-	t.Parallel()
-
-	checkout := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(checkout, "pkg"), 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, at := range []string{"workspace.json", filepath.Join("pkg", "package.json")} {
-		if err := os.WriteFile(filepath.Join(checkout, at), []byte("{}"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	servers := stubServer()
-	servers[0].Roots = [][]string{{"workspace.json"}, {"package.json"}}
-
-	s := lsp.New(t.Context(), checkout, servers)
-	defer s.Close()
-
-	got, err := s.Notes(t.Context(), []lsp.Doc{{Path: filepath.Join("pkg", "root.ts"), Text: "one\n"}})
-	if err != nil || len(got) != 1 {
-		t.Fatalf("read %+v, %v", got, err)
-	}
-
-	if got[0].Message != checkout {
-		t.Errorf("the server was started for %s, want the workspace at %s", got[0].Message, checkout)
-	}
-}
-
-// A package marked as a project that cannot host the server is not a project
-// this can use: rooted there, tsserver finds no typescript to resolve itself
-// out of and exits without answering. So the walk goes past it.
-func TestNotesWalksPastAProjectThatCannotHostTheServer(t *testing.T) {
-	t.Parallel()
-
-	checkout := t.TempDir()
-	for _, dir := range []string{"pkg", filepath.Join("node_modules", "typescript")} {
-		if err := os.MkdirAll(filepath.Join(checkout, dir), 0o750); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	for _, at := range []string{"tsconfig.json", filepath.Join("pkg", "tsconfig.json")} {
-		if err := os.WriteFile(filepath.Join(checkout, at), []byte("{}"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	servers := stubServer()
-	servers[0].Roots = [][]string{{"tsconfig.json"}}
-	servers[0].Needs = []string{filepath.Join("node_modules", "typescript")}
-
-	s := lsp.New(t.Context(), checkout, servers)
-	defer s.Close()
-
-	got, err := s.Notes(t.Context(), []lsp.Doc{{Path: filepath.Join("pkg", "root.ts"), Text: "one\n"}})
-	if err != nil || len(got) != 1 {
-		t.Fatalf("read %+v, %v", got, err)
-	}
-
-	if got[0].Message != checkout {
-		t.Errorf("the server was started in %s, which holds no typescript to run out of", got[0].Message)
-	}
-}
-
-// A server asks for its settings before it loads a project, and what it is told
-// decides what it reports: pyright answers every import of a monorepo as
-// unresolved until it is given the environment to resolve them in.
-func TestNotesAnswersAServerAskingForItsSettings(t *testing.T) {
-	t.Parallel()
-
-	servers := stubServer()
-	servers[0].Settings = map[string]any{"stub": map[string]any{"mode": "workspace"}}
-
-	s := lsp.New(t.Context(), t.TempDir(), servers)
-	defer s.Close()
-
-	got, err := s.Notes(t.Context(), []lsp.Doc{{Path: "settings.ts", Text: "one\n"}})
-	if err != nil || len(got) != 1 {
-		t.Fatalf("read %+v, %v", got, err)
-	}
-
-	if got[0].Message != "workspace" {
-		t.Errorf("the server was told %q, want the settings it asked for", got[0].Message)
-	}
-}
-
-// Settings that depend on the project are computed for the root the server is
-// started in, which is how one server over a monorepo hands each package its
-// own answers.
-func TestNotesGivesAServerTheRootsOwnSettings(t *testing.T) {
-	t.Parallel()
-
-	checkout := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(checkout, "pkg"), 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.WriteFile(filepath.Join(checkout, "pkg", "tsconfig.json"), []byte("{}"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	servers := stubServer()
-	servers[0].Roots = [][]string{{"tsconfig.json"}}
-	servers[0].SettingsFor = func(_, root string) map[string]any {
-		return map[string]any{"stub": map[string]any{"mode": root}}
-	}
-
-	s := lsp.New(t.Context(), checkout, servers)
-	defer s.Close()
-
-	got, err := s.Notes(t.Context(), []lsp.Doc{
-		{Path: filepath.Join("pkg", "settings.ts"), Text: "one\n"},
-	})
-	if err != nil || len(got) != 1 {
-		t.Fatalf("read %+v, %v", got, err)
-	}
-
-	if want := filepath.Join(checkout, "pkg"); got[0].Message != want {
-		t.Errorf("the server was told %q, want its own root %q", got[0].Message, want)
 	}
 }
 
@@ -633,29 +575,5 @@ func TestPyrightIsToldTheProjectsInterpreter(t *testing.T) {
 
 	if got := pyright.SettingsFor(checkout, root); got != nil {
 		t.Errorf("a project with no environment is told %v, want nothing", got)
-	}
-}
-
-// What a config names beats what is detected, so setting a key is how a wrong
-// detection is overridden rather than a second source the reader cannot see.
-func TestConfiguredSettingsBeatTheDetectedOnes(t *testing.T) {
-	t.Parallel()
-
-	servers := stubServer()
-	servers[0].Settings = map[string]any{"stub": map[string]any{"mode": "configured"}}
-	servers[0].SettingsFor = func(_, _ string) map[string]any {
-		return map[string]any{"stub": map[string]any{"mode": "found"}}
-	}
-
-	s := lsp.New(t.Context(), t.TempDir(), servers)
-	defer s.Close()
-
-	got, err := s.Notes(t.Context(), []lsp.Doc{{Path: "settings.ts", Text: "one\n"}})
-	if err != nil || len(got) != 1 {
-		t.Fatalf("read %+v, %v", got, err)
-	}
-
-	if got[0].Message != "configured" {
-		t.Errorf("the server was told %q, want the configured value", got[0].Message)
 	}
 }

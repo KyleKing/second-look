@@ -298,80 +298,72 @@ func TestListAnswersAClick(t *testing.T) {
 }
 
 // The cursor moves a row at a time, skipping headings, the quoted line under a
-// row, and the lines an expanded row adds. Otherwise one press would sometimes
-// move one row and sometimes half of one.
-func TestListMovesARowAtATime(t *testing.T) {
+// row, and the lines an expanded row adds, so one press never moves half a row.
+// A queue is triaged by jumping between what is still unread, so u lands on the
+// next unread row whatever stands between and wraps around the end, and U does
+// the same walking back. Expanding a row must not move the cursor off it, which
+// is what happens if the lines an expansion adds are counted as rows.
+func TestListMotions(t *testing.T) {
 	t.Parallel()
 
-	l := list(t, nil)
+	press := func(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: r, Text: string(r)} }
+	enter := tea.KeyPressMsg{Code: tea.KeyEnter}
+	quote := "does this leak on cancel?"
 
-	if got := l.CursorKey(); got != "T1" {
-		t.Fatalf("the cursor opens on %q, want the first row", got)
-	}
-
-	for _, want := range []string{"T2", "T3", "T3"} {
-		l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
-
-		if got := l.CursorKey(); got != want {
-			t.Errorf("j landed on %q, want %q", got, want)
-		}
-	}
-
-	for _, want := range []string{"T2", "T1", "T1"} {
-		l.Update(tea.KeyPressMsg{Code: 'k', Text: "k"})
-
-		if got := l.CursorKey(); got != want {
-			t.Errorf("k landed on %q, want %q", got, want)
-		}
-	}
-}
-
-// A queue is triaged by jumping between what is still unread, so u lands on
-// the next unread row whatever stands between and wraps around the end, and U
-// does the same walking back.
-func TestListJumpsBetweenUnreadRows(t *testing.T) {
-	t.Parallel()
-
-	l := list(t, nil)
-
-	for key, want := range map[string][]string{
-		"u": {"T2", "T1", "T2"},
-		"U": {"T2", "T1", "T2"},
+	for name, steps := range map[string][]step{
+		"j then k": {
+			{key: press('j'), at: "T2"},
+			{key: press('j'), at: "T3"},
+			{key: press('j'), at: "T3"},
+			{key: press('k'), at: "T2"},
+			{key: press('k'), at: "T1"},
+			{key: press('k'), at: "T1"},
+		},
+		"u":        {{key: press('u'), at: "T2"}, {key: press('u'), at: "T1"}, {key: press('u'), at: "T2"}},
+		"U":        {{key: press('U'), at: "T2"}, {key: press('U'), at: "T1"}, {key: press('U'), at: "T2"}},
+		"expand":   {{key: enter, at: "T1", shows: quote}, {key: enter, at: "T1", hides: quote}},
+		"expanded": {{key: enter, at: "T1"}, {key: press('j'), at: "T2"}, {key: press('k'), at: "T1"}},
 	} {
-		for i, at := range want {
-			code, _ := utf8.DecodeRuneInString(key)
-			l.Update(tea.KeyPressMsg{Code: code, Text: key})
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-			if got := l.CursorKey(); got != at {
-				t.Errorf("%s press %d landed on %q, want %q", key, i+1, got, at)
+			l := list(t, nil)
+			if got := l.CursorKey(); got != "T1" {
+				t.Fatalf("the cursor opens on %q, want the first row", got)
 			}
-		}
 
-		l.Update(tea.KeyPressMsg{Code: 'g', Text: "g"})
+			for i, s := range steps {
+				s.check(t, l, i)
+			}
+		})
 	}
 }
 
-// Expanding a row must not move the cursor off it, which is what happens if the
-// lines an expansion adds are counted as rows.
-func TestListKeepsTheCursorWhenARowExpands(t *testing.T) {
-	t.Parallel()
+// step is one key pressed on the list, the row the cursor should land on, and
+// what the frame should then hold or have dropped.
+type step struct {
+	key   tea.KeyPressMsg
+	at    string
+	shows string
+	hides string
+}
 
-	l := list(t, nil)
+func (s step) check(t *testing.T, l *tui.List, i int) {
+	t.Helper()
 
-	l.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	l.Update(s.key)
 
-	if got := l.CursorKey(); got != "T1" {
-		t.Errorf("expanding moved the cursor to %q", got)
+	if got := l.CursorKey(); got != s.at {
+		t.Errorf("press %d (%s) landed on %q, want %q", i+1, s.key, got, s.at)
 	}
 
-	if !strings.Contains(plain(l.ListFrame()), "does this leak on cancel?") {
-		t.Error("the expanded row does not show the conversation")
+	frame := plain(l.ListFrame())
+	if s.shows != "" && !strings.Contains(frame, s.shows) {
+		t.Errorf("press %d (%s) does not show %q", i+1, s.key, s.shows)
 	}
 
-	l.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-
-	if strings.Contains(plain(l.ListFrame()), "does this leak on cancel?") {
-		t.Error("enter again did not collapse the row")
+	if s.hides != "" && strings.Contains(frame, s.hides) {
+		t.Errorf("press %d (%s) still shows %q", i+1, s.key, s.hides)
 	}
 }
 

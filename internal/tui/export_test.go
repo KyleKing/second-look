@@ -420,3 +420,8 @@ func (l *List) PageMargin() int { return l.padX }
 
 // Building is whether a rebuild is running off the input goroutine.
 func (m *Model) Building() bool { return m.building }
+
+// ChordSeq counts the chords opened so far, so a test can tell the keystroke
+// that opened one: its only command is the wait that draws the chord's page,
+// which a typist pressing the next key outruns.
+func (m *Model) ChordSeq() int { return m.chordSeq }

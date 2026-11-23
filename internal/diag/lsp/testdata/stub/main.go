@@ -62,6 +62,8 @@ func main() {
 
 	var once bool
 
+	open := map[string]bool{}
+
 	for {
 		body, err := read(br)
 		if err != nil {
@@ -107,6 +109,14 @@ func main() {
 			send(map[string]any{"id": f.ID, "result": outgoing(f.Params)})
 		case f.Method == "textDocument/didOpen", f.Method == "textDocument/didChange":
 			uri := uriOf(f.Params)
+
+			// A real server drops a change to a document it never opened, and an
+			// open of one it already holds.
+			if open[uri] != (f.Method == "textDocument/didChange") {
+				continue
+			}
+
+			open[uri] = true
 
 			go func() {
 				<-answered

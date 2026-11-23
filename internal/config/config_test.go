@@ -113,6 +113,36 @@ func TestLoadRefusesWhatCannotBeRun(t *testing.T) {
 			want: config.ErrTwoPlans,
 		},
 		{
+			name: "a server with no name",
+			body: "[[server]]\ncommand = [\"gopls\"]\nextensions = [\".go\"]\n",
+			want: config.ErrNoName,
+		},
+		{
+			name: "a server with no command",
+			body: "[[server]]\nname = \"gopls\"\nextensions = [\".go\"]\n",
+			want: config.ErrNoCommand,
+		},
+		{
+			name: "a server claiming no extension",
+			body: "[[server]]\nname = \"gopls\"\ncommand = [\"gopls\"]\n",
+			want: config.ErrNoExts,
+		},
+		{
+			name: "a check with no name",
+			body: "[[check]]\ncommand = [\"ruff\"]\n",
+			want: config.ErrNoName,
+		},
+		{
+			name: "a check with no command",
+			body: "[[check]]\nname = \"ruff\"\n",
+			want: config.ErrNoCommand,
+		},
+		{
+			name: "a check printing a format nothing reads",
+			body: "[[check]]\nname = \"ruff\"\ncommand = [\"ruff\"]\nformat = \"sarif\"\n",
+			want: config.ErrNoFormat,
+		},
+		{
 			name: "gh-dash's own keys",
 			body: "prSections = []\n",
 			want: config.ErrUnknownKey,
@@ -194,6 +224,15 @@ needs = [".venv/bin/python"]
 
 [server.settings.python.analysis]
 diagnosticMode = "workspace"
+
+[[server]]
+name = "gopls"
+command = ["gopls"]
+extensions = [".go"]
+
+[[check]]
+name = "vet"
+command = ["vet"]
 `)
 
 	cfg, err := config.Load(path)
@@ -201,8 +240,8 @@ diagnosticMode = "workspace"
 		t.Fatal(err)
 	}
 
-	if len(cfg.Servers) != 1 {
-		t.Fatalf("%d server(s), want 1", len(cfg.Servers))
+	if len(cfg.Servers) != 2 || cfg.Servers[1].Command[0] != "gopls" || len(cfg.Checks) != 1 {
+		t.Fatalf("read %+v and %+v, want two servers and a check, one word of command each", cfg.Servers, cfg.Checks)
 	}
 
 	got := cfg.Servers[0]

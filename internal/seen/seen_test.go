@@ -1,7 +1,6 @@
 package seen_test
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -32,7 +31,8 @@ diff --git a/internal/b.go b/internal/b.go
 // Identity is content, not position. A hunk that slides down the file because
 // something above it grew is the same hunk and stays read; a hunk whose text
 // changed is a different one and comes back unread. That is the whole of what
-// makes read-state survive a force-push.
+// makes read-state survive a force-push. The same text in two files is two
+// hunks: a change read in one place has not been read in the other.
 func TestIdentityFollowsContentNotPosition(t *testing.T) {
 	t.Parallel()
 
@@ -42,34 +42,45 @@ func TestIdentityFollowsContentNotPosition(t *testing.T) {
 	tests := []struct {
 		name  string
 		patch string
+		path  string
+		hunk  int
 		same  bool
 	}{
-		{"unchanged", patch, true},
-		{"line numbers shifted", strings.Replace(patch, "@@ -1,3 +1,4 @@", "@@ -41,3 +58,4 @@", 1), true},
-		{"a line changed", strings.Replace(patch, "+// added one", "+// added ONE", 1), false},
-		{"a context line changed", strings.Replace(patch, " func A() {}", " func A(x int) {}", 1), false},
+		{"unchanged", patch, "internal/a.go", 1, true},
+		{
+			"line numbers shifted",
+			strings.Replace(patch, "@@ -1,3 +1,4 @@", "@@ -41,3 +58,4 @@", 1),
+			"internal/a.go",
+			1,
+			true,
+		},
+		{"a line changed", strings.Replace(patch, "+// added one", "+// added ONE", 1), "internal/a.go", 1, false},
+		{
+			"a context line changed",
+			strings.Replace(patch, " func A() {}", " func A(x int) {}", 1),
+			"internal/a.go",
+			1,
+			false,
+		},
+		{"another hunk of the file", patch, "internal/a.go", 2, false},
+		{
+			"the same text in another file",
+			strings.ReplaceAll(patch, "added three", "added one"),
+			"internal/b.go",
+			3,
+			false,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := seen.Hunk(diff.Parse([]byte(tc.patch)), "internal/a.go", 1)
+			got := seen.Hunk(diff.Parse([]byte(tc.patch)), tc.path, tc.hunk)
 			if same := got == want; same != tc.same {
 				t.Errorf("identity held = %v, want %v", same, tc.same)
 			}
 		})
-	}
-}
-
-// The same text in two files is two hunks: a change read in one place has not
-// been read in the other, where it sits in different code.
-func TestIdentityIncludesTheFile(t *testing.T) {
-	t.Parallel()
-
-	d := diff.Parse([]byte(strings.ReplaceAll(patch, "added three", "added one")))
-	if seen.Hunk(d, "internal/a.go", 1) == seen.Hunk(d, "internal/b.go", 3) {
-		t.Error("identical text in two files answers one identity")
 	}
 }
 
@@ -85,11 +96,17 @@ func TestSaveKeepsOnlyLiveHunks(t *testing.T) {
 		t.Fatalf("found %d hunks, want 3", len(refs))
 	}
 
-	path := filepath.Join(t.TempDir(), "pr-2.toml")
+	path := seen.Path(t.TempDir(), 2)
 
+	// A review nobody has opened has no file, which is the normal first case
+	// and not an error.
 	set, err := seen.Load(path)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("loading a set that was never written: %v", err)
+	}
+
+	if set.Count(refs) != 0 {
+		t.Error("an unwritten set came back non-empty")
 	}
 
 	set.Mark(true, refs[0].ID, refs[1].ID, "a hunk that has since gone")
@@ -109,20 +126,5 @@ func TestSaveKeepsOnlyLiveHunks(t *testing.T) {
 
 	if back.Has("a hunk that has since gone") {
 		t.Error("a mark for a hunk the diff dropped was kept")
-	}
-}
-
-// A review nobody has opened has no file, which is the normal first case and
-// not an error.
-func TestLoadOfNothingIsEmpty(t *testing.T) {
-	t.Parallel()
-
-	set, err := seen.Load(seen.Path(t.TempDir(), 2))
-	if err != nil {
-		t.Fatalf("loading a set that was never written: %v", err)
-	}
-
-	if set.Count(seen.Hunks(diff.Parse([]byte(patch)))) != 0 {
-		t.Error("an unwritten set came back non-empty")
 	}
 }

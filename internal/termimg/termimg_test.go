@@ -2,6 +2,7 @@ package termimg_test
 
 import (
 	"bytes"
+	"encoding/base64"
 	"image"
 	"image/png"
 	"os"
@@ -66,41 +67,168 @@ func aPNG(t *testing.T) string {
 	return path
 }
 
-func TestRenderKitty(t *testing.T) {
+// noisy is an image whose PNG runs past one kitty chunk, since noise does not
+// compress.
+func noisy(t *testing.T) string {
+	t.Helper()
+
+	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
+	seed := uint32(1)
+
+	for i := range img.Pix {
+		seed = seed*1664525 + 1013904223
+		img.Pix[i] = byte(seed >> 24)
+	}
+
+	path := filepath.Join(t.TempDir(), "noise.png")
+
+	var b bytes.Buffer
+	if err := png.Encode(&b, img); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(path, b.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	return path
+}
+
+// pngOf is what every protocol carries for path: the image re-encoded as PNG.
+func pngOf(t *testing.T, path string) string {
+	t.Helper()
+
+	raw, err := os.ReadFile(path) //nolint:gosec // a path the test itself just made
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	img, _, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var b bytes.Buffer
+	if err := png.Encode(&b, img); err != nil {
+		t.Fatal(err)
+	}
+
+	return base64.StdEncoding.EncodeToString(b.Bytes())
+}
+
+// kittyChunks splits kitty output into each escape's control data and payload.
+func kittyChunks(t *testing.T, out string) ([]string, string) {
+	t.Helper()
+
+	var (
+		controls []string
+		payload  strings.Builder
+	)
+
+	for _, seq := range strings.SplitAfter(out, "\x1b\\") {
+		if seq == "" {
+			continue
+		}
+
+		body, ok := strings.CutPrefix(strings.TrimSuffix(seq, "\x1b\\"), "\x1b_G")
+		control, data, found := strings.Cut(body, ";")
+
+		if !ok || !found {
+			t.Fatalf("%.40q is not one kitty escape", seq)
+		}
+
+		controls = append(controls, control)
+		payload.WriteString(data)
+	}
+
+	return controls, payload.String()
+}
+
+func TestRender(t *testing.T) {
 	t.Parallel()
 
+	t.Run("kitty in one escape", renderKittyInOneEscape)
+
+	t.Run("kitty in chunks", renderKittyInChunks)
+
+	t.Run("iterm", renderIterm)
+
+	t.Run("sixel", renderSixel)
+
+	t.Run("refusals", renderRefusals)
+}
+
+func renderKittyInOneEscape(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+
+	path := aPNG(t)
+
 	var out bytes.Buffer
-	if err := termimg.Render(&out, termimg.ProtoKitty, aPNG(t), 80, 20); err != nil {
+	if err := termimg.Render(&out, termimg.ProtoKitty, path, 80, 20); err != nil {
 		t.Fatalf("rendering: %v", err)
 	}
 
-	got := out.String()
-	if !strings.HasPrefix(got, "\x1b_Ga=T,f=100,t=d,q=2,c=80,r=20") {
-		t.Errorf("the kitty header is wrong: %.60q", got)
-	}
-	if !strings.HasSuffix(got, "\x1b\\") {
-		t.Errorf("the kitty trailer is missing: %.60q", got)
+	if want := "\x1b_Ga=T,f=100,t=d,q=2,c=80,r=20;" + pngOf(t, path) + "\x1b\\"; out.String() != want {
+		t.Errorf("kitty wrote %.80q, want %.80q", out.String(), want)
 	}
 }
 
-func TestRenderIterm(t *testing.T) {
+func renderKittyInChunks(t *testing.T) {
+	t.Helper()
 	t.Parallel()
 
+	path := noisy(t)
+
 	var out bytes.Buffer
-	if err := termimg.Render(&out, termimg.ProtoIterm, aPNG(t), 80, 20); err != nil {
+	if err := termimg.Render(&out, termimg.ProtoKitty, path, 40, 10); err != nil {
 		t.Fatalf("rendering: %v", err)
 	}
 
-	got := out.String()
-	if !strings.HasPrefix(got, "\x1b]1337;File=inline=1;width=80;height=20;preserveAspectRatio=1:") {
-		t.Errorf("the iterm header is wrong: %.80q", got)
+	controls, payload := kittyChunks(t, out.String())
+	if payload != pngOf(t, path) {
+		t.Error("the chunks do not join into the image")
 	}
-	if !strings.HasSuffix(got, "\a") {
-		t.Errorf("the iterm terminator is missing: %.80q", got)
+
+	if len(controls) < 3 {
+		t.Fatalf("a %d-byte payload went out in %d chunk(s)", len(payload), len(controls))
+	}
+
+	for i, c := range controls {
+		want := "m=1"
+
+		switch i {
+		case 0:
+			want = "a=T,f=100,t=d,q=2,c=40,r=10,m=1"
+		case len(controls) - 1:
+			want = "m=0"
+		}
+
+		if c != want {
+			t.Errorf("chunk %d says %q, want %q", i, c, want)
+		}
 	}
 }
 
-func TestRenderSixel(t *testing.T) {
+func renderIterm(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+
+	path := aPNG(t)
+
+	var out bytes.Buffer
+	if err := termimg.Render(&out, termimg.ProtoIterm, path, 80, 20); err != nil {
+		t.Fatalf("rendering: %v", err)
+	}
+
+	want := "\x1b]1337;File=inline=1;width=80;height=20;preserveAspectRatio=1:" + pngOf(t, path) + "\a"
+	if out.String() != want {
+		t.Errorf("iterm wrote %.80q, want %.80q", out.String(), want)
+	}
+}
+
+func renderSixel(t *testing.T) {
+	t.Helper()
 	t.Parallel()
 
 	var out bytes.Buffer
@@ -108,22 +236,35 @@ func TestRenderSixel(t *testing.T) {
 		t.Fatalf("rendering: %v", err)
 	}
 
-	if !strings.HasPrefix(out.String(), "\x1bP") {
-		t.Errorf("sixel output does not open with DCS: %.40q", out.String())
+	if !strings.HasPrefix(out.String(), "\x1bP") || !strings.HasSuffix(out.String(), "\x1b\\") {
+		t.Errorf("sixel output is not one DCS: %.40q", out.String())
 	}
 }
 
-func TestRenderRefusesNonImage(t *testing.T) {
+func renderRefusals(t *testing.T) {
+	t.Helper()
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "clip.mp4")
-	if err := os.WriteFile(path, []byte("not a real video"), 0o600); err != nil {
+	clip := filepath.Join(t.TempDir(), "clip.mp4")
+	if err := os.WriteFile(clip, []byte("not a real video"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	err := termimg.Render(&bytes.Buffer{}, termimg.ProtoKitty, path, 80, 20)
-	if err == nil || !strings.Contains(err.Error(), "not a still image") {
-		t.Errorf("wanted a refusal naming the kind, got %v", err)
+	for _, tc := range []struct {
+		proto termimg.Protocol
+		path  string
+		want  string
+	}{
+		{termimg.ProtoKitty, clip, "not a still image"},
+		{termimg.ProtoKitty, filepath.Join(t.TempDir(), "gone.png"), "reading "},
+		{termimg.ProtoNone, aPNG(t), ""},
+	} {
+		var out bytes.Buffer
+
+		err := termimg.Render(&out, tc.proto, tc.path, 80, 20)
+		if err == nil || !strings.Contains(err.Error(), tc.want) || out.Len() != 0 {
+			t.Errorf("%v of %s answered %v and wrote %d bytes", tc.proto, filepath.Base(tc.path), err, out.Len())
+		}
 	}
 }
 

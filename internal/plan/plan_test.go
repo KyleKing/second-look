@@ -205,6 +205,7 @@ func TestOverlayMovesRenamesAndReports(t *testing.T) {
 			Chapters: []plan.Edit{
 				{Chapter: "feat: name users", Name: "naming", Mode: plan.ModeShape, Source: plan.SourceAgent},
 				{Chapter: "the schema", Hunks: []order.Ref{ref("migrations/001.sql", 2)}, Source: plan.SourceYou},
+				{Chapter: "the tests", Hunks: []order.Ref{ref("api/handler_test.go", 4)}, Source: plan.SourceYou},
 				{Chapter: "gone", Mode: plan.ModeSkim, Source: plan.SourceAgent},
 				{Chapter: "naming", Feature: "names", Source: plan.SourceAgent},
 			},
@@ -218,7 +219,8 @@ func TestOverlayMovesRenamesAndReports(t *testing.T) {
 	want := `✎ read the schema: migrations/001.sql#2
 ⊙ read feat: add the user model: models/user.go#1
 ⇢ fold feat: add the user model · generated: go.sum#6
-⊙ read feat: serve users: api/handler.go#3 api/handler_test.go#4
+✎ read the tests: api/handler_test.go#4
+⊙ read feat: serve users: api/handler.go#3
 ◆ shape naming: models/user.go#5
 `
 	if got := shown(p.Chapters); got != want {
@@ -229,7 +231,7 @@ func TestOverlayMovesRenamesAndReports(t *testing.T) {
 		t.Errorf("the claim is %q and %d stop(s) stand", p.Claim, len(p.Stops))
 	}
 
-	if len(p.Features) != 1 || p.Features[0].Name != "names" || p.Features[0].Chapters[0] != 4 {
+	if len(p.Features) != 1 || p.Features[0].Name != "names" || p.Features[0].Chapters[0] != 5 {
 		t.Errorf("the features are %+v", p.Features)
 	}
 
@@ -470,5 +472,38 @@ func patterned(t *testing.T, p *plan.Pattern, members int) {
 
 	if p.Representative != "cards/CardA.tsx" || p.Before != "const id = "+oldID {
 		t.Errorf("the shape is drawn from %s and searched for by %q", p.Representative, p.Before)
+	}
+}
+
+// Dropped is the name a shape stops using, which is what finds the files at head
+// still calling it: the longest of the removed lines' names the added lines do
+// not carry, the alphabetically first of a tie, and nothing shorter than four.
+func TestPatternDropped(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		shape []string
+		want  string
+	}{
+		{"a name both sides use is kept", []string{"-readBudget(total)", "+readBudget(total, ceiling)"}, ""},
+		{
+			"the longest dropped name wins",
+			[]string{"-const id = useSuspenseVendor(data)", "+const id = useVendorId()"},
+			"useSuspenseVendor",
+		},
+		{"a tie goes to the first alphabetically", []string{"-alfa(beta)", "+gamma()"}, "alfa"},
+		{"a tie read in reverse still does", []string{"-beta(alfa)", "+gamma()"}, "alfa"},
+		{"a short name is never enough", []string{"-x := abc(y)", "+x := 1"}, ""},
+		{"context lines are not removed", []string{" oldCall()", "+newCall()"}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			p := plan.Pattern{Shape: tc.shape}
+			if got := p.Dropped(); got != tc.want {
+				t.Errorf("Dropped() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

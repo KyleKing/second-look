@@ -130,10 +130,29 @@ func TestBranchNoMove(t *testing.T) {
 	}
 }
 
-func TestNotARepo(t *testing.T) {
+// TestOpenRefuses is where a review cannot start: outside any repository, and in
+// a jj repository whose working-copy change cannot be resolved, which names the
+// revision rather than failing later on a diff of nothing.
+func TestOpenRefuses(t *testing.T) {
 	t.Parallel()
+
 	if _, err := local.Open(t.Context(), t.TempDir(), local.Worktree, ""); !errors.Is(err, get.ErrNotARepo) {
-		t.Fatalf("a directory outside any repository answers %v, not ErrNotARepo", err)
+		t.Errorf("a directory outside any repository answers %v, not ErrNotARepo", err)
+	}
+
+	broken := t.TempDir()
+	if err := os.Mkdir(filepath.Join(broken, ".jj"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := local.Open(
+		t.Context(),
+		broken,
+		local.Worktree,
+		"",
+	); err == nil ||
+		!strings.HasPrefix(err.Error(), "resolving @: ") {
+		t.Errorf("a jj repository with no readable @ answers %v", err)
 	}
 }
 

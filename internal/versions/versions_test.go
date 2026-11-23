@@ -308,8 +308,16 @@ func TestMissingIsAnAnswerNotAFailure(t *testing.T) {
 		t.Error("the card does not say the registry knows no such package")
 	}
 
-	if _, err := c.Cards(context.Background(), []advisory.Package{p}); err != nil {
+	// A miss holds for every version, since the registry knows no such name.
+	again := p
+	again.Version = "2.0.0"
+
+	cards, err = c.Cards(context.Background(), []advisory.Package{p, again})
+	if err != nil {
 		t.Fatalf("the cached miss came back as a failure: %v", err)
+	}
+	if !cards[p].Missing || !cards[again].Missing {
+		t.Errorf("the cached miss read back as %+v", cards)
 	}
 	if hits.Load() != 1 {
 		t.Errorf("a cached miss re-asked the registry: %d requests", hits.Load())

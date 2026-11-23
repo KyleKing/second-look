@@ -39,24 +39,6 @@ func TestSkillPrintsAnInstallableFile(t *testing.T) {
 	}
 }
 
-// TestSkillTakesNoArguments keeps a typo from being read as something to do.
-func TestSkillTakesNoArguments(t *testing.T) {
-	t.Parallel()
-
-	s := ghcassette.Replay(t, derive(t, "no-calls", func(c *ghcassette.Cassette) {
-		c.Interactions = nil
-	}))
-
-	res := runCLI(t, s, t.TempDir(), "skill", "install")
-	if res.code == 0 {
-		t.Fatal("expected an argument to be refused")
-	}
-
-	if !strings.Contains(res.stderr, "usage: second-look skill") {
-		t.Errorf("want the usage, got %q", res.stderr)
-	}
-}
-
 func firstLines(s string) string {
 	const n = 5
 

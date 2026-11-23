@@ -81,3 +81,36 @@ func TestFetchReadsEveryThreadIncludingResolved(t *testing.T) {
 
 	s.RequireAllPlayed(t)
 }
+
+// For finds a reply's thread by the comment the thread opened with. Zero names
+// no comment, so it finds nothing even beside a thread that carries no notes.
+func TestFor(t *testing.T) {
+	t.Parallel()
+
+	ts := []threads.Thread{
+		{Path: "empty.go"},
+		{Path: "a.go", Notes: []threads.Note{{ID: 1}, {ID: 7}}},
+		{Path: "b.go", Notes: []threads.Note{{ID: 7}}},
+	}
+
+	for _, tc := range []struct {
+		replyTo int64
+		want    string
+	}{
+		{0, ""},
+		{1, "a.go"},
+		{7, "b.go"},
+		{9, ""},
+	} {
+		got := threads.For(ts, tc.replyTo)
+
+		path := ""
+		if got != nil {
+			path = got.Path
+		}
+
+		if path != tc.want {
+			t.Errorf("For(%d) found %q, want %q", tc.replyTo, path, tc.want)
+		}
+	}
+}

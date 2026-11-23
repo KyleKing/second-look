@@ -1,7 +1,7 @@
 package local_test
 
 import (
-	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,8 +10,14 @@ import (
 	"github.com/kyleking/second-look/internal/local"
 )
 
+// A marker is written above its line in the file's own comment syntax, at the
+// indent of the code it guards, and is refused whole where it cannot be placed:
+// a file with no comment syntax, a line past the end, or nothing to say. A
+// refusal leaves the file as it was.
 func TestWriteTODO(t *testing.T) {
 	t.Parallel()
+
+	const src = "package x\n\nfunc f() {\n\twork()\n}\n"
 
 	tests := []struct {
 		name string
@@ -19,11 +25,31 @@ func TestWriteTODO(t *testing.T) {
 		at   int
 		note string
 		want string
+		err  string
 	}{
-		{"go takes slashes", "x/one.go", 2, "check the nil case", "// [TODO: check the nil case]"},
-		{"python takes a hash", "x/two.py", 1, "rate limit", "# [TODO: rate limit]"},
-		{"markup is bracketed", "x/page.html", 1, "the modal", "<!-- [TODO: the modal] -->"},
-		{"a long note flattens", "x/one.go", 1, "one\n  two\tthree", "// [TODO: one two three]"},
+		{
+			name: "go takes slashes", rel: "x/one.go", at: 2, note: "check the nil case",
+			want: "package x\n// [TODO: check the nil case]\n\nfunc f() {\n\twork()\n}\n",
+		},
+		{
+			name: "python takes a hash", rel: "x/two.py", at: 1, note: "rate limit",
+			want: "# [TODO: rate limit]\n" + src,
+		},
+		{
+			name: "markup is bracketed", rel: "x/page.html", at: 1, note: "the modal",
+			want: "<!-- [TODO: the modal] -->\n" + src,
+		},
+		{
+			name: "a long note flattens", rel: "x/one.go", at: 1, note: "one\n  two\tthree",
+			want: "// [TODO: one two three]\n" + src,
+		},
+		{
+			name: "the anchor's indent", rel: "x/one.go", at: 4, note: "handle the error",
+			want: "package x\n\nfunc f() {\n\t// [TODO: handle the error]\n\twork()\n}\n",
+		},
+		{name: "a data file", rel: "x/one.json", at: 1, note: "note", err: local.ErrNoCommentSyntax.Error()},
+		{name: "a line past the file", rel: "x/one.go", at: 40, note: "note", err: "asked for 40"},
+		{name: "nothing to say", rel: "x/one.go", at: 1, note: "  ", err: " "},
 	}
 
 	for _, tc := range tests {
@@ -31,10 +57,11 @@ func TestWriteTODO(t *testing.T) {
 			t.Parallel()
 
 			root := t.TempDir()
-			write(t, root, tc.rel, "package x\n\nfunc f() {\n\twork()\n}\n")
+			write(t, root, tc.rel, src)
 
-			if err := local.WriteTODO(root, tc.rel, tc.at, tc.note); err != nil {
-				t.Fatalf("WriteTODO: %v", err)
+			err := local.WriteTODO(root, tc.rel, tc.at, tc.note)
+			if got := fmt.Sprint(err); (tc.err == "") != (err == nil) || !strings.Contains(got, tc.err) {
+				t.Fatalf("WriteTODO answered %v, want %q", err, tc.err)
 			}
 
 			body, err := os.ReadFile(filepath.Join(root, tc.rel)) //nolint:gosec // the file this test wrote
@@ -42,52 +69,14 @@ func TestWriteTODO(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			lines := strings.Split(string(body), "\n")
-			if lines[tc.at-1] != tc.want {
-				t.Errorf("line %d is %q, want the marker %q:\n%s", tc.at, lines[tc.at-1], tc.want, body)
+			want := tc.want
+			if want == "" {
+				want = src
+			}
+
+			if string(body) != want {
+				t.Errorf("the file reads\n%s\nwant\n%s", body, want)
 			}
 		})
-	}
-}
-
-// The marker takes its line's own indent, so it reads at the depth the code
-// it guards sits at.
-func TestWriteTODOIndentsLikeTheAnchor(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	write(t, root, "x/one.go", "func f() {\n\twork()\n}\n")
-
-	if err := local.WriteTODO(root, "x/one.go", 2, "handle the error"); err != nil {
-		t.Fatal(err)
-	}
-
-	body, err := os.ReadFile(filepath.Join(root, "x", "one.go")) //nolint:gosec // the file this test wrote
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if lines := strings.Split(string(body), "\n"); lines[1] != "\t// [TODO: handle the error]" {
-		t.Errorf("the marker did not take the anchor's indent:\n%s", body)
-	}
-}
-
-func TestWriteTODORefusesWhatItCannotPlace(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	write(t, root, "x/one.go", "package x\n")
-
-	if err := local.WriteTODO(root, "x/one.json", 1, "note"); !errors.Is(err, local.ErrNoCommentSyntax) {
-		t.Errorf("a data file got %v, want ErrNoCommentSyntax", err)
-	}
-
-	err := local.WriteTODO(root, "x/one.go", 40, "note")
-	if err == nil || !strings.Contains(err.Error(), "asked for 40") {
-		t.Errorf("a line past the file got %v", err)
-	}
-
-	if err := local.WriteTODO(root, "x/one.go", 1, "  "); err == nil {
-		t.Error("an empty note landed a marker anyway")
 	}
 }
