@@ -1,3 +1,15 @@
+## v0.54.0 (2026-11-23)
+
+### Feat
+
+- **tui**: step between review rounds with ]r and [r
+- **tui**: keep the cursor's line and frame row across a reload
+- **tui**: restyle the review screen around a typed overview track
+
+### Fix
+
+- **tui**: fit the queue's columns to the list beside its preview
+
 ## v0.53.0 (2026-11-14)
 
 ### Feat
