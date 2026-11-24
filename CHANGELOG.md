@@ -1,3 +1,9 @@
+## v0.58.0 (2026-11-24)
+
+### Feat
+
+- **tui**: a first-run welcome card, and the queue's ? and : as the shared palette
+
 ## v0.57.5 (2026-11-24)
 
 ### Fix
