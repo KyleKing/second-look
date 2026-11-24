@@ -13,7 +13,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 	xansi "github.com/charmbracelet/x/ansi"
-	"github.com/charmbracelet/x/exp/golden"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/second-look/internal/tui"
@@ -145,7 +144,7 @@ func TestListFrames(t *testing.T) {
 					l.Update(k)
 				}
 
-				golden.RequireEqual(t, []byte(plain(l.ListFrame())))
+				goldenFrame(t, plain(l.ListFrame()))
 			})
 		}
 	}
@@ -1236,7 +1235,7 @@ func TestLaneFrames(t *testing.T) {
 			l.Update(tea.WindowSizeMsg{Width: dims.width, Height: dims.height})
 			l.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
 
-			golden.RequireEqual(t, []byte(plain(l.ListFrame())))
+			goldenFrame(t, plain(l.ListFrame()))
 		})
 	}
 }

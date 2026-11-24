@@ -11,7 +11,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/exp/golden"
 	"github.com/kyleking/aragonite/diff"
 
 	"github.com/kyleking/second-look/internal/artifact"
@@ -303,7 +302,7 @@ func cursorText(m *tui.Model) string {
 func framed(t *testing.T, name, frame string) {
 	t.Helper()
 
-	t.Run(name, func(t *testing.T) { golden.RequireEqual(t, []byte(frame)) })
+	t.Run(name, func(t *testing.T) { goldenFrame(t, frame) })
 }
 
 func resize(m *tui.Model, width, height int) {
@@ -618,7 +617,7 @@ func TestFramesWithTrouble(t *testing.T) {
 	t.Parallel()
 
 	m := checked(t, found())
-	golden.RequireEqual(t, []byte(plain(m.Frame())))
+	goldenFrame(t, plain(m.Frame()))
 }
 
 // A type error names the whole of an anonymous type, which against a generated

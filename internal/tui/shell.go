@@ -289,6 +289,10 @@ func (s *Shell) opened(msg openedMsg) tea.Cmd {
 	// The screen is built at the assumed size, and no resize follows an open
 	// that nothing outside the program made.
 	s.review.Update(tea.WindowSizeMsg{Width: s.width, Height: s.height})
+	// Nor does the terminal say again what colors it has, so the review is told
+	// what the queue was.
+	s.review.seen = s.list.look
+	s.review.restyle(stylesAt(s.review.seen))
 
 	return tea.Batch(s.review.Init(), tea.ClearScreen)
 }
@@ -372,7 +376,9 @@ func RunShell(s *Shell) (Outcome, error) {
 	// which are children of this process and outlive it if nobody ends them.
 	defer s.close()
 
-	final, err := tea.NewProgram(s).Run()
+	// The program draws at the depth the faces are fitted to, which inside tmux
+	// is not what Bubble Tea would detect on its own.
+	final, err := tea.NewProgram(s, tea.WithColorProfile(terminalProfile())).Run()
 	if err != nil {
 		return Outcome{}, fmt.Errorf("running second-look: %w", err)
 	}

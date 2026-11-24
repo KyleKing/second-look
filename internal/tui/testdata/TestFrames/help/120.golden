@@ -4,16 +4,16 @@
   ▌                                                    ╭─ keys · 108 of 108 ─────────────────────────────────────────╮
         internal/vcs/diff.go  +2 -1                   │ a key explains itself · / filters                           │
          func Parse(r io.Reader) ([]Hunk, error) { ────│ ── moving ───────────────────────────────────────────────── │
-    14       first := 1                                │ ▌ j/k       a line                                          │
-                                                       │   ctrl+d/u  half a page                                     │
-         ╭─ ◐ draft · question ────────────────────────│   ctrl+e/y  scroll a line                                   │
-         │ Is first still 1 after the change?          │   gg/G      the ends                                        │
-         │ note  Unverified: I have not read the caller│   n/N       the same, or back                               │
-         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] s│   ctrl+o/i  back and forward through jumps                  │
-                                                       │   .         the last change                                 │
-    15 +     lines, err := split(r)                    │   tab       what wants a decision                           │
-                                                       │   shift+t…  and back                                        │
-         ╭─ ● ready · major ───────────────────────────│                                                             │
+    14       first := 1                                │ ▌ j/k        a line                                         │
+                                                       │   ctrl+d/u   half a page                                    │
+         ╭─ ◐ draft · question ────────────────────────│   ctrl+e/y   scroll a line                                  │
+         │ Is first still 1 after the change?          │   gg/G       the ends                                       │
+         │ note  Unverified: I have not read the caller│   n/N        the same, or back                              │
+         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] s│   ctrl+o/i   back and forward through jumps                 │
+                                                       │   .          the last change                                │
+    15 +     lines, err := split(r)                    │   tab        what wants a decision                          │
+                                                       │   shift+tab  and back                                       │
+         ╭─ ● ready · major ───────────────────────────│   /          search                                         │
          │ split can fail now, so this has to check err│ ── moving · j/k  a line ─────────────────────────────────── │
          ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] s│ y/Y and shift+up/down do the same                           │
                                                        │ tab goes forward too once ctrl+o has left a place ahead     │

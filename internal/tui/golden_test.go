@@ -9,7 +9,6 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/exp/golden"
 	"github.com/kyleking/aragonite/diff"
 
 	"github.com/kyleking/second-look/internal/artifact"
@@ -66,7 +65,7 @@ func TestFrames(t *testing.T) {
 					press(t, m, k)
 				}
 
-				golden.RequireEqual(t, []byte(plain(m.Frame())))
+				goldenFrame(t, plain(m.Frame()))
 			})
 		}
 	}
@@ -103,7 +102,7 @@ func TestReviewProseFrames(t *testing.T) {
 			// these frames are for.
 			go2(t, m, 'z', 'R')
 
-			golden.RequireEqual(t, []byte(plain(m.Frame())))
+			goldenFrame(t, plain(m.Frame()))
 		})
 	}
 }
@@ -135,7 +134,7 @@ func TestTourFrames(t *testing.T) {
 					press(t, m, k)
 				}
 
-				golden.RequireEqual(t, []byte(plain(m.Frame())))
+				goldenFrame(t, plain(m.Frame()))
 			})
 		}
 	}
@@ -360,7 +359,7 @@ func TestAShapeChapterReadsTheEditOnce(t *testing.T) {
 			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			go2(t, m, ']', ']')
 
-			golden.RequireEqual(t, []byte(plain(m.Frame())))
+			goldenFrame(t, plain(m.Frame()))
 		})
 	}
 

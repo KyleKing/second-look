@@ -17,6 +17,7 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/tui/framecheck"
 	"github.com/kyleking/aragonite/tui/overview"
 
 	"github.com/kyleking/second-look/internal/artifact"
@@ -2421,7 +2422,7 @@ func askedWithoutAnAgent(t *testing.T, width, height int) {
 	}
 
 	frame := plain(m.Frame())
-	golden.RequireEqual(t, []byte(frame))
+	goldenFrame(t, frame)
 
 	for _, want := range []string{"✎ you asked", "why can split fail?", "no agent here", "diff.go:15-16"} {
 		if !strings.Contains(frame, want) {
@@ -3159,6 +3160,10 @@ func TestPeekScrollsWithoutMovingTheCursor(t *testing.T) {
 	}
 }
 
+// firstLegendRow is the legend's first row, j/k: "a line" alone also matches
+// "scroll a line" further down.
+var firstLegendRow = regexp.MustCompile(`j/k\s+a line`)
+
 // The legend runs longer than a short frame and the keys that leave it are at
 // the bottom, so it scrolls rather than dropping its tail off the screen.
 func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
@@ -3168,7 +3173,7 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 14})
 	press(t, m, tea.KeyPressMsg{Code: '?', Text: "?"})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "a line") {
+	if got := plain(m.Frame()); !firstLegendRow.MatchString(got) {
 		t.Fatalf("the legend does not start at the top:\n%s", got)
 	}
 
@@ -3181,27 +3186,27 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 
-	if got := plain(m.Frame()); strings.Contains(got, "a line") {
+	if got := plain(m.Frame()); firstLegendRow.MatchString(got) {
 		t.Errorf("the wheel did not move the legend:\n%s", got)
 	}
 
 	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
 	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "a line") {
+	if got := plain(m.Frame()); !firstLegendRow.MatchString(got) {
 		t.Errorf("the wheel did not move the legend back:\n%s", got)
 	}
 
 	// ctrl+d/u scroll the half page they scroll in the diff.
 	press(t, m, tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 
-	if got := plain(m.Frame()); strings.Contains(got, "a line") {
+	if got := plain(m.Frame()); firstLegendRow.MatchString(got) {
 		t.Errorf("ctrl+d did not move the legend:\n%s", got)
 	}
 
 	press(t, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "a line") {
+	if got := plain(m.Frame()); !firstLegendRow.MatchString(got) {
 		t.Errorf("ctrl+u did not move the legend back:\n%s", got)
 	}
 
@@ -3218,7 +3223,7 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 	// is drawn over.
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 
-	if got := plain(m.Frame()); strings.Contains(got, "a line") {
+	if got := plain(m.Frame()); firstLegendRow.MatchString(got) {
 		t.Errorf("escape did not close the legend:\n%s", got)
 	}
 
@@ -3227,7 +3232,7 @@ func TestTheHelpScrollsRatherThanLosingItsTail(t *testing.T) {
 	press(t, m, tea.KeyPressMsg{Code: '?', Text: "?"})
 	m.Update(tea.MouseClickMsg{X: 0, Y: 0, Button: tea.MouseLeft})
 
-	if got := plain(m.Frame()); strings.Contains(got, "a line") {
+	if got := plain(m.Frame()); firstLegendRow.MatchString(got) {
 		t.Errorf("a click outside the legend did not close it:\n%s", got)
 	}
 
@@ -4107,4 +4112,14 @@ func TestTheHeaderKeepsTheTitleAndDropsCountsFirst(t *testing.T) {
 			}
 		})
 	}
+}
+
+// goldenFrame pins a drawn frame byte for byte, after holding it to framecheck:
+// a golden compares bytes, so a frame recorded with a corner off by a column or
+// a row a cell too wide would otherwise pass forever.
+func goldenFrame(t *testing.T, frame string) {
+	t.Helper()
+
+	framecheck.Require(t, t.Name(), frame)
+	golden.RequireEqual(t, []byte(frame))
 }

@@ -125,7 +125,7 @@ func (m *Model) planText(room int) []string {
 
 	for _, p := range m.plan.Problems {
 		for i, line := range wrap(p, room-indent) {
-			lead := "  ⚠ "
+			lead := "  ▲ "
 			if i > 0 {
 				lead = "    "
 			}

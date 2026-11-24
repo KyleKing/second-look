@@ -195,6 +195,9 @@ type Loader interface {
 // that drift apart.
 type List struct {
 	title string
+	// look is what the terminal has said about its colors, which styles is
+	// built for.
+	look terminalLook
 	// state and sections are read again on every rebuild, because an action
 	// can move a row between sections or change the state in the header, and a
 	// snapshot taken at construction would show neither.
@@ -437,12 +440,16 @@ func (l *List) Init() tea.Cmd {
 // rows are marked by attribute rather than by color.
 func (l *List) setProfile(p colorprofile.Profile) {
 	l.mono = p <= colorprofile.ASCII
-	switch {
-	case l.mono:
-		l.styles.monochrome()
-	case p < colorprofile.TrueColor:
-		l.styles.lowcolor()
-	}
+	l.look.profile = p
+	l.styles = stylesAt(l.look)
+	l.rebuild()
+}
+
+// setLight is where the terminal's background reaches the list.
+func (l *List) setLight(light bool) {
+	l.look.light = light
+	l.styles = stylesAt(l.look)
+	l.rebuild()
 }
 
 // Update handles a keypress or a resize. Everything else is the caller's, which
@@ -461,6 +468,8 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return l, cmd
 	case tea.ColorProfileMsg:
 		l.setProfile(msg.Profile)
+	case tea.BackgroundColorMsg:
+		l.setLight(!msg.IsDark())
 
 		return l, nil
 	case tea.KeyPressMsg:

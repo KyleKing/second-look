@@ -13,7 +13,6 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/keyusage"
 	"github.com/kyleking/aragonite/tui/coach"
@@ -66,7 +65,10 @@ type Submitter func(ctx context.Context, r *artifact.Review) (string, error)
 
 // Model is the review screen.
 type Model struct {
-	ctx     context.Context //nolint:containedctx // it bounds the editor subprocess and the post
+	ctx context.Context //nolint:containedctx // it bounds the editor subprocess and the post
+	// seen is what the terminal has said about its colors, which styles is
+	// built for.
+	seen    terminalLook
 	review  *artifact.Review
 	diff    *diff.Diff
 	threads []threads.Thread
@@ -465,6 +467,12 @@ func WithAnchor(id int64) Option {
 	return func(m *Model) { m.landing = id }
 }
 
+// restyle draws the screen with st from the next frame on, which is how what the
+// terminal says about its colors reaches a screen already open.
+func (m *Model) restyle(st styles) {
+	m.styles, m.rich = st, newRichStyles(st)
+}
+
 // New builds the review screen for a prepared review and the diff it was
 // staged against.
 func New(
@@ -765,12 +773,13 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, cmd
 	case tea.ColorProfileMsg:
-		switch {
-		case msg.Profile <= colorprofile.ASCII:
-			m.styles.monochrome()
-		case msg.Profile < colorprofile.TrueColor:
-			m.styles.lowcolor()
-		}
+		m.seen.profile = msg.Profile
+		m.restyle(stylesAt(m.seen))
+
+		return m, nil
+	case tea.BackgroundColorMsg:
+		m.seen.light = !msg.IsDark()
+		m.restyle(stylesAt(m.seen))
 
 		return m, nil
 	case tea.PasteMsg:

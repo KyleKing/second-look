@@ -248,7 +248,7 @@ func (m *Model) railLines(h int) []string {
 	}
 
 	if n := len(m.plan.Problems); n > 0 {
-		line("⚠ "+plural(n, "plan problem")+" · i", m.styles.warn.Render)
+		line("▲ "+plural(n, "plan problem")+" · i", m.styles.warn.Render)
 	}
 
 	line("[p] plain  [I] outline", m.styles.note.Render)

@@ -11,10 +11,11 @@ func legendStyles(s styles) keyhint.Styles {
 	return keyhint.Styles{Key: s.key, Text: s.footer, Head: s.head, Off: s.behind}
 }
 
-// boxStyles is the chrome a floating box borrows from the screen: the quiet
-// faces, since the border is the least important thing it draws.
+// boxStyles is the chrome a floating box borrows from the screen: the skin's
+// edge, the one face every floating frame in these tools is drawn with, so the
+// which-key panel, the keys box, and the palette's drawer read as one family.
 func boxStyles(s styles) overlay.Styles {
-	return overlay.Styles{Frame: s.subtitle, Elision: s.note}
+	return overlay.Styles{Frame: s.skin.Edge, Elision: s.note}
 }
 
 // boxBorder is the rows a floating box spends on its top and bottom frame.

@@ -513,7 +513,7 @@ func agentOrigin(origin string) bool { return origin != "" && origin != artifact
 // too late to do anything about, so it is asked here as well.
 func driftWord(drifted bool) string {
 	if drifted {
-		return " · ⚠ line changed"
+		return " · ▲ line changed"
 	}
 
 	return ""

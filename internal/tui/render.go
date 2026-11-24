@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/tui/skin"
+	"github.com/kyleking/aragonite/tui/theme"
 
 	"github.com/kyleking/second-look/internal/highlight"
 )
@@ -130,12 +131,6 @@ func (m *Model) sideBySide() bool {
 	return m.drawn.split && m.view == viewDiff && m.diffWidth() >= splitWidth
 }
 
-// supportsMillions asks what the terminal can actually mix, which decides how
-// far back the bands are held.
-func supportsMillions() bool {
-	return terminalProfile() == colorprofile.TrueColor
-}
-
 // profiles is the color profile detected for each environment and stdout the
 // process has run under. Inside tmux, detecting runs `tmux info`, which costs tens of
 // milliseconds on every screen opened; the answer is a function of the
@@ -145,7 +140,7 @@ var profiles = struct {
 	by map[string]colorprofile.Profile
 }{by: map[string]colorprofile.Profile{}}
 
-// terminalProfile is what colorprofile.Detect answers for stdout under the
+// terminalProfile is what theme.Profile answers for stdout under the
 // process's environment as it is now.
 func terminalProfile() colorprofile.Profile {
 	env := os.Environ()
@@ -158,7 +153,7 @@ func terminalProfile() colorprofile.Profile {
 
 	p, ok := profiles.by[key]
 	if !ok {
-		p = colorprofile.Detect(os.Stdout, env)
+		p = theme.Profile(os.Stdout, env)
 		profiles.by[key] = p
 	}
 
@@ -191,8 +186,13 @@ func newRichStyles(s styles) richStyles {
 	p, base := s.palette, lipgloss.NewStyle()
 
 	// The wash and mark are aragonite's, so a changed line here is the same
-	// changed line in jj-diff and jojo.
-	faces := skin.Diff(p, supportsMillions())
+	// changed line in jj-diff and jojo, fitted to the same depth the skin is.
+	profile := s.profile
+	if profile == colorprofile.Unknown {
+		profile = terminalProfile()
+	}
+
+	faces := skin.DiffFor(p, profile)
 
 	class := map[highlight.Class]lipgloss.Style{
 		highlight.Comment:     base.Foreground(p.Overlay1).Italic(true),
@@ -226,7 +226,7 @@ func newRichStyles(s styles) richStyles {
 			diff.KindRemove: faces.RemoveWash,
 		},
 		gutter:  base.Foreground(p.Overlay1),
-		colored: terminalProfile() > colorprofile.ASCII,
+		colored: profile > colorprofile.ASCII,
 		brushes: newBrushes(),
 	}
 }

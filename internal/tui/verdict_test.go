@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/exp/golden"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/threads"
@@ -201,7 +200,7 @@ func TestVerdictFrames(t *testing.T) {
 
 			go2(t, m, 'z', 'a')
 
-			golden.RequireEqual(t, []byte(plain(m.Frame())))
+			goldenFrame(t, plain(m.Frame()))
 		})
 	}
 }

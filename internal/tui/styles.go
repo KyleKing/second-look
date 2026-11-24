@@ -2,10 +2,12 @@ package tui
 
 import (
 	"image/color"
-	"strconv"
+	"os"
+	"strings"
 	"sync"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/tui/icons"
 	"github.com/kyleking/aragonite/tui/skin"
 	"github.com/kyleking/aragonite/tui/theme"
@@ -29,6 +31,9 @@ func accent(p theme.Palette) color.Color { return p.Lavender }
 // carries a glyph, so a 16-color or NO_COLOR terminal loses emphasis rather
 // than meaning.
 type styles struct {
+	// profile is the color depth these were fitted to, Unknown until the
+	// terminal has said.
+	profile colorprofile.Profile
 	// palette is kept so the rich renderer can derive faces the shared skin has
 	// no use for: a band behind code is a background, and skin carries none.
 	palette  theme.Palette
@@ -96,27 +101,86 @@ type styles struct {
 	severity map[string]lipgloss.Style
 }
 
-// loadStyles is the one palette this process draws with: Ink, whatever the
-// terminal's background.
-//
-//nolint:gochecknoglobals // a process-wide palette, built once
-var loadStyles = sync.OnceValue(newStyles)
+// terminalLook is what the terminal has said about itself: the color profile it
+// can draw and whether its background is light. Bubble Tea reports both once, at
+// startup, so a screen keeps what it was told, and the shell tells a review it
+// opens later what the queue was told.
+type terminalLook struct {
+	profile colorprofile.Profile
+	light   bool
+}
 
-func newStyles() styles {
-	p := theme.Ink()
-	sk := skin.New(p, accent(p))
+// built is the styles made for each look, since a look is one of a handful and a
+// screen opened under it should not rebuild every face.
+//
+//nolint:gochecknoglobals // a cache of a pure function of the look
+var built = struct {
+	by map[terminalLook]styles
+	sync.Mutex
+}{by: map[terminalLook]styles{}}
+
+// loadStyles is what a screen draws with until the terminal has said what it
+// can show: a dark background and an unknown profile, which draws as truecolor
+// and leaves the downsampling to the renderer.
+func loadStyles() styles { return stylesAt(terminalLook{}) }
+
+// stylesAt is the styles for a look, built once.
+func stylesAt(l terminalLook) styles {
+	built.Lock()
+	defer built.Unlock()
+
+	st, ok := built.by[l]
+	if !ok {
+		st = newStyles(l)
+		built.by[l] = st
+	}
+
+	return st
+}
+
+// paletteFor is Ink on a dark background and Latte on a light one: Ink's quiet
+// accents are second-look's, and drawn on a light terminal they leave the title
+// and the body text near-invisible. CATPPUCCIN_THEME pins either.
+func paletteFor(light bool) theme.Palette {
+	switch strings.ToLower(os.Getenv(theme.EnvOverride)) {
+	case "latte", "light":
+		return theme.Latte()
+	case "":
+	default:
+		return theme.Ink()
+	}
+
+	if light {
+		return theme.Latte()
+	}
+
+	return theme.Ink()
+}
+
+func newStyles(l terminalLook) styles {
+	p := paletteFor(l.light)
+	sk := skin.For(p, accent(p), l.profile)
 	base := lipgloss.NewStyle()
+	ground := func(c color.Color, lift theme.Lift) color.Color {
+		return theme.Ground(c, p.Base, lift, l.profile)
+	}
 
 	// A full Mantle strip reads as a hole in the page rather than a part of it,
 	// so the inspector and footer sit on a surface only a step under the base.
-	sk.Panel = base.Background(theme.Mix(p.Mantle, p.Base, panelShare))
+	sk.Panel = base.Background(ground(theme.Mix(p.Mantle, p.Base, panelShare), theme.Sunk))
+
+	// A flash steps down the grey ramp where the cube has no quiet accent to
+	// fade through, two flash steps to a ramp step so it stays under the band.
+	const stepsPerGrey = 2
 
 	var tint [flashSteps + 1]lipgloss.Style
 	for step := 1; step <= flashSteps; step++ {
-		tint[step] = base.Background(theme.Mix(p.Base, accent(p), tintShare[step]))
+		grey := theme.Lift((step + 1) / stepsPerGrey)
+		tint[step] = base.Background(ground(theme.Mix(p.Base, accent(p), tintShare[step]), grey))
 	}
 
-	return styles{
+	st := styles{
+		profile:  l.profile,
 		tint:     tint,
 		palette:  p,
 		title:    sk.Title,
@@ -151,9 +215,9 @@ func newStyles() styles {
 		merged:      base.Foreground(p.Mauve),
 		priority:    base.Foreground(p.Peach).Bold(true),
 		placeholder: base.Foreground(p.Overlay0),
-		band:        bandFace(p),
-		row:         bandFace(p),
-		span:        rangeFace(p, sk),
+		band:        base.Background(ground(bandTint(p), theme.Cursor)),
+		row:         base.Background(ground(bandTint(p), theme.Cursor)),
+		span:        rangeFace(p, sk, ground),
 		panel:       sk.Panel,
 		hintKey:     base.Foreground(accent(p)),
 		hintWord:    base.Foreground(p.Subtext0),
@@ -162,9 +226,9 @@ func newStyles() styles {
 		lanes:       newLaneFaces(p),
 		edge:        base.Foreground(p.Overlay2),
 		agentEdge:   base.Foreground(p.Mauve),
-		fill:        p.Surface0,
+		fill:        ground(p.Surface0, theme.Surface),
 		cardNote:    base.Foreground(p.Subtext0).Italic(true),
-		code:        base.Foreground(p.Sky).Background(p.Surface0),
+		code:        base.Foreground(p.Sky).Background(ground(p.Surface0, theme.Surface)),
 		severity: map[string]lipgloss.Style{
 			"blocker": base.Foreground(p.Red).Bold(true),
 			"major":   base.Foreground(p.Peach).Bold(true),
@@ -173,6 +237,15 @@ func newStyles() styles {
 			question:  base.Foreground(p.Sky),
 		},
 	}
+
+	switch {
+	case l.profile <= colorprofile.ASCII && l.profile != colorprofile.Unknown:
+		st.monochrome()
+	case l.profile == colorprofile.ANSI:
+		st.sixteen()
+	}
+
+	return st
 }
 
 // bandLift is how far the band's lightness rises toward middle grey, and
@@ -187,9 +260,7 @@ const (
 // than mixing keeps the lightness down so text on it stays readable.
 var bandDepth = theme.Depth{Lift: bandLift, Sat: bandSat}
 
-func bandFace(p theme.Palette) lipgloss.Style {
-	return lipgloss.NewStyle().Background(theme.Tint(p.Base, p.Lavender, bandDepth))
-}
+func bandTint(p theme.Palette) color.Color { return theme.Tint(p.Base, p.Lavender, bandDepth) }
 
 // spanShare is how much of the accent a range's rows hold, quieter than the
 // cursor's band.
@@ -199,12 +270,12 @@ const spanShare = 0.08
 // which keeps it one quiet step under the page rather than a hole in it.
 const panelShare = 0.5
 
-func rangeFace(p theme.Palette, sk skin.Skin) lipgloss.Style {
+func rangeFace(p theme.Palette, sk skin.Skin, ground func(color.Color, theme.Lift) color.Color) lipgloss.Style {
 	if sk.Band.GetReverse() {
 		return lipgloss.NewStyle().Underline(true)
 	}
 
-	return lipgloss.NewStyle().Background(theme.Mix(p.Base, p.Lavender, spanShare))
+	return lipgloss.NewStyle().Background(ground(theme.Mix(p.Base, p.Lavender, spanShare), theme.Surface))
 }
 
 // monochrome swaps the row faces for ones a terminal with no color still draws.
@@ -216,18 +287,13 @@ func (s *styles) monochrome() {
 	s.lanes.quietCount = s.lanes.quietCount.Faint(true)
 }
 
-// lowcolor swaps the faces whose truecolor mixes quantize badly into the
-// 16-and-256-color cubes — the lavender chip lands on near-white there — for
-// fixed cube colors that keep their meaning. The diff's marks already carry
-// their own depth for the cube; these are the faces nothing else adapted.
-func (s *styles) lowcolor() {
-	s.cursor = lipgloss.NewStyle().Background(lipgloss.Color("61")).Foreground(lipgloss.Color("15")).Bold(true)
-	s.row = lipgloss.NewStyle().Background(lipgloss.Color("237"))
+// sixteen is the 16-color terminal, where no background is painted: the cursor
+// row is reverse video, as the skin's selection is, and a range is underlined.
+// The cursor chip keeps the accent, which 16 colors still has a near match for.
+func (s *styles) sixteen() {
+	s.row = lipgloss.NewStyle().Reverse(true)
 	s.band = s.row
-	s.span = lipgloss.NewStyle().Background(lipgloss.Color("235"))
-	for step := 1; step <= flashSteps; step++ {
-		s.tint[step] = lipgloss.NewStyle().Background(lipgloss.Color(strconv.Itoa(235 + step)))
-	}
+	s.span = lipgloss.NewStyle().Underline(true)
 }
 
 func (s styles) forSeverity(name string) lipgloss.Style {

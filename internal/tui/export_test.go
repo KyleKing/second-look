@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/tui/handoff"
 	"github.com/kyleking/aragonite/tui/skin"
 	"github.com/kyleking/aragonite/tui/theme"
@@ -93,8 +94,8 @@ func (m *Model) WantsCheckout() bool { return m.checkout }
 // on, the color the code is written in, and the two backgrounds themselves at
 // the depth a terminal of the given kind gets. A test measures them against
 // each other, which is the only way to know a mark says anything.
-func DiffColors(p theme.Palette, millions bool) map[string]color.Color {
-	d := skin.Diff(p, millions)
+func DiffColors(p theme.Palette, profile colorprofile.Profile) map[string]color.Color {
+	d := skin.DiffFor(p, profile)
 
 	return map[string]color.Color{
 		"page":         p.Base,
@@ -103,6 +104,8 @@ func DiffColors(p theme.Palette, millions bool) map[string]color.Color {
 		"removed mark": d.RemoveMark,
 		"added wash":   d.AddWash,
 		"removed wash": d.RemoveWash,
+		"added sign":   d.AddSign.GetForeground(),
+		"removed sign": d.RemoveSign.GetForeground(),
 	}
 }
 

@@ -53,13 +53,13 @@ func drawnGraphs() []graphCase {
 		{
 			name: "nothing around it",
 			want: []string{
-				" no callers          ▶ sync ✎ ◆        no callees",
+				" no callers          ▸ sync ✎ ◆        no callees",
 			}, center: sync, width: 60,
 		},
 		{
 			name: "one each way",
 			want: []string{
-				"›run ✎   ─────▶ sync ✎ ◆ ─────  pages     intake/pages.py:12",
+				"›run ✎   ─────▸ sync ✎ ◆ ─────  pages     intake/pages.py:12",
 			}, center: sync, width: 70,
 			callers: []tui.GraphNode{{Name: "run", Times: 1, Edited: true}},
 			callees: []tui.GraphNode{node("pages", "intake/pages.py:12")},
@@ -69,7 +69,7 @@ func drawnGraphs() []graphCase {
 			want: []string{
 				"                                      ┌── ›Getpid        os • exec.go",
 				"                                      ├──  Base          path/filepath • path.go",
-				" serverFor     ─────▶ handshake ✎   ──┼──  call          internal/diag/lsp/client.go:231",
+				" serverFor     ─────▸ handshake ✎   ──┼──  call          internal/diag/lsp/client.go:231",
 				"                                      ├──  notify ×2     internal/diag/lsp/client.go:310",
 				"                                      └──  ↓ 2 more      offersCalls, fileURI",
 			}, center: handshake, callers: serverFor, callees: six, onCallees: true, width: 100,
@@ -79,7 +79,7 @@ func drawnGraphs() []graphCase {
 			want: []string{
 				"                                      ┌──  Getpid        os • exec.go",
 				"                                      ├──  Base          path/filepath • path.go",
-				"›serverFor     ─────▶ handshake ✎   ──┼──  call          …/lsp/client.go:231",
+				"›serverFor     ─────▸ handshake ✎   ──┼──  call          …/lsp/client.go:231",
 				"                                      ├──  notify ×2     …/lsp/client.go:310",
 				"                                      └──  ↓ 2 more      offersCalls, fileURI",
 			}, row: 2, center: handshake, callers: serverFor, callees: six, width: 80,
@@ -89,7 +89,7 @@ func drawnGraphs() []graphCase {
 			want: []string{
 				"                                      ┌──  Getpid",
 				"                                      ├──  Base",
-				" serverFor     ─────▶ handshake ✎   ──┼── ›call",
+				" serverFor     ─────▸ handshake ✎   ──┼── ›call",
 				"                                      ├──  notify ×2",
 				"                                      └──  ↓ 2 more",
 			}, row: 2, center: handshake, callers: serverFor, callees: six, width: 56, at: 2, onCallees: true,
@@ -99,7 +99,7 @@ func drawnGraphs() []graphCase {
 			want: []string{
 				"                                   ┌──  Getpid        os • exec.go",
 				"                                   ├── ›Base          path/filepath • path.go",
-				" run             ──┬──▶ sync ✎ ◆ ──┼──  call          …/diag/lsp/client.go:231",
+				" run             ──┬──▸ sync ✎ ◆ ──┼──  call          …/diag/lsp/client.go:231",
 				" backfill ×3   ◆ ──┘               ├──  notify ×2     …/diag/lsp/client.go:310",
 				"                                   └──  ↓ 3 more      a, b, c",
 			}, row: 1, center: sync, width: 80, onCallees: true, at: 1,
@@ -110,7 +110,7 @@ func drawnGraphs() []graphCase {
 			name: "four callers, one callee",
 			want: []string{
 				"›a     ──┐",
-				" b     ──┼──▶ sync ✎ ◆ ─────  pages     p.py:1",
+				" b     ──┼──▸ sync ✎ ◆ ─────  pages     p.py:1",
 				" c     ──┤",
 				" d     ──┘",
 			}, center: sync, width: 70,
@@ -131,7 +131,7 @@ func scrolledGraphs() []graphCase {
 			callers: serverFor, callees: six, width: 100, row: 4, want: []string{
 				"                                      ┌──  ↑ 2 more        Getpid, Base",
 				"                                      ├──  call            internal/diag/lsp/client.go:231",
-				" serverFor     ─────▶ handshake ✎   ──┼──  notify ×2       internal/diag/lsp/client.go:310",
+				" serverFor     ─────▸ handshake ✎   ──┼──  notify ×2       internal/diag/lsp/client.go:310",
 				"                                      ├──  offersCalls ✎   internal/diag/lsp/session.go:428",
 				"                                      └── ›fileURI         x.go:1",
 			},
@@ -141,7 +141,7 @@ func scrolledGraphs() []graphCase {
 			callers: serverFor, callees: six, width: 100, row: 2, want: []string{
 				"                                      ┌──  ↑ 2 more        Getpid, Base",
 				"                                      ├──  call            internal/diag/lsp/client.go:231",
-				" serverFor     ─────▶ handshake ✎   ──┼── ›notify ×2       internal/diag/lsp/client.go:310",
+				" serverFor     ─────▸ handshake ✎   ──┼── ›notify ×2       internal/diag/lsp/client.go:310",
 				"                                      ├──  offersCalls ✎   internal/diag/lsp/session.go:428",
 				"                                      └──  fileURI         x.go:1",
 			},
@@ -154,7 +154,7 @@ func scrolledGraphs() []graphCase {
 			callees: []tui.GraphNode{node("pages", "p.py:1")}, want: []string{
 				" ↑ 3 more a, b, c     ──┐",
 				" d                    ──┤",
-				" e                    ──┼──▶ sync ✎ ◆ ─────  pages     p.py:1",
+				" e                    ──┼──▸ sync ✎ ◆ ─────  pages     p.py:1",
 				"›f                    ──┤",
 				" g                    ──┘",
 			},

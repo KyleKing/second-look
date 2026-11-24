@@ -9,7 +9,7 @@ vcs ●────────────────────────�
        ╭─ ⇢ calls · Parse · internal/vcs/diff.go:12 ── 2 callers · 7 callees ─╮
 ▌      │                                ┌── ›split        …/vcs/diff.go:40    │ 
        │                                ├──  Join ×2      strings             │
-       │  Load       ──┬──▶ Parse ✎ ◆ ──┼──  backoff      …/vcs/diff.go:60    │
+       │  Load       ──┬──▸ Parse ✎ ◆ ──┼──  backoff      …/vcs/diff.go:60    │
        │  Run ×3     ──┘                ├──  fetch        …/vcs/diff.go:70    │
        │                                └──  ↓ 3 more     pages, warn, inc    │
        ╰─ [j/k] node · [h/l] side · [za] call sites · [enter] open ───────────╯

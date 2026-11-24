@@ -602,7 +602,7 @@ func spanWord(span [2]int) string {
 // the frame answers how much is left without the header saying it.
 const (
 	createdGlyph = "✚"
-	deletedGlyph = "✖"
+	deletedGlyph = "✘"
 )
 
 func sizeWord(f *diff.File, wanted map[int]bool) string {

@@ -398,10 +398,10 @@ func (l *lineBuilder) cell(text string, n graphNode, width int, picked bool) {
 }
 
 func (l *lineBuilder) center(n graphNode, width int, callers, callees bool) {
-	lead, tail := "  ▶ ", "  "
+	lead, tail := "  ▸ ", "  "
 
 	if callers {
-		lead = "──▶ "
+		lead = "──▸ "
 	}
 
 	if callees {
