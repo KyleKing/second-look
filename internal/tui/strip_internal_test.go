@@ -1,11 +1,15 @@
 package tui
 
 import (
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/tui/keyhint"
 )
 
 // The header counts a diff once and keeps the answer, so a restage that hands
@@ -100,6 +104,41 @@ func TestFooterHeight_MatchesFooterLines(t *testing.T) {
 
 			if got, want := m.footerHeight(), len(m.footerLines()); got != want {
 				t.Errorf("footerHeight = %d, footerLines draws %d", got, want)
+			}
+		})
+	}
+}
+
+// After a post the status names the next steps and runs long, so the hints beside it get a few
+// cells. Shedding stops at the last hint, which keyhint.Fit clips to whatever room is left, and the
+// line ended "q leaves  S". The status line draws whole hints or none.
+func TestFooter_PostedStatusDrawsNoClippedHint(t *testing.T) {
+	t.Parallel()
+
+	for width := 40; width <= 200; width++ {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
+			m := model(t, onePatch, nil)
+			m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
+			m.applySubmit(submittedMsg{summary: "posted 2 comments to kyleking/jj-diff#42"})
+
+			lines := m.footerLines()
+			if len(lines) != 1 {
+				t.Fatalf("the posted footer is %d lines", len(lines))
+			}
+
+			line := strings.TrimRight(ansi.Strip(lines[0]), " ")
+			hints := m.hints()
+			ends := make([]string, 0, 1+len(hints))
+			ends = append(ends, strings.TrimSpace(ansi.Strip(cut(m.status, m.width))))
+
+			for _, h := range hints {
+				ends = append(ends, ansi.Strip(keyhint.One(footerStyles(m.styles), h)))
+			}
+
+			if !slices.ContainsFunc(ends, func(end string) bool { return strings.HasSuffix(line, end) }) {
+				t.Errorf("the footer ends mid-hint: %q", line)
 			}
 		})
 	}

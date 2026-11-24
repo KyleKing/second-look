@@ -352,7 +352,7 @@ func (m *Model) footerLines() []string {
 	if !m.failed {
 		status := m.styles.footer.Render(cut(m.status, m.width))
 		room := m.width - lipgloss.Width(status) - statusGap
-		if line := keyhint.Fit(footerStyles(m.styles), m.hints(), room); line != "" {
+		if line := wholeHints(footerStyles(m.styles), m.hints(), room); line != "" {
 			return []string{" " + status + "  " + line}
 		}
 
@@ -370,6 +370,22 @@ func (m *Model) footerLines() []string {
 	}
 
 	return out
+}
+
+// wholeHints is keyhint.Fit without its last resort. Fit clips the one hint left standing to the
+// room, which suits a footer of hints alone; beside a status it drew a lone "S" after a post. A
+// line that does not end in a whole hint is dropped.
+func wholeHints(s keyhint.Styles, hints []keyhint.Hint, room int) string {
+	line := keyhint.Fit(s, hints, room)
+	plain := ansi.Strip(line)
+
+	for _, h := range hints {
+		if strings.HasSuffix(plain, ansi.Strip(keyhint.One(s, h))) {
+			return line
+		}
+	}
+
+	return ""
 }
 
 // prompt is the search line. It says what the scope is rather than leaving it
