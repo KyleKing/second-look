@@ -136,6 +136,12 @@ func prompt(f frame) {
 	//nolint:errcheck // a malformed prompt is the test's own bug
 	_ = json.Unmarshal(f.Params, &p)
 
+	// Taken before the turn says it heard anything, because that line is what
+	// a test waits on before it cancels: a cancel landing between the two
+	// would close the channel before a hold took it, and the hold would wait
+	// on the fresh one for good.
+	stop := cancelled()
+
 	say(p.SessionID, "stub heard: "+p.Prompt[0].Text)
 
 	text := p.Prompt[0].Text
@@ -176,7 +182,7 @@ func prompt(f frame) {
 
 		return
 	case text == "hold":
-		<-cancelled()
+		<-stop
 		result(f.ID, map[string]any{"stopReason": "cancelled"})
 
 		return
