@@ -1,3 +1,9 @@
+## v0.57.4 (2026-11-24)
+
+### Fix
+
+- **seen**: two screens on one review keep each other's read marks
+
 ## v0.57.3 (2026-11-24)
 
 ### Fix
