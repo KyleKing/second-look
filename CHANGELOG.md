@@ -1,3 +1,9 @@
+## v0.56.0 (2026-11-24)
+
+### Feat
+
+- **tui**: fit every background to the terminal's colors, draw Latte on a light one, and lint every frame
+
 ## v0.55.0 (2026-11-24)
 
 ### Feat
