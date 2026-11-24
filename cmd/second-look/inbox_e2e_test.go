@@ -855,8 +855,13 @@ func TestTheQueueRedrawsWhenTheTerminalResizes(t *testing.T) {
 
 			// The footer is the last row, which only a frame drawn for the new
 			// height has: the old one is still on screen until the redraw lands.
-			frame := sc.awaitFrame("the frame for the new size", func(frame []string) bool {
-				return len(frame) == last.rows && strings.Contains(frame[last.rows-1], "enter review") &&
+			// The header has to be back on the first row as well, because Bubble
+			// Tea draws the new size inside the old scroll margins first and that
+			// frame, footer and all, sits scrolled up until fullMargins resets the
+			// margins and repaints. Under load the wait could land on it.
+			frame := sc.awaitFrame("the repaired frame for the new size", func(frame []string) bool {
+				return len(frame) == last.rows && strings.Contains(frame[1], "second-look") &&
+					strings.Contains(frame[last.rows-1], "enter review") &&
 					strings.Contains(strings.Join(frame, "\n"), "gh-sweep#102")
 			})
 

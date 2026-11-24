@@ -287,11 +287,20 @@ func (s *screen) feed(chunk []byte) {
 // where it belongs while the footer, placed absolutely, sits right. Swapped
 // first, anything the old emulator would have shown arrives before the repaint,
 // which homes the cursor and clears the screen, so a stale chunk cannot move it.
+//
+// The new emulator starts with the margins a frame for the old size leaves
+// behind, 1 to its height, which is what reaches a real terminal when the
+// renderer flushed a scroll just before the resize. That is a race on a real
+// pty, lost about one run in twenty; written here it happens every time, so a
+// test that only passes because the program resets the margins on a resize
+// (fullMargins) fails whenever that reset is gone.
 func (s *screen) resize(sz size) {
 	s.t.Helper()
 
 	s.termMu.Lock()
+	old := s.term.Height()
 	s.term = emulate(sz)
+	_, _ = s.term.WriteString(xansi.SetTopBottomMargins(1, old)) //nolint:errcheck // only fails once closed
 	s.termMu.Unlock()
 
 	if err := pty.Setsize(s.pty, sz.winsize()); err != nil {
