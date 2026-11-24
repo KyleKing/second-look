@@ -77,6 +77,7 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 	m.refined, m.reindented, m.moves, m.mates = m.diff.Paired()
 	m.mech = mechanicalHunks(m.diff, m.reindented)
 	m.lexed = map[string]map[diff.LineRef][]highlight.Span{}
+	m.lexing, m.lexWanted = map[string]bool{}, nil
 	m.threads = msg.fresh.Threads
 	m.read = msg.fresh.Read
 	m.newHead = ""

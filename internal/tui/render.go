@@ -740,6 +740,9 @@ func refOf(path string, l diff.Line) diff.LineRef {
 // with no checkout. Lexing the whole file's hunks together lets the grammar
 // carry state across them, so the only state lost is above the file's first
 // hunk; the caveat says so.
+//
+// A file too long to lex inside a frame is lexed off the input goroutine
+// (lexAhead), and draws without its grammar until the answer lands.
 func (m *Model) spansFor(r row, l diff.Line) []highlight.Span {
 	if m.view == viewFile {
 		return m.spansIn(l.New)
@@ -747,7 +750,11 @@ func (m *Model) spansFor(r row, l diff.Line) []highlight.Span {
 
 	read, ok := m.lexed[r.path]
 	if !ok {
-		read = m.lexFile(r.path)
+		if m.lexLater(r.path) {
+			return nil
+		}
+
+		read = lexFile(m.diff, r.path)
 		m.lexed[r.path] = read
 	}
 
@@ -758,15 +765,11 @@ func (m *Model) spansFor(r row, l diff.Line) []highlight.Span {
 // back its own spans. The two sides are lexed apart because a patch interleaves
 // them, and a removed line followed by the line that replaced it is not a
 // program either side of it would recognize.
-func (m *Model) lexFile(path string) map[diff.LineRef][]highlight.Span {
-	var file *diff.File
-	for i := range m.diff.Files {
-		if filePath(&m.diff.Files[i]) == path {
-			file = &m.diff.Files[i]
-
-			break
-		}
-	}
+//
+// It reads nothing but d, which is never written after it is parsed, so it
+// runs off the input goroutine as safely as on it.
+func lexFile(d *diff.Diff, path string) map[diff.LineRef][]highlight.Span {
+	file := fileNamed(d, path)
 	if file == nil {
 		return nil
 	}

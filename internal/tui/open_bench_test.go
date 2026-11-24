@@ -2,6 +2,7 @@ package tui_test
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -148,5 +149,76 @@ func BenchmarkOpenStructural(b *testing.B) {
 				m.Restructure()
 			}
 		})
+	}
+}
+
+// sourcePatch adds this package's model.go as one new file, about three
+// thousand lines of real Go, so the grammar has a real file to read rather
+// than one line repeated.
+func sourcePatch(b *testing.B) *diff.Diff {
+	b.Helper()
+
+	src, err := os.ReadFile("model.go")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	lines := strings.Split(strings.TrimSuffix(string(src), "\n"), "\n")
+
+	var patch strings.Builder
+
+	fmt.Fprintf(&patch, "diff --git a/internal/tui/model.go b/internal/tui/model.go\nnew file mode 100644\n"+
+		"--- /dev/null\n+++ b/internal/tui/model.go\n@@ -0,0 +1,%d @@\n", len(lines))
+
+	for _, l := range lines {
+		patch.WriteString("+" + l + "\n")
+	}
+
+	return diff.Parse([]byte(patch.String()))
+}
+
+// BenchmarkFirstFrame is opening a review of one large real file and drawing
+// its first frame at 120 by 40: New, Init, the terminal's size, and the frame,
+// which is what a reader waits on before seeing anything. The first frame is
+// the one that meets the grammar for the file it shows.
+func BenchmarkFirstFrame(b *testing.B) {
+	d := sourcePatch(b)
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "second-look", Number: 2,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		m := tui.New(b.Context(), r, d, b.TempDir()+"/pr-2.toml", nil)
+		m.Init()
+		m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+		_ = m.Frame()
+	}
+}
+
+// BenchmarkScroll is j held down through the large file: one keystroke and
+// the frame it draws, which is the cost of reading.
+func BenchmarkScroll(b *testing.B) {
+	r := &artifact.Review{
+		Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "second-look", Number: 2,
+		HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+	}
+	m := tui.New(b.Context(), r, sourcePatch(b), b.TempDir()+"/pr-2.toml", nil)
+	m.Init()
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	_ = m.Frame()
+
+	b.ReportAllocs()
+
+	for i := 0; b.Loop(); i++ {
+		k := 'j'
+		if i/500%2 == 1 {
+			k = 'k'
+		}
+
+		m.Update(tea.KeyPressMsg{Code: k, Text: string(k)})
+		_ = m.Frame()
 	}
 }

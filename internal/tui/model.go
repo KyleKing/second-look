@@ -75,6 +75,9 @@ type Model struct {
 	// lit is every fenced code block inside a note, lexed the first time it is
 	// drawn and kept after that, the same way lexed is for the diff's own hunks.
 	lit map[string][][]highlight.Span
+	// lexing is the files being lexed off the input goroutine, and lexWanted
+	// the ones a frame drew without a grammar that nothing has asked for yet.
+	lexing, lexWanted map[string]bool
 	// header is what the title and strip read off the diff on every frame,
 	// counted once per diff.
 	header headerCache
@@ -474,6 +477,7 @@ func New(
 		hugeDiff: diffRows(d) >= asyncRows,
 		refined:  marks, reindented: reindented, moves: moves, mates: mates,
 		lexed:  map[string]map[diff.LineRef][]highlight.Span{},
+		lexing: map[string]bool{},
 		lit:    map[string][][]highlight.Span{},
 		drawn:  opening,
 		built:  time.Now(),
@@ -510,7 +514,7 @@ func (m *Model) Init() tea.Cmd {
 	m.wrote, _ = stampOf(m.path)
 
 	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe(), m.probeAgent(), m.askHead(), m.readCommits()}
-	cmds = append(cmds, m.readSlop())
+	cmds = append(cmds, m.readSlop(), m.lexAhead())
 	cmds = append(cmds, m.fetchVersions()...)
 
 	if structure.Available() {
@@ -740,6 +744,15 @@ type branchDeletedMsg struct {
 // Update routes one message. What a command answered with is separated from
 // what the keyboard sent, so neither switch grows into the other.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	mod, cmd := m.handle(msg)
+
+	// Whatever the message moved, the files now on screen are lexed behind
+	// the frame that shows them.
+	return mod, tea.Batch(cmd, m.lexAhead())
+}
+
+// handle answers one message, which Update wraps with the lexing it starts.
+func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.resize(msg)
@@ -949,6 +962,8 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applyVersions(msg)
 	case slopMsg:
 		m.applySlop(msg)
+	case lexedMsg:
+		m.applyLexed(msg)
 	}
 }
 
