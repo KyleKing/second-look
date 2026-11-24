@@ -35,7 +35,7 @@ func (m *Model) keyContext(msg tea.KeyPressMsg) string {
 		return ctxReview + "/prompt"
 	case m.pending != 0:
 		return ctxReview
-	case m.help:
+	case m.pal.IsOpen():
 		return ctxHelp
 	case m.aboutOpen:
 		return ctxAbout

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/empty"
 	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
@@ -155,8 +156,12 @@ func (l *List) section() string {
 
 func (l *List) bodyView() string {
 	rows := l.visible()
-	if rows <= 0 || len(l.lines) == 0 {
+	if rows <= 0 {
 		return l.styles.subtitle.Render("  nothing here")
+	}
+
+	if len(l.lines) == 0 {
+		return strings.Join(empty.Card(l.styles.skin, l.emptyCard(), l.width, rows), "\n")
 	}
 
 	if !l.sidePreview() {
@@ -170,6 +175,34 @@ func (l *List) bodyView() string {
 		func(w, h int) []string { return preview.Pad(l.bodyLines(h, w), h, w) },
 		l.previewPane,
 	), "\n")
+}
+
+// emptyCard is what an empty queue says in place of its rows: what is empty,
+// why, and the keys out, so a blank list never reads as a broken one.
+func (l *List) emptyCard() empty.Empty {
+	name := "this queue"
+	if l.at >= 0 && l.at < len(l.tabs) && l.tabs[l.at].Name != "" {
+		name = l.tabs[l.at].Name
+	}
+
+	if q := l.filter.query; q != "" {
+		return empty.Empty{
+			Title: "Nothing in " + name + " matches " + q,
+			Why:   "The filter keeps the rows carrying every word typed; ! drops a word's matches instead.",
+			Hints: []keyhint.Hint{{Key: "/", What: "change it"}, {Key: escKey, What: "clear it"}},
+		}
+	}
+
+	hints := []keyhint.Hint{{Key: "?", What: "keys"}, {Key: "q", What: quitWord}}
+	if len(l.tabs) > 1 {
+		hints = append([]keyhint.Hint{{Key: "]", What: "next queue"}}, hints...)
+	}
+
+	return empty.Empty{
+		Title: "Nothing in " + name,
+		Why:   "No pull request or conversation is waiting here right now.",
+		Hints: hints,
+	}
 }
 
 // bodyLines is the list's rows laid out at width, with the scrollbar on the

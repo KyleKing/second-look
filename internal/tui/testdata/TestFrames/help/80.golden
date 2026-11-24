@@ -1,24 +1,24 @@
 
 jj-diff#42              2 files · +2 −1   1 ready · ◐ 1 draft · 1 skipped     0%
 vcs ●───────────────────────────────────────────────────────────────────────┊─  
-▌                         ╭─ keys ────────────────────────────────────────────╮┃
-      internal/vcs/diff.g│ moving                                            │┃
-       func Parse(r io.Rea│       j/k  a line                                 │┃
-  14       first := 1     │  ctrl+d/u  half a page                            │┃
-                          │  ctrl+e/y  scroll a line                          │┃
-       ╭─ ◐ draft · questi│            y/Y and shift+up/down do the same      │┃
-       │ Is first still 1 │      gg/G  the ends                               │┃
-       │ note  Unverified:│         ]  go to…                                 │┃
-       ╰─ [e]dit · [r]eady│         [  go back…                               │┃
-                          │       n/N  the same, or back                      │┃
-  15 +     lines, err := s│  ctrl+o/i  back and forward through jumps         │┃
-                          │            tab goes forward too once ctrl+o has   │┃
-       ╭─ ● ready · major │            left a place ahead                     │┃
-       │ split can fail no│         .  the last change                        │┃
-       ╰─ [e]dit · [r]eady│       tab  what wants a decision                  │┃
-                          │ shift+tab  and back                               ││
-  16 +     if err != nil {│         /  search                                 ││
-  17       last := 4      │            tab in the prompt narrows a search to  ││
-      internal/vcs/git.go│            hunks not yet read                     ││
-       func Head() string ╰ · · ·─────────────────────────────────────────────╯│
+▌                                                                              ┃
+      internal/vcs/diff.go  +2 -1                                             ┃
+       func Parse(r io.Reader) ([]Hunk, error) { ──────────────────────────────┃
+  14       first := 1                                                          ┃
+                                                                               ┃
+       ╭─ ◐ draft · question ──────────────────────────────────── diff.go:14 ─╮┃
+       │ Is first still 1 after the change?                                   │┃
+       │ note  Unverified: I have not read the caller.                        │┃
+       ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] skip · [za] fold ─────────╯┃
+                                                                               ┃
+── keys 108 of 108 ─────────────────────────────────────────────────────────────
+── moving ──────────────────────────────────────────────────────────────────────
+▌ j/k       a line                                                              
+  ctrl+d/u  half a page                                                         
+  ctrl+e/y  scroll a line                                                       
+  gg/G      the ends                                                            
+  n/N       the same, or back                                                   
+  ctrl+o/i  back and forward through jumps                                      
+  .         the last change                                                     
+a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
  j/k line   ] go to   v code   i info   S submit   ? help   esc queue   q quit

@@ -44,6 +44,8 @@ Large diffs open on an outline that splits the change into chapters, with how mu
 
 The keybindings follow vim, so `]c` goes to the next comment, `]u` to the next unread hunk, `za` toggles a fold, and `n` repeats the last motion. The footer shows the keys that apply at the cursor and `?` lists the rest.
 
+A key that can do nothing at the cursor stays in the footer, dimmed, and the legend says why. In the legend, pressing a key explains it rather than running it, `/` filters, and enter runs the row. `:` searches every key and command by what it does and runs it, then names the key for next time. The footer's status slot names the next step while one holds (unread hunks, findings to rule on, a review ready to submit), and after the first minute an occasional tip about a key you have not used, gone at the next key. `coach = "band"` in the config, or `:next`, draws the next steps as a band above the footer instead. Tips remember what they have shown in `$XDG_STATE_HOME/second-look/coach.json`, and `:tips off` stops them.
+
 Every run also logs its subcommand and the names of the flags it was given, never their values or the pull request, and `second-look keys` reports the subcommands and flags you never use beside the keys.
 
 ## Install

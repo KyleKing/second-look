@@ -18,6 +18,7 @@ import (
 	"github.com/kyleking/aragonite/cache"
 	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/keyusage"
+	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/vcs"
 
 	"github.com/kyleking/second-look/internal/acp"
@@ -516,6 +517,7 @@ func reviewScreen(
 		tui.WithCommits(opened.Commits, opened.NoCommits),
 		tui.WithLabeling(labeling(t.Dir())), tui.WithRoster(roster(t.Dir(), opened.Review)),
 	}
+	opts = append(opts, discoverOptions()...)
 
 	if d := dispatcher(t.Dir()); d != nil {
 		opts = append(opts, tui.WithDispatcher(d))
@@ -728,6 +730,7 @@ func localScreen(ctx context.Context, root string, mode local.Mode, base string)
 		tui.WithGenerated(generatedPatterns()), tui.WithPlanRules(planRules(opened.Review)),
 		tui.WithCommits(opened.Commits, opened.NoCommits),
 		tui.WithAdvisor(advisory.Client{}), tui.WithVersions(versions.Client{}),
+		tui.WithLedger(ledger()), tui.WithCoachLayout(coachLayout()),
 	}
 
 	if d := dispatcher(opened.Work); d != nil {
@@ -1583,6 +1586,40 @@ func planRules(r *artifact.Review) plan.Rules {
 	}
 
 	return cfg.PlanRules(r.Owner + "/" + r.Repo)
+}
+
+// discoverOptions are the coach's memory and layout, which every review
+// screen takes.
+func discoverOptions() []tui.Option {
+	return []tui.Option{tui.WithLedger(ledger()), tui.WithCoachLayout(coachLayout())}
+}
+
+// ledger is the coach's local record of tips shown and commands run, under
+// $XDG_STATE_HOME. One that cannot be read leaves the coach without a memory
+// rather than stopping a review.
+func ledger() *coach.Ledger {
+	l, err := coach.OpenLedger("second-look")
+	if err != nil {
+		return nil
+	}
+
+	return l
+}
+
+// coachLayout is the config's coach key, inline where it is unset or names
+// no layout.
+func coachLayout() coach.Layout {
+	cfg, err := loadConfig()
+	if err != nil {
+		return coach.Inline
+	}
+
+	l, err := coach.ParseLayout(cfg.Coach)
+	if err != nil {
+		return coach.Inline
+	}
+
+	return l
 }
 
 func loadConfig() (*config.Config, error) {

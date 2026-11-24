@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/second-look/internal/acp"
@@ -615,28 +616,25 @@ func checkFoldAllReachesTheConversations(t *testing.T) {
 	}
 }
 
-// The legend pages by half a frame, and the about page's wheel stops where
+// The legend pages, and the about page's wheel stops where
 // its last line reaches the bottom.
 func checkOverlaysScrollByTheirOwnMeasure(t *testing.T) {
 	t.Helper()
 
 	m := model(t, onePatch, nil)
-	half := m.viewHeight() / 2
 
-	m.help, m.helpAt = true, 3*half
-	m.readHelp(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	m.openPalette(palette.Browse)
+	first, _ := m.pal.Selected()
+	m.pal.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	down, _ := m.pal.Selected()
+	m.pal.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	back, _ := m.pal.Selected()
 
-	if m.helpAt != 2*half {
-		t.Errorf("page up in the legend went to %d, want %d", m.helpAt, 2*half)
+	if down.Action == first.Action || back.Action != first.Action {
+		t.Errorf("paging the legend went %q, %q, %q; want away and back", first.Action, down.Action, back.Action)
 	}
 
-	m.readHelp(tea.KeyPressMsg{Code: tea.KeyPgDown})
-
-	if m.helpAt != 3*half {
-		t.Errorf("page down in the legend went to %d, want %d", m.helpAt, 3*half)
-	}
-
-	m.help = false
+	m.pal.Close()
 	m.aboutOpen = true
 	m.about = threads.About{
 		Title: "fix: wrap the error", Author: "alice", Added: 3, Removed: 1, Labels: []string{"bug"},

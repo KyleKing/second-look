@@ -62,7 +62,10 @@ func hintLine(hints [][2]string) string {
 // footerStyles draws the footer's keys bare: the key in the accent and its word
 // quieter, three cells from the next.
 func footerStyles(s styles) keyhint.Styles {
-	return keyhint.Styles{Key: s.hintKey, Text: s.hintWord, Off: s.behind, Bare: true, Gap: footerGap}
+	return keyhint.Styles{
+		Key: s.hintKey, Text: s.hintWord, Off: s.behind, Bare: true, Gap: footerGap,
+		Suggest: s.skin.Suggest.Bold(true), Suggesting: true,
+	}
 }
 
 const footerGap = "   "

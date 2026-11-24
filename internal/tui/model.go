@@ -16,9 +16,10 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/keyusage"
+	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/handoff"
 	"github.com/kyleking/aragonite/tui/keyhint"
-	"github.com/kyleking/aragonite/tui/overlay"
+	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/pane"
 
 	"github.com/kyleking/second-look/internal/acp"
@@ -359,20 +360,20 @@ type Model struct {
 	done map[hunkAt]bool
 	// folded is what z has put away by hand.
 	folded folded
-	help   bool
-	// helpAt is how far the legend is scrolled, which a short frame needs
-	// because the keys that leave it are at the bottom of it.
-	helpAt int
-	// helpRect is where the legend was last drawn, and lineRows the row each
-	// body line drew, which is what a click is read against.
-	helpRect overlay.Rect
+	// ledger is the coach's memory across reviews: the tips shown and the
+	// commands run, which the palette ranks recent ones by.
+	ledger *coach.Ledger
+	// pal is the legend on ? and the command palette on :, one component over
+	// one list of entries: a key pressed in the legend is explained rather than
+	// run, and enter runs the row either way.
+	pal *palette.Model
+	// coach is the next step and the rare tip the footer's status slot shows,
+	// and band is whether they draw as a labeled band above the footer instead.
+	coach *coach.Coach[reviewState]
+	band  bool
+	// lineRows is the row each body line drew, which is what a click is read
+	// against.
 	lineRows []int
-	// helpPath is which page of the legend is open: the keys taken to reach
-	// it, empty at the root.
-	helpPath []string
-	// helpNote is what a bare keypress inside the legend earned: the row the
-	// key names said at full length, kept until the page changes or closes.
-	helpNote *helpNote
 	// about is what the pull request says about itself, aboutOpen is whether
 	// the overlay holding it has the frame, and aboutAt is how far that is
 	// scrolled. aboutExpand is z R there: the collapsed sections opened, and
@@ -494,6 +495,7 @@ func New(
 		opt(m)
 	}
 
+	m.discover()
 	m.mech = mechanicalHunks(d, reindented)
 	m.folded.foldMechanical(m.mech)
 	m.folded.foldResolved(m.threads)
@@ -801,6 +803,10 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 		mod, cmd := m.keyPress(msg)
 
 		return mod, tea.Batch(cmd, m.takeCmd())
+	}
+
+	if cmd, ok := m.discoverMsg(msg); ok {
+		return m, cmd
 	}
 
 	cmd := m.answered(msg)
@@ -1129,8 +1135,8 @@ func (m *Model) deferBuild(msg tea.KeyPressMsg) bool {
 // leaves since it changes nothing.
 func (m *Model) overlayRoute(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	switch {
-	case m.help:
-		return m.readHelp(msg), nil, true
+	case m.pal.IsOpen():
+		return m, m.pal.Update(msg), true
 	case m.aboutOpen:
 		return m.readAbout(msg), nil, true
 	case m.outline.open:
@@ -1173,6 +1179,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	if cmd, ok := m.graphKey(msg); ok {
 		return m, cmd
+	}
+
+	if m.refuse(msg) {
+		return m, nil
 	}
 
 	if handled, model, cmd := m.mode(msg); handled {
@@ -1246,8 +1256,8 @@ func (m *Model) wheel(msg tea.MouseWheelMsg) tea.Cmd {
 	}
 
 	switch {
-	case m.help:
-		m.helpAt = max(0, m.helpAt+step)
+	case m.pal.IsOpen():
+		m.pal.Update(msg)
 	case m.aboutOpen:
 		m.aboutAt = clamp(m.aboutAt+step, len(m.aboutText(m.width))-m.viewHeight())
 	case m.outline.open:
@@ -1326,7 +1336,7 @@ func (m *Model) glideStep() tea.Cmd {
 // quiet is no overlay, prompt, editor, or pane holding the screen, which is
 // when the mouse may move the cursor.
 func (m *Model) quiet() bool {
-	return !m.help && !m.aboutOpen && !m.outline.open && m.showing == nil &&
+	return !m.pal.IsOpen() && !m.aboutOpen && !m.outline.open && m.showing == nil &&
 		m.labeler == nil && m.editing == nil && m.pane == nil && !m.agentOpen
 }
 
@@ -1335,9 +1345,9 @@ func (m *Model) quiet() bool {
 func (m *Model) click(at tea.Mouse) {
 	at = inset(at, m.padX, m.padY)
 
-	if m.help {
-		if !m.helpRect.Contains(at.X, at.Y) {
-			m.help = false
+	if m.pal.IsOpen() {
+		if !m.pal.Rect(m.width, m.viewHeight()).Contains(at.X, at.Y-headerRows) {
+			m.pal.Close()
 		}
 
 		return
@@ -1360,107 +1370,6 @@ func (m *Model) click(at tea.Mouse) {
 	m.cursor = i
 	m.say("", false)
 	m.follow()
-}
-
-// readHelp walks the legend's pages and closes it, and swallows everything
-// else, so a key pressed while reading it does not act on the review behind
-// it. A key that opens a page walks into it the way the chord itself would,
-// and a key that opens nothing is answered rather than run: its note is what
-// the key does, said at the length the row abbreviates. The scroll keys are
-// the arrows, the page keys, and the wheel, because j and k are answers of
-// their own inside the legend.
-func (m *Model) readHelp(msg tea.KeyPressMsg) tea.Model {
-	const halfPage = 2
-
-	if _, ok := keyhint.At(m.helpTree(), append(m.helpPath, msg.String())); ok {
-		m.helpPath = append(m.helpPath, msg.String())
-		m.helpAt, m.helpNote = 0, nil
-
-		return m
-	}
-
-	switch msg.String() {
-	case escKey:
-		if len(m.helpPath) > 0 {
-			m.helpPath = m.helpPath[:len(m.helpPath)-1]
-		} else {
-			m.help = false
-		}
-		m.helpAt, m.helpNote = 0, nil
-	case "?", ctrlCKey:
-		m.help, m.helpAt, m.helpPath, m.helpNote = false, 0, nil, nil
-	case upKey:
-		m.helpAt--
-	case downKey:
-		m.helpAt++
-	case pgUpKey, "ctrl+u":
-		m.helpAt -= m.viewHeight() / halfPage
-	case pgDownKey, "ctrl+d":
-		m.helpAt += m.viewHeight() / halfPage
-	case homeKey:
-		m.helpAt = 0
-	case endKey:
-		m.helpAt = pastEnd
-	default:
-		m.helpNote = m.helpNoteFor(msg.String())
-	}
-
-	m.helpAt = max(0, m.helpAt)
-
-	return m
-}
-
-// helpNote is the legend's answer for one key: its group, its row, and the
-// prose the group carries under it.
-type helpNote struct {
-	group string
-	key   string
-	what  string
-	prose []string
-}
-
-// helpNoteFor answers the key's note on the open page, or nil where the key
-// names no leaf. A compound row like j/k answers for either half of it, and
-// the space bar answers for "space".
-func (m *Model) helpNoteFor(k string) *helpNote {
-	page, _ := keyhint.At(m.helpTree(), m.helpPath)
-
-	for i, h := range page {
-		if h.Head || h.Key == "" || len(h.Kids) > 0 || !keySays(h.Key, k) {
-			continue
-		}
-
-		note := &helpNote{key: h.Key, what: h.What}
-		lo := 0
-		for j := i - 1; j >= 0; j-- {
-			if page[j].Head {
-				note.group, lo = page[j].What, j
-
-				break
-			}
-		}
-		for j := lo; j < len(page) && (j <= i || !page[j].Head); j++ {
-			if p := page[j]; p.Key == "" && !p.Head {
-				note.prose = append(note.prose, p.What)
-			}
-		}
-
-		return note
-	}
-
-	return nil
-}
-
-// keySays reports whether the key k is inside the row's label, so j answers
-// for j/k, ctrl+d for ctrl+d/u, and the space bar for "space".
-func keySays(label, k string) bool {
-	for _, part := range strings.Split(label, "/") {
-		if part == k {
-			return true
-		}
-	}
-
-	return label == spaceKey && (k == " " || k == spaceKey)
 }
 
 // asks handles the keys that act on the row under the cursor: the ones that go
@@ -1502,8 +1411,9 @@ func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 func (m *Model) overlayKey(msg tea.KeyPressMsg) bool {
 	switch {
 	case key.Matches(msg, m.keys.Help):
-		m.help = !m.help
-		m.helpAt, m.helpPath, m.helpNote = 0, nil, nil
+		m.openPalette(palette.Browse)
+	case msg.String() == paletteKey:
+		m.openPalette(palette.Run)
 	case key.Matches(msg, m.keys.About):
 		m.aboutOpen, m.aboutAt = true, 0
 	default:
@@ -1520,8 +1430,8 @@ func (m *Model) overlayKey(msg tea.KeyPressMsg) bool {
 func (m *Model) leaves(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Quit):
-		if m.help {
-			m.help, m.helpAt, m.helpPath, m.helpNote = false, 0, nil, nil
+		if m.pal.IsOpen() {
+			m.pal.Close()
 
 			return nil, true
 		}
@@ -1948,6 +1858,7 @@ func (m *Model) foldHere(open bool) {
 func (m *Model) resize(msg tea.WindowSizeMsg) {
 	m.padX, m.padY = pagePad(msg.Width, msg.Height)
 	m.width, m.height = msg.Width-pageSides*m.padX, msg.Height-m.padY
+	m.pal.SetLayout(paletteLayout(msg.Width))
 
 	if m.pane != nil {
 		m.pane.Resize(m.width, m.paneHeight())
@@ -1961,8 +1872,15 @@ func (m *Model) resize(msg tea.WindowSizeMsg) {
 func (m *Model) keyPress(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.gliding = false
 	was := m.pending
+	writing := m.writing() || m.pal.Typing()
 	mod, cmd := m.handleKey(msg)
 	m.settlePeek()
+
+	if !writing {
+		cmd = tea.Batch(cmd, m.observe(msg, was))
+	} else {
+		m.coach.Press(time.Now())
+	}
 
 	// A chord that just opened arms the wait that draws its page, the way
 	// which-key surfaces once a prefix sits a moment.

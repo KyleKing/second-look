@@ -162,6 +162,11 @@ type Config struct {
 	// Plans are the reading rules each repository keeps: what folds, what
 	// never does, what reads after what, and what reads in which mode.
 	Plans []plan.Rules `toml:"plan,omitempty"`
+	// Coach is where the review draws its next step and its tips: "inline"
+	// (the default) in the footer's status slot, or "band" as a labeled band
+	// above the footer naming each step, why, and its key. The palette's :next
+	// switches it for one review.
+	Coach string `toml:"coach,omitempty"`
 }
 
 // PriorityLabels is the labels that put a row first.

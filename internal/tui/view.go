@@ -59,8 +59,8 @@ func (m *Model) render() string {
 	}
 
 	switch {
-	case m.help:
-		body = m.helpBox(body)
+	case m.pal.IsOpen():
+		body = m.pal.Over(body, m.width)
 	case m.aboutOpen:
 		body = m.aboutLines()
 	case m.showing != nil:
@@ -313,7 +313,7 @@ func (m *Model) footerHeight() int {
 	switch {
 	case m.searching, m.files.typing, m.drafting != nil, m.labeler != nil:
 		return 1
-	case m.helpNote != nil, m.status != "" && m.failed:
+	case m.status != "" && m.failed, m.band && m.status == "":
 		return len(m.footerLines())
 	}
 
@@ -340,12 +340,8 @@ func (m *Model) footerLines() []string {
 		return []string{m.labeler.prompt(m.styles, m.width)}
 	}
 
-	if m.helpNote != nil {
-		return m.helpNoteLines()
-	}
-
 	if m.status == "" {
-		return []string{" " + keyhint.Fit(footerStyles(m.styles), m.hints(), m.width-1)}
+		return m.quietFooter()
 	}
 
 	// A status message shares the line with the hints rather than replacing
@@ -369,31 +365,6 @@ func (m *Model) footerLines() []string {
 	out := make([]string, 0, len(lines))
 	for _, l := range lines {
 		out = append(out, m.styles.fail.Render(cut(l, m.width)))
-	}
-
-	return out
-}
-
-// helpNoteLines is the legend's answer for a bare keypress, standing where a
-// message would: the path and group first so a leaf never reads as a root
-// key, then the row at full length and the prose its group carries.
-func (m *Model) helpNoteLines() []string {
-	n := m.helpNote
-
-	head := n.group
-	if len(m.helpPath) > 0 {
-		head = strings.Join(m.helpPath, " then ") + " then " + head
-	}
-
-	line := keyhint.One(legendStyles(m.styles), keyhint.Hint{Key: n.key, What: n.what})
-	if head != "" {
-		line = m.styles.head.Render(head+" · ") + line
-	}
-
-	out := make([]string, 0, 1+len(n.prose))
-	out = append(out, " "+line)
-	for _, p := range n.prose {
-		out = append(out, m.styles.note.Render(cut("   "+p, m.width)))
 	}
 
 	return out
@@ -431,9 +402,9 @@ func (m *Model) hints() []keyhint.Hint {
 		{Key: walkKeys, What: "line", Priority: shedFirst},
 		{Key: "]", What: "go to", Priority: shedLater},
 		view,
-		{Key: "m", What: "mark", Off: m.current() < 0, Priority: shedLater},
-		{Key: "e", What: m.writeWord(), Off: !m.canWrite(), Priority: shedLater},
-		{Key: "a", What: "add", Off: !m.onCode() && !m.onFileHead(), Priority: shedLater},
+		{Key: "m", What: "mark", Priority: shedLater},
+		{Key: "e", What: m.writeWord(), Priority: shedLater},
+		{Key: "a", What: "add", Priority: shedLater},
 		{Key: "i", What: "info", Priority: shedFirst},
 		{Key: "S", What: "submit", Priority: shedLast},
 		{Key: "?", What: "help", Priority: shedLast},
@@ -454,6 +425,12 @@ func (m *Model) hints() []keyhint.Hint {
 	if m.view == viewFile {
 		out = slices.DeleteFunc(out, func(h keyhint.Hint) bool { return h.Key == escKey })
 		out = append([]keyhint.Hint{{Key: escKey, What: "back", Priority: shedLast}}, out...)
+	}
+
+	for i := range out {
+		if a := m.gate(out[i].Key); !a.OK {
+			out[i].Off, out[i].Why = true, a.Why
+		}
 	}
 
 	return m.use.brighten(ctxReview, out)
@@ -478,51 +455,6 @@ func (m *Model) canWrite() bool {
 	return m.currentThread() >= 0 || m.current() != noComment
 }
 
-// inert reports a key with nothing to act on under the cursor. The strings are
-// the legend's own, matched against the same rules the footer dims by so the
-// two cannot disagree.
-func (m *Model) inert(k string) bool {
-	if dim, ok := m.writeInert(k); ok {
-		return dim
-	}
-
-	switch k {
-	case "F":
-		return m.workRoot == "" || !m.onCode()
-	case "L":
-		file, _ := m.lockedAt()
-		return m.advisor == nil || file == ""
-	case "A":
-		return m.asker == nil && !m.onCode()
-	case "B":
-		return m.repoDir == ""
-	case "T":
-		return m.dispatcher == nil && m.agentStart == nil
-	case "X", "K":
-		return m.prober == nil
-	}
-
-	return false
-}
-
-// writeInert is inert's half about writing something on the cursor's row,
-// split out so a file's own heading can differ from a line of code without
-// growing inert's one switch.
-func (m *Model) writeInert(k string) (bool, bool) {
-	switch k {
-	case "a":
-		return !m.onCode() && !m.onFileHead(), true
-	case "s", "V":
-		return !m.onCode(), true
-	case "m", "E":
-		return m.current() < 0, true
-	case "e":
-		return !m.canWrite(), true
-	}
-
-	return false, false
-}
-
 // onCode reports whether the cursor is on a line of the diff, which is the one
 // place a new comment can anchor.
 func (m *Model) onCode() bool {
@@ -539,26 +471,6 @@ func (m *Model) onCode() bool {
 // this review was read at, which is the one page a static tree cannot write.
 func (m *Model) helpTree() []keyhint.Hint {
 	return m.use.brighten(ctxReview, helpTree(m.roundPage(time.Now())))
-}
-
-// helpPage is the page the path into the legend reaches, falling back to the
-// root when a key on it no longer opens one.
-func (m *Model) helpPage() []keyhint.Hint {
-	page, ok := keyhint.At(m.helpTree(), m.helpPath)
-	if !ok {
-		page, m.helpPath = m.helpTree(), nil
-	}
-
-	marked := make([]keyhint.Hint, len(page))
-	for i, h := range page {
-		// inert answers for the root's keys only: a key on a page under a
-		// chord is that chord's object, and the chord's own row carries the
-		// dimming for it.
-		h.Off = len(m.helpPath) == 0 && m.inert(h.Key)
-		marked[i] = h
-	}
-
-	return marked
 }
 
 // helpWidth is the inner width of a legend's box: five eighths of a frame
@@ -585,31 +497,6 @@ func (m *Model) pageRows(path []string, page []keyhint.Hint) []string {
 	}
 
 	return keyhint.Column(legendStyles(m.styles), page, helpWidth(m.width))
-}
-
-// helpBox floats the legend's open page over the diff's bottom corner, the
-// same window a waiting chord draws so a key means one thing in both places.
-// The page is one column inside, since a narrow box has no room to spread,
-// and it scrolls because the root is longer than any frame.
-func (m *Model) helpBox(body []string) []string {
-	rows := m.pageRows(m.helpPath, m.helpPage())
-
-	h := m.viewHeight()
-	inner := max(1, min(len(rows), h-boxBorder))
-
-	// helpAt is normalized here rather than where it is moved, because the
-	// rendered length is the only place the page's length is known.
-	m.helpAt = clamp(m.helpAt, len(rows)-inner)
-
-	title := "keys"
-	if len(m.helpPath) > 0 {
-		title = strings.Join(m.helpPath, " then ") + " then"
-	}
-	box := overlay.Box(boxStyles(m.styles), title, rows, inner, m.helpAt)
-	x, y := m.width-textWidth(box[0])-1, h-len(box)
-	m.helpRect = overlay.At(box, x, y+headerRows)
-
-	return overlay.Blit(body, box, x, y)
 }
 
 // waitLines lays the page a waiting chord accepts over the diff's bottom
