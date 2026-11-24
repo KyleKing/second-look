@@ -1,3 +1,9 @@
+## v0.54.4 (2026-11-24)
+
+### Fix
+
+- **tui**: reset the scroll margins after a resize so a grown screen repaints in place
+
 ## v0.54.3 (2026-11-24)
 
 ### Fix
