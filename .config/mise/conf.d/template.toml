@@ -101,6 +101,12 @@ mkdir -p "$dir/unit" "$dir/subprocess" "$dir/merged"
 COVERDIR_SUBPROCESS="$dir/subprocess" go test -count=1 -cover -coverpkg=./... ./... -args -test.gocoverdir="$dir/unit"
 go tool covdata merge -i="$dir/unit,$dir/subprocess" -o="$dir/merged"
 go tool covdata textfmt -i="$dir/merged" -o=coverage.out
+# A project whose packages hold no statements yet (a library's first doc.go) has
+# nothing to measure, and a 0% total would fail it for that.
+if [ "$(grep -vc '^mode:' coverage.out || true)" -eq 0 ]; then
+    echo "No statements to cover yet"
+    exit 0
+fi
 # ^total: rather than total, which also matches every covered function whose
 # name contains it, handing awk two numbers and failing the gate with a syntax
 # error rather than a verdict.
@@ -152,13 +158,16 @@ run = "go tool cover -html=coverage.out"
 # laptop than on a runner fails only in CI, which is the worst place to find out.
 [tools]
 actionlint = "1.7.12"
-go = "1.26.6"
+go = "1.26.11"
 "go:github.com/golangci/golines" = "0.15.0"
 "golangci-lint" = "2.13.2"
 hk = "1.56.1"
 jq = "1.8.2"
 ls-lint = "2.3.1"
 "pipx:commitizen" = "4.18.0"
+"pipx:copier" = "9.19.1"
+# doneram explain feeds the doneram-fix-bump skill in .agents/skills.
+"github:kyleking/doneram" = "2.0.0"
 "pipx:yamllint" = "1.38.0"
 pkl = "0.32.1"
 shellcheck = "0.11.0"

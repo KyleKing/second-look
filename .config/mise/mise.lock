@@ -34,18 +34,35 @@ checksum = "sha256:6d2279dea5bea2ad79c66ea93f5fe54ba926e398a8a26de76c56db68fe59e
 url = "https://github.com/ast-grep/ast-grep/releases/download/0.45.3/app-aarch64-apple-darwin.zip"
 url_api = "https://api.github.com/repos/ast-grep/ast-grep/releases/assets/537332514"
 
+[[tools."github:kyleking/doneram"]]
+version = "2.0.0"
+backend = "github:kyleking/doneram"
+specifiers = ["2.0.0"]
+
+[tools."github:kyleking/doneram"."platforms.linux-x64"]
+checksum = "sha256:bbe027e8414ef91aec9ddd64fbf5c9e77e7965d3052a740932ae6b154c92c27c"
+checksum_source = "mise-versions"
+url = "https://github.com/KyleKing/doneram/releases/download/v2.0.0/doneram-linux-amd64"
+url_api = "https://api.github.com/repos/KyleKing/doneram/releases/assets/775436457"
+
+[tools."github:kyleking/doneram"."platforms.macos-arm64"]
+checksum = "sha256:a158d497907aa5e4fbfcd5bce74a339a5ab98f61d9e381dabffb762449824b00"
+checksum_source = "mise-versions"
+url = "https://github.com/KyleKing/doneram/releases/download/v2.0.0/doneram-darwin-arm64"
+url_api = "https://api.github.com/repos/KyleKing/doneram/releases/assets/775436294"
+
 [[tools.go]]
-version = "1.26.6"
+version = "1.26.11"
 backend = "core:go"
-specifiers = ["1.26.6"]
+specifiers = ["1.26.11"]
 
 [tools.go."platforms.linux-x64"]
-checksum = "sha256:708effb774be8237570d0add163225abbdfaf4fca28b2611df167beba4feef89"
-url = "https://dl.google.com/go/go1.26.6.linux-amd64.tar.gz"
+checksum = "sha256:9849f4e04ee35303714e34fbc3ac8ab44ea3e448a95aa182f91e3b9b79c710ec"
+url = "https://dl.google.com/go/go1.26.11.linux-amd64.tar.gz"
 
 [tools.go."platforms.macos-arm64"]
-checksum = "sha256:2dc95ce4675829f2df0e86b28bcef3283635902062a5f0580ca659bf570f3204"
-url = "https://dl.google.com/go/go1.26.6.darwin-arm64.tar.gz"
+checksum = "sha256:e3a42e67a7a8acf450ebada2b074c7ca863000ca514907b7185b45e8f5cdff57"
+url = "https://dl.google.com/go/go1.26.11.darwin-arm64.tar.gz"
 
 [[tools."go:github.com/golangci/golines"]]
 version = "0.15.0"
@@ -120,6 +137,11 @@ url_api = "https://api.github.com/repos/loeffel-io/ls-lint/releases/assets/26085
 version = "4.18.0"
 backend = "pipx:commitizen"
 specifiers = ["4.18.0"]
+
+[[tools."pipx:copier"]]
+version = "9.19.1"
+backend = "pipx:copier"
+specifiers = ["9.19.1"]
 
 [[tools."pipx:yamllint"]]
 version = "1.38.0"
