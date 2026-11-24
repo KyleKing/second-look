@@ -89,7 +89,13 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 		return nil, err
 	}
 
+	// What the change claims is one more subprocess, and nothing it reads
+	// depends on the commits, so it runs beside them rather than after.
+	claimed := make(chan string, 1)
+	go func() { claimed <- claimText(ctx, abs, jj, mode, base) }()
+
 	listed, why := commitsOf(ctx, abs, jj, mode, base, tip, d)
+	claim := <-claimed
 
 	seenPath := seen.LocalPath(abs)
 
@@ -102,7 +108,7 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 		Review: review, Diff: d,
 		About: threads.About{
 			Title: title(review, jj, mode, base, listed, why),
-			Body:  claimText(ctx, abs, jj, mode, base),
+			Body:  claim,
 		},
 		Read: read, SeenPath: seenPath,
 		Path: path, HeadSHA: tip,

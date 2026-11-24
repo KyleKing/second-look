@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/kyleking/aragonite/diff"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/kyleking/second-look/internal/order"
 	"github.com/kyleking/second-look/internal/plan"
@@ -67,14 +68,14 @@ func Blame(ctx context.Context, root, tip string, list []plan.Commit, d *diff.Di
 		index[c.ID] = i
 	}
 
+	byFile, err := blameAll(ctx, root, revs, d, index)
+	if err != nil {
+		return nil, err
+	}
+
 	out := slices.Clone(list)
 
-	for _, f := range d.Files {
-		owned, err := blameFile(ctx, root, revs, &f, index)
-		if err != nil {
-			return nil, err
-		}
-
+	for _, owned := range byFile {
 		for ref, owners := range owned {
 			for _, i := range owners {
 				out[i].Hunks = append(out[i].Hunks, ref)
@@ -83,6 +84,36 @@ func Blame(ctx context.Context, root, tip string, list []plan.Commit, d *diff.Di
 	}
 
 	return inDiffOrder(out, d), nil
+}
+
+// blameWorkers is how many blames run at once. A blame is a subprocess of a
+// few milliseconds, and one per file in turn was most of opening a local
+// review of a few dozen files.
+const blameWorkers = 8
+
+// blameAll is blameFile for every file of d, run blameWorkers at a time, in
+// d's order. The first failure stops the rest.
+func blameAll(ctx context.Context, root string, revs []string, d *diff.Diff, index map[string]int,
+) ([]map[order.Ref][]int, error) {
+	out := make([]map[order.Ref][]int, len(d.Files))
+
+	group, ctx := errgroup.WithContext(ctx)
+	group.SetLimit(blameWorkers)
+
+	for i := range d.Files {
+		group.Go(func() error {
+			owned, err := blameFile(ctx, root, revs, &d.Files[i], index)
+			out[i] = owned
+
+			return err
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, fmt.Errorf("blaming the change's files: %w", err)
+	}
+
+	return out, nil
 }
 
 // bounded is tip with every parent of the list that is not itself listed
