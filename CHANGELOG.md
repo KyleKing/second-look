@@ -1,3 +1,9 @@
+## v0.57.0 (2026-11-24)
+
+### Feat
+
+- **tui**: unicode icons by default, an icons setting, and settled GitHub text
+
 ## v0.56.0 (2026-11-24)
 
 ### Feat
