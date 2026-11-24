@@ -1,3 +1,9 @@
+## v0.54.3 (2026-11-24)
+
+### Fix
+
+- **build**: size the terminal with term.GetSize so Windows compiles
+
 ## v0.54.2 (2026-11-24)
 
 ### Perf
