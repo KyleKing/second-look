@@ -179,7 +179,10 @@ type screen struct {
 // A comment whose path is absent from the diff is listed at the end rather than
 // dropped, because a comment nobody can see is a comment nobody can retract.
 func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) screen {
-	s := screen{numWidth: numberWidth(d)}
+	// A row is 400 bytes, so growing the slice by doubling copies the screen
+	// over again on every build; one row per diff line plus a heading and a
+	// gap per file is the usual size, and anything past it still grows.
+	s := screen{numWidth: numberWidth(d), rows: make([]row, 0, diffRows(d)+2*len(d.Files))}
 	byLine := indexComments(r, ts)
 	byThread := indexThreads(ts)
 	placed := make([]bool, len(r.Comments))
@@ -234,8 +237,9 @@ func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
 	span := bounds(f)
 
 	merged := mergedHunk(f, at, c, span)
-	rows := []row{spanned(row{kind: rowFile, path: p, comment: noComment, hunk: merged},
-		append(pathSpans(p, c.icons), muted(c.lay.partWord(p, c.split[at.path])+sizeWord(f, at.hunks)))...)}
+	rows := make([]row, 0, len(f.Lines)+1)
+	rows = append(rows, spanned(row{kind: rowFile, path: p, comment: noComment, hunk: merged},
+		append(pathSpans(p, c.icons), muted(c.lay.partWord(p, c.split[at.path])+sizeWord(f, at.hunks)))...))
 
 	if c.lay.shut(p) {
 		return foldedFile(f, rows[0], c)
