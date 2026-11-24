@@ -1,3 +1,20 @@
+## v0.54.1 (2026-11-24)
+
+### Perf
+
+- **local**: blame a range's files in parallel before the first frame
+- **tui**: detect the terminal's color profile once per environment
+- **tui**: measure ASCII under color without the grapheme walk
+- **tui**: stop re-walking the file and re-fitting the footer per keystroke
+- **tui**: lay a file's rows out in place instead of copying them in
+- **tui**: size the row slice for the diff before building it
+- **tui**: lex long files behind the frame that shows them
+- **tui**: count the header's file stats once per diff
+- **tui**: draw rich code runs with pre-rendered escapes
+- **tui**: place one overview mark per track cell, not one per row
+- **tui**: skip the whitespace test on hunks whose sides cannot match
+- **plan**: normalize a changed line in one pass instead of three regexps
+
 ## v0.54.0 (2026-11-23)
 
 ### Feat
