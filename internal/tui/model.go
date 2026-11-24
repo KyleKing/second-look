@@ -471,6 +471,9 @@ func WithAnchor(id int64) Option {
 // terminal says about its colors reaches a screen already open.
 func (m *Model) restyle(st styles) {
 	m.styles, m.rich = st, newRichStyles(st)
+	if m.pal != nil {
+		m.pal.SetSkin(st.skin)
+	}
 }
 
 // New builds the review screen for a prepared review and the diff it was

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/tui/framecheck"
 
@@ -211,4 +212,30 @@ func sameColumn(t *testing.T, m *tui.Model, width int) {
 				i, w, want, framecheck.Ruled(m.Frame()))
 		}
 	}
+}
+
+// The terminal answers what colors it has after the palette is built. In 16
+// colors the palette's selected row is then reverse video, the selection every
+// row there uses, and not the truecolor tint it started with quantized to a band
+// of blue that its own blue key drew into.
+func TestThePaletteFollowsTheTerminalsColors(t *testing.T) {
+	t.Parallel()
+
+	m, _ := fixture(t)
+	m.Update(tea.ColorProfileMsg{Profile: colorprofile.ANSI})
+	press(t, m, key(':'))
+
+	for _, l := range strings.Split(m.Frame(), "\n") {
+		if !strings.Contains(xansi.Strip(l), "▌") || !strings.Contains(xansi.Strip(l), "a line") {
+			continue
+		}
+
+		if strings.Contains(l, "48;") {
+			t.Errorf("the palette's selected row paints a background in 16 colors: %q", l)
+		}
+
+		return
+	}
+
+	t.Errorf("no selected palette row in:\n%s", xansi.Strip(m.Frame()))
 }
