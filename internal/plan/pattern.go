@@ -103,11 +103,7 @@ func (p *Pattern) Dropped() string {
 	return best
 }
 
-var (
-	identifier = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
-	number     = regexp.MustCompile(`\d+`)
-	spaces     = regexp.MustCompile(`\s+`)
-)
+var identifier = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
 
 type line struct {
 	ref  order.Ref
@@ -138,22 +134,88 @@ func stem(p string) string {
 
 // normalize is a line with what differs between files making one edit taken
 // out: whitespace, numbers, and the identifiers spelling the file's own name.
+//
+// It runs once per changed line on every replan, so it is one pass over the
+// bytes rather than three regular expressions: a run of ASCII whitespace
+// becomes one space, an identifier spelling own becomes "$", and a run of
+// digits, inside an identifier or not, becomes "#".
 func normalize(text, own string) string {
 	const shortestStem = 3
 
-	text = spaces.ReplaceAllString(strings.TrimSpace(text), " ")
+	text = strings.TrimSpace(text)
+	stems := len(own) >= shortestStem
 
-	if len(own) >= shortestStem {
-		text = identifier.ReplaceAllStringFunc(text, func(id string) string {
-			if strings.Contains(strings.ToLower(id), own) {
-				return "$"
+	var b strings.Builder
+
+	b.Grow(len(text))
+
+	for i := 0; i < len(text); {
+		c := text[i]
+
+		switch {
+		case isSpace(c):
+			for i < len(text) && isSpace(text[i]) {
+				i++
 			}
 
-			return id
-		})
+			b.WriteByte(' ')
+		case isDigit(c):
+			for i < len(text) && isDigit(text[i]) {
+				i++
+			}
+
+			b.WriteByte('#')
+		case stems && isIdentStart(c):
+			j := i + 1
+			for j < len(text) && (isIdentStart(text[j]) || isDigit(text[j])) {
+				j++
+			}
+
+			id := text[i:j]
+			i = j
+
+			if strings.Contains(strings.ToLower(id), own) {
+				b.WriteByte('$')
+
+				continue
+			}
+
+			writeNumbered(&b, id)
+		default:
+			b.WriteByte(c)
+			i++
+		}
 	}
 
-	return number.ReplaceAllString(text, "#")
+	return b.String()
+}
+
+// writeNumbered writes an identifier with each run of digits in it as "#".
+func writeNumbered(b *strings.Builder, id string) {
+	for i := 0; i < len(id); i++ {
+		if !isDigit(id[i]) {
+			b.WriteByte(id[i])
+
+			continue
+		}
+
+		for i+1 < len(id) && isDigit(id[i+1]) {
+			i++
+		}
+
+		b.WriteByte('#')
+	}
+}
+
+// isSpace is the regular expression class \s: ASCII whitespace without \v.
+func isSpace(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\n' || c == '\f' || c == '\r'
+}
+
+func isDigit(c byte) bool { return c >= '0' && c <= '9' }
+
+func isIdentStart(c byte) bool {
+	return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
 
 func meaningful(text string) bool {
