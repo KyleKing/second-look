@@ -77,6 +77,15 @@ pass on a laptop with credentials and hang in CI. `scratchRepo` points `origin` 
 `https://127.0.0.1:1/KyleKing/second-look.git`, which parses as the right repository and
 answers nothing. A connection error in a test means a new network call, not a broken fixture.
 
+Every test package's `TestMain` is aragonite's `hermetic.Main(m, hermetic.App("second-look"))`
+(or `hermetic.Run` where it builds a stub first), so the in-process tests that run git, write read
+marks, or fill a cache do it under a home of the binary's own: HOME, the XDG directories,
+`JJ_CONFIG`, git's and gh's config, and `TMPDIR` point inside it, and the run fails when the real jj,
+git, or gh config, or second-look's own config, state, cache, or data, changed because of it.
+`TestEveryTestPackageIsHermetic` fails a package that leaves it out. jj 0.47 records every
+repository it opens under `$XDG_CONFIG_HOME/jj/repos`, which is how jojo and jj-diff leaked before
+they adopted it; second-look had no such leak, and the guard keeps it that way.
+
 `childEnv` gives each child its own `HOME` and `XDG_CONFIG_HOME`, because read marks and
 checkout-less reviews live under the user config directory and an inherited one would read
 and write the runner's state. A test that inspects that state appends its own `HOME`, which

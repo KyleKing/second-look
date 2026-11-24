@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/kyleking/aragonite/ghcassette"
+	"github.com/kyleking/aragonite/hermetic"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/threads"
@@ -62,7 +63,7 @@ func TestMain(m *testing.M) {
 		panic(string(out))
 	}
 
-	code := m.Run()
+	code := hermetic.Run(m, hermetic.App("second-look"))
 
 	ghcassette.RemoveStub()
 	_ = os.RemoveAll(dir) //nolint:errcheck // a leftover temp directory is not worth failing a run

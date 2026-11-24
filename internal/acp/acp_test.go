@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kyleking/aragonite/hermetic"
+
 	"github.com/kyleking/second-look/internal/acp"
 )
 
@@ -34,7 +36,7 @@ func TestMain(m *testing.M) {
 		panic(string(out))
 	}
 
-	code := m.Run()
+	code := hermetic.Run(m, hermetic.App("second-look"))
 
 	//nolint:errcheck // a temp directory that outlives the test is the OS's problem
 	_ = os.RemoveAll(dir)
