@@ -3,7 +3,6 @@ package tui_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/kyleking/second-look/internal/diag"
+	"github.com/kyleking/second-look/internal/stub"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -26,10 +26,7 @@ func TestGFOpensTheFileInAPane(t *testing.T) {
 	dir := t.TempDir()
 	editor := filepath.Join(dir, "editor.sh")
 	script := "#!/bin/sh\necho \"argv $@\"\ncat \"$2\"\nsleep 30\n"
-	//nolint:gosec // a file the child runs has to be executable
-	if err := os.WriteFile(editor, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	stub.Write(t, editor, script)
 	t.Setenv("EDITOR", editor)
 
 	for _, tt := range []struct { //nolint:paralleltest // t.Setenv above

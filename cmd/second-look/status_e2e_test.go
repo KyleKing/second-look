@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/kyleking/aragonite/ghcassette"
+
+	"github.com/kyleking/second-look/internal/stub"
 )
 
 // The status line a prompt draws is the queue's last read plus what is staged,
@@ -61,14 +63,11 @@ func TestStatusCountsWhatTheListingSays(t *testing.T) {
 	home := quietHome(t)
 
 	list := filepath.Join(home, "agents.sh")
-	write(t, list, []byte("#!/bin/sh\nprintf '%s' '["+
+	stub.Write(t, list, "#!/bin/sh\nprintf '%s' '["+
 		`{"sessionId":"sess-waiting","state":"blocked"},`+
 		`{"sessionId":"sess-done","state":"done"},`+
 		`{"sessionId":"sess-unstaged","state":"blocked"}`+
-		"]'\n"))
-	if err := os.Chmod(list, 0o700); err != nil { // #nosec G302 -- the stub has to run
-		t.Fatalf("marking the stub listing executable: %v", err)
-	}
+		"]'\n")
 
 	write(t, filepath.Join(home, ".config", "second-look", "config.toml"),
 		[]byte("agents = [\""+list+"\"]\n"))

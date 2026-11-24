@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kyleking/second-look/internal/stub"
 )
 
 // bearerGH puts a gh on PATH that answers the token lookup with token, or
@@ -21,10 +23,7 @@ func bearerGH(t *testing.T, script string) {
 
 	bin := t.TempDir()
 
-	//nolint:gosec // the stub gh on PATH has to be executable
-	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(script), 0o750); err != nil {
-		t.Fatal(err)
-	}
+	stub.Write(t, filepath.Join(bin, "gh"), script)
 
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 }

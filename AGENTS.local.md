@@ -91,6 +91,13 @@ checkout-less reviews live under the user config directory and an inherited one 
 and write the runner's state. A test that inspects that state appends its own `HOME`, which
 wins because `os/exec` keeps the last of a repeated variable.
 
+A test that needs an executable (a stand-in `gh`, an `$EDITOR`, a project's own linter) writes
+it with `stub.Write`, never `os.WriteFile` with an exec bit. A script written in the test binary
+and then run fails now and then with "text file busy", because a sibling parallel test's child,
+forked while the file was open for writing, holds the descriptor until it execs
+(golang/go#22315). `stub.Write` writes from a shell of its own, so no child of the test binary can
+inherit it.
+
 ## Coverage counts the subprocess
 
 `go test -cover` instruments only the test binary, and `cmd/second-look` tests run in a child

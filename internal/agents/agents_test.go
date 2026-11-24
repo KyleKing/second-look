@@ -1,12 +1,12 @@
 package agents_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/kyleking/second-look/internal/agents"
+	"github.com/kyleking/second-look/internal/stub"
 )
 
 // The listing's contract is the shape `claude agents --json` prints: a
@@ -15,7 +15,7 @@ import (
 func TestListReadsTheSessionShape(t *testing.T) {
 	t.Parallel()
 
-	list := stub(t, `[
+	list := listing(t, `[
 		{"id":"bfef1969","cwd":"/work/one","kind":"background","startedAt":1784694451272,
 		 "sessionId":"bfef1969-ccdc-4165-aefd-1ddffb81e357","name":"Implement plan","state":"blocked"},
 		{"pid":13639,"cwd":"/work/two","kind":"interactive","startedAt":1791410082371,
@@ -54,7 +54,7 @@ func TestListReadsTheSessionShape(t *testing.T) {
 	// arrive as an error the screen keeps quiet rather than a half-answer.
 	for name, argv := range map[string][]string{
 		"no argv":                 nil,
-		"unreadable output":       {stub(t, `not json`)},
+		"unreadable output":       {listing(t, `not json`)},
 		"a command not installed": {filepath.Join(t.TempDir(), "no-such-command")},
 	} {
 		if got, err := agents.List(t.Context(), argv); err == nil {
@@ -63,15 +63,13 @@ func TestListReadsTheSessionShape(t *testing.T) {
 	}
 }
 
-func stub(t *testing.T, body string) string {
+func listing(t *testing.T, body string) string {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "list.sh")
 	script := "#!/bin/sh\nprintf '%s' '" + body + "'\n"
 
-	if err := os.WriteFile(path, []byte(script), 0o700); err != nil { // #nosec G306 -- the stub has to run
-		t.Fatalf("writing the stub: %v", err)
-	}
+	stub.Write(t, path, script)
 
 	return path
 }

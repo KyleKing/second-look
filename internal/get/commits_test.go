@@ -11,6 +11,7 @@ import (
 	"github.com/kyleking/aragonite/diff"
 
 	"github.com/kyleking/second-look/internal/get"
+	"github.com/kyleking/second-look/internal/stub"
 )
 
 // answerGH puts a gh on PATH that answers every call with body.
@@ -24,10 +25,7 @@ func answerGH(t *testing.T, body string) {
 		t.Fatal(err)
 	}
 
-	//nolint:gosec // the stub gh on PATH has to be executable
-	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\ncat \"$GH_ANSWER\"\n"), 0o750); err != nil {
-		t.Fatal(err)
-	}
+	stub.Write(t, filepath.Join(bin, "gh"), "#!/bin/sh\ncat \"$GH_ANSWER\"\n")
 
 	t.Setenv("GH_ANSWER", answer)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))

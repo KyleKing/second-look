@@ -8,6 +8,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/get"
+	"github.com/kyleking/second-look/internal/stub"
 )
 
 const roundSHA = "3f9a1c0d7e2b48f6a05c9d3e1b7f4a28c6d0e5b9"
@@ -34,10 +35,7 @@ func stubGH(t *testing.T, record string) {
 
 	gh := filepath.Join(bin, "gh")
 	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$GH_RECORD\"\ncat \"$GH_PATCH\"\n"
-	//nolint:gosec // the stub gh on PATH has to be executable
-	if err := os.WriteFile(gh, []byte(script), 0o750); err != nil {
-		t.Fatal(err)
-	}
+	stub.Write(t, gh, script)
 
 	t.Setenv("GH_RECORD", record)
 	t.Setenv("GH_PATCH", patchFile)

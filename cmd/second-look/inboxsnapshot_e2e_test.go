@@ -15,6 +15,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/snapshot"
+	"github.com/kyleking/second-look/internal/stub"
 )
 
 // cacheIn is where a run with this home keeps its cache, by the rule os follows.
@@ -39,10 +40,7 @@ func gated(t *testing.T) (string, string) {
 	open := filepath.Join(dir, "open")
 	script := "#!/bin/sh\nwhile [ ! -e \"$GATE\" ]; do sleep 0.02; done\nexec \"$STAND_IN_GH\" \"$@\"\n"
 
-	//nolint:gosec // it has to run
-	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o700); err != nil {
-		t.Fatalf("writing the gated gh: %v", err)
-	}
+	stub.Write(t, filepath.Join(dir, "gh"), script)
 
 	return dir + string(os.PathListSeparator) + os.Getenv("PATH"), open
 }

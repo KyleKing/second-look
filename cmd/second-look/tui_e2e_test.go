@@ -23,6 +23,7 @@ import (
 	"github.com/kyleking/aragonite/seen"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/stub"
 )
 
 // The review screen renders only on a terminal, and a pipe is not one, so these
@@ -604,9 +605,7 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 	// pane forwards the keystrokes the screen's frame asks it to.
 	script := "#!/bin/sh\nIFS= read -r line\nprintf '%s\\n' \"$line\" > \"$1\"\n"
 
-	if err := os.WriteFile(editor, []byte(script), 0o700); err != nil { //nolint:gosec // it has to run
-		t.Fatalf("writing the editor: %v", err)
-	}
+	stub.Write(t, editor, script)
 
 	sc := openReview(t, s, dir, "EDITOR="+editor, "2")
 	sc.await("testdata/fixture/sample.go")
@@ -709,9 +708,7 @@ func TestReviewScreenAttachesAShellTranscript(t *testing.T) {
 	shell := filepath.Join(t.TempDir(), "shell")
 	script := "#!/bin/sh\necho 'total is wrong for negative entries'\n"
 
-	if err := os.WriteFile(shell, []byte(script), 0o700); err != nil { //nolint:gosec // it has to run
-		t.Fatalf("writing the shell: %v", err)
-	}
+	stub.Write(t, shell, script)
 
 	sc := openReview(t, s, dir, "SHELL="+shell, "2")
 	sc.await("testdata/fixture/sample.go")
@@ -764,9 +761,7 @@ func TestReviewScreenEndsAWedgedPane(t *testing.T) {
 	shell := filepath.Join(t.TempDir(), "shell")
 	script := "#!/bin/sh\nexec sleep 60\n"
 
-	if err := os.WriteFile(shell, []byte(script), 0o700); err != nil { //nolint:gosec // it has to run
-		t.Fatalf("writing the shell: %v", err)
-	}
+	stub.Write(t, shell, script)
 
 	sc := openReview(t, s, dir, "SHELL="+shell, "2")
 	sc.await("testdata/fixture/sample.go")

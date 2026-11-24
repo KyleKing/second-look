@@ -19,6 +19,7 @@ import (
 	"github.com/kyleking/second-look/internal/checkouts"
 	"github.com/kyleking/second-look/internal/inbox"
 	"github.com/kyleking/second-look/internal/labels"
+	"github.com/kyleking/second-look/internal/stub"
 )
 
 // The inbox is four gh searches and the one batched read that sorts their rows
@@ -608,9 +609,7 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 	editor := filepath.Join(t.TempDir(), "editor")
 	script := "#!/bin/sh\nprintf '" + body + "\\n' > \"$1\"\n"
 
-	if err := os.WriteFile(editor, []byte(script), 0o700); err != nil { //nolint:gosec // it has to run
-		t.Fatalf("writing the editor: %v", err)
-	}
+	stub.Write(t, editor, script)
 
 	sc := openReview(t, s, t.TempDir(),
 		"HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "EDITOR="+editor, "inbox")

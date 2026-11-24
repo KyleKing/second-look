@@ -9,6 +9,7 @@ import (
 
 	"github.com/kyleking/second-look/internal/diag"
 	"github.com/kyleking/second-look/internal/diag/scan"
+	"github.com/kyleking/second-look/internal/stub"
 )
 
 // The fixtures are what the real programs printed, kept because the counting is
@@ -189,9 +190,7 @@ func TestRunUsesTheProjectsOwnToolAndSpellsPathsAgainstTheCheckout(t *testing.T)
 	tool := "second-look-project-tool"
 	script := "#!/bin/sh\necho \"$1:1:1: found in $(basename \"$PWD\")\"\n"
 
-	if err := os.WriteFile(filepath.Join(bin, tool), []byte(script), 0o700); err != nil { //nolint:gosec // it is run
-		t.Fatal(err)
-	}
+	stub.Write(t, filepath.Join(bin, tool), script)
 
 	got, err := scan.Run(t.Context(), checkout, []scan.Check{{
 		Name: "house rules", Command: []string{tool, "{files}"}, Format: scan.Text,

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kyleking/second-look/internal/ghrun"
+	"github.com/kyleking/second-look/internal/stub"
 )
 
 // fakeGH answers by its first argument: "ok" prints the directory it ran in and
@@ -23,10 +24,7 @@ esac
 // It sets PATH, so it cannot run in parallel.
 func TestOutputCarriesGhsOwnReason(t *testing.T) {
 	bin := t.TempDir()
-	//nolint:gosec // the stand-in has to run
-	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(fakeGH), 0o700); err != nil {
-		t.Fatal(err)
-	}
+	stub.Write(t, filepath.Join(bin, "gh"), fakeGH)
 
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
