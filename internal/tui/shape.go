@@ -230,13 +230,14 @@ func (l layout) patternOf(g planGroup) *plan.Pattern {
 	return l.plan[g.chapter-1].Pattern
 }
 
-// shapeRows draws every member doing more than the shape in full, and the exact ones only as rows.
-func (s screen) shapeRows(p *plan.Pattern, c fileCtx) []row {
+// appendShape draws every member doing more than the shape in full, and the exact ones only as rows.
+func (s screen) appendShape(dst []row, p *plan.Pattern, c fileCtx) []row {
 	at := fileIndex(c.d)
 	label := func(text string) row { return row{kind: rowShape, head: true, text: text, comment: noComment} }
 
-	rows := []row{label(fmt.Sprintf("Shape · %s · %s", plural(len(p.Members), fileNoun),
-		p.Representative))}
+	rows := dst
+	rows = append(rows, label(fmt.Sprintf("Shape · %s · %s", plural(len(p.Members), fileNoun),
+		p.Representative)))
 
 	var rep plan.Member
 
@@ -246,7 +247,7 @@ func (s screen) shapeRows(p *plan.Pattern, c fileCtx) []row {
 		}
 	}
 
-	rows = append(rows, s.fileRows(&c.d.Files[at[rep.Path]], partOf(at, rep.Path, rep.Hunks), c)...)
+	rows = s.appendFile(rows, &c.d.Files[at[rep.Path]], partOf(at, rep.Path, rep.Hunks), c)
 
 	dir := sharedDir(p.Members)
 	in := ""
@@ -271,29 +272,32 @@ func (s screen) shapeRows(p *plan.Pattern, c fileCtx) []row {
 		rows = append(rows, memberRow(c.d, mem, dir, col))
 
 		if mem.Exact() && c.lay.fold.members[mem.Path] {
-			rows = append(rows, s.fileRows(&c.d.Files[at[mem.Path]], partOf(at, mem.Path, mem.Hunks), c)...)
+			rows = s.appendFile(rows, &c.d.Files[at[mem.Path]], partOf(at, mem.Path, mem.Hunks), c)
 		}
 	}
 
 	rows = append(rows, row{kind: rowBlank, comment: noComment})
 	rows = append(rows, headRows(p, c.lay, label)...)
 
-	var more []row
+	// The section's heading goes in ahead of what it heads and comes out again
+	// where nothing followed it, so its files are laid out in place.
+	beyond := len(rows)
+	rows = append(rows, row{kind: rowBlank, comment: noComment}, label("Beyond the shape"))
 
 	for _, mem := range p.Members {
 		if mem.Path != p.Representative && !mem.Exact() {
-			drawn := s.fileRows(&c.d.Files[at[mem.Path]], partOf(at, mem.Path, mem.Hunks), c)
-			more = append(more, sharing(drawn, mem)...)
+			from := len(rows)
+			rows = s.appendFile(rows, &c.d.Files[at[mem.Path]], partOf(at, mem.Path, mem.Hunks), c)
+			sharing(rows[from:], mem)
 		}
 	}
 
 	for _, name := range refPaths(p.Rest) {
-		more = append(more, s.fileRows(&c.d.Files[at[name]], partOf(at, name, p.Rest), c)...)
+		rows = s.appendFile(rows, &c.d.Files[at[name]], partOf(at, name, p.Rest), c)
 	}
 
-	if len(more) > 0 {
-		rows = append(rows, row{kind: rowBlank, comment: noComment}, label("Beyond the shape"))
-		rows = append(rows, more...)
+	if len(rows) == beyond+2 {
+		rows = rows[:beyond]
 	}
 
 	return rows

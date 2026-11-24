@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -209,13 +210,13 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 		}
 
 		if p := lay.patternOf(g); p != nil {
-			s.rows = append(s.rows, s.shapeRows(p, ctx)...)
+			s.rows = s.appendShape(s.rows, p, ctx)
 
 			continue
 		}
 
 		for _, at := range g.parts {
-			s.rows = append(s.rows, s.fileRows(&d.Files[at.file], at, ctx)...)
+			s.rows = s.appendFile(s.rows, &d.Files[at.file], at, ctx)
 		}
 	}
 
@@ -225,26 +226,31 @@ func build(r *artifact.Review, d *diff.Diff, ts []threads.Thread, lay layout) sc
 	return s
 }
 
-// fileRows is one file: its name, whatever it says about itself, and every hunk
+// appendFile is one file: its name, whatever it says about itself, and every hunk
 // with the threads and comments that hang off each line.
 //
 // A file is drawn in pieces where the reading order gathered its hunks into
 // more than one group, and the heading says so: a reader who does not know they
 // are looking at half a file draws the wrong conclusion from it. The wanted
 // hunks are this piece's own, and nil is all of them.
-func (s screen) fileRows(f *diff.File, at part, c fileCtx) []row {
+//
+// The rows are appended to dst rather than returned on their own, because a
+// row is 400 bytes and a file's worth copied into the screen afterwards was a
+// third of building it.
+func (s screen) appendFile(dst []row, f *diff.File, at part, c fileCtx) []row {
 	p := filePath(f)
 	span := bounds(f)
 
 	merged := mergedHunk(f, at, c, span)
-	rows := make([]row, 0, len(f.Lines)+1)
-	rows = append(rows, spanned(row{kind: rowFile, path: p, comment: noComment, hunk: merged},
-		append(pathSpans(p, c.icons), muted(c.lay.partWord(p, c.split[at.path])+sizeWord(f, at.hunks)))...))
+	head := spanned(row{kind: rowFile, path: p, comment: noComment, hunk: merged},
+		append(pathSpans(p, c.icons), muted(c.lay.partWord(p, c.split[at.path])+sizeWord(f, at.hunks)))...)
 
 	if c.lay.shut(p) {
-		return foldedFile(f, rows[0], c)
+		return append(dst, foldedFile(f, head, c)...)
 	}
 
+	rows := slices.Grow(dst, len(f.Lines)+1)
+	rows = append(rows, head)
 	rows = append(rows, fileNotes(f, p)...)
 
 	hunk, folded := 0, 0
