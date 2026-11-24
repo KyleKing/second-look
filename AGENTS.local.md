@@ -137,7 +137,9 @@ which reverses the fixture's buckets so the refresh has rows to move.
 `demo/forge/gh` is the forge every scene runs against. Its `routes` table maps the tokens a call
 must carry to the seed file that answers it. A token must start an argument, because
 substring matching anywhere in the call read `--review-requested` as "view" and routed
-the inbox's searches to the pull request. A seed named `.err` goes to stderr with a non-zero
+the inbox's searches to the pull request. A review posts through `gh api graphql --input -`,
+whose argv is the same for every mutation, so a token spelled `stdin:<text>` matches the request
+body instead; the post's four calls are routed that way in `demo/fixture/routes`. A seed named `.err` goes to stderr with a non-zero
 exit, which is how a scene draws a failure. An unrouted call fails loudly, so a missing seed
 cannot pass as an empty screen.
 
@@ -146,6 +148,8 @@ means dropping a same-named file into the scene. The seed under `demo/fixture/` 
 rather than recorded, for the same privacy reason as `inbox.golden`. The checkout is rebuilt
 on every run and kept afterwards, so what the screen wrote back is at
 `demo/.work/<name>/.second-look/`. Edit `demo/scenes/`, since the work directory is discarded.
+Each scene's home is fresh, so `scene.sh` writes a coach ledger that has already seen the first
+launch; a scene about the first launch brings a `first-run` file.
 
 ## The checker pass
 

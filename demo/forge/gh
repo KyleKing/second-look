@@ -8,12 +8,33 @@
 # nothing because a seed was missing is the one failure this must not hide.
 set -eu
 
+# A call that sends its request on stdin (gh api graphql --input -, which is how
+# a review posts) names nothing in its argv that tells one mutation from
+# another, so the body is read once here and a route token spelled
+# stdin:<text> matches it anywhere in that body. A call without --input - is
+# never read, since its stdin may be the terminal.
+body=
+prev=
+for arg in "$@"; do
+  if [ "$prev" = --input ] && [ "$arg" = - ]; then
+    body=$(cat)
+  fi
+  prev=$arg
+done
+
 # A token has to start an argument rather than appear anywhere in the call.
 # Matching a substring of the whole command line reads --review-requested as
 # the word "view", which routed the inbox's searches to the pull request.
 matches() {
   token=$1
   shift
+
+  case "$token" in
+    stdin:*)
+      case "$body" in *"${token#stdin:}"*) return 0 ;; esac
+      return 1
+      ;;
+  esac
 
   for arg in "$@"; do
     case "$arg" in "$token"*) return 0 ;; esac

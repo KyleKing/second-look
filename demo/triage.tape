@@ -15,6 +15,7 @@ Set Framerate 8
 Set TypingSpeed 90ms
 
 Env COLORTERM "truecolor"
+Env ARAGONITE_ICONS "unicode"
 
 Hide
 Type "demo/scene.sh inbox" Enter
@@ -79,7 +80,8 @@ Sleep 800ms
 Type "r"
 Sleep 1400ms
 Type "n"
-Sleep 1600ms
+Sleep 3s
 
+# Leaving prints what was posted.
 Type "q"
-Sleep 500ms
+Sleep 2s

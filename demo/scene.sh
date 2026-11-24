@@ -103,6 +103,16 @@ command = ["second-look-no-such-language-server"]
 extensions = [".go", ".js", ".py", ".ts", ".tsx"]
 CONF
 
+# A fresh home is a first launch, which opens on the welcome card until a key
+# dismisses it, so every scene would start behind it and the first key a tape
+# sends would be spent closing it. The coach ledger marks the reader as one who
+# has been here before; a scene about the first launch brings a first-run file.
+if [ ! -f "$scene/first-run" ]; then
+  mkdir -p "$work/home/.local/state/second-look"
+  printf '{"first":"2026-01-01T00:00:00Z","welcomed":"2026-01-01T00:00:00Z"}\n' \
+    > "$work/home/.local/state/second-look/coach.json"
+fi
+
 # The scene's own seeds are searched before the shared ones, so overriding an
 # answer is dropping a file of the same name into the scene.
 # shellcheck disable=SC2086 # args is a command line, so it has to split

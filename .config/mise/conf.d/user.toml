@@ -37,8 +37,9 @@ description = "Project-specific CI gates"
 depends = ["test:coverage-min"]
 run = "echo 'project checks passed'"
 
-# Overrides the template's task to shrink each gif after recording. 24 colors keeps
-# the add and remove bands distinct, where 16 turns them grey.
+# Overrides the template's task to shrink each gif after recording. 64 colors keeps
+# the truecolor syntax palette on the diff bands, where 24 flattened every token
+# to the foreground grey and 16 turns the add and remove bands grey as well.
 [tasks.demo]
 description = "Generate VHS demo recordings"
 depends = ["build"]
@@ -47,7 +48,7 @@ run = '''
 set -euo pipefail
 for tape in demo/*.tape; do vhs "$tape"; done
 for gif in demo/*.gif; do
-  ffmpeg -v error -y -i "$gif" -vf "fps=6,split[a][b];[a]palettegen=max_colors=24:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" "$gif.tmp.gif"
+  ffmpeg -v error -y -i "$gif" -vf "fps=6,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" "$gif.tmp.gif"
   mv "$gif.tmp.gif" "$gif"
 done
 '''

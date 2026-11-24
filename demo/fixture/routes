@@ -21,3 +21,10 @@ api graphql nodes[]=                 conversations.json
 api graphql name= number=            people-involved.json
 api graphql name=                    people-recent.json
 api graphql -F owner=                threads.json
+
+# A review posts through gh api graphql --input -, so these match the request
+# body on stdin rather than the argv: stdin:<text> is a substring of it.
+api graphql --input stdin:pullRequest(number:$number){id}       pr-node.json
+api graphql --input stdin:addPullRequestReview(                 review-opened.json
+api graphql --input stdin:addPullRequestReviewThreadReply(      reply-added.json
+api graphql --input stdin:submitPullRequestReview(              review-submitted.json

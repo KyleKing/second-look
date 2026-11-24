@@ -3,6 +3,11 @@
 #
 # Both review this repository's own commits with `second-look local`, so it
 # needs gopls on PATH and a checkout that still holds 9066a8f and 8cc3241.
+#
+# -r names a jj revset and --range a git range, and each refuses the other
+# backend, so the hidden command picks by whether the clone has a .jj. A state
+# directory of its own holds a coach ledger that has seen the welcome card, so
+# a first launch on this machine does not open behind it.
 
 Output demo/.work/stills.gif
 
@@ -15,10 +20,12 @@ Set Theme {"name": "Ink", "black": "#2d3340", "red": "#f27a86", "green": "#5fd49
 Set Framerate 15
 
 Env COLORTERM "truecolor"
+Env ARAGONITE_ICONS "unicode"
 
 Hide
+Type `export XDG_STATE_HOME=$(mktemp -d); mkdir -p "$XDG_STATE_HOME/second-look"; echo '{"first":"2026-01-01T00:00:00Z","welcomed":"2026-01-01T00:00:00Z"}' > "$XDG_STATE_HOME/second-look/coach.json"` Enter
 Type "export XDG_CONFIG_HOME=$(mktemp -d)" Enter
-Type "./second-look local -r 9066a8f" Enter
+Type "./second-look local $(test -d .jj && echo -r 9066a8f || echo --range 9066a8f~..9066a8f)" Enter
 Sleep 10s
 Type "I"
 Sleep 1500ms
@@ -29,7 +36,7 @@ Sleep 1s
 Hide
 Type "q"
 Sleep 500ms
-Type "clear; ./second-look local -r 8cc3241" Enter
+Type "clear; ./second-look local $(test -d .jj && echo -r 8cc3241 || echo --range 8cc3241~..8cc3241)" Enter
 Sleep 10s
 Type "jjjjjjj"
 Sleep 500ms

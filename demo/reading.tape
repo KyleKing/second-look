@@ -4,6 +4,11 @@
 # The first half is seed data and needs nothing. The second half reviews this
 # repository's own commit 8cc3241 with `second-look local`, so it needs gopls on
 # PATH and a checkout that still holds that commit.
+#
+# -r names a jj revset and --range a git range, and each refuses the other
+# backend, so the hidden command picks by whether the clone has a .jj. A state
+# directory of its own holds a coach ledger that has seen the welcome card, so
+# a first launch on this machine does not open behind it.
 
 Output demo/reading.gif
 
@@ -17,8 +22,10 @@ Set Framerate 8
 Set TypingSpeed 90ms
 
 Env COLORTERM "truecolor"
+Env ARAGONITE_ICONS "unicode"
 
 Hide
+Type `export XDG_STATE_HOME=$(mktemp -d); mkdir -p "$XDG_STATE_HOME/second-look"; echo '{"first":"2026-01-01T00:00:00Z","welcomed":"2026-01-01T00:00:00Z"}' > "$XDG_STATE_HOME/second-look/coach.json"` Enter
 Type "demo/scene.sh outline" Enter
 Sleep 6s
 Show
@@ -57,7 +64,7 @@ Sleep 2500ms
 Hide
 Type "q"
 Sleep 500ms
-Type "clear; XDG_CONFIG_HOME=$(mktemp -d) ./second-look local -r 8cc3241" Enter
+Type "clear; XDG_CONFIG_HOME=$(mktemp -d) ./second-look local $(test -d .jj && echo -r 8cc3241 || echo --range 8cc3241~..8cc3241)" Enter
 Sleep 10s
 Type "jjjjjjj"
 Sleep 500ms
