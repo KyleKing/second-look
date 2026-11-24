@@ -152,6 +152,9 @@ type richStyles struct {
 	side    map[byte]lipgloss.Style
 	gutter  lipgloss.Style
 	colored bool
+	// brushes keeps each face reduced to its escapes, so a run costs two
+	// concatenations rather than a Render.
+	brushes *brushes
 }
 
 func newRichStyles(s styles) richStyles {
@@ -194,6 +197,7 @@ func newRichStyles(s styles) richStyles {
 		},
 		gutter:  base.Foreground(p.Overlay1),
 		colored: colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ASCII,
+		brushes: newBrushes(),
 	}
 }
 
@@ -268,8 +272,15 @@ func (m *Model) mergedSegments(r row, l diff.Line, width int) []string {
 	}
 
 	segs, b, cols := make([]string, 0, len(pieces)), strings.Builder{}, 0
-	write := func(style lipgloss.Style, text string) {
-		cols = m.writeSeg(&segs, &b, cols, width, style, text)
+	write := func(key brushKey, style lipgloss.Style, text string) {
+		cols = m.writeSeg(&segs, &b, cols, width, key, style, text)
+	}
+
+	// The struck face is the only one varying with whether the hunk is read,
+	// so its key says which of the two it is.
+	goneKey := brushKey{slot: slotGone, banded: true}
+	if faces == nil {
+		goneKey.variant = 1
 	}
 
 	for _, piece := range pieces {
@@ -279,17 +290,20 @@ func (m *Model) mergedSegments(r row, l diff.Line, width int) []string {
 
 		switch piece.Kind {
 		case diff.KindRemove:
-			write(gone, r.mate.Text[piece.From:piece.To])
+			write(goneKey, gone, r.mate.Text[piece.From:piece.To])
 		default:
-			face := m.styles.behind
+			face, key := m.styles.behind, brushKey{slot: slotBehind}
 			if faces != nil {
-				face = faces[classAt(spans, piece.From)]
+				class := classAt(spans, piece.From)
+				face, key = faces[class], brushKey{slot: slotCode, class: class}
 			}
 
 			if piece.Kind == diff.KindAdd {
-				write(under(face, mark, true), l.Text[piece.From:piece.To])
+				key.bg, key.banded = mark, true
+				write(key, under(face, mark, true), l.Text[piece.From:piece.To])
 			} else {
-				write(under(face, base, hasBase), l.Text[piece.From:piece.To])
+				key.bg, key.banded = base, hasBase
+				write(key, under(face, base, hasBase), l.Text[piece.From:piece.To])
 			}
 		}
 	}
@@ -300,10 +314,12 @@ func (m *Model) mergedSegments(r row, l diff.Line, width int) []string {
 // writeSeg appends text to b under style, wrapping into segs at width, and
 // answers the column the write ends on. Unwrapped, the text past width is left
 // for the caller's cut.
-func (m *Model) writeSeg(segs *[]string, b *strings.Builder, cols, width int, style lipgloss.Style, text string) int {
+func (m *Model) writeSeg(
+	segs *[]string, b *strings.Builder, cols, width int, key brushKey, style lipgloss.Style, text string,
+) int {
 	text, spent := expandFrom(text, cols)
 	if !m.drawn.wrap {
-		b.WriteString(style.Render(text))
+		b.WriteString(m.rich.brushes.paint(key, style, text))
 
 		return min(spent, width)
 	}
@@ -317,7 +333,7 @@ func (m *Model) writeSeg(segs *[]string, b *strings.Builder, cols, width int, st
 		}
 
 		part, rest := takeCells(text, room)
-		b.WriteString(style.Render(part))
+		b.WriteString(m.rich.brushes.paint(key, style, part))
 		cols += textWidth(part)
 		text = rest
 	}
@@ -343,28 +359,42 @@ func (m *Model) richGutter(r row) string {
 		num = l.Old
 	}
 
-	side, changed := m.rich.side[l.Kind]
-	mark := sideGlyph(l.Kind, m.rich.colored)
+	_, changed := m.rich.side[l.Kind]
+	numKey := brushKey{slot: slotGutter}
 
 	// The mark carries the side, so a changed line's number stays quiet and a
 	// column of them does not read as a second, louder bar. It is a step
 	// brighter than a context line's, which is all it needs to say "changed".
-	quiet := m.styles.subtitle
-
-	switch {
-	case r.shared && m.rich.colored:
-		style, mark = quiet, m.styles.behind.Render(sharedGlyph)
-	case changed && r.whole:
-		style, mark = quiet, " "
-	case changed && m.rich.colored && m.moves[refOf(r.path, l)].Lines > 0:
-		style, mark = quiet, side.Render(movedGlyph)
-	case changed && m.rich.colored && wsSignificant(r.path) && m.reindented[refOf(r.path, l)]:
-		style, mark = quiet, side.Render(m.reindentGlyph(r, l))
-	case changed:
-		style, mark = quiet, side.Render(mark)
+	if changed || r.shared && m.rich.colored {
+		style, numKey.variant = m.styles.subtitle, 1
 	}
 
-	return style.Render(number(num, m.screen.numWidth)) + " " + mark + " "
+	return m.rich.brushes.paint(numKey, style, number(num, m.screen.numWidth)) + " " + m.gutterMark(r) + " "
+}
+
+// gutterMark is the glyph between a line's number and its code: its side's
+// bar, or what the line did where that says more than its side.
+func (m *Model) gutterMark(r row) string {
+	l := r.line
+	side, changed := m.rich.side[l.Kind]
+	paint := m.rich.brushes.paint
+	sideKey := brushKey{slot: slotSide, variant: l.Kind}
+	colored := m.rich.colored
+
+	switch {
+	case r.shared && colored:
+		return paint(brushKey{slot: slotBehind}, m.styles.behind, sharedGlyph)
+	case !changed:
+		return sideGlyph(l.Kind, colored)
+	case r.whole:
+		return " "
+	case colored && m.moves[refOf(r.path, l)].Lines > 0:
+		return paint(sideKey, side, movedGlyph)
+	case colored && wsSignificant(r.path) && m.reindented[refOf(r.path, l)]:
+		return paint(sideKey, side, m.reindentGlyph(r, l))
+	}
+
+	return paint(sideKey, side, sideGlyph(l.Kind, colored))
 }
 
 // sharedGlyph marks a line a shape's file makes as the shape does.
@@ -427,7 +457,9 @@ func (m *Model) padTo(r row, l diff.Line, cells int) string {
 		return spaces
 	}
 
-	return lipgloss.NewStyle().Background(base).Render(spaces)
+	key := brushKey{slot: slotPad, bg: base, banded: true}
+
+	return m.rich.brushes.paint(key, lipgloss.NewStyle().Background(base), spaces)
 }
 
 // fill pads seg to room cells, with the band running to band cells and plain
@@ -501,11 +533,6 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 	}
 
 	for _, piece := range m.runs(r, l) {
-		face := m.styles.behind
-		if faces != nil {
-			face = faces[piece.class]
-		}
-
 		// A whitespace-only run is marked only where the indent is significant:
 		// a brace language's reindent is the hunk's badge's to say, not the line's.
 		inMark := covered(marked, piece.from)
@@ -513,17 +540,19 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 			inMark = strings.TrimSpace(l.Text[piece.from:piece.to]) != ""
 		}
 
-		style := under(face, base, hasBase)
+		band, banded := base, hasBase
 		if inMark {
-			style = under(face, mark, true)
+			band, banded = mark, true
 		}
+
+		key, style := m.runFace(faces, piece.class, band, banded)
 
 		text, spent := expandFrom(l.Text[piece.from:piece.to], cols)
 
 		// With wrap off the whole run goes in and the caller's cut marks where
 		// it ran out, so the check comes after the write.
 		if !m.drawn.wrap {
-			b.WriteString(style.Render(text))
+			b.WriteString(m.rich.brushes.paint(key, style, text))
 
 			if cols = spent; cols >= width {
 				break
@@ -541,13 +570,25 @@ func (m *Model) richSegments(r row, l diff.Line, width int) []string {
 			}
 
 			part, rest := takeCells(text, room)
-			b.WriteString(style.Render(part))
+			b.WriteString(m.rich.brushes.paint(key, style, part))
 			cols += textWidth(part)
 			text = rest
 		}
 	}
 
 	return append(segs, b.String())
+}
+
+// runFace is the face a run of class is drawn with over a band, and the key of
+// its brush. A nil faces is a hunk already read, which draws in one face.
+func (m *Model) runFace(
+	faces map[highlight.Class]lipgloss.Style, class highlight.Class, band color.Color, banded bool,
+) (brushKey, lipgloss.Style) {
+	if faces == nil {
+		return brushKey{slot: slotBehind, bg: band, banded: banded}, under(m.styles.behind, band, banded)
+	}
+
+	return brushKey{slot: slotCode, class: class, bg: band, banded: banded}, under(faces[class], band, banded)
 }
 
 // takeCells is the first room cells of s and what is left, with at least one
