@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/keyusage"
 )
 
@@ -127,6 +128,24 @@ func (s *Shell) Init() tea.Cmd {
 	return s.list.Init()
 }
 
+// fullMargins gives a resized terminal back its whole height to scroll in, then
+// repaints. The renderer's scroll optimization confines a scroll with DECSTBM
+// and restores the margins by number, as the height it last drew at. A frame
+// flushed just before the resize reaches the terminal after it, so a window
+// that grew keeps the old height as its bottom margin, and every newline the
+// repaint writes at that row scrolls the page up instead of moving down: the
+// page sits rows too high under a footer placed absolutely, and stays there
+// until something redraws it. The margins are reset without numbers, which
+// means the whole screen at any size, and the cursor is saved around it
+// because DECSTBM homes it. The repaint follows, since the one the resize
+// asked for may already have drawn inside the stale margins.
+func fullMargins() tea.Cmd {
+	return tea.Sequence(
+		tea.Raw(ansi.SaveCursor+ansi.SetTopBottomMargins(0, 0)+ansi.RestoreCursor),
+		tea.ClearScreen,
+	)
+}
+
 // Update routes one message. Keys reach the screen being read; everything else
 // reaches both, since a search answering while a review is open belongs to the
 // queue behind it and would otherwise be dropped.
@@ -136,7 +155,7 @@ func (s *Shell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.width, s.height = msg.Width, msg.Height
 		cmd := s.both(msg)
 
-		return s, cmd
+		return s, tea.Batch(cmd, fullMargins())
 	case chosenMsg:
 		cmd := s.opening()
 

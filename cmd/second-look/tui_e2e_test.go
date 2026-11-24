@@ -15,6 +15,7 @@ import (
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
+	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 	"github.com/kyleking/aragonite/diff"
@@ -48,8 +49,25 @@ func (sz size) winsize() *pty.Winsize {
 // nobody else reads, and a write that waits on that pipe would stall the
 // reader, so the pipe is drained. The emulator is never closed, because its
 // Close races its own reader, and the drain ends with the test binary.
+//
+// Scroll margins reaching past the bottom row are clamped to it, as xterm
+// does. The library takes them as given and panics on the next scroll, and a
+// frame drawn for a taller terminal ends with exactly that: the renderer
+// restores the margins as 1 to the height it drew at. A panic drops the chunk
+// it came in, repaint and all, which left a shrunk terminal blank. The clamp
+// rewrites the bottom in place and lets the library's own handler run, since
+// the params it is handed are the parser's, which that handler reads.
 func emulate(sz size) *vt.SafeEmulator {
 	term := vt.NewSafeEmulator(sz.cols, sz.rows)
+
+	term.RegisterCsiHandler('r', func(params xansi.Params) bool {
+		// The unlocked Height, because Write holds the lock this runs under.
+		if height := term.Emulator.Height(); len(params) > 1 && params[1].Param(0) > height {
+			params[1] = xansi.Param(height)
+		}
+
+		return false
+	})
 
 	go io.Copy(io.Discard, term) //nolint:errcheck // it ends when the emulator closes
 
@@ -261,17 +279,24 @@ func (s *screen) feed(chunk []byte) {
 
 // resize changes the terminal's size the way a window does: the pty's size
 // changes and the program is signaled, so it redraws for the new one.
+//
+// The emulator is replaced before the pty changes size, never after. The
+// program repaints the moment the signal lands, and a repaint fed to the old
+// emulator is lost with it: the new one then sees only the moves that follow,
+// which are relative to a cursor it never had, so the page lands rows above
+// where it belongs while the footer, placed absolutely, sits right. Swapped
+// first, anything the old emulator would have shown arrives before the repaint,
+// which homes the cursor and clears the screen, so a stale chunk cannot move it.
 func (s *screen) resize(sz size) {
 	s.t.Helper()
+
+	s.termMu.Lock()
+	s.term = emulate(sz)
+	s.termMu.Unlock()
 
 	if err := pty.Setsize(s.pty, sz.winsize()); err != nil {
 		s.t.Fatalf("resizing the terminal to %dx%d: %v", sz.cols, sz.rows, err)
 	}
-
-	s.termMu.Lock()
-	defer s.termMu.Unlock()
-
-	s.term = emulate(sz)
 }
 
 // reversedRows is the rows of the terminal with a reversed cell in them.
@@ -1088,4 +1113,33 @@ func commitsCassette(t *testing.T, head, patch string, ids, names []string) stri
 		c.Interactions = append(append(c.Interactions[:reads:reads], threadInteraction(t)...),
 			commitsInteraction(ids, names))
 	})
+}
+
+// The emulator clamps a bottom margin past the screen instead of panicking on
+// the next scroll, and the clamped margins replace a narrower region the way
+// xterm's do, so a frame drawn for a taller terminal cannot leave one behind.
+func TestTheEmulatorClampsMarginsPastTheScreen(t *testing.T) {
+	t.Parallel()
+
+	term := emulate(size{20, 6})
+
+	// A region of rows 2-3, then the restore a 40-row frame ends with, then
+	// enough lines to scroll: confined to rows 2-3, line 1 would stay on top.
+	if _, err := term.WriteString("\x1b[2;3r\x1b[1;40r\x1b[Hl1\r\nl2\r\nl3\r\nl4\r\nl5\r\nl6\r\nl7"); err != nil {
+		t.Fatalf("writing to the emulator: %v", err)
+	}
+
+	got := strings.Split(term.String(), "\n")
+	if want := []string{"l2", "l3", "l4", "l5", "l6", "l7"}; !slices.Equal(trimmed(got), want) {
+		t.Errorf("the screen scrolled inside stale margins:\n got %q\nwant %q", got, want)
+	}
+}
+
+func trimmed(rows []string) []string {
+	out := make([]string, len(rows))
+	for i, row := range rows {
+		out[i] = strings.TrimRight(row, " ")
+	}
+
+	return out
 }
