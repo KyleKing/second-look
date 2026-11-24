@@ -74,7 +74,10 @@ type Model struct {
 	notes map[noteAt][]ghmd.Block
 	// lit is every fenced code block inside a note, lexed the first time it is
 	// drawn and kept after that, the same way lexed is for the diff's own hunks.
-	lit    map[string][][]highlight.Span
+	lit map[string][][]highlight.Span
+	// header is what the title and strip read off the diff on every frame,
+	// counted once per diff.
+	header headerCache
 	read   *seen.Set
 	seenAt string
 	path   string

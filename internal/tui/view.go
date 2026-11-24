@@ -234,12 +234,15 @@ func (m *Model) onWord() string {
 // something that is not a comment.
 func (m *Model) commentAt() (int, int) {
 	want := m.current()
+	if want < 0 {
+		return 0, 0
+	}
 
 	var at, total int
 
 	for i := range m.screen.rows {
-		r := m.screen.rows[i]
-		if !isComment(r) {
+		r := &m.screen.rows[i]
+		if !isComment(*r) {
 			continue
 		}
 

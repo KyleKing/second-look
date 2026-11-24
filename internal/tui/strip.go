@@ -19,13 +19,34 @@ type fileStat struct {
 
 func (f fileStat) changed() int { return f.added + f.removed }
 
+// headerCache is the per-file counts and directory names the header draws,
+// which depend on the diff alone. Both walk every line or every directory
+// pair, and the header is drawn on every keystroke, so they are counted once
+// per diff and the cache is the diff it was counted from.
+type headerCache struct {
+	of    *diff.Diff
+	files []fileStat
+	dirs  map[string]string
+}
+
+// stats is each file's path and how many lines it adds and removes. Callers
+// read it and never write it, since it is the cache's own slice.
 func (m *Model) stats() []fileStat {
-	out := make([]fileStat, len(m.diff.Files))
+	if m.header.of != m.diff || m.header.files == nil {
+		files := countStats(m.diff)
+		m.header = headerCache{of: m.diff, files: files, dirs: directories(files)}
+	}
 
-	for i := range m.diff.Files {
-		out[i].path = filePath(&m.diff.Files[i])
+	return m.header.files
+}
 
-		for _, l := range m.diff.Files[i].Lines {
+func countStats(d *diff.Diff) []fileStat {
+	out := make([]fileStat, len(d.Files))
+
+	for i := range d.Files {
+		out[i].path = filePath(&d.Files[i])
+
+		for _, l := range d.Files[i].Lines {
 			switch l.Kind {
 			case diff.KindAdd:
 				out[i].added++
@@ -54,10 +75,22 @@ type inFile struct {
 
 type cluster struct {
 	label string
+	// width is the label's cells, measured once: fitting the strip tries a
+	// window per cluster, and each try would measure every label again.
+	width int
 	segs  []seg
 	// more is how many clusters a collapsed group stands for, 0 for a real
 	// one; its "+N" label is drawn even when real names no longer fit.
 	more int
+}
+
+// labelWidth is the label's cells, from width where it was measured.
+func (c cluster) labelWidth() int {
+	if c.width == 0 {
+		return textWidth(c.label)
+	}
+
+	return c.width
 }
 
 // shown reports whether a cluster's label is drawn, which a collapsed group
@@ -97,7 +130,9 @@ func sumClusters(cs []cluster) cluster {
 		}
 	}
 
-	return cluster{label: "+" + strconv.Itoa(len(cs)), segs: []seg{s}, more: len(cs)}
+	label := "+" + strconv.Itoa(len(cs))
+
+	return cluster{label: label, width: len(label), segs: []seg{s}, more: len(cs)}
 }
 
 // litAt is the cluster holding the lit segment, -1 where none is.
@@ -168,7 +203,11 @@ func (m *Model) strip(files []fileStat, room int) string {
 		current = files[0].path
 	}
 
-	dirs := directories(files)
+	dirs := m.header.dirs
+	if m.header.of != m.diff || dirs == nil {
+		dirs = directories(files)
+	}
+
 	here := inFile{
 		path:  current,
 		at:    m.through(func(r row) bool { return r.path == current }),
@@ -226,7 +265,7 @@ func clusters(files []fileStat, names map[string]string, read map[string]bool, h
 				name = ""
 			}
 
-			out = append(out, cluster{label: name})
+			out = append(out, cluster{label: name, width: textWidth(name)})
 		}
 
 		s := seg{weight: f.changed(), read: read[f.path], lit: f.path == here.path}
@@ -265,7 +304,7 @@ func stripWidths(cs []cluster, labels bool, room int) ([]int, bool) {
 
 	for _, c := range cs {
 		if c.shown(labels) {
-			fixed += textWidth(c.label) + 1
+			fixed += c.labelWidth() + 1
 		}
 
 		fixed += len(c.segs) - 1

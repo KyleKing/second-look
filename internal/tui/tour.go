@@ -459,7 +459,7 @@ func (m *Model) tourStrip(room int) string {
 			label = fitName(g.name, names, labelCols)
 		}
 
-		cs[k] = cluster{label: label, segs: []seg{{
+		cs[k] = cluster{label: label, width: textWidth(label), segs: []seg{{
 			weight: m.changed(g), read: m.readAll(groupRefs(g, m.diff)), lit: k == at, marked: k == at, at: through,
 		}}}
 	}
