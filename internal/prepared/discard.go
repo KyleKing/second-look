@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/seen"
 )
 
 // cached names the directories holding one file per head commit. Everything in
@@ -30,7 +29,7 @@ func Discard(r *Review) error { return DiscardAt(Root(r), r.Number) }
 func DiscardAt(root string, number int) error {
 	paths := []string{
 		artifact.Path(root, number),
-		seen.Path(root, number),
+		artifact.SeenPath(root, number),
 		artifact.TodoPath(root, number),
 		strings.TrimSuffix(artifact.TodoPath(root, number), ".md") + ".log",
 	}
@@ -52,7 +51,7 @@ func DiscardAt(root string, number int) error {
 func DiscardLocal(root string) bool {
 	removed := false
 
-	for _, path := range []string{artifact.LocalPath(root), seen.LocalPath(root)} {
+	for _, path := range []string{artifact.LocalPath(root), artifact.LocalSeenPath(root)} {
 		if err := os.Remove(path); err == nil {
 			removed = true
 		}

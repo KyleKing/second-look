@@ -10,11 +10,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/seen"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/blob"
 	"github.com/kyleking/second-look/internal/plan"
-	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 	"github.com/kyleking/second-look/internal/tui"
 )

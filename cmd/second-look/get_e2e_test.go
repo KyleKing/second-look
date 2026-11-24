@@ -12,9 +12,9 @@ import (
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/ghcassette"
+	"github.com/kyleking/aragonite/seen"
 
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/seen"
 )
 
 // An agent replies by putting a real comment id in in_reply_to, and this is
@@ -94,7 +94,7 @@ func TestGetCarriesReadHunksOntoANewHead(t *testing.T) {
 
 	refs := seen.Hunks(diff.Parse(patch))
 
-	set, err := seen.Load(seen.Path(stored(t, dir), 2))
+	set, err := seen.Load(artifact.SeenPath(stored(t, dir), 2))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestGetCarriesReadHunksOntoANewHead(t *testing.T) {
 		set.Mark(true, r.ID)
 	}
 
-	if err := seen.Save(seen.Path(stored(t, dir), 2), set, refs); err != nil {
+	if err := seen.Save(artifact.SeenPath(stored(t, dir), 2), set, refs); err != nil {
 		t.Fatal(err)
 	}
 
@@ -125,7 +125,7 @@ func TestGetCarriesReadHunksOntoANewHead(t *testing.T) {
 
 	after := seen.Hunks(diff.Parse(moved))
 
-	back, err := seen.Load(seen.Path(stored(t, dir), 2))
+	back, err := seen.Load(artifact.SeenPath(stored(t, dir), 2))
 	if err != nil {
 		t.Fatal(err)
 	}

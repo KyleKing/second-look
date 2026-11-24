@@ -18,11 +18,11 @@ import (
 	"strings"
 
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/seen"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/kyleking/second-look/internal/order"
 	"github.com/kyleking/second-look/internal/plan"
-	"github.com/kyleking/second-look/internal/seen"
 )
 
 const field = "\x1f"

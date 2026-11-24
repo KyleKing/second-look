@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/seen"
 	"github.com/kyleking/aragonite/vcs"
 
 	"github.com/kyleking/second-look/internal/artifact"
@@ -22,7 +23,6 @@ import (
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/plan"
-	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
 
@@ -97,7 +97,7 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 	listed, why := commitsOf(ctx, abs, jj, mode, base, tip, fork, d)
 	claim := <-claimed
 
-	seenPath := seen.LocalPath(abs)
+	seenPath := artifact.LocalSeenPath(abs)
 
 	read, err := seen.Load(seenPath)
 	if err != nil {

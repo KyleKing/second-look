@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/seen"
 	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/table"
 
@@ -22,7 +23,6 @@ import (
 	"github.com/kyleking/second-look/internal/diag"
 	"github.com/kyleking/second-look/internal/labels"
 	"github.com/kyleking/second-look/internal/plan"
-	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
 

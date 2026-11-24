@@ -1,0 +1,31 @@
+[[hunk]]
+hash = '43d443e048a29c838fd0f7edea5ac3e94ad77028b7ac7db61ba431d707c9ac9b'
+path = 'tui/coach/coach_test.go'
+
+[[hunk]]
+hash = '5c2243055e7a2e79bc5060bcea69015d84511a7d1ab88a5f6e967155bdfc6d47'
+path = 'tui/coach/render.go'
+
+[[hunk]]
+hash = '4c11596b6426b3016ecab82daa774e590db0226922d07439d8a72f5a14bafc70'
+path = 'tui/coach/render.go'
+
+[[hunk]]
+hash = '9165e441f60e83e219487de8a76df0ecd38418ea42f8884b95b9b5f8419a452a'
+path = 'tui/palette/rank.go'
+
+[[hunk]]
+hash = '5ec53903f427bedad0cafb35464af64afc9f711da303125931e8d411dd716eb6'
+path = 'tui/palette/view.go'
+
+[[hunk]]
+hash = '3ac3015cd65624f76405ed0ae2b762f8d66a7d25803fb63563193d2aa0ed6a89'
+path = 'tui/palette/view.go'
+
+[[hunk]]
+hash = '01a00255b372de9aa17e69e564bf65259b0f029b68006918523d75f429af8782'
+path = '.doneram.pkl'
+
+[[hunk]]
+hash = '5944ba0866705e5ea056a5cbc66237267364eb9262d2f440afc5cb3279ae40d7'
+path = '.github/workflows/freshness.yml'

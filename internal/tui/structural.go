@@ -2,12 +2,12 @@ package tui
 
 import (
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/seen"
 
 	"github.com/kyleking/second-look/internal/generated"
 	"github.com/kyleking/second-look/internal/order"
 	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/rate"
-	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/structure"
 )
 

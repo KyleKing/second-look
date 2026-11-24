@@ -20,9 +20,9 @@ import (
 	"github.com/creack/pty"
 	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/ghcassette"
+	"github.com/kyleking/aragonite/seen"
 
 	"github.com/kyleking/second-look/internal/artifact"
-	"github.com/kyleking/second-look/internal/seen"
 )
 
 // The review screen renders only on a terminal, and a pipe is not one, so these
@@ -671,7 +671,7 @@ func TestReviewScreenMarksHunksRead(t *testing.T) {
 	}
 
 	// The screen is gone, so what says the hunk was read is the file it left.
-	set, err := seen.Load(seen.Path(stored(t, dir), 2))
+	set, err := seen.Load(artifact.SeenPath(stored(t, dir), 2))
 	if err != nil {
 		t.Fatalf("the read hunks: %v", err)
 	}

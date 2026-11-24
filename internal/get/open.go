@@ -13,13 +13,13 @@ import (
 	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/forge"
 	"github.com/kyleking/aragonite/forge/github"
+	"github.com/kyleking/aragonite/seen"
 	"github.com/kyleking/aragonite/vcs"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/pool"
-	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
 
@@ -246,7 +246,7 @@ func fetchBoth(
 }
 
 func readMarks(t Target) (*seen.Set, string, error) {
-	path := seen.Path(t.Store, t.Number)
+	path := artifact.SeenPath(t.Store, t.Number)
 
 	read, err := seen.Load(path)
 	if err != nil {

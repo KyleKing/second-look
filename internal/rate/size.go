@@ -2,8 +2,8 @@ package rate
 
 import (
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/seen"
 
-	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/structure"
 )
 

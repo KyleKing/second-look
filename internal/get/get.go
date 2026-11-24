@@ -15,6 +15,7 @@ import (
 	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/forge"
 	"github.com/kyleking/aragonite/forge/github"
+	"github.com/kyleking/aragonite/seen"
 	"github.com/kyleking/aragonite/vcs"
 	"golang.org/x/sync/errgroup"
 
@@ -22,7 +23,6 @@ import (
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/pool"
 	"github.com/kyleking/second-look/internal/prepared"
-	"github.com/kyleking/second-look/internal/seen"
 	"github.com/kyleking/second-look/internal/threads"
 )
 
@@ -185,13 +185,23 @@ func headOf(root string, number int) string {
 
 // carryRead reports how much of the new head was already read, and prunes marks
 // for hunks the new diff no longer carries. Nothing is moved: a mark is stored
-// against a hunk's content, so it survives a new head on its own.
+// against a hunk's content, so a hunk the author did not touch answers the same
+// identity under the new head and is still read, while one whose text changed
+// is a different hunk and comes back unread.
+//
+// The intended mechanism was git range-diff, and it was measured out. It
+// reports per commit, and calls a pair identical only when the patch matches
+// byte for byte, context included, which is exactly when the cumulative diff's
+// hunks are byte-identical too, which is when identity already carries them.
+// Applying its verdict per hunk instead of per commit would mean attributing a
+// cumulative-diff hunk to one commit, which is blame-level work with its own
+// failure modes. The experiment is recorded in DESIGN.md.
 func carryRead(out io.Writer, root string, number int, oldSHA, newSHA string) error {
 	if oldSHA == "" || oldSHA == newSHA {
 		return nil
 	}
 
-	path := seen.Path(root, number)
+	path := artifact.SeenPath(root, number)
 
 	set, err := seen.Load(path)
 	if err != nil {
@@ -203,14 +213,14 @@ func carryRead(out io.Writer, root string, number int, oldSHA, newSHA string) er
 		return fmt.Errorf("reading the cached diff: %w", err)
 	}
 
-	current := diff.Parse(newPatch)
-	carried := seen.Carry(set, current)
+	live := seen.Hunks(diff.Parse(newPatch))
+	carried := set.Count(live)
 
-	if err := seen.Save(path, set, seen.Hunks(current)); err != nil {
+	if err := seen.Save(path, set, live); err != nil {
 		return fmt.Errorf("writing what has been read: %w", err)
 	}
 
-	total := len(seen.Hunks(current))
+	total := len(live)
 	if carried == 0 || total == 0 {
 		return nil
 	}

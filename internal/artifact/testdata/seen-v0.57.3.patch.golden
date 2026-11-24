@@ -1,0 +1,393 @@
+diff --git a/tui/coach/coach_test.go b/tui/coach/coach_test.go
+index c74d6ff..36303ad 100644
+--- a/tui/coach/coach_test.go
++++ b/tui/coach/coach_test.go
+@@ -551,3 +551,19 @@ func BenchmarkAll(b *testing.B) {
+ 		c.All(state{conflict: true}, nil)
+ 	}
+ }
++
++func TestBandLines_KeyColumnFitsTheWidestKey(t *testing.T) {
++	t.Parallel()
++
++	next := []coach.Suggestion{
++		{Tone: coach.Next, Key: "space", What: "select", Say: "nothing is selected"},
++		{Tone: coach.Next, Key: "c", What: "confirm", Say: "a selection waits"},
++	}
++	plain := ansi.Strip(strings.Join(coach.BandLines(sk(), next, nil, 100), "\n"))
++
++	for _, want := range []string{"▸ space select", "▸ c     confirm"} {
++		if !strings.Contains(plain, want) {
++			t.Errorf("band missing %q:\n%s", want, plain)
++		}
++	}
++}
+diff --git a/tui/coach/render.go b/tui/coach/render.go
+index 3234ed5..546693c 100644
+--- a/tui/coach/render.go
++++ b/tui/coach/render.go
+@@ -84,7 +84,7 @@ func TipLine(s skin.Skin, sg Suggestion, width int) string {
+ const MaxBand = 3
+ 
+ const (
+-	bandKey  = 4
++	bandKey  = 4 // the narrowest key column, widened to the widest key it holds
+ 	bandWhat = 14
+ 	bandCmd  = 3
+ )
+@@ -92,6 +92,10 @@ const (
+ // BandLines is the band layout, width cells wide: a labeled "next" rule, then a row per next step
+ // (its key and word, the state that prompts it, and the command it runs), then the tip if one is
+ // showing. It is nil when there is nothing to say, so the band takes no rows.
++//
++// The band is rows of the screen, not a layer over it: hand them to the Panel of
++// a frame.Frame, or take their count off the body's height, so the content above
++// shrinks rather than losing its last rows under the band.
+ func BandLines(s skin.Skin, next []Suggestion, tip *Suggestion, width int) []string {
+ 	next = next[:min(len(next), MaxBand)]
+ 	if len(next) == 0 && tip == nil {
+@@ -100,12 +104,19 @@ func BandLines(s skin.Skin, next []Suggestion, tip *Suggestion, width int) []str
+ 
+ 	out := []string{s.Rule("next", "", width)}
+ 
++	// The key column is as wide as the widest key it holds, so "space" and
++	// "enter" are never cut to "spa…".
++	keyw := bandKey
+ 	for i := range next {
+-		out = append(out, bandRow(s, &next[i], width))
++		keyw = max(keyw, lipgloss.Width(next[i].Key)+1)
++	}
++
++	for i := range next {
++		out = append(out, bandRow(s, &next[i], keyw, width))
+ 	}
+ 
+ 	if tip != nil {
+-		lead := " " + s.Suggest.Render(Diamond) + " " + s.Muted.Render(table.Pad("tip", bandKey+bandWhat-1,
++		lead := " " + s.Suggest.Render(Diamond) + " " + s.Muted.Render(table.Pad("tip", keyw+bandWhat-1,
+ 			table.AlignLeft)) + " "
+ 		if tip.Key != "" {
+ 			lead += s.Suggest.Render(tip.Key) + " "
+@@ -117,9 +128,9 @@ func BandLines(s skin.Skin, next []Suggestion, tip *Suggestion, width int) []str
+ 	return out
+ }
+ 
+-func bandRow(s skin.Skin, sg *Suggestion, width int) string {
++func bandRow(s skin.Skin, sg *Suggestion, keyw, width int) string {
+ 	lead := " " + s.Suggest.Render(Pointer) + " " +
+-		s.Suggest.Render(table.Pad(sg.Key, bandKey, table.AlignLeft)) +
++		s.Suggest.Render(table.Pad(sg.Key, keyw, table.AlignLeft)) +
+ 		s.Body.Render(table.Pad(table.Truncate(sg.What, bandWhat), bandWhat, table.AlignLeft))
+ 
+ 	say := sg.Say
+diff --git a/tui/palette/palette_test.go b/tui/palette/palette_test.go
+index bff9845..9c0a963 100644
+--- a/tui/palette/palette_test.go
++++ b/tui/palette/palette_test.go
+@@ -665,3 +665,37 @@ func TestView_JoinsEveryEdgeAtEverySize(t *testing.T) {
+ 		}
+ 	}
+ }
++
++func TestRank_ExactNameBeatsALongerMatch(t *testing.T) {
++	t.Parallel()
++
++	got := palette.Rank([]palette.Entry{
++		{Action: "next-pane", Key: "tab", What: "next pane", Group: "Move"},
++		{Action: "next", Key: "n", What: "next", Group: "Move"},
++	}, "next", now)
++
++	if len(got) == 0 || len(got[0].Hits) == 0 || got[0].Hits[0].Action != "next" {
++		t.Errorf("Rank(next) put %v first, want next", got)
++	}
++}
++
++// A key is never cut while the drawer has room for it, and a row with nothing in
++// the right column gives that room to its description.
++func TestView_KeysWholeAndDescriptionsUseTheRoom(t *testing.T) {
++	t.Parallel()
++
++	for want, entries := range map[string][]palette.Entry{
++		"ctrl+e/ctrl+y": {{Action: "scroll", Key: "ctrl+e/ctrl+y", What: "scroll a line", Group: "Move"}},
++		"cancel the running command or quit": {
++			{Action: "cancel", Key: "ctrl+c", What: "cancel the running command or quit", Group: "General"},
++			{Action: "pane", Key: "tab", What: "next pane", Group: "General", Recent: now.Add(-time.Minute)},
++		},
++	} {
++		m := palette.New(sk(), palette.WithClock(func() time.Time { return now }))
++		m.Open(palette.Browse, entries)
++
++		if view := drawn(t, m, 100, 30); !strings.Contains(view, want) {
++			t.Errorf("the drawer cut %q:\n%s", want, view)
++		}
++	}
++}
+diff --git a/tui/palette/rank.go b/tui/palette/rank.go
+index 539d591..727d8d3 100644
+--- a/tui/palette/rank.go
++++ b/tui/palette/rank.go
+@@ -28,6 +28,7 @@ const (
+ 	recentBonus  = 30
+ 	offPenalty   = 80
+ 	exactKey     = 400
++	exactName    = 300
+ 	recentWindow = 7 * 24 * time.Hour
+ 	// AliasShare is the part of an alias match's score kept, so the entry's own words win a tie.
+ 	aliasShare = 9
+@@ -148,6 +149,12 @@ func score(e *Entry, query string, now time.Time) (Hit, bool) {
+ 		h.Score += exactKey
+ 	}
+ 
++	// A query that is the action's whole name, or its whole description, is that
++	// action asked for by name: `:next` is next, not "next pane".
++	if strings.EqualFold(q, e.Action) || strings.EqualFold(q, e.What) {
++		h.Score += exactName
++	}
++
+ 	if e.Off {
+ 		h.Score -= offPenalty
+ 	} else {
+diff --git a/tui/palette/view.go b/tui/palette/view.go
+index 5a24917..07fd8dd 100644
+--- a/tui/palette/view.go
++++ b/tui/palette/view.go
+@@ -23,7 +23,8 @@ const (
+ 	percent      = 100
+ 	drawerKeep   = 24
+ 	borderCells  = 4
+-	keyColumnMax = 8
++	keyColumnMin = 8
++	keyShare     = 3
+ 	rightColumn  = 9
+ 	rightShare   = 3
+ 	stripWhatMin = 22
+@@ -190,9 +191,10 @@ func (m *Model) drawer(width, height int) []string {
+ 		detail, list = nil, room
+ 	}
+ 
++	// The explainer opens on its own rule, which is the separator: a blank row
++	// before it would only take a row from the list.
+ 	rows := []string{m.prompt(inner)}
+-	rows = append(rows, m.list(inner, min(m.rows(), max(0, list)), true)...)
+-	rows = append(rows, "")
++	rows = append(rows, m.list(inner, min(m.rows(), max(0, list+1)), true)...)
+ 	rows = append(rows, detail...)
+ 
+ 	for len(rows) < height-3 {
+@@ -343,7 +345,9 @@ func (m *Model) columns(width int) columns {
+ 		c.cmd = c.cmd || m.hits[i].Cmd != ""
+ 	}
+ 
+-	c.key = min(c.key, keyColumnMax)
++	// The key column is the widest key's, so no key is cut, unless that would take
++	// more than a third of the row from the descriptions.
++	c.key = min(c.key, max(keyColumnMin, width/keyShare))
+ 	if c.right > 0 {
+ 		c.right = min(max(c.right, rightColumn), width/rightShare)
+ 	}
+@@ -375,6 +379,13 @@ func (m *Model) row(h *Hit, selected bool, width int, c columns, drawer bool) st
+ 	}
+ 
+ 	keyw, rightw := c.key, c.right
++	// The right column is drawn only where this row has something in it; a row
++	// with nothing there gives its description the room, rather than cutting it
++	// to leave blank cells.
++	// The strip keeps it, since its command column must start at one place.
++	if m.right(h) == "" && (drawer || !c.cmd) {
++		rightw = 0
++	}
+ 
+ 	room := width - lipgloss.Width(mark) - keyw - halves
+ 	if rightw > 0 {
+diff --git a/.doneram.pkl b/.doneram.pkl
+new file mode 100644
+index 0000000..855d764
+--- /dev/null
++++ b/.doneram.pkl
+@@ -0,0 +1,62 @@
++// Version literals this project pins in files it owns, checked by doneram.
++// The weekly Freshness workflow patches these and opens a draft PR.
++//
++// Pins inside template-managed files (the mise tools in
++// .config/mise/conf.d/template.toml, hk.pkl, and the ci and bump_version
++// workflows) are deliberately absent: my_go_template tracks those and they
++// arrive here through a copier update, so patching them locally would only
++// make the next update a merge.
++
++amends "package://github.com/kyleking/doneram/releases/download/v0.6.1/doneram@0.6.1#/Config.pkl"
++import "package://github.com/kyleking/doneram/releases/download/v0.6.1/doneram@0.6.1#/Config.pkl"
++
++local freshnessYml = ".github/workflows/freshness.yml"
++
++/// A `uses: owner/repo@<sha> # <tag>` GitHub Action pin, one capture group
++/// spanning the sha and the tag together, since github-action patches both
++/// as a single resolved value.
++local function actionPin(action: String): Config.Site = new {
++  file = freshnessYml
++  pattern = #"\#(action)@([0-9a-f]{40} # v[\d.]+)"#
++}
++
++tools = new {
++  ["checkout"] = new {
++    resolver = "github-action"
++    resolverName = "actions/checkout"
++    sites = new { actionPin("actions/checkout") }
++  }
++  ["create-github-app-token"] = new {
++    resolver = "github-action"
++    resolverName = "actions/create-github-app-token"
++    sites = new { actionPin("actions/create-github-app-token") }
++  }
++  ["create-pull-request"] = new {
++    resolver = "github-action"
++    resolverName = "peter-evans/create-pull-request"
++    sites = new { actionPin("peter-evans/create-pull-request") }
++  }
++  ["doneram"] = new {
++    resolver = "github-action"
++    resolverName = "kyleking/doneram"
++    sites = new { actionPin("kyleking/doneram") }
++  }
++  ["mise-action"] = new {
++    resolver = "github-action"
++    resolverName = "jdx/mise-action"
++    sites = new { actionPin("jdx/mise-action") }
++  }
++  ["doneram-schema"] = new {
++    resolver = "github-release"
++    resolverName = "kyleking/doneram"
++    sites = new {
++      new Config.Site { file = ".doneram.pkl"; pattern = #"releases/download/v([\d.]+)/doneram"# }
++      new Config.Site { file = ".doneram.pkl"; pattern = #"doneram@([\d.]+)#/Config\.pkl"# }
++    }
++  }
++  ["doneram-version"] = new {
++    resolver = "github-release"
++    resolverName = "kyleking/doneram"
++    sites = new { new Config.Site { file = freshnessYml; pattern = #"version: v([\d.]+)"# } }
++  }
++}
+diff --git a/.github/dependabot.yml b/.github/dependabot.yml
+deleted file mode 100644
+index 4025476..0000000
+--- a/.github/dependabot.yml
++++ /dev/null
+@@ -1,34 +0,0 @@
+-# Please see the documentation for all configuration options:
+-#   https://docs.github.com/en/code-security/dependabot/working-with-dependabot/keeping-your-actions-up-to-date-with-dependabot
+-
+-# See Dependabot logs in: https://github.com/<owner>/<repo>/network/updates (under "Insights" tab)
+-version: 2
+-updates:
+-  - package-ecosystem: "gomod"
+-    directory: "/"
+-    schedule:
+-      interval: "weekly"
+-    # Untagged submodules: Dependabot resolves these to github.com/charmbracelet/x@v0.1.0,
+-    # which lacks the package, and errors the run. Drop each once it ships its own tag.
+-    ignore:
+-      - dependency-name: "github.com/charmbracelet/x/exp/golden"
+-      - dependency-name: "github.com/charmbracelet/x/vt"
+-    groups:
+-      go-dependencies:
+-        update-types:
+-          - "major"
+-          - "minor"
+-          - "patch"
+-        patterns:
+-          - "*"
+-
+-  - package-ecosystem: "github-actions"
+-    directory: "/"
+-    schedule:
+-      interval: "weekly"
+-    groups:
+-      all-dependencies:
+-        update-types:
+-          - "major"
+-          - "minor"
+-          - "patch"
+diff --git a/.github/workflows/freshness.yml b/.github/workflows/freshness.yml
+new file mode 100644
+index 0000000..c1e4f4a
+--- /dev/null
++++ b/.github/workflows/freshness.yml
+@@ -0,0 +1,78 @@
++---
++name: Freshness
++
++"on":
++  schedule:
++    - cron: "0 9 * * 1"
++  workflow_dispatch: {}
++
++permissions:
++  contents: read
++
++jobs:
++  check:
++    runs-on: ubuntu-latest
++    permissions:
++      contents: write
++      pull-requests: write
++    env:
++      HAS_APP: ${{ secrets.DONERAM_APP_CLIENT_ID != '' }}
++    steps:
++      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
++        with:
++          persist-credentials: false
++
++      # pkl evaluates .doneram.pkl and mise answers the tool resolvers.
++      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
++
++      - uses: kyleking/doneram@c5120304a06b6c524a9b96dd6408b01e8b453e65 # v0.5.1
++        with:
++          version: v0.5.1
++
++      - id: check
++        env:
++          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++        run: doneram update --output /tmp/doneram.json
++
++      # doneram tracks literals, not dependency graphs, so the Dependabot
++      # gomod role lives here: bump everything, let tidy settle it, and fold
++      # it into the same weekly PR.
++      - name: Update Go modules
++        id: gomod
++        run: |
++          set -euo pipefail
++          go get -u ./... | tee /tmp/gomod.log
++          go mod tidy
++          if git diff --quiet -- go.mod go.sum; then
++            echo 'upgrades=false' >> "$GITHUB_OUTPUT"
++          else
++            echo 'upgrades=true' >> "$GITHUB_OUTPUT"
++            {
++              echo 'log<<GOMOD_EOF'
++              grep -E '^go: (upgraded|added|removed)' /tmp/gomod.log || true
++              echo 'GOMOD_EOF'
++            } >> "$GITHUB_OUTPUT"
++          fi
++
++      # GITHUB_TOKEN cannot push a branch that edits .github/workflows/**.
++      # When the doneram app is installed with secrets set, its scoped
++      # installation token covers that push; otherwise the job token opens
++      # the PR and any workflow-file patch fails the push loudly.
++      - id: app-token
++        if: env.HAS_APP == 'true' && (steps.check.outputs.has_upgrades == 'true' || steps.gomod.outputs.upgrades == 'true')
++        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
++        with:
++          client-id: ${{ secrets.DONERAM_APP_CLIENT_ID }}
++          private-key: ${{ secrets.DONERAM_APP_PRIVATE_KEY }}
++
++      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
++        if: steps.check.outputs.has_upgrades == 'true' || steps.gomod.outputs.upgrades == 'true'
++        with:
++          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
++          branch: chore/doneram-updates
++          draft: true
++          delete-branch: true
++          title: "${{ steps.check.outputs.has_upgrades == 'true' && steps.check.outputs.title || 'chore: update Go modules' }}"
++          body: |
++            ${{ steps.check.outputs.body }}
++            ${{ steps.gomod.outputs.log }}

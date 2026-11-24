@@ -10,13 +10,13 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/diff"
+	"github.com/kyleking/aragonite/seen"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/plan"
-	"github.com/kyleking/second-look/internal/seen"
 )
 
 // Rounds reads the diff a head this review was read against carried, which is

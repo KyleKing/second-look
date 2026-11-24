@@ -78,6 +78,26 @@ func LocalPath(root string) string {
 	return filepath.Join(root, Dir, LocalFile)
 }
 
+// SeenDir is where read marks are kept, one file per review in the shape
+// aragonite/seen reads and writes.
+func SeenDir(root string) string {
+	return filepath.Join(root, Dir, "seen")
+}
+
+// SeenPath is where a pull request's read hunks are kept. It is keyed by pull
+// request rather than by head commit, because surviving a new head is the one
+// thing that file exists to do.
+func SeenPath(root string, number int) string {
+	return filepath.Join(SeenDir(root), fmt.Sprintf("pr-%d.toml", number))
+}
+
+// LocalSeenPath is where a local review's read hunks are kept. One file serves
+// both diff sources: hunk ids key on content, so a hunk already read in the
+// other mode is already read here.
+func LocalSeenPath(root string) string {
+	return filepath.Join(SeenDir(root), "local.toml")
+}
+
 // TodoPath is where the set of comments waiting on an agent is written, so the
 // agent reads a file rather than being handed a screenful through a pipe.
 func TodoPath(root string, number int) string {
