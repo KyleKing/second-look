@@ -46,6 +46,8 @@ The keybindings follow vim, so `]c` goes to the next comment, `]u` to the next u
 
 A key that can do nothing at the cursor stays in the footer, dimmed, and the legend says why. In the legend, pressing a key explains it rather than running it, `/` filters, and enter runs the row. `:` searches every key and command by what it does and runs it, then names the key for next time. The footer's status slot names the next step while one holds (unread hunks, findings to rule on, a review ready to submit), and after the first minute an occasional tip about a key you have not used, gone at the next key. `coach = "band"` in the config, or `:next`, draws the next steps as a band above the footer instead. Tips remember what they have shown in `$XDG_STATE_HOME/second-look/coach.json`, and `:tips off` stops them.
 
+The queue and the review screen share all of it: the queue's `?` and `:` are the same palette, its keys say why they do nothing on a heading, and its footer points at the next step (a review requested of you, a conversation that moved). The first launch opens on a welcome card of five starter keys and where the rest are; any key closes it and still does what it does (esc only closes it), it never shows again on its own, and `:welcome` brings it back.
+
 Every run also logs its subcommand and the names of the flags it was given, never their values or the pull request, and `second-look keys` reports the subcommands and flags you never use beside the keys.
 
 ## Install

@@ -18,14 +18,8 @@ func boxStyles(s styles) overlay.Styles {
 	return overlay.Styles{Frame: s.skin.Edge, Elision: s.note}
 }
 
-// boxBorder is the rows a floating box spends on its top and bottom frame.
-const boxBorder = 2
-
 // boxMargin is the space a box leaves against the screen's right edge.
 const boxMargin = 8
-
-// pastEnd is a scroll offset the render clamp pins to a page's last row.
-const pastEnd = 1 << 30
 
 // wheelStep is the lines one notch of the wheel moves inside a scrolling
 // overlay.

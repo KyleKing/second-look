@@ -69,6 +69,8 @@ func (m *Model) render() string {
 		body = m.labeler.box(m.styles, body, m.width)
 	}
 
+	body = m.welcome.Over(m.styles.skin, body, m.width, len(body))
+
 	files := m.stats()
 	out := append([]string{m.title(files), m.modes(files)}, body...)
 	if m.pane != nil {

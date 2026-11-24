@@ -55,7 +55,7 @@ func (m *Model) keyContext(msg tea.KeyPressMsg) string {
 // keyContext is the queue tab being read, or the legend or label picker over it.
 func (l *List) keyContext() string {
 	switch {
-	case l.help:
+	case l.pal.IsOpen():
 		return queueCtx("help")
 	case l.labeler != nil:
 		return queueCtx("labels")

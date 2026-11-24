@@ -5,6 +5,7 @@ import (
 
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/table"
 
@@ -54,6 +55,12 @@ type Tab struct {
 	// Go is the second keys the tab's g chord answers past the top g itself
 	// always is. A tab with none takes only gg.
 	Go []GoKey
+	// Rules are the tab's next steps for the coach, held only while the tab is
+	// the one being read.
+	Rules []coach.Rule[QueueState]
+	// Why is the reason key k does nothing at row r, empty where it does
+	// something. The palette and legend say it beside the key.
+	Why func(r *Row, k string) string
 }
 
 // Badge is a tab's count chip.
@@ -108,6 +115,7 @@ func NewTabs(tabs []Tab, at int) *List {
 
 	l.adopt()
 	l.rebuild()
+	l.discover()
 
 	return l
 }

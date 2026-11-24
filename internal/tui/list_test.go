@@ -231,36 +231,37 @@ func TestTheCursorRowIsReversedWhereThereIsNoColor(t *testing.T) {
 	}
 }
 
-// The legend answers the wheel the way the review's does: it scrolls rather
-// than closing, since a wheel tick is not a key, and a click outside it closes
-// it.
-func TestListHelpScrollsOnTheWheel(t *testing.T) {
+// The queue's legend is the shared palette in browse mode, the same one the review
+// screen opens: a key explains itself, a key that does nothing here says why,
+// and a click outside closes it.
+func TestListHelpIsThePalette(t *testing.T) {
 	t.Parallel()
 
-	l := list(t, nil)
-	l.Update(tea.WindowSizeMsg{Width: 120, Height: 12})
-	l.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
+	for _, size := range [][2]int{{80, 24}, {100, 30}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			t.Parallel()
 
-	if mode := l.View().MouseMode; mode != tea.MouseModeCellMotion {
-		t.Fatalf("the legend did not capture the mouse: %v", mode)
-	}
+			l := list(t, nil)
+			l.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			l.Update(tea.KeyPressMsg{Code: '?', Text: "?"})
 
-	if got := plain(l.ListFrame()); strings.Contains(got, "leave") {
-		t.Fatalf("the legend's tail was already visible:\n%s", got)
-	}
+			if mode := l.View().MouseMode; mode != tea.MouseModeCellMotion {
+				t.Fatalf("the legend did not capture the mouse: %v", mode)
+			}
 
-	for range 10 {
-		l.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
-	}
+			got := plain(l.ListFrame())
+			for _, want := range []string{"keys", "this screen hol", "the next group"} {
+				if !strings.Contains(got, want) {
+					t.Errorf("the legend lacks %q:\n%s", want, got)
+				}
+			}
 
-	if got := plain(l.ListFrame()); !strings.Contains(got, "leave") {
-		t.Errorf("the wheel did not reach the legend's tail:\n%s", got)
-	}
+			l.Update(tea.MouseClickMsg{X: 1, Y: 1, Button: tea.MouseLeft})
 
-	l.Update(tea.MouseClickMsg{X: 1, Y: 1, Button: tea.MouseLeft})
-
-	if got := plain(l.ListFrame()); strings.Contains(got, "leave") {
-		t.Errorf("a click outside the legend did not close it:\n%s", got)
+			if got := plain(l.ListFrame()); strings.Contains(got, "this screen hol") {
+				t.Errorf("a click outside the legend did not close it:\n%s", got)
+			}
+		})
 	}
 }
 

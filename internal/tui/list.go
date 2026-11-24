@@ -8,9 +8,10 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/keyhint"
-	"github.com/kyleking/aragonite/tui/overlay"
+	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/table"
 
 	"github.com/kyleking/second-look/internal/labels"
@@ -295,12 +296,16 @@ type List struct {
 	// the glyph beside it says it has not finished.
 	spinning bool
 	spin     int
-	help     bool
-	helpAt   int
-	// helpBox is where the legend was last drawn, which a click is read against.
-	helpBox overlay.Rect
-	chosen  string
-	failure error
+	chosen   string
+	failure  error
+
+	// pal is the legend on ? and the command palette on :, one list in two
+	// modes. coach points at the next step and tips, welcome is the first-run
+	// card, and ledger is where both remember what they showed.
+	pal     *palette.Model
+	coach   *coach.Coach[QueueState]
+	welcome *coach.Welcome
+	ledger  *coach.Ledger
 }
 
 // listLine is one rendered line: either a heading, or a row and which part of
@@ -502,6 +507,10 @@ func (l *List) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return l, nil
 	}
 
+	if cmd, ok := l.discoverMsg(msg); ok {
+		return l, cmd
+	}
+
 	// Every tab's loader is fed, not only the one being read: a queue switched
 	// away from mid-search still has answers coming, and dropping them would
 	// leave it half full whenever it is switched back to.
@@ -540,8 +549,7 @@ func (l *List) mouse(msg tea.MouseMsg) tea.Cmd {
 	return nil
 }
 
-// wheel scrolls the legend while it is up, and moves the cursor otherwise. A
-// wheel tick is not a key, so the legend's any-key-closes does not answer it.
+// wheel moves the cursor, and nothing while the palette is up.
 func (l *List) wheel(msg tea.MouseWheelMsg) tea.Cmd {
 	step := 0
 
@@ -552,9 +560,7 @@ func (l *List) wheel(msg tea.MouseWheelMsg) tea.Cmd {
 		step = wheelStep
 	}
 
-	if l.help {
-		l.helpAt = max(0, l.helpAt+step)
-
+	if l.pal.IsOpen() {
 		return nil
 	}
 
@@ -567,14 +573,14 @@ func (l *List) wheel(msg tea.MouseWheelMsg) tea.Cmd {
 	return l.rest()
 }
 
-// click closes the legend from outside it, switches to a tab clicked on, and
+// click closes the palette from outside it, switches to a tab clicked on, and
 // puts the cursor on a row clicked on. A prompt in the footer keeps the screen.
 func (l *List) click(m tea.Mouse) tea.Cmd {
 	m = inset(m, l.padX, l.padY)
 
-	if l.help {
-		if !l.helpBox.Contains(m.X, m.Y) {
-			l.help = false
+	if l.pal.IsOpen() {
+		if !l.pal.Rect(l.width, l.paletteRows()).Contains(m.X, m.Y-frame.Top(l.frame())) {
+			l.pal.Close()
 		}
 
 		return nil
@@ -601,38 +607,36 @@ func (l *List) click(m tea.Mouse) tea.Cmd {
 	return l.rest()
 }
 
-// readHelp answers a key while the legend is up: the scroll keys move inside
-// its box, and anything else puts the legend away.
-func (l *List) readHelp(msg tea.KeyPressMsg) {
-	const halfPage = 2
+func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if l.welcome.Showing() {
+		pass, err := welcomed(l.welcome, l.ledger, msg.String())
+		if err != nil {
+			l.say(err.Error(), true)
+		}
 
-	switch msg.String() {
-	case upKey:
-		l.helpAt--
-	case downKey:
-		l.helpAt++
-	case pgUpKey:
-		l.helpAt -= l.height / halfPage
-	case pgDownKey:
-		l.helpAt += l.height / halfPage
-	case homeKey:
-		l.helpAt = 0
-	case endKey:
-		l.helpAt = pastEnd
-	default:
-		l.help, l.helpAt = false, 0
+		if !pass {
+			return l, nil
+		}
 	}
 
-	l.helpAt = max(0, l.helpAt)
+	if l.pal.IsOpen() {
+		return l, l.pal.Update(msg)
+	}
+
+	prefix := l.pending
+	mod, cmd := l.dispatch(msg)
+
+	k := msg.String()
+	if prefix != 0 {
+		k = string(prefix) + " " + k
+	}
+
+	return mod, tea.Batch(cmd, l.observe(k))
 }
 
-func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if l.help {
-		l.readHelp(msg)
-
-		return l, nil
-	}
-
+// dispatch routes a key to whatever has the keyboard: a picker, the filter, a
+// waiting chord, or the queue itself.
+func (l *List) dispatch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if l.labeler != nil {
 		return l.pickLabel(msg)
 	}
@@ -664,7 +668,11 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 		return l, cmd
 	case key.Matches(msg, l.keys.Help):
-		l.help = true
+		l.openPalette(palette.Browse)
+
+		return l, nil
+	case msg.String() == paletteKey:
+		l.openPalette(palette.Run)
 
 		return l, nil
 	}
@@ -697,8 +705,13 @@ func (l *List) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 // perform runs an action on the row under the cursor. A key pressed on a
-// heading does nothing rather than acting on whichever row happens to follow.
+// heading says why it does nothing rather than acting on whichever row happens
+// to follow.
 func (l *List) perform(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if l.refuse(msg.String()) {
+		return l, nil
+	}
+
 	row := l.current()
 	if row == nil {
 		return l, nil

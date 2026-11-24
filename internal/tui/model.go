@@ -365,6 +365,9 @@ type Model struct {
 	// ledger is the coach's memory across reviews: the tips shown and the
 	// commands run, which the palette ranks recent ones by.
 	ledger *coach.Ledger
+	// welcome is the first-run card, up on the ledger's first session until
+	// any key, and again on :welcome.
+	welcome *coach.Welcome
 	// pal is the legend on ? and the command palette on :, one component over
 	// one list of entries: a key pressed in the legend is explained rather than
 	// run, and enter runs the row either way.
@@ -1165,6 +1168,10 @@ func (m *Model) overlayRoute(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 }
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if !m.welcomeKey(msg) {
+		return m, nil
+	}
+
 	if m.deferBuild(msg) {
 		return m, nil
 	}

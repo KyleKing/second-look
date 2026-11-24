@@ -172,7 +172,7 @@ var inboxHints = [][2]string{
 	{"C", "check out"},
 	{"m", "comment"},
 	{"A", "approve"},
-	{"M", "merge"},
+	{"M", mergeVerb},
 	{"l", "labels"},
 	{"o", "GitHub"},
 	{"?", helpArg},
@@ -211,6 +211,7 @@ func (s *inboxScreen) tab() tui.Tab {
 		Sections: s.sections, Act: s.act, State: s.state, Columns: s.columns,
 		Hints: inboxHints, Inert: s.inert, Help: inboxHelp, Loader: s, Rest: s.restedOn,
 		Badge: s.badge, Labeled: s.labeled, Relabel: s.relabel,
+		Rules: inboxRules(), Why: s.why,
 	}
 }
 
@@ -1457,6 +1458,16 @@ func (s *inboxScreen) inert(r *tui.Row) []string {
 	}
 
 	return []string{"M"}
+}
+
+// why is the reason a key does nothing at a row, which the legend and the
+// palette say beside it.
+func (s *inboxScreen) why(r *tui.Row, k string) string {
+	if k == "M" && r != nil && !s.local[r.Key].Mergeable() {
+		return errNotReady.Error()
+	}
+
+	return ""
 }
 
 // remember keeps the opened pull request's directories, which "same area" is

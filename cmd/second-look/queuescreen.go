@@ -82,16 +82,17 @@ func queueOnce(
 			Name:     wordConversations,
 			Sections: th.sections, Act: th.act, State: th.state,
 			Hints: threadsHints, Help: threadsHelp, Loader: th,
-			Badge: th.badge, Columns: th.columns,
+			Badge: th.badge, Columns: th.columns, Rules: threadsRules(),
 		},
 		{
 			Name:     wordStaged,
 			Sections: rv.sections, Act: rv.act, State: rv.state,
 			Hints: reviewsHints, Help: reviewsHelp, Loader: rv, Rest: rv.restedOn,
-			Badge: rv.badge, Columns: rv.columns, Go: stagedGo,
+			Badge: rv.badge, Columns: rv.columns, Go: stagedGo, Rules: reviewsRules(),
 		},
 	}, at).
 		WithLabeling(labeling(".")).
+		WithLedger(ledger()).
 		WithFocusNote(func(repo string) tea.Cmd { return cloneNote(ctx, repo) }).
 		WithFocusChange(func(from, _ string) tea.Cmd { return releaseClaim(from) })
 	list.Restore(where)

@@ -59,6 +59,8 @@ func WithCoachLayout(l coach.Layout) Option {
 // discover builds the palette and the coach once the options have run.
 func (m *Model) discover() {
 	m.pal = palette.New(m.styles.skin)
+	m.welcome = reviewWelcome(m.keys)
+	m.welcome.OpenIfDue(m.ledger)
 	m.coach = coach.New(coach.Config[reviewState]{
 		Ledger: m.ledger, Rules: reviewRules(), Tips: reviewTips(), Start: m.built,
 		Detectors: []coach.Detector{
@@ -249,6 +251,7 @@ func (m *Model) paletteEntries(mode palette.Mode) []palette.Entry {
 		},
 		palette.Entry{Action: cmdTipsOff, What: "stop tips about keys not yet used", Group: screenGroup},
 		palette.Entry{Action: cmdTipsOn, What: "show tips about keys not yet used", Group: screenGroup},
+		coach.WelcomeEntry(),
 	)
 
 	return palette.WithSeen(es, m.coach.Ledger(), false)
@@ -283,6 +286,10 @@ func (m *Model) runPalette(run palette.RunMsg) tea.Cmd {
 	case cmdTipsOff, cmdTipsOn:
 		m.coach.Ledger().SetTipsOff(run.Action == cmdTipsOff)
 		m.say("tips "+strings.TrimPrefix(run.Action, ":tips "), false)
+
+		return nil
+	case coach.WelcomeAction:
+		m.welcome.Open()
 
 		return nil
 	}
@@ -519,6 +526,10 @@ func (m *Model) nextStep() (coach.Suggestion, bool) {
 // else the next step, else the hints alone. In the band layout the next steps
 // and the tip draw above the hints instead.
 func (m *Model) quietFooter() []string {
+	if line := m.welcomeLine(); line != "" {
+		return []string{" " + line}
+	}
+
 	hints := m.hints()
 	tip, tipping := m.coach.Showing()
 	next, ok := m.nextStep()

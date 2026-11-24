@@ -300,12 +300,28 @@ extensions = [".go", ".ts", ".py"]
 	// A config a test already wrote stands; settle only supplies the quiet
 	// default. childEnv re-runs testHome on the way to the screen, so one
 	// written between staging and openReview would otherwise be overwritten.
+	welcomed(t, home)
+
 	path := filepath.Join(home, ".config", "second-look", "config.toml")
 	if _, err := os.Stat(path); err == nil {
 		return
 	}
 
 	write(t, path, []byte(quiet))
+}
+
+// welcomed records the first-run card as already seen, so a screen test opens
+// on the screen rather than behind the card. A ledger a test already wrote
+// stands, which is how the welcome's own test asks for a first run.
+func welcomed(t *testing.T, home string) {
+	t.Helper()
+
+	path := filepath.Join(home, ".local", "state", "second-look", "coach.json")
+	if _, err := os.Stat(path); err == nil {
+		return
+	}
+
+	write(t, path, []byte(`{"first":"2026-01-01T00:00:00Z","welcomed":"2026-01-01T00:00:00Z","tips":{},"ran":{}}`+"\n"))
 }
 
 // quietHome is a home with the prefetch off, which is what every screen test

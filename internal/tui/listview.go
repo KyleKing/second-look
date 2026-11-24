@@ -9,7 +9,6 @@ import (
 	"github.com/kyleking/aragonite/tui/empty"
 	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/keyhint"
-	"github.com/kyleking/aragonite/tui/overlay"
 	"github.com/kyleking/aragonite/tui/preview"
 	uisplit "github.com/kyleking/aragonite/tui/split"
 	"github.com/kyleking/aragonite/tui/table"
@@ -56,11 +55,11 @@ func (l *List) render() string {
 	lines := strings.Split(frame.Render(l.styles.skin, f, l.width, l.height), "\n")
 	if over := l.footerOver(); over != "" {
 		lines[len(lines)-1] = frame.Lit(over, l.width, l.styles.panel)
+	} else if line := l.coachFooter(); line != "" {
+		lines[len(lines)-1] = frame.Lit(line, l.width, l.styles.panel)
 	}
 
-	if l.help {
-		lines = l.helpOver(lines)
-	}
+	lines = l.overBody(lines, f)
 
 	out := strings.Join(lines, "\n")
 	if l.labeler != nil {
@@ -364,25 +363,33 @@ func (l *List) footerHints() []keyhint.Hint {
 	return l.use.brighten(l.keyContext(), hints)
 }
 
-// helpOver floats the legend over the list's bottom corner, the same window
-// the review screen's legend and a waiting chord draw. A key anywhere closes
-// it, so it borrows the screen rather than replacing it.
-func (l *List) helpOver(lines []string) []string {
-	hints := l.helpLines
-	if hints == nil {
-		hints = defaultListHelp()
+// overBody draws what floats over the rows between the header and the footer:
+// the palette, or the first-run card. The header and footer stay in view, so
+// the reader keeps the map of where they are.
+func (l *List) overBody(lines []string, f frame.Frame) []string {
+	top := frame.Top(f)
+	if top >= len(lines)-1 {
+		return lines
 	}
 
-	rows := keyhint.Column(legendStyles(l.styles), asHints(hints), helpWidth(l.width))
-	inner := min(len(rows), l.height-boxBorder-1)
-	l.helpAt = min(l.helpAt, max(0, len(rows)-inner))
-	box := overlay.Box(boxStyles(l.styles), "keys", rows, inner, l.helpAt)
+	body := lines[top : len(lines)-1]
 
-	x, y := l.width-textWidth(box[0])-1, max(0, l.height-len(box)-1)
-	l.helpBox = overlay.At(box, x, y)
+	switch {
+	case l.pal.IsOpen():
+		body = l.pal.Over(body, l.width)
+	case l.welcome.Showing():
+		body = l.welcome.Over(l.styles.skin, body, l.width, len(body))
+	}
 
-	return overlay.Blit(lines, box, x, y)
+	out := slices.Clone(lines[:top])
+	out = append(out, body...)
+
+	return append(out, lines[len(lines)-1])
 }
+
+// paletteRows is how many rows the palette is drawn over, the body and the
+// inspector under it, which a click is read against.
+func (l *List) paletteRows() int { return max(0, l.height-frame.Top(l.frame())-1) }
 
 func defaultListHelp() [][2]string {
 	return [][2]string{
