@@ -132,6 +132,10 @@ type Config struct {
 	// names it, which is the safe default: running an agent is not something to
 	// start on a keystroke nobody configured.
 	Dispatch []string `toml:"dispatch,omitempty"`
+	// Icons is the glyph set drawn beside files and states: "unicode" (the
+	// default, which every terminal measures alike), "nerd" for a Nerd Font,
+	// or "none". ARAGONITE_ICONS overrides it.
+	Icons string `toml:"icons,omitempty"`
 	// Resume is the command T runs instead once the review carries an agent
 	// session, with {session} replaced by it. Unset, every T starts a fresh
 	// one, which is what a tool with no resumable session gets.

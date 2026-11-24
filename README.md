@@ -80,9 +80,10 @@ Re-run it after upgrading so the skill matches the binary. `second-look --help` 
 
 ## Fonts
 
-File headings carry a filetype icon from a [Nerd Font](https://www.nerdfonts.com/), which is
-the default. Set `ARAGONITE_ICONS=unicode` to use glyphs every monospace font has instead; the
-setting is shared with jj-diff and jojo, and no column moves either way.
+File headings and states use glyphs every monospace font has, which is the default because every
+terminal measures them alike. With a [Nerd Font](https://www.nerdfonts.com/) (a Mono one), set
+`icons = "nerd"` in the config or `ARAGONITE_ICONS=nerd` for a filetype icon on each file heading;
+`none` draws no icons. The variable is shared with jj-diff and jojo and wins over the config.
 
 ## More
 

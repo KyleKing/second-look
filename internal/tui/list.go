@@ -1010,7 +1010,7 @@ func (l *List) rebuild() {
 	was := l.current()
 
 	l.lines = l.lines[:0]
-	l.shown = l.filter.narrow(keepFocused(l.focused, l.sections()))
+	l.shown = l.filter.narrow(keepFocused(l.focused, settled(l.sections())))
 	l.baseline = placesOf(l.shown)
 	l.armed = l.armed || anyStale(l.shown)
 	l.stamp()

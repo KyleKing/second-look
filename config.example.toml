@@ -11,6 +11,10 @@ priority = ["priority", "urgent", "hotfix"]
 # rest of the built-in list. A trailing slash matches a directory anywhere.
 generated = ["api/schema/", ".gen.ts"]
 
+# The glyphs beside files and states: "unicode" (the default, the same width in
+# every terminal), "nerd" for a Nerd Font Mono, or "none". ARAGONITE_ICONS wins.
+icons = "unicode"
+
 # How many reviews ahead of the cursor the queue prepares in the background.
 # 0 turns it off.
 prefetch = 3

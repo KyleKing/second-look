@@ -4,7 +4,7 @@
    Chapters  1 of 2            │                                                                                                                           │ Chapter 1 of 2 · shape                   
    ▸ ⇢ the same edit i… shape  │▌⇢ the same edit in 6 files  6 files · 6 hunks · shape  [za] raw                                                           │ the same edit in 6 files                 
      ⇢ (root)            read  │     Shape · 6 files · cards/CardA.tsx                                                                                     │ ⇢ code                                   
-                               │      cards/CardA.tsx  +1 -1                                                                                              │                                          
+                               │     cards/CardA.tsx  +1 -1                                                                                                │                                          
    by symbol and directory: no │       export function CardA() { ───────────────────────────────────────────────────────────────────────────────────────── │ next: (root)                             
    commits to read by          │   3 -   const id = useSuspenseVendor(data => data.id)                                                                     │                                          
    [p] plain  [I] outline      │   3 +   const id = useVendorId()                                                                                          │                                          
@@ -24,13 +24,13 @@
                                │     ○ cards/CardG.tsx · named like them                                                                                   │                                          
                                │                                                                                                                           │                                          
                                │     Beyond the shape                                                                                                      │                                          
-                               │      cards/CardE.tsx  +2 -1                                                                                              │                                          
+                               │     cards/CardE.tsx  +2 -1                                                                                                │                                          
                                │       export function CardE() { ───────────────────────────────────────────────────────────────────────────────────────── │                                          
                                │   3 -   const id = useSuspenseVendor(data => data.id)                                                                     │                                          
                                │   3 +   const id = useVendorId()                                                                                          │                                          
                                │   4 +   const limit = 4                                                                                                   │                                          
                                │   5     return <CardEBody id={id} />                                                                                      │                                          
-                               │      cards/CardF.tsx  +2 -1                                                                                              │                                          
+                               │     cards/CardF.tsx  +2 -1                                                                                                │                                          
                                │       export function CardF() { ───────────────────────────────────────────────────────────────────────────────────────── │                                          
                                │   3 -   const id = useSuspenseVendor(data => data.id)                                                                     │                                          
                                │   3 +   const id = useVendorId()                                                                                          │                                          
@@ -38,7 +38,7 @@
                                │   5     return <CardFBody id={id} />                                                                                      │                                          
                                │                                                                                                                           │                                          
                                │ ⇢ (root)  1 file · 1 hunk                                                                                                 │                                          
-                               │      boot.go  +1 -0                                                                                                      │                                          
+                               │     boot.go  +1 -0                                                                                                        │                                          
                                │   1   func boot() {                                                                                                       │                                          
                                │   2 +     warm(cache)                                                                                                     │                                          
                                │                                                                                                                           │                                          

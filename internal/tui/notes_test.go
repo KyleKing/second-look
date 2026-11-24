@@ -121,7 +121,10 @@ func TestABotsCommentArrivesFoldedAndOpensWhereItIsAsked(t *testing.T) {
 		}
 	}
 
-	for _, want := range []string{"🩺 Stability | 🟠 Major", "split can fail now", "▸ Supported by static analysis"} {
+	// The bot's 🩺 and 🟠 are Unicode 12 emoji, one cell to a terminal on Unicode 9
+	// tables, so they are settled: the stethoscope to a placeholder and the
+	// severity circle to its shape.
+	for _, want := range []string{"◌ Stability | ● Major", "split can fail now", "▸ Supported by static analysis"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("%q is missing:\n%s", want, frame)
 		}

@@ -4,7 +4,7 @@ the same edit i… ─●──────────────────�
                                                                                ┃
 ▌⇢ the same edit in 6 files  6 files · 6 hunks · shape  [za] raw               ┃
      Shape · 6 files · cards/CardA.tsx                                         ┃
-      cards/CardA.tsx  +1 -1                                                  ┃
+     cards/CardA.tsx  +1 -1                                                    ┃
        export function CardA() { ──────────────────────────────────────────────┃
    3 -   const id = useSuspenseVendor(data => data.id)                         ┃
    3 +   const id = useVendorId()                                              ┃

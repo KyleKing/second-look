@@ -1633,6 +1633,8 @@ func loadConfig() (*config.Config, error) {
 		return nil, fmt.Errorf("reading your config: %w", err)
 	}
 
+	tui.UseIcons(cfg.Icons)
+
 	return cfg, nil
 }
 

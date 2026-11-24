@@ -5,13 +5,13 @@
   ▌◆ stop 1 of 1 · the core decision                                                                                                      
       Every save takes the lock before it writes.
       → The route waits on it, with no timeout.
-     ✓  core/lock.go  +1 -0                                                                                                              
+     ✓ core/lock.go  +1 -0                                                                                                                
      4   func save() {                                                                                                                    
      5 +     lock()                                                                                                                       
      6       write()                                                                                                                      
    
    ◆ the lock's caller  1 file · 1 hunk
-        api/route.go  1 more part · 0/2 read  +1 -0                                                                                      
+       api/route.go  1 more part · 0/2 read  +1 -0                                                                                        
     10   func call() {                                                                                                                    
     11 +     waitLock()                                                                                                                   
          ╭─ ⤷ @watch-doggo · unresolved · 1 comment ────────────────────────────────── route.go:11 ─╮
@@ -21,7 +21,7 @@
     12       done()                                                                                                                       
    
    ◆ api  1 file · 1 hunk
-        api/route.go  1 more part · 0/2 read  +1 -1                                                                                      
+       api/route.go  1 more part · 0/2 read  +1 -1                                                                                        
      1   func route() {                                                                                                                   
      2 +     serve(12)                                                                                                                    
    

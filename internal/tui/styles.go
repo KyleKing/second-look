@@ -115,9 +115,22 @@ type terminalLook struct {
 //
 //nolint:gochecknoglobals // a cache of a pure function of the look
 var built = struct {
-	by map[terminalLook]styles
+	by    map[terminalLook]styles
+	icons string
 	sync.Mutex
 }{by: map[terminalLook]styles{}}
+
+// UseIcons sets the configured icon set ("unicode", "nerd", or "none"), which
+// ARAGONITE_ICONS still overrides. A screen opened after it draws with it.
+func UseIcons(setting string) {
+	built.Lock()
+	defer built.Unlock()
+
+	if built.icons != setting {
+		built.icons = setting
+		built.by = map[terminalLook]styles{}
+	}
+}
 
 // loadStyles is what a screen draws with until the terminal has said what it
 // can show: a dark background and an unknown profile, which draws as truecolor
@@ -131,7 +144,7 @@ func stylesAt(l terminalLook) styles {
 
 	st, ok := built.by[l]
 	if !ok {
-		st = newStyles(l)
+		st = newStyles(l, built.icons)
 		built.by[l] = st
 	}
 
@@ -157,7 +170,7 @@ func paletteFor(light bool) theme.Palette {
 	return theme.Ink()
 }
 
-func newStyles(l terminalLook) styles {
+func newStyles(l terminalLook, iconSetting string) styles {
 	p := paletteFor(l.light)
 	sk := skin.For(p, accent(p), l.profile)
 	base := lipgloss.NewStyle()
@@ -187,7 +200,7 @@ func newStyles(l terminalLook) styles {
 		subtitle: sk.Subtitle,
 		file:     sk.Heading,
 		fileBand: sk.FileBand,
-		icons:    icons.New(icons.Resolve(""), p),
+		icons:    icons.New(icons.Resolve(iconSetting), p),
 		hunk:     sk.Muted,
 		// The three diff faces are this screen's own: nothing else here draws a
 		// change, and green-is-added is the one convention a reader brings.

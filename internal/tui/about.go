@@ -8,6 +8,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/glyph"
 
 	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/threads"
@@ -98,7 +99,8 @@ func (m *Model) aboutText(width int) []string {
 		return append(out, m.planText(room)...)
 	}
 
-	out = append(out, " "+m.styles.file.Render(cut(m.about.Title, room)), " "+m.styles.note.Render(m.facts2()))
+	title := glyph.Settle(m.about.Title)
+	out = append(out, " "+m.styles.file.Render(cut(title, room)), " "+m.styles.note.Render(m.facts2()))
 
 	if body := strings.TrimSpace(m.about.Body); body != "" {
 		out = append(out, "")
@@ -162,7 +164,7 @@ func (m *Model) facts2() string {
 func (m *Model) mdLines(body string, room int) []string {
 	var out []string
 
-	for i, b := range ghmd.Parse(body) {
+	for i, b := range ghmd.Parse(glyph.Settle(body)) {
 		if i > 0 {
 			out = append(out, "")
 		}

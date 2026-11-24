@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kyleking/aragonite/tui/glyph"
+
 	"github.com/kyleking/second-look/internal/labels"
 )
 
@@ -29,7 +31,7 @@ type fact struct {
 func (m *Model) title(files []fileStat) string {
 	name := m.styles.title.Render(m.name())
 	facts := m.facts(files)
-	about := m.about.Title
+	about := glyph.Settle(m.about.Title)
 
 	for limit := rankCost; ; limit-- {
 		right := joinFacts(facts, limit)

@@ -38,7 +38,7 @@ func Emojis() []Emoji {
 		{Key: "l", Content: "LAUGH", Glyph: "😄", Name: "laugh"},
 		{Key: "p", Content: "HOORAY", Glyph: "🎉", Name: "hooray"},
 		{Key: "c", Content: "CONFUSED", Glyph: "😕", Name: "confused"},
-		{Key: "h", Content: "HEART", Glyph: "❤️", Name: "heart"},
+		{Key: "h", Content: "HEART", Glyph: "♡", Name: "heart"},
 		{Key: "r", Content: "ROCKET", Glyph: "🚀", Name: "rocket"},
 		{Key: "e", Content: "EYES", Glyph: "👀", Name: "eyes"},
 	}

@@ -4,7 +4,7 @@
                                                                                                                                          ┃
   ▌⇢ the same edit in 6 files  6 files · 6 hunks · shape  [za] raw                                                                       ┃
        Shape · 6 files · cards/CardA.tsx                                                                                                 ┃
-        cards/CardA.tsx  +1 -1                                                                                                          ┃
+       cards/CardA.tsx  +1 -1                                                                                                            ┃
          export function CardA() { ──────────────────────────────────────────────────────────────────────────────────────────────────────┃
      3 -   const id = useSuspenseVendor(data => data.id)                                                                                 ┃
      3 +   const id = useVendorId()                                                                                                      ┃
@@ -24,13 +24,13 @@
        ○ cards/CardG.tsx · named like them                                                                                               ┃
                                                                                                                                          ┃
        Beyond the shape                                                                                                                  ┃
-        cards/CardE.tsx  +2 -1                                                                                                          ┃
+       cards/CardE.tsx  +2 -1                                                                                                            ┃
          export function CardE() { ──────────────────────────────────────────────────────────────────────────────────────────────────────┃
      3 -   const id = useSuspenseVendor(data => data.id)                                                                                 ┃
      3 +   const id = useVendorId()                                                                                                      ┃
      4 +   const limit = 4                                                                                                               ┃
      5     return <CardEBody id={id} />                                                                                                  ┃
-        cards/CardF.tsx  +2 -1                                                                                                          ┃
+       cards/CardF.tsx  +2 -1                                                                                                            ┃
          export function CardF() { ──────────────────────────────────────────────────────────────────────────────────────────────────────┃
      3 -   const id = useSuspenseVendor(data => data.id)                                                                                 ┃
      3 +   const id = useVendorId()                                                                                                      │

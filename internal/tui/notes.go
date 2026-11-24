@@ -3,6 +3,8 @@ package tui
 import (
 	"strings"
 
+	"github.com/kyleking/aragonite/tui/glyph"
+
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/ghmd"
 	"github.com/kyleking/second-look/internal/highlight"
@@ -60,7 +62,7 @@ func noted(ts []threads.Thread) map[noteAt][]ghmd.Block {
 
 	for i := range ts {
 		for j := range ts[i].Notes {
-			out[noteAt{i, j}] = ghmd.Parse(ts[i].Notes[j].Body)
+			out[noteAt{i, j}] = ghmd.Parse(glyph.Settle(ts[i].Notes[j].Body))
 		}
 	}
 

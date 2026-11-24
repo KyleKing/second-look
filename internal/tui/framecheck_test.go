@@ -6,6 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/framecheck"
+
+	"github.com/kyleking/second-look/internal/tui"
 )
 
 // The goldens pin two widths of each frame; the faults they cannot see are the
@@ -68,4 +70,42 @@ func TestEveryOverlayJoinsItsEdgesAtEverySize(t *testing.T) {
 			})
 		}
 	}
+}
+
+// Text from GitHub carries emoji the terminal and lipgloss can measure apart:
+// a VS16 heart, a ZWJ sequence, a text-default warning sign. A queue row holding
+// them is settled before it is measured, so its right column stays put.
+func TestEmojiInATitleKeepsTheRowsAligned(t *testing.T) {
+	t.Parallel()
+
+	sections := func() []tui.Section {
+		return []tui.Section{{Name: "new since you looked", Rows: rowsOfConvs(
+			convRow{
+				key: "T1", repo: "kyleking/tlr", ref: "kyleking/tlr#118", anchor: "pool.go:42", age: "2h",
+				author: "alice", status: "2 replies", title: "❤\U0000FE0F love it ⚠ but \U0001F469\U0000200D\U0001F4BB",
+				unread: true,
+			},
+			convRow{
+				key: "T2", repo: "kyleking/tlr", ref: "kyleking/tlr#119", anchor: "pool.go:50", age: "3h",
+				author: "bob", status: "1 reply", title: "plain ascii title", unread: true,
+			},
+		)}}
+	}
+
+	l := tui.NewTabs([]tui.Tab{{Name: "conversations", Sections: sections, Columns: convColumns}}, 0)
+
+	for _, width := range []int{80, 120} {
+		l.Update(tea.WindowSizeMsg{Width: width, Height: 12})
+		framecheck.Require(t, fmt.Sprintf("queue at %d", width), l.ListFrame(), framecheck.MaxWidth(width))
+	}
+}
+
+// TestChromeIsWidthStable holds every literal in the module to the glyph
+// policy. The reactions are GitHub's own emoji, drawn as content; all seven
+// are Unicode 6 emoji with emoji presentation, two cells in every width table
+// and in tmux, and the heart, whose emoji form needs VS16, is drawn as ♡.
+func TestChromeIsWidthStable(t *testing.T) {
+	t.Parallel()
+
+	framecheck.Source(t, "../..", framecheck.SkipFiles("internal/react/react.go"))
 }
