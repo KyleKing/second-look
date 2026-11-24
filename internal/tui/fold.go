@@ -122,9 +122,7 @@ func (m *Model) compared(h hider) hider {
 // run stays open, because its ⇄ note and the jump to the other end only exist
 // while the hunk is drawn.
 func mechanicalHunks(d *diff.Diff, reindented map[diff.LineRef]bool) map[hunkAt]string {
-	type tally struct{ n, indent int }
-
-	tallies := map[hunkAt]*tally{}
+	tallies := map[hunkAt]*hunkTally{}
 
 	for i := range d.Files {
 		p := filePath(&d.Files[i])
@@ -138,15 +136,11 @@ func mechanicalHunks(d *diff.Diff, reindented map[diff.LineRef]bool) map[hunkAt]
 			t := tallies[at]
 
 			if t == nil {
-				t = &tally{}
+				t = &hunkTally{}
 				tallies[at] = t
 			}
 
-			t.n++
-
-			if reindented[refOf(p, l)] {
-				t.indent++
-			}
+			t.count(l, reindented[refOf(p, l)])
 		}
 	}
 
@@ -156,12 +150,57 @@ func mechanicalHunks(d *diff.Diff, reindented map[diff.LineRef]bool) map[hunkAt]
 		switch {
 		case t.indent == t.n:
 			out[at] = "reindent only"
-		case d.WhitespaceOnly(at.path, at.hunk):
+		case t.balanced() && d.WhitespaceOnly(at.path, at.hunk):
 			out[at] = "whitespace only"
 		}
 	}
 
 	return out
+}
+
+// hunkTally is what mechanicalHunks counts over one hunk's changed lines.
+//
+// A side's nonblank lines and the bytes left on them once spaces and tabs are
+// gone have to agree before the two sides can say the same things, and
+// checking that first keeps WhitespaceOnly, which sorts every line of the hunk,
+// off the hunks that plainly changed text.
+type hunkTally struct{ n, indent, added, removed, addedBytes, removedBytes int }
+
+func (t *hunkTally) count(l diff.Line, reindented bool) {
+	t.n++
+
+	if reindented {
+		t.indent++
+	}
+
+	switch solid := solidBytes(l.Text); {
+	case solid == 0:
+	case l.Kind == diff.KindAdd:
+		t.added++
+		t.addedBytes += solid
+	default:
+		t.removed++
+		t.removedBytes += solid
+	}
+}
+
+// balanced reports whether the two sides could be one another respaced.
+func (t *hunkTally) balanced() bool {
+	return t.added == t.removed && t.addedBytes == t.removedBytes
+}
+
+// solidBytes is how much of a line is left once every space, tab, and carriage
+// return is gone, the three WhitespaceOnly strips.
+func solidBytes(text string) int {
+	n := 0
+
+	for i := range len(text) {
+		if c := text[i]; c != ' ' && c != '\t' && c != '\r' {
+			n++
+		}
+	}
+
+	return n
 }
 
 // structureMsg carries the pass over every hunk. It runs once per diff and the
