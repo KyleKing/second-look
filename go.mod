@@ -6,7 +6,7 @@ require github.com/pelletier/go-toml/v2 v2.4.3
 
 require (
 	charm.land/bubbles/v2 v2.2.1
-	charm.land/bubbletea/v2 v2.1.0
+	charm.land/bubbletea/v2 v2.1.2
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/caelis-labs/acp-go-sdk v1.4.0
@@ -17,7 +17,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/creack/pty v1.1.24
-	github.com/kyleking/aragonite v1.27.0
+	github.com/kyleking/aragonite v1.27.1
 	github.com/lucasb-eyer/go-colorful v1.4.1
 	github.com/mattn/go-sixel v0.0.14
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
