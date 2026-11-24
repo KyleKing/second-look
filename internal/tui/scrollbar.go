@@ -40,43 +40,82 @@ func bodyWidth(width int, bar *overview.Bar) int {
 // the review: which way each change leans, the findings still waiting on a
 // ruling, the drafts not yet sent, and the hunks already read. A row inside the
 // frame is left to the thumb.
-func (m *Model) overviewMarks() []overview.Mark {
-	if m.view != viewDiff {
+//
+// Only one mark survives in each of the track's cells, so the rows are reduced
+// to each cell's winner before any mark is made: the first row of the highest
+// rank, which is what Place itself would keep. Every changed line is a
+// candidate, so making a styled mark per row cost megabytes a frame on a long
+// diff for a track a few dozen cells tall.
+func (m *Model) overviewMarks(bar *overview.Bar) []overview.Mark {
+	cells, total := bar.Height(), len(m.screen.rows)
+	if m.view != viewDiff || cells == 0 || total == 0 {
 		return nil
 	}
 
-	out := make([]overview.Mark, 0, len(m.screen.rows)/4)
+	type winner struct{ row, rank int }
+
+	best := make([]winner, cells)
 
 	for i := range m.screen.rows {
-		if mk, ok := m.markFor(i, &m.screen.rows[i]); ok {
-			out = append(out, mk)
+		rank := m.rankOf(&m.screen.rows[i])
+		if rank == 0 {
+			continue
+		}
+
+		c := &best[i*cells/total]
+		if c.rank < rank {
+			*c = winner{row: i, rank: rank}
+		}
+	}
+
+	out := make([]overview.Mark, 0, cells)
+
+	for _, w := range best {
+		if w.rank != 0 {
+			out = append(out, m.markFor(w.row, &m.screen.rows[w.row]))
 		}
 	}
 
 	return out
 }
 
-// markFor is the mark row i puts on the track, if it puts one there.
-func (m *Model) markFor(i int, r *row) (overview.Mark, bool) {
-	p := m.styles.palette
-
+// rankOf is the rank of the mark a row puts on the track, or 0 for none.
+func (m *Model) rankOf(r *row) int {
 	switch {
-	case r.kind == rowCode && r.line.Kind == diff.KindAdd:
-		return overview.Change(i, p.Green), true
-	case r.kind == rowCode && r.line.Kind == diff.KindRemove:
-		return overview.Change(i, p.Red), true
+	case r.kind == rowCode && (r.line.Kind == diff.KindAdd || r.line.Kind == diff.KindRemove):
+		return overview.RankChange
 	case r.role != roleTop:
 	case r.kind == rowThread && m.awaitsRuling(r.thread):
-		return overview.Act(i, p.Peach), true
+		return overview.RankAct
 	case r.kind == rowComment && m.isDraft(r.comment):
-		return overview.Draft(i, p.Yellow), true
+		return overview.RankDraft
 	}
 
 	if r.kind == rowHunk && r.hunk != 0 && m.read != nil && m.read.Has(m.hunkID(r.path, r.hunk)) {
-		return overview.Done(i, p.Overlay1), true
+		return overview.RankDone
 	}
 
-	return overview.Mark{}, false
+	return 0
+}
+
+// markFor is the mark row i puts on the track, which rankOf has said it puts.
+func (m *Model) markFor(i int, r *row) overview.Mark {
+	p := m.styles.palette
+
+	switch m.rankOf(r) {
+	case overview.RankChange:
+		if r.line.Kind == diff.KindAdd {
+			return overview.Change(i, p.Green)
+		}
+
+		return overview.Change(i, p.Red)
+	case overview.RankAct:
+		return overview.Act(i, p.Peach)
+	case overview.RankDraft:
+		return overview.Draft(i, p.Yellow)
+	default:
+		return overview.Done(i, p.Overlay1)
+	}
 }
 
 // awaitsRuling reports a thread that is a finding nobody has ruled on.

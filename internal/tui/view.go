@@ -614,7 +614,8 @@ func (m *Model) waitLines(body []string) []string {
 // is rewriting so the text stays where it was on the screen.
 func (m *Model) rowLines() []string {
 	h := m.viewHeight()
-	bar := scrollbar(h, len(m.screen.rows), m.offset, m.styles).Place(m.overviewMarks()...)
+	bar := scrollbar(h, len(m.screen.rows), m.offset, m.styles)
+	bar.Place(m.overviewMarks(bar)...)
 	width := bodyWidth(m.diffWidth(), bar)
 
 	out := make([]string, 0, h)
