@@ -1,3 +1,9 @@
+## v0.57.2 (2026-11-24)
+
+### Fix
+
+- **tui**: the palette follows the terminal's colors
+
 ## v0.57.1 (2026-11-24)
 
 ### Fix
