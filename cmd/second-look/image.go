@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 
 	"github.com/kyleking/second-look/internal/ghrun"
@@ -206,19 +205,22 @@ func nextImage(ctx context.Context, stdin io.Reader) bool {
 
 // ttySize answers the terminal's cell size for the box the image is drawn in,
 // falling back to /dev/tty and then to a plain 80x24 when neither descriptor
-// is a terminal.
+// is a terminal. The size comes from term.GetSize, which asks the console API
+// on Windows and the winsize ioctl elsewhere, so this compiles for every
+// release target. Windows has no /dev/tty, so a redirected stdout there lands
+// on the 80x24 fallback.
 func ttySize(stdout io.Writer) (int, int) {
 	if file, ok := stdout.(*os.File); ok {
-		if ws, err := unix.IoctlGetWinsize(int(file.Fd()), unix.TIOCGWINSZ); err == nil {
-			return int(ws.Col), int(ws.Row)
+		if cols, rows, err := term.GetSize(int(file.Fd())); err == nil {
+			return cols, rows
 		}
 	}
 
 	if tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0); err == nil {
 		defer tty.Close() //nolint:errcheck // closing /dev/tty reports nothing
 
-		if ws, err := unix.IoctlGetWinsize(int(tty.Fd()), unix.TIOCGWINSZ); err == nil {
-			return int(ws.Col), int(ws.Row)
+		if cols, rows, err := term.GetSize(int(tty.Fd())); err == nil {
+			return cols, rows
 		}
 	}
 
