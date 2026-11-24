@@ -1,3 +1,9 @@
+## v0.57.1 (2026-11-24)
+
+### Fix
+
+- **tui**: no lone card edge at the body's edges, and a clean 16-color list row
+
 ## v0.57.0 (2026-11-24)
 
 ### Feat
