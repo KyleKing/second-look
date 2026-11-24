@@ -1,3 +1,9 @@
+## v0.54.2 (2026-11-24)
+
+### Perf
+
+- **local**: ask git where a range starts once per open
+
 ## v0.54.1 (2026-11-24)
 
 ### Perf
