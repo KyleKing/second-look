@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -132,7 +133,36 @@ func (m *Model) sideBySide() bool {
 // supportsMillions asks what the terminal can actually mix, which decides how
 // far back the bands are held.
 func supportsMillions() bool {
-	return colorprofile.Detect(os.Stdout, os.Environ()) == colorprofile.TrueColor
+	return terminalProfile() == colorprofile.TrueColor
+}
+
+// profiles is the color profile detected for each environment and stdout the
+// process has run under. Inside tmux, detecting runs `tmux info`, which costs tens of
+// milliseconds on every screen opened; the answer is a function of the
+// environment and the terminal, so it is asked once for each environment.
+var profiles = struct {
+	sync.Mutex
+	by map[string]colorprofile.Profile
+}{by: map[string]colorprofile.Profile{}}
+
+// terminalProfile is what colorprofile.Detect answers for stdout under the
+// process's environment as it is now.
+func terminalProfile() colorprofile.Profile {
+	env := os.Environ()
+	// The key carries which file stdout is, since a test swapping it for a
+	// pipe has changed the terminal without changing the environment.
+	key := fmt.Sprintf("%p\x00", os.Stdout) + strings.Join(env, "\x00")
+
+	profiles.Lock()
+	defer profiles.Unlock()
+
+	p, ok := profiles.by[key]
+	if !ok {
+		p = colorprofile.Detect(os.Stdout, env)
+		profiles.by[key] = p
+	}
+
+	return p
 }
 
 // richStyles are the faces the rich renderer draws with: nightfox's assignments
@@ -196,7 +226,7 @@ func newRichStyles(s styles) richStyles {
 			diff.KindRemove: faces.RemoveWash,
 		},
 		gutter:  base.Foreground(p.Overlay1),
-		colored: colorprofile.Detect(os.Stdout, os.Environ()) > colorprofile.ASCII,
+		colored: terminalProfile() > colorprofile.ASCII,
 		brushes: newBrushes(),
 	}
 }
