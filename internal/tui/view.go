@@ -1026,6 +1026,12 @@ func cut(s string, width int) string {
 		return ""
 	}
 
+	// Truncate measures with the grapheme walk before deciding anything, so a
+	// line that fits, which is nearly every one, is answered here instead.
+	if textWidth(s) <= width {
+		return s
+	}
+
 	return ansi.Truncate(s, width, "…")
 }
 
@@ -1053,7 +1059,79 @@ func pad(s string, width int) string {
 	return s
 }
 
-func textWidth(s string) int { return ansi.StringWidth(s) }
+// textWidth is the cells s takes on screen, escapes taking none.
+func textWidth(s string) int {
+	if w, ok := asciiWidth(s); ok {
+		return w
+	}
+
+	return ansi.StringWidth(s)
+}
+
+// asciiWidth is textWidth for the strings that are printable ASCII and CSI
+// escapes alone, which is most of what the screen measures: code under SGR
+// colors. The ansi package segments every character into grapheme clusters,
+// which was half of drawing a frame, and an ASCII character is always a
+// cluster of its own one cell wide. Anything else answers false and is
+// measured properly.
+func asciiWidth(s string) (int, bool) {
+	const esc, firstPrint, lastPrint = 0x1b, 0x20, 0x7e
+
+	w := 0
+
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+
+		switch {
+		case c >= firstPrint && c <= lastPrint:
+			w++
+		case c == esc:
+			end, ok := csiEnd(s, i)
+			if !ok {
+				return 0, false
+			}
+
+			i = end
+		default:
+			return 0, false
+		}
+	}
+
+	return w, true
+}
+
+// csiEnd is the index of the final byte of the CSI sequence starting at i,
+// in the strict form: parameters, then intermediates, then the final byte.
+func csiEnd(s string, i int) (int, bool) {
+	const (
+		introducer = len("\x1b[")
+		firstParam = 0x30
+		lastParam  = 0x3f
+		firstInter = 0x20
+		lastInter  = 0x2f
+		firstFinal = 0x40
+		lastFinal  = 0x7e
+	)
+
+	if i+1 >= len(s) || s[i+1] != '[' {
+		return 0, false
+	}
+
+	j := i + introducer
+	for j < len(s) && s[j] >= firstParam && s[j] <= lastParam {
+		j++
+	}
+
+	for j < len(s) && s[j] >= firstInter && s[j] <= lastInter {
+		j++
+	}
+
+	if j >= len(s) || s[j] < firstFinal || s[j] > lastFinal {
+		return 0, false
+	}
+
+	return j, true
+}
 
 // words is what the review is carrying, leaving out whatever it carries none
 // of.
