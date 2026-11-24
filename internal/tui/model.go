@@ -78,6 +78,9 @@ type Model struct {
 	// lexing is the files being lexed off the input goroutine, and lexWanted
 	// the ones a frame drew without a grammar that nothing has asked for yet.
 	lexing, lexWanted map[string]bool
+	// stripRuns is the file and directory runs the strip last found the cursor in,
+	// one per kind of run.
+	stripRuns runCaches
 	// header is what the title and strip read off the diff on every frame,
 	// counted once per diff.
 	header headerCache
@@ -4248,7 +4251,7 @@ func (m *Model) viewHeight() int {
 		child = m.paneHeight() + 1
 	}
 
-	return max(1, m.height-headerRows-child-len(m.footerLines()))
+	return max(1, m.height-headerRows-child-m.footerHeight())
 }
 
 // maxOffset is how far the frame may scroll. It looks past the last row by

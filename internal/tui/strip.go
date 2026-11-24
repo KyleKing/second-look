@@ -210,8 +210,8 @@ func (m *Model) strip(files []fileStat, room int) string {
 
 	here := inFile{
 		path:  current,
-		at:    m.through(func(r row) bool { return r.path == current }),
-		dirAt: m.through(func(r row) bool { return r.path != "" && path.Dir(r.path) == path.Dir(current) }),
+		at:    m.through(runKey{name: current}),
+		dirAt: m.through(runKey{name: path.Dir(current), dir: true}),
 	}
 
 	if len(files) <= stripFiles {
@@ -418,28 +418,81 @@ const stripMark = "●"
 
 // through is how far the cursor stands through the run of rows around it that
 // belong, from 0 at the run's first row to 1 at its last.
-func (m *Model) through(belongs func(row) bool) float64 {
+func (m *Model) through(k runKey) float64 {
 	rows := m.screen.rows
 	if len(rows) == 0 {
 		return 0
 	}
 
 	at := min(m.cursor, len(rows)-1)
-	lo, hi := at, at
 
-	for lo > 0 && belongs(rows[lo-1]) {
-		lo--
+	c := &m.stripRuns.file
+	if k.dir {
+		c = &m.stripRuns.dir
 	}
 
-	for hi+1 < len(rows) && belongs(rows[hi+1]) {
-		hi++
-	}
+	lo, hi := c.around(rows, at, k)
 
 	if hi == lo {
 		return 0
 	}
 
 	return float64(at-lo) / float64(hi-lo)
+}
+
+// runKey names a run of rows: the rows of one file, or of one directory.
+type runKey struct {
+	name string
+	dir  bool
+}
+
+func (k runKey) holds(r *row) bool {
+	if k.dir {
+		return r.path != "" && path.Dir(r.path) == k.name
+	}
+
+	return r.path == k.name
+}
+
+// runCaches is one runCache per kind of run, since the strip asks for both on
+// every frame and one cache would trade them back and forth.
+type runCaches struct{ file, dir runCache }
+
+// runCache is the last run through found, which the strip asks for on every
+// frame: walking a long file's rows to its ends per keystroke was a quarter
+// of scrolling through it. It holds while the screen's rows are the same
+// slice (which the cache's own pointer keeps from being reused for another)
+// and the cursor is still inside the run.
+type runCache struct {
+	rows   *row
+	n      int
+	key    runKey
+	lo, hi int
+}
+
+// around is the run of rows k holds that at stands in, walked out from at in
+// both directions. The row at itself need not belong, in which case the run is
+// the rows either side of it and is not kept, since it is that run only from at.
+func (c *runCache) around(rows []row, at int, k runKey) (int, int) {
+	if c.rows == &rows[0] && c.n == len(rows) && c.key == k && at >= c.lo && at <= c.hi {
+		return c.lo, c.hi
+	}
+
+	lo, hi := at, at
+
+	for lo > 0 && k.holds(&rows[lo-1]) {
+		lo--
+	}
+
+	for hi+1 < len(rows) && k.holds(&rows[hi+1]) {
+		hi++
+	}
+
+	if k.holds(&rows[at]) {
+		*c = runCache{rows: &rows[0], n: len(rows), key: k, lo: lo, hi: hi}
+	}
+
+	return lo, hi
 }
 
 func stripGlyph(s seg) string {

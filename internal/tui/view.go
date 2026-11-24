@@ -305,6 +305,21 @@ const maxFailLines = 3
 // one to lead the line and two apart.
 const statusGap = 3
 
+// footerHeight is how many lines footerLines draws, without drawing them
+// where the answer is one. The screen's height is asked several times a
+// keystroke, and fitting the key hints to measure a line that is always one
+// line tall was a fifth of scrolling.
+func (m *Model) footerHeight() int {
+	switch {
+	case m.searching, m.files.typing, m.drafting != nil, m.labeler != nil:
+		return 1
+	case m.helpNote != nil, m.status != "" && m.failed:
+		return len(m.footerLines())
+	}
+
+	return 1
+}
+
 // footerLines is the bottom of the frame. Everything but a failure fits one
 // line; a failure wraps, and whatever still does not fit reaches the
 // scrollback when the screen exits.
