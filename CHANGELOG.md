@@ -1,3 +1,9 @@
+## v0.57.5 (2026-11-24)
+
+### Fix
+
+- **test**: run every test in a home of its own and fail a run that reaches the real one
+
 ## v0.57.4 (2026-11-24)
 
 ### Fix
