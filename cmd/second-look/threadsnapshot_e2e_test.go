@@ -127,6 +127,9 @@ func TestConversationsPaintTheLastQueueAndFetchOnlyWhatMoved(t *testing.T) {
 	}
 
 	sc.await(", now reworded")
+	// The notifications read answers empty and draws nothing, and every gated call polls for the
+	// release on its own, so quitting on the reworded comment can beat it to the stand-in.
+	sc.awaitPlayed(s, 3)
 	sc.press("q")
 
 	if code := sc.wait(); code != 0 {
