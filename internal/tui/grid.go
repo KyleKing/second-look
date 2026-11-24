@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/skin"
 	"github.com/kyleking/aragonite/tui/table"
 )
 
@@ -203,7 +204,7 @@ func (l *List) gridLine(i int, lay table.Layout, reach int) string {
 func (l *List) rowMargin(face lipgloss.Style, lit bool, flash uint8) string {
 	switch {
 	case lit:
-		return face.Inherit(l.styles.selected).Render(cursorBar) + face.Render(" ")
+		return skin.On(face, l.styles.selected).Render(cursorBar) + face.Render(" ")
 	case l.mono && flash > 0:
 		return face.Render(flashMark + " ")
 	}
@@ -225,7 +226,7 @@ func (l *List) fit(spans []Span, c table.Column, w int, waiting, lit bool, face 
 			return ""
 		}
 
-		return face.Inherit(l.styles.role(r, waiting, lit)).Render(text)
+		return skin.On(face, l.styles.role(r, waiting, lit)).Render(text)
 	}
 
 	blank := func(n int) string { return paint(strings.Repeat(" ", n), RoleCell) }

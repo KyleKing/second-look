@@ -428,3 +428,7 @@ func (m *Model) Building() bool { return m.building }
 // that opened one: its only command is the wait that draws the chord's page,
 // which a typist pressing the next key outruns.
 func (m *Model) ChordSeq() int { return m.chordSeq }
+
+// BodyRows are the first and last frame lines (counted from zero) the diff's rows
+// scroll through, for framecheck.Viewport.
+func (m *Model) BodyRows() (int, int) { return headerRows, headerRows + m.viewHeight() - 1 }

@@ -530,6 +530,8 @@ func (m *Model) rowLines() []string {
 		out = append(out, head)
 	}
 
+	first := len(out)
+
 	for i := m.offset; i < len(m.screen.rows) && len(out) < h; i++ {
 		m.lineRows = rowsTo(m.lineRows, len(out), -1)
 
@@ -543,6 +545,20 @@ func (m *Model) rowLines() []string {
 
 			out = append(out, m.editorLines()...)
 			i = m.spanEnd(i)
+
+			continue
+		}
+
+		// A card's top edge on the last body line would be a lid on nothing,
+		// its corners reaching down into the footer, so it waits for the row
+		// under it to have room. Its foot alone on the first line is the same
+		// lid upside down, and draws as the blank it stands for. The cursor's
+		// own card is drawn as is.
+		if lone := m.loneEdge(i, len(out)-first, h-first); lone && m.screen.rows[i].role == roleTop {
+			break
+		} else if lone {
+			out = append(out, "")
+			m.lineRows = rowsTo(m.lineRows, len(out), i)
 
 			continue
 		}
@@ -562,6 +578,25 @@ func (m *Model) rowLines() []string {
 	}
 
 	return alongside(out[:h], bar, m.diffWidth())
+}
+
+// loneEdge reports whether row i, drawn on line at of the h lines under the
+// pinned heading, is a card's top edge on the last line or its foot on the
+// first: an edge with none of its card beside it on screen.
+func (m *Model) loneEdge(i, at, h int) bool {
+	if i == m.cursor {
+		return false
+	}
+
+	switch m.screen.rows[i].role {
+	case roleTop:
+		return at == h-1
+	case roleFoot:
+		return at == 0 && i == m.offset
+	case roleBody, roleFold:
+	}
+
+	return false
 }
 
 // rowsTo pads lines, the row each drawn line belongs to, out to n entries of row.
