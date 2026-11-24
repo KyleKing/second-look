@@ -1,3 +1,9 @@
+## v0.55.0 (2026-11-24)
+
+### Feat
+
+- **tui**: one palette for ? and :, keys that say why they are off, and a coach
+
 ## v0.54.4 (2026-11-24)
 
 ### Fix
