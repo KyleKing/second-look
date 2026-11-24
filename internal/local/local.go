@@ -74,7 +74,7 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 
 	jj := vcs.GetOperations(abs).VCSType() == vcs.TypeJJ
 
-	patch, tip, err := diffFor(ctx, abs, jj, mode, base)
+	patch, tip, fork, err := diffFor(ctx, abs, jj, mode, base)
 	if err != nil {
 		return nil, err
 	}
@@ -92,9 +92,9 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 	// What the change claims is one more subprocess, and nothing it reads
 	// depends on the commits, so it runs beside them rather than after.
 	claimed := make(chan string, 1)
-	go func() { claimed <- claimText(ctx, abs, jj, mode, base) }()
+	go func() { claimed <- claimText(ctx, abs, jj, mode, base, fork) }()
 
-	listed, why := commitsOf(ctx, abs, jj, mode, base, tip, d)
+	listed, why := commitsOf(ctx, abs, jj, mode, base, tip, fork, d)
 	claim := <-claimed
 
 	seenPath := seen.LocalPath(abs)
@@ -118,8 +118,9 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 }
 
 // commitsOf is each commit or revision the change spans with the hunks it wrote,
-// or why there are none. A working copy spans none.
-func commitsOf(ctx context.Context, root string, jj bool, mode Mode, base, tip string, d *diff.Diff,
+// or why there are none. A working copy spans none. The fork is where diffFor
+// found the change starts, empty where it did not look.
+func commitsOf(ctx context.Context, root string, jj bool, mode Mode, base, tip, fork string, d *diff.Diff,
 ) ([]plan.Commit, string) {
 	var (
 		listed []plan.Commit
@@ -132,9 +133,11 @@ func commitsOf(ctx context.Context, root string, jj bool, mode Mode, base, tip s
 	case Revset:
 		listed, err = commits.JJ(ctx, root, base, d)
 	case Branch, Range:
-		fork, ferr := forkOf(ctx, root, jj, mode, base)
-		if ferr != nil {
-			return nil, "finding where the change starts: " + ferr.Error()
+		if fork == "" {
+			var ferr error
+			if fork, ferr = forkOf(ctx, root, jj, mode, base); ferr != nil {
+				return nil, "finding where the change starts: " + ferr.Error()
+			}
 		}
 
 		if jj {
@@ -175,7 +178,10 @@ func title(review *artifact.Review, jj bool, mode Mode, spec string, listed []pl
 // backend. A git working copy carries no description of its own, which the
 // question it feeds answers as "nothing claims anything" rather than
 // borrowing HEAD's message, which is the base's intent, not the change's.
-func claimText(ctx context.Context, root string, jj bool, mode Mode, base string) string {
+//
+// The fork is where diffFor found a git branch leaves its base, which saves
+// asking git again.
+func claimText(ctx context.Context, root string, jj bool, mode Mode, base, fork string) string {
 	if mode == Branch && base == "" {
 		base = gitBase
 		if jj {
@@ -205,9 +211,11 @@ func claimText(ctx context.Context, root string, jj bool, mode Mode, base string
 	case mode == Worktree:
 		return ""
 	default:
-		fork, ferr := mergeBase(ctx, root, jj, base)
-		if ferr != nil {
-			return ""
+		if fork == "" {
+			var ferr error
+			if fork, ferr = mergeBase(ctx, root, jj, base); ferr != nil {
+				return ""
+			}
 		}
 
 		out, err = run(ctx, root, "git", "log", "--format=%B", fork+"..HEAD")
@@ -227,7 +235,7 @@ func Patch(ctx context.Context, root string, mode Mode, base string) ([]byte, er
 		return nil, err
 	}
 
-	patch, _, err := diffFor(ctx, abs, vcs.GetOperations(abs).VCSType() == vcs.TypeJJ, mode, base)
+	patch, _, _, err := diffFor(ctx, abs, vcs.GetOperations(abs).VCSType() == vcs.TypeJJ, mode, base)
 
 	return patch, err
 }
@@ -246,14 +254,23 @@ func Reader(root string, mode Mode, tip string, jj bool) blob.Reader {
 
 // diffFor is the patch and the tip it was taken at. The tip is @ for jj —
 // the working-copy change is itself a commit — and HEAD for git.
-func diffFor(ctx context.Context, root string, jj bool, mode Mode, base string) ([]byte, string, error) {
+func diffFor(ctx context.Context, root string, jj bool, mode Mode, base string) ([]byte, string, string, error) {
 	switch {
 	case mode == Range && jj:
-		return nil, "", ErrRangeInJJ
+		return nil, "", "", ErrRangeInJJ
 	case mode == Revset && !jj:
-		return nil, "", ErrRevsetGit
+		return nil, "", "", ErrRevsetGit
+	case mode == Range || mode == Revset:
+		// A span names its own tip, so the working copy's is not asked for.
+		return spanDiff(ctx, root, mode, base)
 	}
 
+	return headDiff(ctx, root, jj, mode, base)
+}
+
+// headDiff is the patch of the working copy or of a branch, its tip, and where
+// a branch leaves its base.
+func headDiff(ctx context.Context, root string, jj bool, mode Mode, base string) ([]byte, string, string, error) {
 	bin, at := "git", headRev
 	if jj {
 		bin, at = "jj", "@"
@@ -261,8 +278,10 @@ func diffFor(ctx context.Context, root string, jj bool, mode Mode, base string) 
 
 	tip, err := revision(ctx, root, jj, at)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
+
+	var fork string
 
 	// --no-ext-diff because a configured diff.external would render something
 	// that is not a patch, which is all diff.Parse can read.
@@ -276,9 +295,8 @@ func diffFor(ctx context.Context, root string, jj bool, mode Mode, base string) 
 			args = []string{diffCmd, headRev, "--no-color", "--no-ext-diff"}
 		}
 	case Branch:
-		fork, err := mergeBase(ctx, root, jj, base)
-		if err != nil {
-			return nil, "", err
+		if fork, err = mergeBase(ctx, root, jj, base); err != nil {
+			return nil, "", "", err
 		}
 
 		if jj {
@@ -287,60 +305,61 @@ func diffFor(ctx context.Context, root string, jj bool, mode Mode, base string) 
 			args = []string{diffCmd, fork, headRev, "--no-color", "--no-ext-diff"}
 		}
 	case Range, Revset:
-		return spanDiff(ctx, root, mode, base)
+		// Answered by spanDiff before the tip was read.
 	}
 
 	out, err := run(ctx, root, bin, args...)
 	if err != nil {
-		return nil, "", fmt.Errorf("reading the diff: %w", err)
+		return nil, "", "", fmt.Errorf("reading the diff: %w", err)
 	}
 
-	return []byte(out), tip, nil
+	return []byte(out), tip, fork, nil
 }
 
-// spanDiff is the cumulative patch of a git range or a jj revset, and its tip.
-func spanDiff(ctx context.Context, root string, mode Mode, spec string) ([]byte, string, error) {
+// spanDiff is the cumulative patch of a git range or a jj revset, its tip, and
+// where a git range starts.
+func spanDiff(ctx context.Context, root string, mode Mode, spec string) ([]byte, string, string, error) {
 	if mode == Revset {
 		heads, err := run(ctx, root, "jj", "log", "--no-graph", "--no-pager", "-r", "heads("+spec+")",
 			"-T", `commit_id ++ "\n"`)
 		if err != nil {
-			return nil, "", fmt.Errorf("resolving %s: %w", spec, err)
+			return nil, "", "", fmt.Errorf("resolving %s: %w", spec, err)
 		}
 
 		tips := strings.Fields(heads)
 		if len(tips) != 1 {
-			return nil, "", fmt.Errorf("%s: %w", spec, ErrHeads)
+			return nil, "", "", fmt.Errorf("%s: %w", spec, ErrHeads)
 		}
 
 		out, err := run(ctx, root, "jj", diffCmd, "--git", "--no-pager", "-r", spec)
 		if err != nil {
-			return nil, "", fmt.Errorf("reading the diff: %w", err)
+			return nil, "", "", fmt.Errorf("reading the diff: %w", err)
 		}
 
-		return []byte(out), tips[0], nil
+		return []byte(out), tips[0], "", nil
 	}
 
 	fork, err := forkOf(ctx, root, false, mode, spec)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 
 	_, to, err := split(spec)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 
 	tip, err := revision(ctx, root, false, to)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 
 	out, err := run(ctx, root, "git", diffCmd, fork, tip, "--no-color", "--no-ext-diff")
 	if err != nil {
-		return nil, "", fmt.Errorf("reading the diff: %w", err)
+		return nil, "", "", fmt.Errorf("reading the diff: %w", err)
 	}
 
-	return []byte(out), tip, nil
+	return []byte(out), tip, fork, nil
 }
 
 // forkOf is where a branch or a git range starts: the commit its two ends last
