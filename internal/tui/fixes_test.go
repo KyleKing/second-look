@@ -59,7 +59,7 @@ func todoModel(t *testing.T, h *handoffs, dispatch bool) (*tui.Model, *counter) 
 func TestSubmitAsksWhoGetsTheFixes(t *testing.T) {
 	t.Parallel()
 
-	prefix := "Pr  1 todo  fixes go to  [l]ocal agent  [n]obody  [enter] "
+	prefix := "Pr  1 todo  fixes go to  l local agent   n nobody   enter "
 
 	tests := []struct {
 		name    string
@@ -140,7 +140,7 @@ func TestPostingOneTodoReplyAsksWhoGetsTheFix(t *testing.T) {
 		sets   int
 		footer string
 	}{
-		{name: "asks", sent: 0, footer: "Pp  1 todo  fixes go to  [l]ocal agent  [n]obody"},
+		{name: "asks", sent: 0, footer: "Pp  1 todo  fixes go to  l local agent   n nobody"},
 		{
 			name: "local hands the finding to the agent", keys: []tea.KeyPressMsg{key('l')},
 			sent: 1, sets: 1, footer: "posted reply-1500 · handed 1 todo to the local agent",

@@ -80,11 +80,15 @@ func bareLine(s styles, hints [][2]string) string {
 	return keyhint.Line(keyhint.Styles{Key: s.hintKey, Text: s.hintWord, Bare: true, Gap: "  "}, asHints(hints))
 }
 
-// hintLine spells keys as unstyled text for a status message, bracketed the way
-// the footer brackets them.
+// hintLine spells keys as unstyled text for a status message, bare the way the
+// footer draws them: each key and then its word, a gap from the next.
 func hintLine(hints [][2]string) string {
-	return keyhint.Line(keyhint.Styles{}, asHints(hints))
+	return keyhint.Line(keyhint.Styles{Bare: true, Gap: statusGapText}, asHints(hints))
 }
+
+// statusGapText parts one key from the next in a status line, wider than the
+// space inside a hint so the pairs stay apart without color.
+const statusGapText = "   "
 
 // footerStyles draws the footer's keys bare: the key in the accent and its word
 // quieter, three cells from the next.

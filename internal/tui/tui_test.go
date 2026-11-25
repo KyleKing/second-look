@@ -1991,7 +1991,7 @@ func TestSubmitAsksFirst(t *testing.T) {
 		frame string
 		event string
 	}{
-		{"asks", nil, 0, "[a]pprove", ""},
+		{"asks", nil, 0, "a approve", ""},
 		{
 			name: "commenting", after: []tea.KeyPressMsg{{Code: 'c', Text: "c"}},
 			posts: 1, frame: "posted 3 comments", event: artifact.EventComment,
@@ -2613,7 +2613,7 @@ func TestWritingANewCommentOnTheLineUnderTheCursor(t *testing.T) {
 
 	press(t, m, tea.KeyPressMsg{Code: 'i', Text: "i"})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "[b]locker") {
+	if got := plain(m.Frame()); !strings.Contains(got, "b blocker") {
 		t.Fatalf("a did not offer a severity:\n%s", got)
 	}
 

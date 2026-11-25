@@ -519,7 +519,7 @@ func TestReviewScreenAsksWhoGetsATodoReplyFix(t *testing.T) {
 	sc.await("testdata/fixture/sample.go")
 	sc.press("P")
 	sc.press("c")
-	sc.await("fixes go to  [l]ocal agent  [n]obody")
+	sc.await("fixes go to  l local agent   n nobody")
 	sc.press("n")
 	sc.await("posted 1 reply")
 	sc.press("q")

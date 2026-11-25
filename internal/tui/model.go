@@ -2272,7 +2272,7 @@ func (m *Model) toNote(step int) bool {
 
 // chord is what the second key can be, shown while the first is waiting.
 func (*Model) chord(prefix string, hints [][2]string) string {
-	return prefix + keyhint.Gap + keyhint.Line(keyhint.Styles{}, asHints(hints))
+	return prefix + keyhint.Gap + hintLine(hints)
 }
 
 // moved handles every key that only changes where the cursor is, so the action

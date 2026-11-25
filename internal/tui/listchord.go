@@ -49,7 +49,7 @@ func chordPage(prefix rune) [][2]string {
 
 // chordCaption is the chord's page drawn as keyhints while it waits.
 func chordCaption(prefix rune) string {
-	return string(prefix) + keyhint.Gap + keyhint.Line(keyhint.Styles{}, asHints(chordPage(prefix)))
+	return string(prefix) + keyhint.Gap + hintLine(chordPage(prefix))
 }
 
 // completeChord answers a chord's second key: what the page offered, or a

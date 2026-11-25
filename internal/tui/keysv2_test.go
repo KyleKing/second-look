@@ -112,7 +112,7 @@ func TestMovedKey_SaysWhereItWentOnTheQueue(t *testing.T) {
 		{[]tea.KeyPressMsg{{Code: 'u', Text: "u"}}, "u moved to ]u"},
 		{[]tea.KeyPressMsg{{Code: 'U', Text: "U"}}, "U moved to [u"},
 		{[]tea.KeyPressMsg{{Code: 'g', Text: "g"}, {Code: 'c', Text: "c"}}, "gc moved to :clean"},
-		{[]tea.KeyPressMsg{{Code: ']', Text: "]"}}, "next [q]ueue"},
+		{[]tea.KeyPressMsg{{Code: ']', Text: "]"}}, "q next queue"},
 		{[]tea.KeyPressMsg{{Code: ']', Text: "]"}, {Code: 'q', Text: "q"}}, "this screen holds one queue"},
 	} {
 		t.Run(tc.says, func(t *testing.T) {
