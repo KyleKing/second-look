@@ -1,3 +1,10 @@
+## v0.60.2 (2026-11-25)
+
+### Fix
+
+- **tui**: spell status-line keys bare, as the footer does
+- **tui**: draw card feet as bare keyhints read from the keymap
+
 ## v0.60.1 (2026-11-25)
 
 ### Fix
