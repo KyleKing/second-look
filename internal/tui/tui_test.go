@@ -126,6 +126,16 @@ func press(tb testing.TB, m *tui.Model, k tea.KeyPressMsg) {
 		return
 	}
 
+	m.Update(answer(tb, k, cmd))
+}
+
+// answer runs one command and returns its message. A command that does not
+// answer within the deadlock fails the test, since only a hang takes that long.
+//
+//nolint:ireturn // a command answers with whatever message it carries
+func answer(tb testing.TB, k tea.KeyPressMsg, cmd tea.Cmd) tea.Msg {
+	tb.Helper()
+
 	const deadlock = 10 * time.Second
 
 	done := make(chan tea.Msg, 1)
@@ -133,9 +143,11 @@ func press(tb testing.TB, m *tui.Model, k tea.KeyPressMsg) {
 
 	select {
 	case msg := <-done:
-		m.Update(msg)
+		return msg
 	case <-time.After(deadlock):
 		tb.Fatalf("the command for %s did not answer within %s", k.String(), deadlock)
+
+		return nil
 	}
 }
 

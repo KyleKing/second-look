@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/diff"
@@ -356,7 +355,7 @@ func TestGoLabelsTheNamesAndPeeksAtTheOneChosen(t *testing.T) {
 					t.Fatalf("the names are not labeled a, s, d, f:\n%s", row)
 				}
 
-				drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+				drive(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
 
 				want := []ask{{line: 15, col: len("\tlines, err := "), kind: tt.kind}}
 				if fmt.Sprint(p.asked) != fmt.Sprint(want) {
@@ -389,7 +388,7 @@ func TestGoAsksAtOnceForOneNameAndEscCancelsAPick(t *testing.T) {
 	go2(t, m, ']', 'h')
 	press(t, m, tea.KeyPressMsg{Code: 'j', Text: "j"})
 	press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
-	drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+	drive(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
 
 	if len(p.asked) != 1 || p.asked[0].col != len("\t") {
 		t.Fatalf("the only name was not asked about at once: %+v", p.asked)
@@ -432,7 +431,7 @@ func TestPeekClosesOnEscAndOnMovingOff(t *testing.T) {
 			onto(t, m, splitLine)
 			press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 			press(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
-			drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+			drive(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
 
 			if !strings.Contains(plain(m.Frame()), "⇢ split") {
 				t.Fatalf("no card to close:\n%s", plain(m.Frame()))
@@ -467,7 +466,7 @@ func TestPeekWalksReferencesAndReadsOutsideTheCheckout(t *testing.T) {
 	onto(t, m, splitLine)
 	press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 	press(t, m, tea.KeyPressMsg{Code: 'r', Text: "r"})
-	drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+	drive(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
 
 	if row := cursorText(m); !strings.Contains(row, "dep.go:3  // Thing is shared.") {
 		t.Fatalf("the cursor is not on the first reference:\n%s", plain(m.Frame()))
@@ -558,11 +557,22 @@ func peekableWith(t *testing.T, p tui.Prober, read tui.Blobs, opts ...tui.Option
 
 // drive presses a key and feeds what it set in motion back until nothing is
 // left, which press() does not reach: a batch's children each answer with a
-// message of their own.
-func drive(m *tui.Model, k tea.KeyPressMsg) {
-	const patience = 100 * time.Millisecond
+// message of their own. Every command is waited on, because a deadline that
+// gives up on a slow answer drops it under load and the assertion after reads
+// a screen the answer never reached. A key that opens a chord leaves its wait
+// unrun, as press does; a pane's watch never answers, so a key that seats one
+// is pressed rather than driven.
+func drive(tb testing.TB, m *tui.Model, k tea.KeyPressMsg) {
+	tb.Helper()
 
-	queue := []tea.Cmd{func() tea.Msg { _, cmd := m.Update(k); return ranMsg{cmd} }}
+	opened := m.ChordSeq()
+
+	_, cmd := m.Update(k)
+	if m.ChordSeq() != opened {
+		return
+	}
+
+	queue := []tea.Cmd{cmd}
 	for len(queue) > 0 {
 		cmd := queue[0]
 		queue = queue[1:]
@@ -571,20 +581,7 @@ func drive(m *tui.Model, k tea.KeyPressMsg) {
 			continue
 		}
 
-		done := make(chan tea.Msg, 1)
-		go func() { done <- cmd() }()
-
-		var msg tea.Msg
-
-		select {
-		case msg = <-done:
-		case <-time.After(patience):
-			continue
-		}
-
-		switch msg := msg.(type) {
-		case ranMsg:
-			queue = append(queue, msg.cmd)
+		switch msg := answer(tb, k, cmd).(type) {
 		case tea.BatchMsg:
 			queue = append(queue, msg...)
 		default:
@@ -593,9 +590,6 @@ func drive(m *tui.Model, k tea.KeyPressMsg) {
 		}
 	}
 }
-
-// ranMsg carries the command an Update returned so the loop above can run it.
-type ranMsg struct{ cmd tea.Cmd }
 
 // gg keeps the top g used to reach on its own.
 func TestGGIsStillTheTop(t *testing.T) {
@@ -790,7 +784,7 @@ func graphed(t *testing.T, p *prober) *tui.Model {
 	go2(t, m, ']', 'h')
 	onto(t, m, splitLine)
 	press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
-	drive(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+	drive(t, m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 
 	return m
 }
@@ -813,7 +807,7 @@ func TestCallGraphDrawsTheFunctionTheLineIsIn(t *testing.T) {
 			go2(t, m, ']', 'h')
 			onto(t, m, splitLine)
 			press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
-			drive(m, tea.KeyPressMsg{Code: 'c', Text: "c"})
+			drive(t, m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 
 			if want := []diag.Site{{Path: parsed, Line: 15}}; fmt.Sprint(p.called) != fmt.Sprint(want) {
 				t.Fatalf("asked %+v, want %+v", p.called, want)
@@ -867,7 +861,7 @@ func TestCallGraphWalksExpandsOpensAndRecenters(t *testing.T) {
 
 	press(t, m, key('k'))
 	press(t, m, key('g'))
-	drive(m, key('c'))
+	drive(t, m, key('c'))
 
 	asked := []diag.Site{{Path: parsed, Line: 15}, {Path: parsed, Line: 40}}
 	if fmt.Sprint(p.called) != fmt.Sprint(asked) {

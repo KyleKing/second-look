@@ -50,8 +50,8 @@ func TestGFOpensTheFileInAPane(t *testing.T) {
 
 			onto(t, m, "lines, err := split(r)")
 			tt.setup(t, m)
-			drive(m, tea.KeyPressMsg{Code: 'g', Text: "g"})
-			drive(m, tea.KeyPressMsg{Code: 'f', Text: "f"})
+			press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
+			press(t, m, tea.KeyPressMsg{Code: 'f', Text: "f"})
 
 			if frame := paneFrame(t, m); !strings.Contains(frame, tt.want) {
 				t.Errorf("the editor was not opened with %q:\n%s", tt.want, frame)
@@ -101,7 +101,7 @@ func peekAt(t *testing.T, m *tui.Model) {
 
 	press(t, m, tea.KeyPressMsg{Code: 'g', Text: "g"})
 	press(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
-	drive(m, tea.KeyPressMsg{Code: 'd', Text: "d"})
+	drive(t, m, tea.KeyPressMsg{Code: 'd', Text: "d"})
 }
 
 // fileAt is a file of twenty lines whose line fifteen is the added one.
@@ -207,7 +207,7 @@ func TestAskingAboutALineOutsideTheDiff(t *testing.T) {
 		pressKey(t, m, k)
 	}
 
-	drive(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	drive(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if !strings.Contains(asked, "line 12 of io/read.go") || !strings.Contains(asked, "what is twelve?") {
 		t.Errorf("the agent was not given the file's own line:\n%s", asked)
