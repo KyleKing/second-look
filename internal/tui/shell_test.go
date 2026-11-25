@@ -18,49 +18,66 @@ import (
 var errNoSuchReview = errors.New("gh said no")
 
 // pump runs what a command answered back into the shell, the way the program
-// loop does, and reports whether the shell asked to quit.
+// loop does, until nothing is left, and reports whether the shell asked to quit.
 //
-// A command that has not answered quickly is dropped rather than waited on: the
-// review screen's watcher and the queue's settle timer both reschedule forever,
-// and the program loop runs them in the background anyway.
+// Every command is waited on, because a deadline that gives up on a slow
+// answer drops it under load and the assertion after reads a screen the answer
+// never reached (the flake drive had, fixed in c009f36). The commands run at
+// once, as the program loop runs them, and their answers reach Update one at a
+// time on the test goroutine. A tick that only schedules the next one (the
+// review's artifact watcher, the queue's wait glyph) is dropped once it
+// answers, since feeding it back would never let the queue empty.
 func pump(t *testing.T, s *tui.Shell, cmd tea.Cmd) bool {
 	t.Helper()
 
-	if cmd == nil {
-		return false
-	}
+	const deadlock = 10 * time.Second
 
-	const patience = 100 * time.Millisecond
-
-	answered := make(chan tea.Msg, 1)
-	go func() { answered <- cmd() }()
-
-	var msg tea.Msg
-
-	select {
-	case msg = <-answered:
-	case <-time.After(patience):
-		return false
-	}
-
-	switch msg := msg.(type) {
-	case nil:
-		return false
-	case tea.QuitMsg:
-		return true
-	case tea.BatchMsg:
-		quit := false
-
-		for _, c := range msg {
-			quit = pump(t, s, c) || quit
+	answers := make(chan tea.Msg)
+	pending := 0
+	start := func(c tea.Cmd) {
+		if c == nil {
+			return
 		}
 
-		return quit
-	default:
-		_, next := s.Update(msg)
+		pending++
 
-		return pump(t, s, next)
+		go func() { answers <- c() }()
 	}
+
+	start(cmd)
+
+	quit := false
+	deadline := time.After(deadlock)
+
+	for pending > 0 {
+		var msg tea.Msg
+
+		select {
+		case msg = <-answers:
+			pending--
+		case <-deadline:
+			t.Fatalf("%d commands did not answer within %s", pending, deadlock)
+		}
+
+		switch msg := msg.(type) {
+		case nil:
+		case tea.QuitMsg:
+			quit = true
+		case tea.BatchMsg:
+			for _, c := range msg {
+				start(c)
+			}
+		default:
+			if tui.Recurs(msg) {
+				continue
+			}
+
+			_, next := s.Update(msg)
+			start(next)
+		}
+	}
+
+	return quit
 }
 
 // sendTo presses a key and runs what it asked for, reporting a quit.

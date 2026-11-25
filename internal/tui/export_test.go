@@ -432,3 +432,15 @@ func (m *Model) ChordSeq() int { return m.chordSeq }
 // BodyRows are the first and last frame lines (counted from zero) the diff's rows
 // scroll through, for framecheck.Viewport.
 func (m *Model) BodyRows() (int, int) { return headerRows, headerRows + m.viewHeight() - 1 }
+
+// Recurs reports whether msg is a tick that schedules the next one when it is
+// answered (the artifact watcher's, the wait glyph's), which a test feeding
+// commands back to a fixed point has to drop or it never reaches one.
+func Recurs(msg tea.Msg) bool {
+	switch msg.(type) {
+	case reloadMsg, spinMsg:
+		return true
+	}
+
+	return false
+}
