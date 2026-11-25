@@ -29,9 +29,10 @@ const (
 	refreshKey  = "ctrl+l"
 	// The old refresh, which answers with where it went for one release.
 	ctrlR = "ctrl+r"
-	// The in-place editor's put-back lives inside a text field, where the
-	// screen's keys do not reach, so it keeps ctrl+r.
-	putBackKey = ctrlR
+	// The in-place editor's put-back. It lived on ctrl+r until the editor
+	// became a vim field, whose normal mode answers ctrl+r with redo; ctrl+g
+	// is free in both of the field's modes and reserved by no family key.
+	putBackKey = "ctrl+g"
 	// The word for the space tick on every screen here.
 	readTick    = "read"
 	spaceKey    = "space"
@@ -372,7 +373,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "!", What: "a shell"},
 		{Key: "T", What: "todos to an agent, or on an empty review, asks one to draft it"},
 		{What: "T again reopens the pane; ctrl+x stops the turn, ctrl+\\ ends the session"},
-		{What: "writing: enter saves, ctrl+j a new line, esc keeps it; ctrl+t swaps in an agent's, ctrl+n completes"},
+		{What: "writing is vim, esc twice keeps it; enter saves, ctrl+j a new line; ctrl+t swaps in an agent's"},
 		{What: "conversations", Head: true},
 		{Key: "R", What: "resolve the thread, with r/t/x its other verdicts"},
 		{Key: ",", What: "a reaction", Kids: asHints(reactObjects())},

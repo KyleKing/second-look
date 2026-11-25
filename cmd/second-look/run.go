@@ -736,7 +736,7 @@ func localScreen(ctx context.Context, root string, mode local.Mode, base string)
 		tui.WithGenerated(generatedPatterns()), tui.WithPlanRules(planRules(opened.Review)),
 		tui.WithCommits(opened.Commits, opened.NoCommits),
 		tui.WithAdvisor(advisory.Client{}), tui.WithVersions(versions.Client{}),
-		tui.WithLedger(ledger()), tui.WithCoachLayout(coachLayout()),
+		tui.WithLedger(ledger()), tui.WithCoachLayout(coachLayout()), tui.WithVim(vimFields()),
 	}
 
 	if opened.Shared != nil {
@@ -1608,7 +1608,18 @@ func planRules(r *artifact.Review) plan.Rules {
 // discoverOptions are the coach's memory and layout, which every review
 // screen takes.
 func discoverOptions() []tui.Option {
-	return []tui.Option{tui.WithLedger(ledger()), tui.WithCoachLayout(coachLayout())}
+	return []tui.Option{tui.WithLedger(ledger()), tui.WithCoachLayout(coachLayout()), tui.WithVim(vimFields())}
+}
+
+// vimFields is the config's vim key, on where it is unset or the file cannot
+// be read.
+func vimFields() bool {
+	cfg, err := loadConfig()
+	if err != nil {
+		return true
+	}
+
+	return cfg.VimFields()
 }
 
 // ledger is the coach's local record of tips shown and commands run, under

@@ -265,6 +265,22 @@ func (s *screen) awaitPlayed(session *ghcassette.Session, want int) {
 	s.t.Fatalf("waiting for %d gh calls, saw %d; the screen wrote:\n%s", want, len(session.Played(s.t)), s.text())
 }
 
+// awaitRecorded blocks until the program has made every call the cassette at
+// path holds. A test that quits and then requires them all played has to wait
+// for this rather than for a frame: a screen reads behind its first frame (the
+// commit list, the head check, a queue's searches), and q pressed while one is
+// still out leaves it unsent under load.
+func (s *screen) awaitRecorded(session *ghcassette.Session, path string) {
+	s.t.Helper()
+
+	recorded, err := ghcassette.Load(path)
+	if err != nil {
+		s.t.Fatalf("loading the cassette: %v", err)
+	}
+
+	s.awaitPlayed(session, len(recorded.Interactions))
+}
+
 // feed shows what the program wrote. A chunk drawn for the old size can land in
 // the emulator of the new one after a resize, and the library panics scrolling
 // a row past its end, so that chunk is dropped: the redraw that follows a
@@ -446,7 +462,8 @@ func TestReviewScreenSubmits(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, reviewCassette(t, sha))
+	cassette := reviewCassette(t, sha)
+	s := ghcassette.Replay(t, cassette)
 	seedReview(t, dir, sha)
 
 	sc := openReview(t, s, dir, "2")
@@ -465,6 +482,7 @@ func TestReviewScreenSubmits(t *testing.T) {
 	sc.press("P")
 	sc.press("c")
 	sc.await("posted 4 comments")
+	sc.awaitRecorded(s, cassette)
 
 	sc.press("q")
 
@@ -498,14 +516,15 @@ func TestReviewScreenAsksWhoGetsATodoReplyFix(t *testing.T) {
 
 	dir, sha := scratchRepo(t, headBranch)
 
-	s := ghcassette.Replay(t, deriveFrom(t, "post-reply", "todo-reply", func(c *ghcassette.Cassette) {
+	cassette := deriveFrom(t, "post-reply", "todo-reply", func(c *ghcassette.Cassette) {
 		inCheckout(c)
 		restamp(c, sha)
 
 		all := c.Interactions
 		c.Interactions = slices.Concat(all[:reads], threadInteraction(t),
 			[]ghcassette.Interaction{commitsInteraction(nil, nil)}, all)
-	}))
+	})
+	s := ghcassette.Replay(t, cassette)
 
 	raw, err := os.ReadFile(filepath.Join("testdata", "review", "reply.toml"))
 	if err != nil {
@@ -522,6 +541,7 @@ func TestReviewScreenAsksWhoGetsATodoReplyFix(t *testing.T) {
 	sc.await("fixes go to  l local agent   n nobody")
 	sc.press("n")
 	sc.await("posted 1 reply")
+	sc.awaitRecorded(s, cassette)
 	sc.press("q")
 
 	if code := sc.wait(); code != 0 {
@@ -538,7 +558,8 @@ func TestReviewScreenFetchesThreadsWithoutAGet(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
+	cassette := withCommits(t, openCassette(t, sha))
+	s := ghcassette.Replay(t, cassette)
 	seedReview(t, dir, sha)
 
 	sc := openReview(t, s, dir, "2")
@@ -549,6 +570,7 @@ func TestReviewScreenFetchesThreadsWithoutAGet(t *testing.T) {
 	// test is about.
 	sc.press("]t")
 	sc.await("unresolved")
+	sc.awaitRecorded(s, cassette)
 	sc.press("q")
 
 	if code := sc.wait(); code != 0 {
@@ -572,7 +594,8 @@ func TestReviewScreenOpensFromTheCache(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, headCassette(t))
+	cassette := headCassette(t)
+	s := ghcassette.Replay(t, cassette)
 	seedReview(t, dir, sha)
 	seedDiffAt(t, dir, sha)
 	seedThreads(t, dir, sha)
@@ -580,6 +603,7 @@ func TestReviewScreenOpensFromTheCache(t *testing.T) {
 	sc := openReview(t, s, dir, "2")
 	sc.await("testdata/fixture/sample.go")
 	sc.await("the head moved to")
+	sc.awaitRecorded(s, cassette)
 	sc.press("q")
 
 	if code := sc.wait(); code != 0 {
@@ -615,7 +639,7 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 	sc.press("]t")
 	sc.await("unresolved")
 	sc.press("e")
-	sc.await("enter save")
+	sc.await("⏎ save")
 	sc.press("\x05")
 	sc.await("keys go to it")
 	sc.press("Answered from the review screen.")
@@ -755,7 +779,8 @@ func TestReviewScreenEndsAWedgedPane(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
+	cassette := withCommits(t, openCassette(t, sha))
+	s := ghcassette.Replay(t, cassette)
 	seedReview(t, dir, sha)
 
 	shell := filepath.Join(t.TempDir(), "shell")
@@ -771,6 +796,7 @@ func TestReviewScreenEndsAWedgedPane(t *testing.T) {
 	sc.await("keys go to it")
 	sc.press("\x1c")
 	sc.await("signal: killed")
+	sc.awaitRecorded(s, cassette)
 	sc.press("q")
 
 	if code := sc.wait(); code != 0 {

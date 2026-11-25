@@ -177,6 +177,9 @@ func TestARefusedNotificationStreamIsNotAskedForAgainWithinADay(t *testing.T) {
 
 		sc.await(refused)
 		sc.await("this leaks")
+		// The second run draws its rows from the first run's snapshot, so a
+		// row on screen says nothing about the refresh behind it.
+		sc.awaitRecorded(s, cassette)
 		sc.press("q")
 
 		if code := sc.wait(); code != 0 {

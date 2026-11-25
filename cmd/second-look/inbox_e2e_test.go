@@ -244,7 +244,8 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	t.Parallel()
 
 	home := quietHome(t)
-	s := ghcassette.Replay(t, inboxThenReview(t))
+	cassette := inboxThenReview(t)
+	s := ghcassette.Replay(t, cassette)
 
 	sc := openReview(t, s, t.TempDir(), "HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "inbox")
 	sc.await("to review")
@@ -256,6 +257,9 @@ func TestInboxScreenOpensAReviewWithNoClone(t *testing.T) {
 	sc.press("\r")
 	sc.press("\r")
 	sc.await("no clone")
+	// The review reads its commits behind its first frame, so leaving on that
+	// frame can strand the read; the queue's own searches are long answered.
+	sc.awaitRecorded(s, cassette)
 
 	// The palette is Ink whatever the terminal is, so nothing asks for the
 	// background, and a query against the program's own reader would deadlock.
@@ -382,7 +386,8 @@ func TestInboxScreenChecksOutThenOpensTheReview(t *testing.T) {
 
 	home := quietHome(t)
 	clone, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, inboxThenCheckout(t, clone, sha))
+	cassette := inboxThenCheckout(t, clone, sha)
+	s := ghcassette.Replay(t, cassette)
 
 	sc := openReview(t, s, t.TempDir(),
 		"HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "XDG_CACHE_HOME="+home+"/.cache", "inbox")
@@ -399,6 +404,7 @@ func TestInboxScreenChecksOutThenOpensTheReview(t *testing.T) {
 	sc.await("gh pr view 101")
 	sc.await("leased " + clone)
 	sc.await("testdata/fixture/sample.go")
+	sc.awaitRecorded(s, cassette)
 
 	// Leaving the review returns to the same queue, its filter still on.
 	at := sc.mark()
@@ -487,6 +493,18 @@ func TestInboxScreenApprovesOnTheSecondPress(t *testing.T) {
 		"HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "XDG_CACHE_HOME="+home+"/.cache", "inbox")
 	sc.await("aragonite#100")
 
+	recorded, err := ghcassette.Load(cassette)
+	if err != nil {
+		t.Fatalf("loading the derived cassette: %v", err)
+	}
+
+	// The approval takes the row out of the queue, and the batched read of
+	// every row's facts goes out only once the last search lands. Approving
+	// before then leaves the row out of that read, which then asks for a set
+	// of ids the cassette never recorded, so every call but the approval is
+	// waited for first.
+	sc.awaitPlayed(s, len(recorded.Interactions)-1)
+
 	sc.press("/aragonite#100")
 	sc.press("\r")
 
@@ -500,11 +518,6 @@ func TestInboxScreenApprovesOnTheSecondPress(t *testing.T) {
 	// left the request unsent under load.
 	sent := sc.mark()
 	sc.press("Pa")
-
-	recorded, err := ghcassette.Load(cassette)
-	if err != nil {
-		t.Fatalf("loading the derived cassette: %v", err)
-	}
 
 	sc.awaitPlayed(s, len(recorded.Interactions))
 	sc.awaitFrom(sent, "approved")
@@ -591,6 +604,15 @@ func TestInboxScreenMergesOnTheSecondPress(t *testing.T) {
 		"HOME="+home, "XDG_CONFIG_HOME="+home+"/.config", "XDG_CACHE_HOME="+home+"/.cache", "inbox")
 	sc.await("approved")
 
+	// The merge takes the row out of the queue, so it waits for the facts
+	// read that goes out after the last search, as the approval's test does.
+	merged, err := ghcassette.Load(path)
+	if err != nil {
+		t.Fatalf("loading the derived cassette: %v", err)
+	}
+
+	sc.awaitPlayed(s, len(merged.Interactions)-1)
+
 	sc.press("/aragonite#130")
 	sc.press("\r")
 	sc.press("M")
@@ -598,6 +620,7 @@ func TestInboxScreenMergesOnTheSecondPress(t *testing.T) {
 
 	sc.press("M")
 	sc.await("merged kyleking/aragonite#130")
+	sc.awaitRecorded(s, path)
 
 	sc.press("q")
 	sc.wait()
@@ -793,6 +816,7 @@ func TestInboxScreenLabelsAPullRequest(t *testing.T) {
 	sc.press("needs")
 	sc.press("\r")
 	sc.await("removed needs-review")
+	sc.awaitRecorded(s, path)
 	sc.press("\x1b")
 	sc.press("q")
 	sc.wait()

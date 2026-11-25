@@ -31,15 +31,25 @@ Sleep 1s
 Type "t"
 Sleep 2200ms
 
-# i on a line, then the severity, opens a comment in place; enter keeps it.
+# i on a line, then the severity, opens a comment in place. It is a vim field:
+# esc to normal mode, ciw rewords the first word, and enter keeps it from any
+# mode.
 Type@70ms "jjjjjjjjjj"
 Sleep 600ms
 Type "i"
 Sleep 1300ms
 Type "n"
 Sleep 600ms
-Type@45ms "Name the line here too."
+Type@45ms "Name the line in the error."
 Sleep 700ms
+Escape
+Sleep 900ms
+Type@150ms "0"
+Sleep 600ms
+Type@150ms "ciw"
+Sleep 600ms
+Type@90ms "Put"
+Sleep 900ms
 Enter
 Sleep 1300ms
 

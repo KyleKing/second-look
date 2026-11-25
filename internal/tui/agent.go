@@ -11,6 +11,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/second-look/internal/acp"
 )
@@ -43,6 +44,9 @@ const (
 	scrollHalf = 2
 	// What a transcript line yields to the frame's edge.
 	agentPad = 2
+	// The prompt grows to agentInputMax rows before it scrolls: room for a
+	// paragraph, while the transcript keeps the rest of the pane.
+	agentInputMax = 4
 	// How far a tool call's output sits under the call's own line.
 	detailIndent = 4
 )
@@ -177,11 +181,11 @@ func (m *Model) agentUp(msg agentUpMsg) tea.Cmd {
 func (m *Model) openAgent() {
 	m.agentOpen = true
 	m.agentOff = 0
-	m.agentIn = newPrompt()
-	m.agentIn.Prompt = "❯ "
-	m.agentIn.Placeholder = "talk to " + m.agent.Name()
-	// The command Focus answers is a cursor blink, which newPrompt turns off.
-	m.agentIn.Focus()
+	m.agentIn = m.newField("",
+		vimtext.WithID("agent"),
+		vimtext.WithPrompt("❯ "),
+		vimtext.WithPlaceholder("talk to "+m.agent.Name()),
+		vimtext.WithHeight(1, agentInputMax))
 	m.showing = nil
 }
 
@@ -300,21 +304,25 @@ func (m *Model) interruptAgent() tea.Cmd {
 	}
 }
 
-// sendLine is enter in the pane: the typed line stages for the agent, sending
-// now where it is free or when the turn in flight ends.
-func (m *Model) sendLine() tea.Cmd {
-	text := strings.TrimSpace(m.agentIn.Value())
+// sendLine is enter in the pane: the typed message stages for the agent,
+// sending now where it is free or when the turn in flight ends. A message
+// that cannot go stays in the field.
+func (m *Model) sendLine(typed string) tea.Cmd {
+	text := strings.TrimSpace(typed)
 	if text == "" {
+		m.agentIn.Reset("")
+
 		return nil
 	}
 
 	if m.agentDead != nil {
+		m.agentIn.Reset(typed)
 		m.say("the agent has ended; T starts it again", true)
 
 		return nil
 	}
 
-	m.agentIn.SetValue("")
+	m.agentIn.Reset("")
 
 	return m.enqueueAgent(text)
 }
@@ -358,9 +366,10 @@ func (m *Model) agentTurned(msg agentTurnMsg) {
 // agentKey is the keyboard while the pane is open. A pending ask owns it
 // first, the same way a confirmation does: a digit picks its option and esc
 // declines, and nothing else reaches the prompt while the agent waits.
-// Elsewhere esc peels one layer at a time — staged messages first, the pane
-// itself only once nothing is staged — and ctrl+w drops one queued message,
-// but only on an empty input so a typed word still deletes a word.
+// Elsewhere the prompt is a vim field, and esc peels one layer at a time:
+// insert to normal mode, then staged messages, then the pane itself once
+// nothing is staged. On an empty input ctrl+w drops one queued message, so a
+// typed word still deletes a word, and ctrl+c still quits.
 func (m *Model) agentKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if p := m.agent.Pending(); p != nil {
 		m.answerPermit(p, msg)
@@ -373,16 +382,10 @@ func (m *Model) agentKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.agent.Close()
 
 		return m, nil
-	case key.Matches(msg, m.keys.Back):
-		if n := len(m.agentQueue); n > 0 {
-			m.agentQueue = nil
-			m.say("dropped "+plural(n, "queued message"), false)
-		} else {
-			m.agentOpen = false
-			m.agentIn.Blur()
-		}
+	case msg.String() == ctrlCKey:
+		m.agentOpen = false
 
-		return m, nil
+		return m.handleKey(msg)
 	case key.Matches(msg, m.keys.SendSet):
 		cmd := m.agentHandoff()
 
@@ -409,16 +412,46 @@ func (m *Model) agentKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, nil
-	case key.Matches(msg, m.keys.Accept):
-		cmd := m.sendLine()
-
-		return m, cmd
 	default:
-		var cmd tea.Cmd
-		m.agentIn, cmd = m.agentIn.Update(msg)
+		cmd := m.feedAgent(msg)
 
 		return m, cmd
 	}
+}
+
+// feedAgent hands a key or a paste to the prompt: enter sends what it holds,
+// and esc out of normal mode leaves a layer with what was typed kept.
+func (m *Model) feedAgent(msg tea.Msg) tea.Cmd {
+	cmd, end := press(m.agentIn, msg)
+
+	switch {
+	case end.saved:
+		return m.sendLine(end.text)
+	case end.left:
+		m.agentIn.Reset(end.text)
+		m.leaveAgent()
+
+		// The prompt stays in normal mode where the pane does, so the esc
+		// after the one that dropped the queue closes the pane.
+		if m.agentOpen && m.vim {
+			m.agentIn.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+		}
+	}
+
+	return cmd
+}
+
+// leaveAgent is esc out of the prompt: it drops what is staged first, and
+// closes the pane only once nothing is.
+func (m *Model) leaveAgent() {
+	if n := len(m.agentQueue); n > 0 {
+		m.agentQueue = nil
+		m.say("dropped "+plural(n, "queued message"), false)
+
+		return
+	}
+
+	m.agentOpen = false
 }
 
 // answerPermit is the keyboard while an ask is up: a digit picks its option,
@@ -435,7 +468,8 @@ func (m *Model) answerPermit(p *acp.Permit, msg tea.KeyPressMsg) {
 // agentLines draws the session pane: a divider naming the agent, the
 // transcript's tail, and the prompt line a pending ask stands in for.
 func (m *Model) agentLines() []string {
-	room := m.paneHeight() - 1
+	ask := strings.Split(m.agentAsk(), "\n")
+	room := max(0, m.paneHeight()-len(ask))
 
 	rows := m.agentRows(max(1, m.width-agentPad))
 	hi := max(0, len(rows)-m.agentOff)
@@ -448,7 +482,7 @@ func (m *Model) agentLines() []string {
 		out = append(out, "")
 	}
 
-	return append(out, m.agentAsk())
+	return append(out, ask...)
 }
 
 // agentDivider is the pane's top rule: who is running, in what mode, and how
@@ -459,13 +493,18 @@ func (m *Model) agentDivider() string {
 		head += " · " + mode
 	}
 
+	leaves := "esc leaves"
+	if m.agentIn.Mode() == vimtext.Insert && m.vim {
+		leaves = "esc twice leaves"
+	}
+
 	switch {
 	case m.agentDead != nil:
-		head += " has ended — esc leaves, T starts it again"
+		head += " has ended — " + leaves + ", T starts it again"
 	case m.agent.Busy() || m.agentSending:
-		head += " — esc leaves · ctrl+x interrupts"
+		head += " — " + leaves + " · ctrl+x interrupts"
 	default:
-		head += " — esc leaves · ctrl+\\ ends"
+		head += " — " + leaves + " · ctrl+\\ ends"
 		if n := len(m.review.Todos()); n > 0 {
 			head += " · ctrl+t hands " + plural(n, "todo")
 		}
@@ -475,12 +514,18 @@ func (m *Model) agentDivider() string {
 		head += " · " + strconv.Itoa(n) + " queued"
 	}
 
-	rest := m.width - textWidth(head) - 1
+	badge := m.agentIn.Badge()
+	width := m.width
+	if badge != "" {
+		width -= textWidth(badge)
+	}
+
+	rest := width - textWidth(head) - 1
 	if rest >= ruleFloor {
 		head += " " + strings.Repeat("─", rest)
 	}
 
-	return m.styles.hunk.Render(cut(head, m.width))
+	return badge + m.styles.hunk.Render(cut(head, width))
 }
 
 // agentTurn is one prompt and everything it brought back, up to the next
@@ -810,9 +855,5 @@ func (m *Model) agentAsk() string {
 		return m.styles.footer.Render("  the agent has ended")
 	}
 
-	// The input has no width of its own until one is set, and an unset width
-	// collapses the placeholder to its first letter.
-	m.agentIn.SetWidth(max(1, m.width-agentPad))
-
-	return m.agentIn.View()
+	return m.agentIn.View(max(1, m.width-agentPad))
 }

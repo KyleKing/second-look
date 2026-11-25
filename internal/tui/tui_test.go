@@ -2612,7 +2612,7 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 	frame := plain(m.Frame())
-	if !strings.Contains(frame, "editing c1") || !strings.Contains(frame, "enter save") {
+	if !strings.Contains(frame, "editing c1") || !strings.Contains(frame, "⏎ save") {
 		t.Fatalf("the editor is not in the frame:\n%s", frame)
 	}
 
@@ -2761,6 +2761,8 @@ func TestAnUnfinishedEditIsKeptAndOfferedBack(t *testing.T) {
 	go2(t, m, ']', 'c')
 	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 	typeIn(t, m, ", and say why")
+	// The first esc steps the field to normal mode, the second leaves it.
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if got := reviewAt(t, path).Comments[0].Body; got != "check err" {
@@ -2774,19 +2776,28 @@ func TestAnUnfinishedEditIsKeptAndOfferedBack(t *testing.T) {
 		t.Fatalf("the unfinished edit was not offered back:\n%s", frame)
 	}
 
-	if !strings.Contains(frame, "ctrl+r") {
+	if !strings.Contains(frame, "ctrl+g") {
 		t.Errorf("the frame does not say how to drop it:\n%s", frame)
+	}
+
+	// ctrl+r, where the put-back lived until the field took it for redo, says
+	// where it went rather than doing nothing.
+	press(t, m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+
+	if got := plain(m.Frame()); !strings.Contains(got, "ctrl+g drops the restored edit") {
+		t.Errorf("ctrl+r does not say where the put-back went:\n%s", got)
 	}
 
 	// The other half of the decision: what the comment says now is one
 	// keystroke away, so accepting the restore is a choice rather than a
 	// default nobody saw.
-	press(t, m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'g', Mod: tea.ModCtrl})
 
 	if got := plain(m.Frame()); strings.Contains(got, "and say why") {
-		t.Fatalf("ctrl+r did not put back what the comment says:\n%s", got)
+		t.Fatalf("ctrl+g did not put back what the comment says:\n%s", got)
 	}
 
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
@@ -3041,7 +3052,7 @@ func TestReplyKeepsTheThreadOnScreen(t *testing.T) {
 			press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 			frame := plain(m.Frame())
-			if !strings.Contains(frame, "enter save") {
+			if !strings.Contains(frame, "⏎ save") {
 				t.Fatalf("the editor left the frame:\n%s", frame)
 			}
 
@@ -3994,7 +4005,7 @@ func TestTheEndOfAReviewHasRoomBelowIt(t *testing.T) {
 			// The editor opens on the note, which is the last row of all.
 			press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
-			if frame := plain(m.Frame()); !strings.Contains(frame, "enter save") {
+			if frame := plain(m.Frame()); !strings.Contains(frame, "⏎ save") {
 				t.Errorf("the editor on the last row is off the frame:\n%s", frame)
 			}
 		})

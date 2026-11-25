@@ -4,8 +4,9 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/humanize"
@@ -23,13 +24,13 @@ const (
 // replaces. Everything longer than a few sentences still belongs in $EDITOR,
 // which ctrl+e hands the buffer to without losing what is typed so far.
 type editor struct {
-	area  textarea.Model
+	field *vimtext.Field
 	title string
 	// msg is where the text goes when it is saved, filled in by the same
 	// handler an $EDITOR round trip answers through.
 	msg editedMsg
 	// key names this buffer on disk and start is what was in the field when the
-	// editor opened, which is what ctrl+r puts back.
+	// editor opened, which is what ctrl+g puts back.
 	key   string
 	start string
 	// restored marks a buffer that came back from an earlier session rather
@@ -44,15 +45,23 @@ type editor struct {
 	theirs string
 }
 
+// editorPattern names the file the footer's ctrl+e promises. The screen runs
+// $EDITOR in its own pane rather than through the field, so the field is given
+// one only to name the key in its footer.
+const editorPattern = "second-look-*.md"
+
+// extraShare is the part of the footer the screen's own keys may take, one in
+// this many cells, so the field's mode and its save key are never pushed off.
+const extraShare = 2
+
 // beginEdit opens the editor over the block the cursor is in, on whatever an
 // earlier session left unfinished there if there is one.
 func (m *Model) beginEdit(title, start string, msg editedMsg) tea.Cmd {
-	area := newArea()
-	area.SetWidth(max(1, m.diffWidth()-m.screen.numWidth-rail))
-	area.SetValue(start)
-	area.MoveToEnd()
-
-	m.editing = &editor{area: area, title: title, msg: msg, key: m.draftKey(msg), start: start}
+	m.editing = &editor{title: title, msg: msg, key: m.draftKey(msg), start: start}
+	m.editing.field = m.newField(start,
+		vimtext.WithHeight(editorMin, editorMax),
+		vimtext.WithCompleter(m.completeWord),
+		vimtext.WithEditor(editorPattern))
 	m.say("", false)
 
 	if msg.index == reviewBody {
@@ -60,28 +69,14 @@ func (m *Model) beginEdit(title, start string, msg editedMsg) tea.Cmd {
 	}
 
 	if body, at, ok := m.recall(); ok && body != start {
-		area.SetValue(body)
-		area.MoveToEnd()
-
-		m.editing.area, m.editing.restored = area, true
-		m.say("unfinished from "+humanize.Ago(at, time.Now())+" ago, ctrl+r puts back what is saved", false)
+		m.editing.field.Reset(body)
+		m.editing.restored = true
+		m.say("unfinished from "+humanize.Ago(at, time.Now())+" ago, "+putBackKey+" puts back what is saved", false)
 	}
 
-	m.fit()
 	m.toHead()
 
-	// Focus takes a pointer receiver, so it has to be called on the editor the
-	// screen kept rather than on the copy that was put into it.
-	return m.editing.area.Focus()
-}
-
-// fit grows the box with what is in it, so an answer of one line is not framed
-// by a screenful of empty rows. The count is of wrapped lines rather than the
-// textarea's own logical ones, and its MaxHeight is left unset, because that
-// field stops the typing rather than the growing.
-func (m *Model) fit() {
-	shown := len(wrap(m.editing.area.Value(), m.editing.area.Width()))
-	m.editing.area.SetHeight(min(max(shown, editorMin), editorMax))
+	return nil
 }
 
 // toHead puts the cursor on the row the editor replaces, so scrolling keeps the
@@ -97,66 +92,101 @@ func (m *Model) toHead() {
 	}
 }
 
-// The editor takes every key but three: enter saves, as it submits every
-// prompt in the family (ctrl+j and alt+enter are the new line; ctrl+s, the
-// save key until 0.61, still saves without saying so), esc leaves with what
-// was typed kept, and ctrl+e hands the buffer to $EDITOR rather than starting
-// over in it.
+// The editor is a vim-modal field, which takes every key but a few: ctrl+e
+// hands the buffer to $EDITOR rather than starting over in it, ctrl+t swaps in
+// what arrived on disk, ctrl+g puts back what a restore replaced, and ctrl+c
+// still quits. Enter saves in every mode, as it submits every prompt in the
+// family (ctrl+j and alt+enter are the new line; ctrl+s, the save key until
+// 0.61, still saves without saying so), and esc backs out a level at a time:
+// insert to normal, and normal out of the editor with what was typed kept.
 func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case escKey:
-		done := m.editing
+	case ctrlCKey:
 		m.editing = nil
 		m.rebuild()
 
-		if done.area.Value() == done.start {
-			m.drop(done.key)
-			m.say("nothing changed", false)
-
-			return m, nil
-		}
-
-		m.say("kept where you left it; "+reopens(done.msg)+" brings it back", false)
-
-		return m, nil
+		return m.handleKey(msg)
 	case putBackKey:
 		m.putBack()
 
 		return m, nil
+	case ctrlR:
+		if m.editing.restored && m.editing.field.Mode() == vimtext.Insert {
+			m.say("ctrl+r is redo here now; "+putBackKey+" drops the restored edit", false)
+
+			return m, nil
+		}
 	case "ctrl+t":
 		m.swapTheirs()
 
 		return m, nil
-	case "ctrl+n":
-		m.suggestWord()
-
-		return m, nil
-	case enterKey, "ctrl+s":
-		done := m.editing
-		m.editing = nil
-		out := done.msg
-		out.body = strings.TrimRight(done.area.Value(), "\n")
-		m.applyEdit(out)
+	case "ctrl+s":
+		m.saveEdit(m.editing.field.Value())
 
 		return m, nil
 	case "ctrl+e":
 		done := m.editing
 		m.editing = nil
-		cmd := m.open(done.area.Value(), done.msg)
+		cmd := m.open(done.field.Value(), done.msg)
 
 		return m, cmd
 	}
 
-	area, cmd := m.editing.area.Update(msg)
-	m.editing.area = area
-	m.fit()
-	m.keep()
+	return m.feedEdit(msg)
+}
 
-	if msg.String() == "@" {
-		cmd = tea.Batch(cmd, m.askRoster())
+// feedEdit hands a key or a paste to the field, and saves or leaves when it
+// says the edit is over.
+func (m *Model) feedEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
+	was := m.editing.field.Value()
+
+	cmd, end := press(m.editing.field, msg)
+	switch {
+	case end.saved:
+		m.saveEdit(end.text)
+
+		return m, nil
+	case end.left:
+		m.leaveEdit(end.text)
+
+		return m, nil
+	}
+
+	if m.editing.field.Value() != was {
+		m.keep()
+
+		if k, ok := msg.(tea.KeyPressMsg); ok && k.Text == "@" {
+			cmd = tea.Batch(cmd, m.askRoster())
+		}
 	}
 
 	return m, cmd
+}
+
+// saveEdit closes the editor on what it holds and sends that where it goes.
+func (m *Model) saveEdit(text string) {
+	done := m.editing
+	m.editing = nil
+	out := done.msg
+	out.body = strings.TrimRight(text, "\n")
+	m.applyEdit(out)
+}
+
+// leaveEdit closes the editor without saving. What was typed is kept on disk for
+// the key that reopens it, unless it is what the field already said.
+func (m *Model) leaveEdit(text string) {
+	done := m.editing
+	m.editing = nil
+	m.rebuild()
+
+	if text == done.start {
+		m.drop(done.key)
+		m.say("nothing changed", false)
+
+		return
+	}
+
+	m.say("kept where you left it; "+reopens(done.msg)+" brings it back", false)
 }
 
 // swapTheirs puts the version an agent wrote into the buffer, and puts what was
@@ -169,11 +199,10 @@ func (m *Model) swapTheirs() {
 		return
 	}
 
-	mine := m.editing.area.Value()
-	m.editing.area.SetValue(m.editing.theirs)
-	m.editing.area.MoveToEnd()
+	mine := m.editing.field.Value()
+	m.editing.field.SetValue(m.editing.theirs)
 	m.editing.theirs = mine
-	m.fit()
+	m.keep()
 	m.say("swapped; ctrl+t again puts the other one back", false)
 }
 
@@ -191,7 +220,7 @@ func reopens(msg editedMsg) string {
 	return "e"
 }
 
-// putBack answers ctrl+r: it drops what was restored and starts from what the
+// putBack answers ctrl+g: it drops what was restored and starts from what the
 // field says now, which is the other half of the decision a restore is.
 func (m *Model) putBack() {
 	if !m.editing.restored {
@@ -200,12 +229,10 @@ func (m *Model) putBack() {
 		return
 	}
 
-	m.editing.area.SetValue(m.editing.start)
-	m.editing.area.MoveToEnd()
+	m.editing.field.SetValue(m.editing.start)
 	m.editing.restored = false
 
 	m.drop(m.editing.key)
-	m.fit()
 	m.say("dropped the unfinished edit", false)
 }
 
@@ -217,13 +244,13 @@ func (m *Model) keep() {
 		return
 	}
 
-	if m.editing.area.Value() == m.editing.start {
+	if m.editing.field.Value() == m.editing.start {
 		m.drop(m.editing.key)
 
 		return
 	}
 
-	if err := artifact.SaveDraft(m.store, m.editing.key, m.editing.area.Value()); err != nil {
+	if err := artifact.SaveDraft(m.store, m.editing.key, m.editing.field.Value()); err != nil {
 		m.editing.told = true
 		m.say(err.Error(), true)
 	}
@@ -308,27 +335,48 @@ func (m *Model) spanEnd(from int) int {
 }
 
 // editorLines is the box: a heading naming what is being written, the text
-// itself, and the keys that end the edit.
-func (m *Model) editorLines() []string {
+// itself, and a footer with the field's mode and the keys it takes, the
+// screen's own after the field's. Width is the body's, which leaves the
+// scrollbar its column.
+func (m *Model) editorLines(width int) []string {
 	gutter := strings.Repeat(" ", m.screen.numWidth+indent)
 	frame := m.styles.warn
+	room := max(1, width-textWidth(gutter+"┃ "))
 
-	out := []string{frame.Render(cut(gutter+"┏ "+m.editing.title, m.diffWidth()))}
+	// The corners reach right into a rule, so neither is an arm joining
+	// nothing.
+	out := []string{frame.Render(cut(gutter+"┏━ "+m.editing.title, width))}
 
-	for _, line := range strings.Split(m.editing.area.View(), "\n") {
-		out = append(out, frame.Render(gutter+"┃ ")+cut(line, m.diffWidth()))
+	for _, line := range strings.Split(m.editing.field.View(room), "\n") {
+		out = append(out, frame.Render(gutter+"┃ ")+cut(line, room))
 	}
 
-	keys := "┗ enter save · " + newlineKey + " new line · esc cancel · ctrl+e $EDITOR · ctrl+n complete"
+	return append(out, frame.Render(gutter+"┗━ ")+m.editorFooter(max(1, room-1)))
+}
+
+// editorFooter is the field's footer with what this screen adds while it
+// applies, which goes first when there is not room for both: a key that is
+// only offered now is the one nobody can learn from the legend.
+func (m *Model) editorFooter(width int) string {
+	var extra []string
 	if m.editing.restored {
-		keys += " · ctrl+r drop restored"
+		extra = append(extra, putBackKey+" drop restored")
 	}
 
 	if m.editing.theirs != "" {
-		keys += " · ctrl+t disk version"
+		extra = append(extra, "ctrl+t disk version")
 	}
 
-	return append(out, frame.Render(cut(gutter+keys, m.diffWidth())))
+	if len(extra) == 0 {
+		return m.editing.field.Footer(width)
+	}
+
+	tail := " · " + strings.Join(extra, " · ")
+	if most := width / extraShare; textWidth(tail) >= most {
+		tail = ansi.Truncate(tail, most, "…")
+	}
+
+	return m.editing.field.Footer(width-textWidth(tail)) + m.styles.warn.Render(tail)
 }
 
 // answering reports an edit that adds to a thread rather than rewriting a
@@ -343,7 +391,7 @@ func (m *Model) answering() bool {
 // which are the ones the reply is to, rather than losing the box off the
 // bottom of the frame.
 func (m *Model) answeredLines(from, room, width int) []string {
-	box := m.editorLines()
+	box := m.editorLines(width)
 	if room <= len(box) {
 		return box
 	}

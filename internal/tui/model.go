@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/key"
-	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/diff"
 	"github.com/kyleking/aragonite/keyusage"
@@ -22,6 +21,7 @@ import (
 	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/pane"
+	"github.com/kyleking/aragonite/tui/vimtext"
 
 	"github.com/kyleking/second-look/internal/acp"
 	"github.com/kyleking/second-look/internal/advisory"
@@ -127,7 +127,7 @@ type Model struct {
 	agentDead    error
 	agentOff     int
 	agentExpand  bool
-	agentIn      textinput.Model
+	agentIn      *vimtext.Field
 	agentQueue   []string
 	agentSending bool
 	agentLoading bool
@@ -297,7 +297,11 @@ type Model struct {
 	view          viewMode
 	// editing is the in-place editor, nil when nothing is being written.
 	editing *editor
-	fold    foldLevel
+	// register is the unnamed register every text field on the screen shares,
+	// and vim whether their vim layer is on.
+	register vimtext.Register
+	vim      bool
+	fold     foldLevel
 	// prober is what the review asks about its own files, and nil where nothing
 	// can answer: no checkout, or no checker installed for what it holds.
 	prober Prober
@@ -498,7 +502,7 @@ func New(
 	m := &Model{
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
 		keys: defaultKeyMap(), km: mustKeymap(reviewKeymap), styles: st, rich: newRichStyles(st), search: newSearch(),
-		files: newFiles(),
+		files: newFiles(), vim: true,
 		width: minWidth, height: startHeight, folded: newFolded(),
 		hugeDiff: diffRows(d) >= asyncRows,
 		refined:  marks, reindented: reindented, moves: moves, mates: mates,
@@ -804,7 +808,9 @@ func (m *Model) handle(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case m.pane != nil:
 			m.pane.Paste(msg.Content)
 		case m.agentOpen && m.agent != nil:
-			m.agentIn, cmd = m.agentIn.Update(msg)
+			cmd = m.feedAgent(msg)
+		case m.editing != nil:
+			_, cmd = m.feedEdit(msg)
 		}
 
 		return m, tea.Batch(cmd, m.takeCmd())
@@ -4287,7 +4293,7 @@ func (m *Model) viewHeight() int {
 func (m *Model) maxOffset() int {
 	room := overscroll
 	if m.editing != nil {
-		room += len(m.editorLines())
+		room += len(m.editorLines(m.diffWidth()))
 	}
 
 	return max(0, len(m.screen.rows)-m.viewHeight()+room)

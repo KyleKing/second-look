@@ -51,7 +51,7 @@ func TestPureHelpers(t *testing.T) {
 
 	for name, check := range map[string]func(*testing.T){
 		"carded":         checkCarded,
-		"matchWord":      checkMatchWord,
+		"trailingWord":   checkTrailingWord,
 		"pathOf":         checkPathOf,
 		"dirOf":          checkDirOf,
 		"span":           checkSpan,
@@ -84,12 +84,14 @@ func checkCarded(t *testing.T) {
 	}
 }
 
-func checkMatchWord(t *testing.T) {
+func checkTrailingWord(t *testing.T) {
 	t.Helper()
 
-	for n, want := range map[int]string{0: "0 matches", 1: "1 match", 2: "2 matches"} {
-		if got := matchWord(n); got != want {
-			t.Errorf("matchWord(%d) = %q, want %q", n, got, want)
+	for before, want := range map[string]string{
+		"": "", "café @kyle": "@kyle", "see pkg/a_b.go": "pkg/a_b.go", "end ": "",
+	} {
+		if got := trailingWord(before); got != want {
+			t.Errorf("trailingWord(%q) = %q, want %q", before, got, want)
 		}
 	}
 }

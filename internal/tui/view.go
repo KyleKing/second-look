@@ -589,7 +589,7 @@ func (m *Model) rowLines() []string {
 				continue
 			}
 
-			out = append(out, m.editorLines()...)
+			out = append(out, m.editorLines(width)...)
 			i = m.spanEnd(i)
 
 			continue
@@ -613,7 +613,7 @@ func (m *Model) rowLines() []string {
 		m.lineRows = rowsTo(m.lineRows, len(out), i)
 
 		if m.editingUnder(i) {
-			out = append(out, m.editorLines()...)
+			out = append(out, m.editorLines(width)...)
 		}
 	}
 

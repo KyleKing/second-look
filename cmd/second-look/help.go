@@ -149,9 +149,11 @@ NAMING A PULL REQUEST
       there: a staged comment, and the review's own body and note, which are
       rows the cursor lands on. Both open an editor in the frame, over the
       block being written, so the line being answered stays on screen: enter
-      saves, ctrl+j or alt+enter starts a new line, esc leaves with what is
-      typed kept, and ctrl+e hands it to $EDITOR for the edits a text box is
-      the wrong shape for. Saving stages a draft; nothing is sent until P.
+      saves, ctrl+j or alt+enter starts a new line, and ctrl+e hands it to
+      $EDITOR for the edits a text box is the wrong shape for. The editor is a
+      vim field: it opens in insert mode, esc goes to normal mode, and a second
+      esc leaves with what is typed kept. vim = false in the config makes one
+      esc leave. Saving stages a draft; nothing is sent until P.
 
       \ opens the page of what is shown: \t the threads, \c the comments,
       \g \s \w \i the grammar, side by side, wrap, and images, \p the next

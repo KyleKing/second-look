@@ -299,3 +299,31 @@ command = ["npx", "-y", "@zed-industries/claude-code-acp"]
 		t.Errorf("a name nothing knows picked %+v", got)
 	}
 }
+
+// Text fields take vim's keys unless the file says otherwise, so a file that
+// never names the key, or no file at all, keeps the vim layer.
+func TestVimFieldsAreOnUnlessTurnedOff(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		body string
+		want bool
+	}{
+		{"", true},
+		{"vim = true\n", true},
+		{"vim = false\n", false},
+	} {
+		t.Run(tc.body, func(t *testing.T) {
+			t.Parallel()
+
+			c, err := config.Load(write(t, tc.body))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := c.VimFields(); got != tc.want {
+				t.Errorf("%q reads vim = %v, want %v", tc.body, got, tc.want)
+			}
+		})
+	}
+}

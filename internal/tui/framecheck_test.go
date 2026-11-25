@@ -33,6 +33,8 @@ func TestEveryOverlayJoinsItsEdgesAtEverySize(t *testing.T) {
 		"split":    {key('u'), key('v')},
 		"confirm":  {key('m'), key('x'), key('S')},
 		"prefix":   {key(']')},
+		"editor":   {{Code: tea.KeyTab}, key('e')},
+		"normal":   {{Code: tea.KeyTab}, key('e'), {Code: tea.KeyEscape}},
 	}
 
 	for name, presses := range keys {

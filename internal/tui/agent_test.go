@@ -180,7 +180,7 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 
 	frame := plain(m.Frame())
 	for _, want := range []string{
-		"stub", "esc leaves", "runs the tests", "1 Allow", "2 Reject",
+		"stub", "esc twice leaves", "runs the tests", "1 Allow", "2 Reject",
 	} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the pane is missing %q:\n%s", want, frame)
@@ -205,6 +205,7 @@ func TestAgentPaneCarriesAWholeTurn(t *testing.T) {
 	}
 
 	// Esc leaves the pane, not the session: the title still carries its word.
+	run.key(tea.KeyPressMsg{Code: tea.KeyEscape}) // insert to normal
 	run.key(tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if frame := plain(m.Frame()); !strings.Contains(frame, "agent done") {
@@ -280,6 +281,7 @@ func TestHandoffOnAnEmptyReviewAsksTheAgentToDraftIt(t *testing.T) {
 	// rather than asking it to draft the review all over again.
 	run.key(letter('1'))
 	run.wait(func() bool { return strings.Contains(plain(m.Frame()), "agent done") })
+	run.key(tea.KeyPressMsg{Code: tea.KeyEscape}) // insert to normal
 	run.key(tea.KeyPressMsg{Code: tea.KeyEscape})
 	run.key(letter('T'))
 
@@ -328,6 +330,7 @@ func TestAReopenedAgentPaneTakesALine(t *testing.T) {
 	run.key(letter('1'))
 	run.wait(func() bool { return strings.Contains(plain(m.Frame()), "agent done") })
 
+	run.key(tea.KeyPressMsg{Code: tea.KeyEscape}) // insert to normal
 	run.key(tea.KeyPressMsg{Code: tea.KeyEscape})
 	run.key(letter('T'))
 
@@ -348,6 +351,7 @@ func askedOverTheSession(t *testing.T, run *loop, path string) {
 	t.Helper()
 
 	m := run.m
+	run.key(tea.KeyPressMsg{Code: tea.KeyEscape}) // insert to normal
 	run.key(tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	for _, k := range "]hjAl" + "why one?" {
@@ -639,8 +643,8 @@ func TestInterruptingATurnEndsIt(t *testing.T) {
 	}
 }
 
-// Esc peels one layer at a time while the pane is open: staged lines first.
-// The pane itself goes only once none is staged, and ctrl+w on an empty
+// Esc peels one layer at a time while the pane is open: the prompt's insert
+// mode first, then staged lines. The pane itself goes only once none is staged, and ctrl+w on an empty
 // prompt drops just the last staged line.
 func TestEscPeelsStagedLinesThenThePane(t *testing.T) {
 	t.Parallel()
@@ -692,6 +696,7 @@ func TestEscPeelsStagedLinesThenThePane(t *testing.T) {
 		t.Errorf("ctrl+w did not drop just the last staged line:\n%s", frame)
 	}
 
+	run.key(tea.KeyPressMsg{Code: tea.KeyEscape}) // insert to normal
 	run.key(tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if frame := plain(m.Frame()); strings.Contains(frame, "queued ›") ||
@@ -701,7 +706,7 @@ func TestEscPeelsStagedLinesThenThePane(t *testing.T) {
 
 	run.key(tea.KeyPressMsg{Code: tea.KeyEscape})
 
-	if frame := plain(m.Frame()); strings.Contains(frame, "esc leaves · ctrl+\\ ends") {
+	if frame := plain(m.Frame()); strings.Contains(frame, "leaves · ctrl+\\ ends") {
 		t.Errorf("esc left the queue but not the pane:\n%s", frame)
 	}
 }

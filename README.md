@@ -2,7 +2,7 @@
 
 A terminal code review tool optimized for the modern rate of code generation, is local-first and AI-friendly, and encourages us to actually read and understand the code as everything else changes. While this is currently personalized for my own use cases and workflows, it should be straightforward to generalize and I'm open to input and making changes because I would be happy to see others find value in this. Feel free to open a GitHub issue and let me know what you think!
 
-![Judging a bot's finding as a todo with the reply drafted, commenting on a line with a severity, and publishing with request changes](docs/images/judge.gif)
+![Judging a bot's finding as a todo with the reply drafted, commenting on a line with a severity and rewording it in vim's normal mode, and publishing with request changes](docs/images/judge.gif)
 
 ## How a review moves
 
@@ -33,9 +33,11 @@ The inbox is ordered to keep the amount of work in progress small. Your own pull
 
 If you don't write a reply, your agent drafts one that fits the verdict, and you can edit it before anything is posted. A bot that fixes on a label or a mention needs no setting here: `l` labels the pull request from the repository's own labels, and `@` in a reply completes the bots and people seen on its recent pull requests. Once the fixes are pushed, the pull request moves back into your inbox and `H` shows which of the todos the new commits addressed.
 
-`i` on a line asks for the severity (`b` blocker, `m` major, `n` minor, `t` nit, `?` question) and opens the comment in place, where `enter` saves it, `ctrl+j` (or `alt+enter`) starts a new line, and `esc` leaves with what you typed kept for next time. Every text field in second-look, jojo, and jj-diff takes enter to submit, and saving here only stages a draft: nothing is sent until `P`. `P` is the publish page: it names what is still a draft before anything goes, and `Pr` requests changes and asks who gets the todos.
+`i` on a line asks for the severity (`b` blocker, `m` major, `n` minor, `t` nit, `?` question) and opens the comment in place, where `enter` saves it, `ctrl+j` (or `alt+enter`) starts a new line, and `esc` leaves with what you typed kept for next time. Every text field in second-look, jojo, and jj-diff takes enter to submit, and saving here only stages a draft: nothing is sent until `P`.
 
-![Judging a bot's finding as a todo with the reply drafted, commenting on a line with a severity, and publishing with request changes](docs/images/judge.gif)
+The comment editor, a reply, and the agent's prompt are vim fields. They open in insert mode, so you just type; `esc` goes to normal mode, where the motions, operators, text objects, visual mode, counts, `.`, `u`, and `ctrl+r` redo work as in nvim, and a second `esc` leaves. Inside a field its keys win over the screen's, so `x` deletes a character rather than skipping the comment. `enter` saves in every mode, `ctrl+n` completes the files, symbols, and `@people` of the review, `ctrl+e` hands the text to `$EDITOR` and back, `ctrl+t` swaps in a version an agent wrote meanwhile, `ctrl+g` drops an unfinished edit that was offered back, and `ctrl+c` still quits. `vim = false` in the config keeps the same keys with `esc` leaving at once. `P` is the publish page: it names what is still a draft before anything goes, and `Pr` requests changes and asks who gets the todos.
+
+![Judging a bot's finding as a todo with the reply drafted, commenting on a line with a severity and rewording it in vim's normal mode, and publishing with request changes](docs/images/judge.gif)
 
 ## Reading a big change
 
@@ -76,6 +78,7 @@ second-look shares one keymap with [jojo](https://github.com/KyleKing/jojo) and 
 | `za` | fold or unfold this | show or hide the folded lane |
 | `:clean` | | drop staged reviews whose pull request finished (`:clean stale` too) |
 | `esc` | back out one level: a prompt, the legend, a peek, then the queue | clear the filter; at the top it says `q` quits |
+| in a field | vim: `esc` to normal mode and again to leave, `enter` saves, `ctrl+j` new line, `ctrl+n` complete, `ctrl+e` `$EDITOR`, `ctrl+t` the agent's version, `ctrl+g` drop the restored edit (was `ctrl+r`, now redo) | |
 | `q` | leave the review | quit |
 
 Keys that moved in 0.60 (`a` comment, `S` submit, `P` post one, `B`, `D`, `i` info, `u` and `v` looks, `t` and `c` toggles, `ctrl+r`, `y`/`Y` scroll, and in the queue `m`, `A`, `r`, `u`/`U`, `]`/`[`, `z`, `gc`) say where they went when pressed, for one release.

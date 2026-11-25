@@ -447,3 +447,20 @@ func Recurs(msg tea.Msg) bool {
 
 // Editing reports whether the comment editor is open.
 func (m *Model) Editing() bool { return m.editing != nil }
+
+// Leaves reports a message asking for whatever is behind the review, which is
+// how a key that quits the screen answers.
+func Leaves(msg tea.Msg) bool {
+	_, ok := msg.(leftMsg)
+
+	return ok
+}
+
+// EditorText is what the in-place editor holds, or "" with none open.
+func (m *Model) EditorText() string {
+	if m.editing == nil {
+		return ""
+	}
+
+	return m.editing.field.Value()
+}

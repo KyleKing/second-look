@@ -4,10 +4,10 @@ import (
 	"context"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/kyleking/aragonite/tui/vimtext"
 )
 
 // wordChars is what counts as part of a word being completed. A path and a Go
@@ -15,41 +15,22 @@ import (
 // both without a mode.
 const wordChars = "/._-@" + "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-// complete answers ctrl+n while writing: the word under the cursor is replaced
-// with the first thing in the review that matches it, and pressing again takes
-// the next.
+// completeWord answers ctrl+n while writing: the field replaces the word before
+// the cursor with the first thing in the review that starts with it, and each
+// press takes the next, back round to what was typed.
 //
 // The candidates are what is already on this screen: the files the diff
 // touches, the symbols the structural pass named, and the people on the pull
 // request, then whoever has been on the repository's recent ones. Nothing here
 // needs an index, and what does (every symbol in the repository rather than the
 // ones in the diff) waits on codeintel.
-func (m *Model) suggestWord() {
-	line, col := m.cursorLine()
-
+func (m *Model) completeWord(line string, col int) vimtext.Completion {
 	stem := trailingWord(line[:col])
 	if stem == "" {
-		m.say("nothing to complete here", false)
-
-		return
+		return vimtext.Completion{Start: col}
 	}
 
-	want := m.candidates(stem)
-	if len(want) == 0 {
-		m.say(m.nothingWord(stem), false)
-
-		return
-	}
-
-	// A stem that is already one of the answers cycles to the next, so the key
-	// walks the list rather than sticking on the first match.
-	next := want[0]
-	if at := slices.Index(want, stem); at >= 0 {
-		next = want[(at+1)%len(want)]
-	}
-
-	m.replaceWord(len([]rune(stem)), next)
-	m.say(next+"  ·  ctrl+n takes the next of "+matchWord(len(want)), false)
+	return vimtext.Completion{Start: col - len(stem), Items: m.candidates(stem), Note: m.nothingWord(stem)}
 }
 
 func (m *Model) nothingWord(stem string) string {
@@ -60,48 +41,15 @@ func (m *Model) nothingWord(stem string) string {
 	return "nothing in this review starts with " + stem
 }
 
-func matchWord(n int) string {
-	if n == 1 {
-		return "1 match"
-	}
-
-	return strconv.Itoa(n) + " matches"
-}
-
-// cursorLine is the line the cursor is on and how far into it, in runes.
-func (m *Model) cursorLine() ([]rune, int) {
-	lines := strings.Split(m.editing.area.Value(), "\n")
-
-	at := m.editing.area.Line()
-	if at < 0 || at >= len(lines) {
-		return nil, 0
-	}
-
-	runes := []rune(lines[at])
-
-	return runes, min(max(m.editing.area.Column(), 0), len(runes))
-}
-
-func trailingWord(before []rune) string {
+// trailingWord is the word that ends where the cursor is. Every character a
+// word is made of is ASCII, so its length in bytes is its length in the line.
+func trailingWord(before string) string {
 	at := len(before)
-	for at > 0 && strings.ContainsRune(wordChars, before[at-1]) {
+	for at > 0 && strings.IndexByte(wordChars, before[at-1]) >= 0 {
 		at--
 	}
 
-	return string(before[at:])
-}
-
-// replaceWord takes back the stem and puts the completion in its place, through
-// the textarea's own editing so the cursor and the undo history stay its own.
-func (m *Model) replaceWord(stem int, with string) {
-	for range stem {
-		area, _ := m.editing.area.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
-		m.editing.area = area
-	}
-
-	m.editing.area.InsertString(with)
-	m.fit()
-	m.keep()
+	return before[at:]
 }
 
 // candidates is everything on this screen that starts with the stem, in one

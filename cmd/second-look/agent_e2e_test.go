@@ -36,7 +36,8 @@ func TestReviewScreenDispatchesToAnAgentPane(t *testing.T) {
 	t.Parallel()
 
 	dir, sha := scratchRepo(t, headBranch)
-	s := ghcassette.Replay(t, withCommits(t, openCassette(t, sha)))
+	cassette := withCommits(t, openCassette(t, sha))
+	s := ghcassette.Replay(t, cassette)
 	seedReview(t, dir, sha)
 
 	// The config joins childEnv's own XDG root: a separate root moves the
@@ -68,11 +69,18 @@ command = [%q]
 	sc.press("1")
 	sc.await("selected allow")
 
-	// Esc leaves the pane, and the rows it covered repaint; sending q before
-	// that repaint would pack \x1bq into alt+q and type into the prompt.
+	// The first esc puts the prompt in normal mode and the second leaves the
+	// pane, and the rows it covered repaint. Each waits for its frame: two
+	// escs sent together read as alt+esc, and q sent before the repaint would
+	// pack \x1bq into alt+q and type into the prompt.
 	mark := sc.mark()
 	sc.press("\x1b")
+	sc.awaitFrom(mark, "NORMAL")
+
+	mark = sc.mark()
+	sc.press("\x1b")
 	sc.awaitFrom(mark, "total := 0")
+	sc.awaitRecorded(s, cassette)
 	sc.press("q")
 
 	if code := sc.wait(); code != 0 {

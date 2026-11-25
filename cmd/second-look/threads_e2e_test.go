@@ -449,6 +449,7 @@ func TestThreadsScreenNotifications(t *testing.T) {
 
 	sc.press(" ")
 	sc.await("done acme/widgets#42")
+	sc.awaitRecorded(s, cassette)
 
 	sc.press("q")
 

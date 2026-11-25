@@ -172,6 +172,17 @@ type Config struct {
 	// above the footer naming each step, why, and its key. The palette's :next
 	// switches it for one review.
 	Coach string `toml:"coach,omitempty"`
+	// Vim turns the vim layer of the screen's text fields on or off. Nil is
+	// the default, on: a field opens in insert mode, so typing works as it
+	// always has, and esc steps to normal mode before a second one leaves.
+	// False keeps enter, ctrl+j, and esc, with esc leaving at once.
+	Vim *bool `toml:"vim,omitempty"`
+}
+
+// VimFields reports whether text fields take vim's keys, which they do unless
+// the file turns them off.
+func (c *Config) VimFields() bool {
+	return c.Vim == nil || *c.Vim
 }
 
 // PriorityLabels is the labels that put a row first.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -343,18 +344,20 @@ func editing(t *testing.T, m *Model, store string) {
 	t.Helper()
 
 	m.store = store
-	m.editing = &editor{area: newArea(), key: "c1", start: "as staged", msg: editedMsg{index: 0, replyTo: -1}}
-	m.editing.area.SetWidth(20)
+	m.editing = &editor{
+		field: m.newField("as staged"), key: "c1", start: "as staged",
+		msg: editedMsg{index: 0, replyTo: -1},
+	}
 }
 
-// The editor's own keys: ctrl+r drops a restored buffer from disk as well as
+// The editor's own keys: ctrl+g drops a restored buffer from disk as well as
 // from the field, ctrl+t with nothing to swap in is not a failure, a completion
-// refits the box to what it now holds, and the cursor is put on the row the
-// editor replaces however far down it was.
+// replaces the word before the cursor by its byte offset, and the cursor is put
+// on the row the editor replaces however far down it was.
 func checkTheEditorsOwnKeys(t *testing.T) {
 	t.Helper()
 
-	t.Run("ctrl+r", func(t *testing.T) {
+	t.Run("ctrl+g", func(t *testing.T) {
 		t.Parallel()
 
 		m := model(t, onePatch, nil)
@@ -366,14 +369,14 @@ func checkTheEditorsOwnKeys(t *testing.T) {
 		}
 
 		m.editing.restored = true
-		m.editing.area.SetValue("left unfinished")
+		m.editing.field.Reset("left unfinished")
 		m.putBack()
 
 		if _, _, ok := artifact.LoadDraft(store, "c1"); ok {
 			t.Error("the restored buffer is still on disk")
 		}
 
-		if got := m.editing.area.Value(); got != "as staged" || m.editing.restored {
+		if got := m.editing.field.Value(); got != "as staged" || m.editing.restored {
 			t.Errorf("the field reads %q, restored %v", got, m.editing.restored)
 		}
 
@@ -390,11 +393,11 @@ func checkTheEditorsOwnKeys(t *testing.T) {
 		said(t, m, "nothing arrived under this one", false)
 
 		m.editing.theirs = "the agent's"
-		m.editing.area.SetValue("mine")
+		m.editing.field.Reset("mine")
 		m.swapTheirs()
 
-		if m.editing.area.Value() != "the agent's" || m.editing.theirs != "mine" {
-			t.Errorf("the swap left %q and held %q", m.editing.area.Value(), m.editing.theirs)
+		if m.editing.field.Value() != "the agent's" || m.editing.theirs != "mine" {
+			t.Errorf("the swap left %q and held %q", m.editing.field.Value(), m.editing.theirs)
 		}
 	})
 
@@ -403,11 +406,16 @@ func checkTheEditorsOwnKeys(t *testing.T) {
 
 		m := model(t, onePatch, nil)
 		editing(t, m, "")
-		m.editing.area.SetHeight(editorMax)
-		m.replaceWord(0, "a few words that wrap")
 
-		if got := m.editing.area.Height(); got != 2 {
-			t.Errorf("the box is %d rows over two rows of text", got)
+		line := "naïve see pkg/re"
+		got := m.completeWord(line, len(line))
+
+		if got.Start != len("naïve see ") || !slices.Contains(got.Items, "pkg/read.go") {
+			t.Errorf("completing %q answered %+v", line, got)
+		}
+
+		if none := m.completeWord("see ", len("see ")); len(none.Items) != 0 || none.Start != len("see ") {
+			t.Errorf("a line ending in a space completed %+v", none)
 		}
 	})
 

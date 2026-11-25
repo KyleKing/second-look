@@ -17,6 +17,12 @@ generated = ["api/schema/", ".gen.ts"]
 # ARAGONITE_ICONS wins. `?` names the set in use and why.
 icons = "auto"
 
+# Text fields (a comment, a reply, the agent's prompt) take vim's keys. They
+# open in insert mode, so you just type; esc goes to normal mode and a second
+# esc leaves. enter saves in every mode, ctrl+j starts a new line, and ctrl+e
+# hands the text to $EDITOR. false keeps enter and ctrl+j, with esc leaving at once.
+vim = true
+
 # How many reviews ahead of the cursor the queue prepares in the background.
 # 0 turns it off.
 prefetch = 3
