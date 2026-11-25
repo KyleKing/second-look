@@ -120,10 +120,14 @@ Re-run it after upgrading so the skill matches the binary. `second-look --help` 
 
 ## Fonts
 
-File headings and states use glyphs every monospace font has, which is the default because every
-terminal measures them alike. With a [Nerd Font](https://www.nerdfonts.com/) (a Mono one), set
-`icons = "nerd"` in the config or `ARAGONITE_ICONS=nerd` for a filetype icon on each file heading;
-`none` draws no icons. The variable is shared with jj-diff and jojo and wins over the config.
+File headings and states draw a filetype icon from the Nerd Font symbols in a terminal that bundles
+them (WezTerm, kitty 0.33 and later, Ghostty), and glyphs every monospace font has everywhere else,
+because those every terminal measures alike. The bottom row of `?` names the set in use and why, such
+as `icons  nerd (auto: WezTerm)`. Set `icons = "plain"` in the config, or `ARAGONITE_ICONS=plain`, to
+keep the plain glyphs; `"nerd"` forces the icons with a [Nerd Font](https://www.nerdfonts.com/) (a
+Mono one) in any terminal, and `"none"` draws no icons. The variable is shared with jj-diff and jojo
+and wins over the config. Inside tmux the terminal is read from the variables the tmux server
+inherited, so a session attached from a different terminal may need the setting.
 
 ## More
 

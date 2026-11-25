@@ -63,12 +63,34 @@ func TestMain(m *testing.M) {
 		panic(string(out))
 	}
 
+	unsetIconDetection()
+
 	code := hermetic.Run(m, hermetic.App("second-look"))
 
 	ghcassette.RemoveStub()
 	_ = os.RemoveAll(dir) //nolint:errcheck // a leftover temp directory is not worth failing a run
 
 	os.Exit(code)
+}
+
+// unsetIconDetection removes every variable aragonite's icons.Explain reads to
+// pick a set, and a TERM that names a Nerd-bundling terminal, so a child draws
+// the plain set in whatever terminal runs the tests.
+func unsetIconDetection() {
+	for _, v := range []string{
+		"ARAGONITE_ICONS", "TERM_PROGRAM", "WEZTERM_PANE", "WEZTERM_EXECUTABLE",
+		"KITTY_WINDOW_ID", "GHOSTTY_RESOURCES_DIR",
+	} {
+		if err := os.Unsetenv(v); err != nil {
+			panic(err)
+		}
+	}
+
+	if t := os.Getenv("TERM"); t == "xterm-kitty" || t == "xterm-ghostty" {
+		if err := os.Setenv("TERM", "xterm-256color"); err != nil {
+			panic(err)
+		}
+	}
 }
 
 // cassettePath is absolute because the stub inherits the working directory of

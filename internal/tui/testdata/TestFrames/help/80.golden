@@ -21,4 +21,4 @@ vcs ●────────────────────────�
   ctrl+o/i   back and forward through jumps                                     
   .          the last change                                                    
 a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
- j/k line   ] go to   \\ code   m mark   P publish   ? help   esc queue   q quit
+ icons  unicode (auto: no Nerd terminal detected) · ARAGONITE_ICONS=nerd

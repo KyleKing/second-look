@@ -21,4 +21,4 @@
     17       last := 4                                 │                                                             │
        internal/vcs/git.go                             │ enter run  / filter  ↑↓ move  esc back                      │
          func Head() string { ─────────────────────────╰─────────────────────────────────────────────────────────────╯
-   ▸ next  all read, 3 comments staged · P submit  ] go to   m mark   e write   P publish   ? help   q quit
+   icons  unicode (auto: no Nerd terminal detected) · set icons = "nerd" or ARAGONITE_ICONS=nerd

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"charm.land/bubbles/v2/key"
-	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
 )
@@ -53,20 +52,6 @@ func asHints(hints [][2]string) []keyhint.Hint {
 // keyOf is the key a binding answers as a hint spells it, so a hint read from
 // the keymap follows a rebind or a move.
 func keyOf(b key.Binding) string { return b.Help().Key }
-
-// chip draws one hint bare, the key and then its word, with the cell between
-// them drawn in gap: keyhint leaves that cell unstyled, which shows as a hole
-// wherever the hint sits on a fill or band of its own.
-func chip(s keyhint.Styles, h keyhint.Hint, gap lipgloss.Style) string {
-	switch {
-	case h.Off:
-		return s.Off.Render(h.Key + " " + h.What)
-	case h.What == "":
-		return s.Key.Render(h.Key)
-	}
-
-	return s.Key.Render(h.Key) + gap.Render(" ") + s.Text.Render(h.What)
-}
 
 // promptKeys are the keys a one-line prompt names after its input, drawn the
 // way the footer draws its keys.

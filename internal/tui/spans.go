@@ -129,7 +129,7 @@ func (m *Model) spanLine(r row, lead string, base lipgloss.Style, width int, dim
 
 			f := m.hintFaces()
 			f.Key, f.Text = paint(f.Key), paint(f.Text)
-			b.WriteString(chip(f, keyhint.Hint{Key: s.key, What: s.text}, paint(lipgloss.NewStyle())))
+			b.WriteString(keyhint.One(f, keyhint.Hint{Key: s.key, What: s.text}))
 			used += textWidth(s.plain())
 
 			continue
@@ -190,7 +190,7 @@ func (m *Model) spanText(r row, face lipgloss.Style, width int, ground func(lipg
 
 			f := m.hintFaces()
 			f.Key, f.Text = ground(f.Key), ground(f.Text)
-			b.WriteString(chip(f, keyhint.Hint{Key: s.key, What: s.text}, ground(lipgloss.NewStyle())))
+			b.WriteString(keyhint.One(f, keyhint.Hint{Key: s.key, What: s.text}))
 			used += textWidth(s.plain())
 
 			continue

@@ -17,4 +17,4 @@ second-look                                                     sorted by triage
   ctrl+e    scroll without moving the cursor                                    
   tab       the next group                                                      
 a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
-enter read   space read   i reply   R resolve   o GitHub   tab group   ? help   
+icons  unicode (auto: no Nerd terminal detected) · ARAGONITE_ICONS=nerd         

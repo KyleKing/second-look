@@ -120,7 +120,7 @@ var built = struct {
 	sync.Mutex
 }{by: map[terminalLook]styles{}}
 
-// UseIcons sets the configured icon set ("unicode", "nerd", or "none"), which
+// UseIcons sets the configured icon set ("auto", "unicode", "nerd", or "none"), which
 // ARAGONITE_ICONS still overrides. A screen opened after it draws with it.
 func UseIcons(setting string) {
 	built.Lock()

@@ -237,7 +237,7 @@ func (m *Model) footEdge(r row, edge lipgloss.Style, width int) string {
 			s = lit
 		}
 
-		next := chip(s, k.hint, m.on(lipgloss.NewStyle()))
+		next := keyhint.One(s, k.hint)
 
 		if i > 0 {
 			next = sep + next

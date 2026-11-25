@@ -9,6 +9,7 @@ import (
 	"github.com/kyleking/aragonite/tui/empty"
 	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/preview"
 	uisplit "github.com/kyleking/aragonite/tui/split"
 	"github.com/kyleking/aragonite/tui/table"
@@ -53,7 +54,9 @@ func (l *List) render() string {
 	f.Hints = l.footerHints()
 
 	lines := strings.Split(frame.Render(l.styles.skin, f, l.width, l.height), "\n")
-	if over := l.footerOver(); over != "" {
+	if l.pal.IsOpen() && l.pal.Mode() == palette.Browse {
+		lines[len(lines)-1] = frame.Lit(iconsLine(l.styles, iconsResolution(), l.width-1), l.width, l.styles.panel)
+	} else if over := l.footerOver(); over != "" {
 		lines[len(lines)-1] = frame.Lit(over, l.width, l.styles.panel)
 	} else if line := l.coachFooter(); line != "" {
 		lines[len(lines)-1] = frame.Lit(line, l.width, l.styles.panel)

@@ -17,4 +17,4 @@
                                                        │                                                             │
   good catch, pushed a defer  kyleking/tlr#118         │ enter run  / filter  ↑↓ move  esc back                      │
   2h                                                   ╰─────────────────────────────────────────────────────────────╯
-  enter read   space read   i reply   R resolve   o GitHub   tab group   / filter   ? help   q quit                   
+  icons  unicode (auto: no Nerd terminal detected) · set icons = "nerd" or ARAGONITE_ICONS=nerd                       

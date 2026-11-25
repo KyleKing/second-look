@@ -13,6 +13,7 @@ import (
 	"github.com/kyleking/aragonite/tui/frame"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
+	"github.com/kyleking/aragonite/tui/palette"
 
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/highlight"
@@ -79,7 +80,14 @@ func (m *Model) render() string {
 		out = append(out, m.agentLines()...)
 	}
 
-	return marginate(strings.Join(append(out, m.footerLines()...), "\n"), m.padX, m.padY)
+	foot := m.footerLines()
+	if m.pal.IsOpen() && m.pal.Mode() == palette.Browse && len(foot) > 0 {
+		// The legend names the icon set in the footer's place, since its keys
+		// are the palette's own while it is open.
+		foot[len(foot)-1] = " " + iconsLine(m.styles, iconsResolution(), m.width-1)
+	}
+
+	return marginate(strings.Join(append(out, foot...), "\n"), m.padX, m.padY)
 }
 
 // loadingLines is the page a frame draws while its rows are being built off
