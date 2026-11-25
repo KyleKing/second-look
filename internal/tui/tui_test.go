@@ -1915,16 +1915,18 @@ func TestSkippingFillsInAReason(t *testing.T) {
 
 	go2(t, m, ']', 'c')
 
-	// The three state keys sit behind m, and a bare press says so rather than
-	// doing nothing, because the hand that learned them keeps reaching.
+	// A state key is one rule on every row: bare x stamps a comment as it
+	// rules on a thread, and m x does the same.
 	press(t, m, tea.KeyPressMsg{Code: 'x', Text: "x"})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "m first") {
-		t.Errorf("a bare x said nothing:\n%s", got)
+	if got := m.CommentStatus(0); got != artifact.StatusSkip {
+		t.Errorf("a bare x left the comment %q, want skip", got)
 	}
 
+	press(t, m, tea.KeyPressMsg{Code: 'r', Text: "r"})
+
 	if got := m.CommentStatus(0); got != artifact.StatusReady {
-		t.Errorf("a bare x restamped the comment to %q", got)
+		t.Errorf("a bare r left the comment %q, want ready", got)
 	}
 
 	state(t, m, 'x')
@@ -2488,6 +2490,51 @@ func TestADraftStopsTheSubmitAndIsShown(t *testing.T) {
 
 	if !strings.Contains(got, draft.Body) {
 		t.Errorf("the cursor never reached the draft:\n%s", got)
+	}
+
+	// P opened its page with the refusal on it, so a second key typed ahead
+	// is the page's: c is refused there, and never lands as a bare key.
+	m.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
+
+	if sub.n != 0 {
+		t.Fatalf("P c posted a draft review %d time(s)", sub.n)
+	}
+
+	got = plain(m.Frame())
+	if strings.Contains(got, "moved to") || !strings.Contains(got, "r marks it ready to post") {
+		t.Errorf("P c did not answer as the page refusing:\n%s", got)
+	}
+
+	// Leaving the page, r is the ready stamp on the draft the cursor is on.
+	press(t, m, tea.KeyPressMsg{Code: 'r', Text: "r"})
+
+	if got := m.CommentStatus(1); got != artifact.StatusReady {
+		t.Errorf("r on the draft left it %q, want ready", got)
+	}
+}
+
+// P opens its page in every state of the review, even one that cannot post.
+func TestPublish_AlwaysOpensItsPage(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range []tea.WindowSizeMsg{{Width: 80, Height: 24}, {Width: 120, Height: 40}} {
+		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
+			t.Parallel()
+
+			skipped := comment("c2", "internal/vcs/git.go", artifact.SideRight, 201, "never mind")
+			skipped.Status, skipped.SkipReason = artifact.StatusSkip, "declined"
+			other := comment("c3", "internal/vcs/git.go", artifact.SideRight, 201, "nor this")
+			other.Status, other.SkipReason = artifact.StatusSkip, "declined"
+
+			m, _, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 15, "on the add"), skipped, other)
+			m.Update(size)
+			m.Update(tea.KeyPressMsg{Code: 'P', Text: "P"})
+
+			got := plain(m.Frame())
+			if !strings.Contains(got, "2 skipped") || strings.Contains(got, "skippeds") {
+				t.Errorf("the page does not count the skipped comments plainly:\n%s", got)
+			}
+		})
 	}
 }
 

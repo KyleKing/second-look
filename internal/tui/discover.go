@@ -165,7 +165,11 @@ func (m *Model) writeGate(k string) (keys.Availability, bool) {
 		if !m.onCode() {
 			return keys.Refuse("needs a line of the diff"), true
 		}
-	case "m", "E":
+	case "m", "r/d/t/x":
+		if m.current() < 0 && m.threadHere() < 0 {
+			return keys.Refuse("no comment or thread under the cursor; i writes one"), true
+		}
+	case "E":
 		if m.current() < 0 {
 			return keys.Refuse("no comment under the cursor; i writes one"), true
 		}

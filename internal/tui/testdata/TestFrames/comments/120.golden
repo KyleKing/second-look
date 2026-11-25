@@ -6,12 +6,12 @@
    
          ╭─ ● ready · major ─────────────────────────────────────────────────────────── diff.go:15 ─╮
          │ split can fail now, so this has to check err.                                            │
-         ╰─ e edit · mr ready · md draft · mt todo · mx skip · za fold ─────────────────────────────╯
+         ╰─ e edit · r ready · d draft · t todo · x skip · za fold ─────────────────────────────────╯
    
          ╭─ ◐ draft · question ──────────────────────────────────────────────────────── diff.go:14 ─╮
          │ Is first still 1 after the change?                                                       │
          │ note  Unverified: I have not read the caller.                                            │
-         ╰─ e edit · mr ready · md draft · mt todo · mx skip · za fold ─────────────────────────────╯
+         ╰─ e edit · r ready · d draft · t todo · x skip · za fold ─────────────────────────────────╯
    
        internal/vcs/git.go  1 skipped ────────────────────────────────────────────────────────────────────────────────
   

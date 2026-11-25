@@ -59,14 +59,14 @@ func TestAGatedKeySaysWhy(t *testing.T) {
 
 	press(t, m, tea.KeyPressMsg{Code: 'm', Text: "m"})
 
-	if frame := plain(m.Frame()); !strings.Contains(frame, "m  no comment under the cursor; i writes one") {
+	if frame := plain(m.Frame()); !strings.Contains(frame, "m  no comment or thread under the cursor; i writes one") {
 		t.Errorf("m with no comment said nothing of why:\n%s", frame)
 	}
 
 	press(t, m, tea.KeyPressMsg{Code: '?', Text: "?"})
 	typed(t, m, "/a state")
 
-	if frame := plain(m.Frame()); !strings.Contains(frame, "no comment under the cursor") {
+	if frame := plain(m.Frame()); !strings.Contains(frame, "no comment or thread under the cursor") {
 		t.Errorf("the legend does not give the reason m is off:\n%s", frame)
 	}
 }

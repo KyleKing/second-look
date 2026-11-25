@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -471,7 +472,7 @@ func (m *Model) agentDivider() string {
 	}
 
 	if n := len(m.agentQueue); n > 0 {
-		head += " · " + plural(n, "queued")
+		head += " · " + strconv.Itoa(n) + " queued"
 	}
 
 	rest := m.width - textWidth(head) - 1

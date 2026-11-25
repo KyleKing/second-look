@@ -62,11 +62,11 @@ second-look shares one keymap with [jojo](https://github.com/KyleKing/jojo) and 
 | --- | ------------- | ----- |
 | `i` | comment on the line (then `b` `m` `n` `t` `?` for the severity), or reply on a thread | reply to the conversation, or comment on the pull request |
 | `e` | edit what is there: a staged comment, the review's own prose | |
-| `P` | publish: `Pa` approve, `Pr` request changes, `Pc` comment, `Pp` post the comment under the cursor | `Pa` approve, then `Pa` again to confirm |
+| `P` | publish: `Pa` approve, `Pr` request changes, `Pc` comment, `Pp` post the comment under the cursor; the page opens even when the review cannot post yet, and says why | `Pa` approve, then `Pa` again to confirm |
 | `space` | mark the hunk read | mark the row read |
 | `]u` / `[u` | next / previous unread hunk | next / previous row needing a look |
 | `]q` / `[q` | | next / previous queue (also `1` `2` `3`) |
-| `m` | a state: `r` ready, `d` draft, `t` todo, `x` skip | |
+| `r` `d` `t` `x` | a state on the comment or thread under the cursor: ready, draft, todo, skip (`m` then the letter does the same); `R` resolves a thread | |
 | `\` | what is shown: `\t` threads, `\c` comments, `\g` grammar, `\s` side by side, `\w` wrap, `\i` images, `\p` the next preset, `\\` the next view | |
 | `v` / `V` | a range of lines | |
 | `bb` / `bd` | the checkout's branches and CI / delete the branch | |

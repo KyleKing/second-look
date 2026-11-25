@@ -10,10 +10,21 @@ import (
 // went, and for ctrl+r, which still restages for one release, does the job
 // too. A bare t or c off a thread was the threads or comments view; t stays
 // the todo verdict on a finding, so its notice is written here rather than
-// read from the keymap, where it would collide with that verdict. A bare
-// state key, which sits behind m, says so too.
+// read from the keymap, where it would collide with that verdict.
+//
+// A state key is one rule on every row: bare r, d, t, or x stamps the comment
+// under the cursor the way it rules on a thread, and m then the same letter
+// does the same. It reaches here only off a thread, since judgeKey answers a
+// thread first.
 func (m *Model) movedKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	k := msg.String()
+
+	if m.stateKey(msg) && m.current() >= 0 {
+		m.remember(0, msg)
+		_, cmd := m.act(msg)
+
+		return cmd, true
+	}
 
 	switch k {
 	case "t":
@@ -30,11 +41,10 @@ func (m *Model) movedKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 
 	mv, ok := moveNotice(m.km, k)
 	if !ok {
-		// The state keys sit behind m now. A bare press is answered rather
-		// than ignored, because the hand that learned them reaches for them
-		// for weeks.
+		// Off a comment and off a thread a state key has nothing to stamp,
+		// which is said rather than ignored.
 		if m.stateKey(msg) {
-			m.say("m first: m r ready · m d draft · m x skip", false)
+			m.say(k+" sets the state of a comment or thread, and the cursor is on neither", false)
 
 			return nil, true
 		}

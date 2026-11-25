@@ -17,11 +17,9 @@ const (
 )
 
 // commentKeys is what a plain comment card's foot offers: rewrite it, the
-// states that sit behind m, and the fold. Every key is read from the keymap,
+// states, bare as a thread's verdicts are, and the fold. Every key is read from the keymap,
 // so a foot follows a rebind or a move rather than naming a key that moved.
 func (m *Model) commentKeys() []footKey {
-	state := keyOf(m.keys.State)
-
 	out := pairKeys([][2]string{{keyOf(m.keys.Edit), editWord}})
 	for _, st := range []struct {
 		b    key.Binding
@@ -32,7 +30,7 @@ func (m *Model) commentKeys() []footKey {
 		{m.keys.Todo, artifact.StatusTodo},
 		{m.keys.Skip, artifact.StatusSkip},
 	} {
-		out = append(out, footKey{hint: keyhint.Hint{Key: state + keyOf(st.b), What: st.what}})
+		out = append(out, footKey{hint: keyhint.Hint{Key: keyOf(st.b), What: st.what}})
 	}
 
 	return append(out, m.foldKey())

@@ -3407,14 +3407,20 @@ func (m *Model) applySent(msg sentMsg) {
 // under P, and nothing goes on one key. The page names what goes out, and the
 // second key both confirms it and says what it is: Pa, Pr, and Pc post the
 // review as one event each, and Pp posts the comment under the cursor alone.
+//
+// The page opens whatever the review's state, with the reason it cannot post
+// said on it, so P always answers the same way and a second key typed ahead
+// lands on the page rather than as a bare key. Where a draft is the reason,
+// the cursor goes to it, since the page is where it can still be ruled on.
 func (m *Model) askPublish() {
 	one := m.postable()
 	why := m.submitBlocked()
 
-	if why != "" && one == "" {
-		m.refuseSubmit(why)
-
-		return
+	if d := m.firstDraft(); why != "" && d >= 0 && !m.posted && !m.posting && !m.review.Local {
+		_ = m.focus(d)
+		// On the page r is request changes, so the advice says to leave it
+		// first.
+		why += " · esc, then" + strings.TrimPrefix(draftAdvice, " ·")
 	}
 
 	m.pending = 'P'
@@ -3444,7 +3450,7 @@ func (m *Model) submitBlocked() string {
 	}
 
 	if c := m.counts(); c.draft > 0 {
-		return plural(c.draft, "comment") + " still draft, m r posts it or m x skips it"
+		return plural(c.draft, "comment") + " still draft"
 	}
 
 	return ""
@@ -3455,10 +3461,16 @@ func (m *Model) submitBlocked() string {
 func (m *Model) refuseSubmit(why string) {
 	if d := m.firstDraft(); d >= 0 && !m.posted && !m.posting && !m.review.Local {
 		_ = m.focus(d)
+		why += draftAdvice
 	}
 
 	m.say(why, why != postingWord && why != postedWord)
 }
+
+// draftAdvice is what a draft blocking the post asks for, said with the cursor
+// on the first one: r marks it ready, which posts it with the review rather
+// than posting it now.
+const draftAdvice = " · r marks it ready to post, x skips it"
 
 // postable is the id of the comment under the cursor that Pp would post on
 // its own, empty where there is none.
@@ -3493,7 +3505,7 @@ func (m *Model) publishWord(blocked, one string) string {
 		}
 
 		if c.skip > 0 {
-			word += " · " + plural(c.skip, "skipped")
+			word += " · " + strconv.Itoa(c.skip) + " skipped"
 		}
 
 		parts = append(parts, word+"  "+hintLine(events()))
