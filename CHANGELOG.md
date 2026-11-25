@@ -1,3 +1,9 @@
+## v0.62.0 (2026-11-25)
+
+### Feat
+
+- **tui**: edit comments, replies, and the agent prompt as vim fields
+
 ## v0.61.1 (2026-11-25)
 
 ### Fix
