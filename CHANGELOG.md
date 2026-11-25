@@ -1,3 +1,27 @@
+## v0.60.0 (2026-11-25)
+
+### BREAKING CHANGE
+
+- the review screen and the queue move these keys:
+review: a + severity -> i + severity; e on a thread (reply) -> i;
+S + a/r/c (submit) -> P + a/r/c; P (post one) -> P p; B (branches and CI)
+-> bb; D (delete branch) -> bd, confirmed by bd or d again; i (info) -> gi;
+u g/i/s/w (looks) -> \g \i \s \w; u v (next preset) -> \p; v (next view)
+-> \\; t (threads view) -> \t; c (comments view) -> \c; V (range) -> v or V;
+ctrl+r (restage) -> ctrl+l; y/Y (scroll a line) -> ctrl+y/ctrl+e, and Y now
+yanks path:line.
+queue: m (comment on the pull request) -> i; r (reply) -> i; A, A again
+(approve) -> P a, P a again; u/U (next/previous row needing a look) ->
+]u/[u, with n/N repeating; ] / [ (switch queue) -> ]q/[q; z (fold the
+lane) -> za; gc / gs (clean) -> :clean / :clean stale; ctrl+r (refresh) ->
+ctrl+l; y/Y (scroll) -> ctrl+y/ctrl+e, and Y now yanks owner/repo#number;
+space's footer word is "read".
+The old keys say where they went for one release and are unbound after it.
+
+### Feat
+
+- **keys**: join the family keymap (aragonite v1.33.0 keymap v2)
+
 ## v0.59.1 (2026-11-25)
 
 ### Fix
