@@ -1070,14 +1070,26 @@ func (l *List) moved(msg tea.KeyPressMsg) bool {
 // leaving, since a filter is a state to get out of; q means what it says either
 // way.
 func (l *List) leave(msg tea.KeyPressMsg) tea.Cmd {
-	if l.filter.on() && key.Matches(msg, l.keys.Back) {
-		l.clearFilter()
+	if key.Matches(msg, l.keys.Back) {
+		// Esc backs out one level, as it does in jojo and jj-diff, and the
+		// queue is the top: past a filter it says how to leave rather than
+		// leaving, so esc pressed to dismiss something never ends the sitting.
+		if l.filter.on() {
+			l.clearFilter()
+
+			return nil
+		}
+
+		l.say(rootEsc, false)
 
 		return nil
 	}
 
 	return tea.Quit
 }
+
+// rootEsc is what esc says at a screen with nothing behind it.
+const rootEsc = "nothing is behind this screen · q quits"
 
 func heading(s *Section) string {
 	if s.Fold {

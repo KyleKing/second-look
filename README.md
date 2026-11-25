@@ -75,6 +75,8 @@ second-look shares one keymap with [jojo](https://github.com/KyleKing/jojo) and 
 | `ctrl+l` | restage | read the queue again |
 | `za` | fold or unfold this | show or hide the folded lane |
 | `:clean` | | drop staged reviews whose pull request finished (`:clean stale` too) |
+| `esc` | back out one level: a prompt, the legend, a peek, then the queue | clear the filter; at the top it says `q` quits |
+| `q` | leave the review | quit |
 
 Keys that moved in 0.60 (`a` comment, `S` submit, `P` post one, `B`, `D`, `i` info, `u` and `v` looks, `t` and `c` toggles, `ctrl+r`, `y`/`Y` scroll, and in the queue `m`, `A`, `r`, `u`/`U`, `]`/`[`, `z`, `gc`) say where they went when pressed, for one release.
 

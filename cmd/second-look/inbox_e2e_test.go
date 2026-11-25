@@ -917,17 +917,25 @@ func TestTheQueueSaysWhenTheTerminalIsTooSmall(t *testing.T) {
 // Every way out of the queue gives the terminal back as it was found, at every
 // size: the alternate screen is left, the cursor is shown, and no input mode the
 // screen turned on is still on, or the shell prompt that follows is unusable.
+// Esc is not a way out: the queue is the top, so it says q quits and q does.
 func TestTheQueueGivesTheTerminalBackOnEveryQuit(t *testing.T) {
 	t.Parallel()
 
 	for _, sz := range queueSizes {
-		for _, quit := range []struct{ name, keys string }{
-			{"q", "q"}, {"esc", "\x1b"}, {"ctrl-c", "\x03"},
+		for _, quit := range []struct{ name, first, keys string }{
+			{"q", "", "q"}, {"esc then q", "\x1b", "q"}, {"ctrl-c", "", "\x03"},
 		} {
 			t.Run(fmt.Sprintf("%s at %dx%d", quit.name, sz.cols, sz.rows), func(t *testing.T) {
 				t.Parallel()
 
 				sc := openQueueAt(t, sz)
+
+				if quit.first != "" {
+					at := sc.mark()
+					sc.press(quit.first)
+					sc.awaitFrom(at, "q quits")
+				}
+
 				sc.press(quit.keys)
 
 				if code := sc.wait(); code != 0 {

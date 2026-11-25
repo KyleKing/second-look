@@ -59,6 +59,8 @@ type Shell struct {
 	// queue is set when a review with no queue behind it was left with esc,
 	// which the caller answers by opening the queue.
 	queue bool
+	// root is set where esc has nowhere to go: a review with no queue to open.
+	root bool
 	// j is the usage recorder, nil-safe everywhere it is read.
 	j   *keyusage.Recorder
 	use *fresher
@@ -76,6 +78,15 @@ func NewShell(ctx context.Context, l *List, open Handoff) *Shell {
 // when esc was the key so the caller can open the queue.
 func NewReviewShell(ctx context.Context, m *Model) *Shell {
 	return &Shell{ctx: ctx, review: m, at: modeReview, width: minWidth, height: startHeight}
+}
+
+// AtRoot marks a review shell with nothing behind it at all, not even a queue
+// to open (a local review), so esc there says q quits rather than ending the
+// program: esc backs out a level, and a root has none to back out of.
+func (s *Shell) AtRoot() *Shell {
+	s.root = true
+
+	return s
 }
 
 // WithUsage gives the shell's keys and events somewhere to land, and draws the
@@ -310,6 +321,12 @@ func (s *Shell) back(esc bool) tea.Cmd {
 	s.j.Since("shell", "leave", s.review.built)
 
 	if s.list == nil {
+		if esc && s.root {
+			s.review.say(rootEsc, false)
+
+			return nil
+		}
+
 		s.queue = esc
 
 		return tea.Quit

@@ -671,7 +671,7 @@ func localCmd(ctx context.Context, args []string, stdout io.Writer) error {
 	rec, seen := openUsage()
 	defer rec.Close() //nolint:errcheck // a usage log that failed to close lost nothing the review needs
 
-	if _, err := tui.RunShell(tui.NewReviewShell(ctx, m).WithUsage(rec, seen)); err != nil {
+	if _, err := tui.RunShell(tui.NewReviewShell(ctx, m).AtRoot().WithUsage(rec, seen)); err != nil {
 		return fmt.Errorf("reviewing the local change: %w", err)
 	}
 

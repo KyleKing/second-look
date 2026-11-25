@@ -3,6 +3,7 @@ package tui_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -268,5 +269,58 @@ func TestReviewShellQuitsWithNothingBehindIt(t *testing.T) {
 				t.Errorf("%s: Outcome.Queue = %v, want %v", tc.name, got, tc.queue)
 			}
 		})
+	}
+}
+
+// Esc backs out one level and never ends the program: at the queue, and at a
+// review with no queue to open, it says q quits instead, so esc pressed to
+// dismiss something does not end the sitting.
+func TestEsc_NeverQuitsARoot(t *testing.T) {
+	t.Parallel()
+
+	esc := tea.KeyPressMsg{Code: tea.KeyEscape}
+
+	for _, tc := range []struct {
+		name  string
+		shell func(t *testing.T) *tui.Shell
+	}{
+		{"the queue", func(t *testing.T) *tui.Shell {
+			t.Helper()
+
+			return tui.NewShell(t.Context(), chooses(t), nil)
+		}},
+		{"a local review", func(t *testing.T) *tui.Shell {
+			t.Helper()
+
+			m, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 16, "check err"))
+
+			return tui.NewReviewShell(t.Context(), m).AtRoot()
+		}},
+	} {
+		for _, size := range []tea.WindowSizeMsg{{Width: 80, Height: 24}, {Width: 120, Height: 40}} {
+			t.Run(fmt.Sprintf("%s/%dx%d", tc.name, size.Width, size.Height), func(t *testing.T) {
+				t.Parallel()
+
+				s := tc.shell(t)
+				pump(t, s, s.Init())
+				s.Update(size)
+
+				if sendTo(t, s, esc) {
+					t.Fatalf("esc quit %s", tc.name)
+				}
+
+				if got := plain(s.Frame()); !strings.Contains(got, "q quits") {
+					t.Errorf("esc at %s does not say q quits:\n%s", tc.name, got)
+				}
+
+				if s.Outcome().Queue {
+					t.Error("esc asked for a queue there is none of")
+				}
+
+				if !sendTo(t, s, letter('q')) {
+					t.Errorf("q did not quit %s", tc.name)
+				}
+			})
+		}
 	}
 }
