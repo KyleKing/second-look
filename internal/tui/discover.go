@@ -59,7 +59,7 @@ func WithCoachLayout(l coach.Layout) Option {
 // discover builds the palette and the coach once the options have run.
 func (m *Model) discover() {
 	m.pal = palette.New(m.styles.skin)
-	m.welcome = reviewWelcome(m.keys)
+	m.welcome = reviewWelcome(m.keys, m.review != nil && m.review.Local)
 	m.welcome.OpenIfDue(m.ledger)
 	m.coach = coach.New(coach.Config[reviewState]{
 		Ledger: m.ledger, Rules: reviewRules(), Tips: reviewTips(), Start: m.built,

@@ -8,8 +8,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kyleking/aragonite/seen"
+
 	"github.com/kyleking/second-look/internal/artifact"
 	"github.com/kyleking/second-look/internal/get"
+	"github.com/kyleking/second-look/internal/jjseen"
 	"github.com/kyleking/second-look/internal/local"
 )
 
@@ -325,5 +328,111 @@ func TestRevsetJJ(t *testing.T) {
 
 	if _, err := local.Open(t.Context(), dir, local.Range, "base..@"); !errors.Is(err, local.ErrRangeInJJ) {
 		t.Errorf("--range under jj answered %v", err)
+	}
+}
+
+// jojoRead marks every hunk of rev read in jojo's store for the repository at dir, filed under the
+// full change id and naming the hunks by the change's own diff, as jojo does.
+func jojoRead(t *testing.T, dir, rev string) {
+	t.Helper()
+
+	jjOut := func(args ...string) []byte {
+		argv := append([]string{"--no-pager"}, args...)
+		cmd := exec.CommandContext(t.Context(), "jj", argv...) // #nosec G204 -- a fixture's own revision
+		cmd.Dir = dir
+
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return out
+	}
+
+	change := strings.TrimSpace(string(jjOut("log", "--no-graph", "-r", rev, "-T", "change_id")))
+	patch := jjOut("diff", "-r", change, "--git")
+
+	repo, err := seen.JJRepo(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := seen.StateDir(jjseen.App, "seen", seen.RepoKey(repo))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store := seen.Open(state)
+	hunks := seen.Parse(patch)
+
+	set, err := store.Set(change)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, h := range hunks {
+		set.Mark(true, h.ID)
+	}
+
+	if err := store.Save(change, hunks); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestLocalJJ_CountsHunksJojoMarkedRead is the dogfood report's "read 0 of 11": hunks jojo had
+// marked read, filed under their change ids, read as unread in second-look local, which kept one
+// set per checkout. A working copy and a revset over two revisions both open with jojo's marks.
+func TestLocalJJ_CountsHunksJojoMarkedRead(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("jj"); err != nil {
+		t.Skip("jj is not installed")
+	}
+
+	for _, c := range []struct {
+		name string
+		mode local.Mode
+		base string
+	}{
+		{"revset", local.Revset, "base..@"},
+		{"working copy", local.Worktree, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			jj(t, dir, "git", "init", "--no-pager")
+			write(t, dir, "a.txt", "one\n")
+			jj(t, dir, "describe", "-m", "base", "--no-pager")
+			jj(t, dir, "bookmark", "create", "base", "-r", "@", "--no-pager")
+
+			for _, step := range []string{"b", "c"} {
+				jj(t, dir, "new", "--no-pager")
+				write(t, dir, step+".txt", step+"\n")
+				jj(t, dir, "describe", "-m", "feat: add "+step, "--no-pager")
+			}
+
+			jojoRead(t, dir, "@-")
+			jojoRead(t, dir, "@")
+
+			opened, err := local.Open(t.Context(), dir, c.mode, c.base)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if opened.Shared == nil {
+				t.Fatal("a jj review opened with no record shared with jojo")
+			}
+
+			live := seen.Hunks(opened.Diff)
+
+			if _, err := opened.Shared.Import(opened.Read, live); err != nil {
+				t.Fatal(err)
+			}
+
+			if got := opened.Read.Count(live); got != len(live) {
+				t.Errorf("read %d of %d hunks jojo marked read", got, len(live))
+			}
+		})
 	}
 }

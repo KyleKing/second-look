@@ -64,7 +64,7 @@ func TestWelcome_ReviewFrames(t *testing.T) {
 	}
 }
 
-// Any key takes the card down and still does what it does, esc only takes it
+// The help key takes the card down and opens the legend, esc only takes it
 // down, the dismissal is saved at once, and a second launch is not greeted.
 func TestWelcome_AnyKeyDismissesAndActsOnce(t *testing.T) {
 	t.Parallel()
@@ -245,5 +245,66 @@ func TestQueuePalette_RunPressesTheKey(t *testing.T) {
 
 	if len(got) != 1 || got[0] != tui.ActMark {
 		t.Errorf("the palette ran %v, want one mark", got)
+	}
+}
+
+// TestWelcome_LocalReviewHasNothingToSubmit is the card second-look local opened with: it taught
+// "S submit the review" on a review that has nowhere to post. A local review's card names the
+// notes it keeps instead, at both sizes a terminal opens at.
+func TestWelcome_LocalReviewHasNothingToSubmit(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range [][2]int{{80, 24}, {100, 30}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			t.Parallel()
+
+			l, _ := freshLedger(t)
+			m, _, _ := modelFor(t, &artifact.Review{
+				Version: artifact.SchemaVersion, Repo: "jj-diff", Local: true,
+				HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+			}, patch, tui.WithLedger(l))
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+
+			frame := plain(m.Frame())
+			if !strings.Contains(frame, "Welcome to second-look") || !strings.Contains(frame, "your own change") {
+				t.Fatalf("a local review's first launch did not open on its card:\n%s", frame)
+			}
+
+			if strings.Contains(frame, "submit the review") || strings.Contains(frame, "pull request") {
+				t.Errorf("a local review's card teaches the pull request's submit:\n%s", frame)
+			}
+		})
+	}
+}
+
+// TestWelcome_DismissingKeyDoesNotAct is the first keystroke of a first launch:
+// with the card up, a (add a comment) and S (submit) only close the card, at
+// both sizes a terminal opens at, so nothing is staged or posted behind it.
+func TestWelcome_DismissingKeyDoesNotAct(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range [][2]int{{80, 24}, {100, 30}} {
+		for _, k := range []rune{'a', 'S'} {
+			t.Run(fmt.Sprintf("%c_%dx%d", k, size[0], size[1]), func(t *testing.T) {
+				t.Parallel()
+
+				l, _ := freshLedger(t)
+				m := welcomeReview(t, l, size[0], size[1])
+				press(t, m, key(k))
+
+				lt, _ := freshLedger(t)
+				twin := welcomeReview(t, lt, size[0], size[1])
+				press(t, twin, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+				frame := plain(m.Frame())
+				if strings.Contains(frame, "Welcome to second-look") {
+					t.Fatalf("%c did not close the card:\n%s", k, frame)
+				}
+
+				if want := plain(twin.Frame()); frame != want {
+					t.Errorf("%c acted behind the card; esc leaves:\n%s\n%c left:\n%s", k, want, k, frame)
+				}
+			})
+		}
 	}
 }

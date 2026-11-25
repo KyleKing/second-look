@@ -138,10 +138,13 @@ type Restaged struct {
 	NoCommits string
 	Threads   []threads.Thread
 	Read      *seen.Set
-	HeadSHA   string
-	Blobs     Blobs
-	Search    HeadSearch
-	Prober    Prober
+	// Shared is jojo's record for the new head, already imported into Read,
+	// nil where there is none.
+	Shared  Sharer
+	HeadSHA string
+	Blobs   Blobs
+	Search  HeadSearch
+	Prober  Prober
 }
 
 // Restager prepares the review again against the current head. It moves no

@@ -21,6 +21,7 @@ import (
 	"github.com/kyleking/aragonite/seen"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/kyleking/second-look/internal/jjseen"
 	"github.com/kyleking/second-look/internal/order"
 	"github.com/kyleking/second-look/internal/plan"
 )
@@ -252,21 +253,33 @@ func lastTouching(ctx context.Context, root string, revs []string, f *diff.File)
 // JJ lists the revisions a revset names that change something, oldest first,
 // and maps d's hunks onto them through each revision's own diff.
 func JJ(ctx context.Context, root, revset string, d *diff.Diff) ([]plan.Commit, error) {
+	list, _, err := JJChanges(ctx, root, revset, d)
+
+	return list, err
+}
+
+// JJChanges is JJ with each listed revision's change id and the hunks of its own
+// diff beside it, which is what jojo files its read marks by. The diffs are the
+// ones JJ reads anyway, so sharing marks costs no further jj call.
+func JJChanges(ctx context.Context, root, revset string, d *diff.Diff) ([]plan.Commit, []jjseen.Change, error) {
+	const fields = 5
+
 	out, err := run(ctx, root, "jj", "log", "--no-graph", "--no-pager", "--reversed", "-r", revset,
-		"-T", strings.Join([]string{"commit_id", `if(empty, "empty")`, "author.name()", "description.first_line()"},
-			` ++ "`+field+`" ++ `)+` ++ "\n"`)
+		"-T", strings.Join([]string{
+			"commit_id", `if(empty, "empty")`, "author.name()", "description.first_line()",
+			"change_id",
+		}, ` ++ "`+field+`" ++ `)+` ++ "\n"`)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var (
-		list  []plan.Commit
-		diffs []*diff.Diff
+		list    []plan.Commit
+		changes []jjseen.Change
+		diffs   []*diff.Diff
 	)
 
 	for line := range strings.Lines(out) {
-		const fields = 4
-
 		parts := strings.SplitN(strings.TrimRight(line, "\n"), field, fields)
 		if len(parts) != fields || parts[1] == "empty" {
 			continue
@@ -274,13 +287,22 @@ func JJ(ctx context.Context, root, revset string, d *diff.Diff) ([]plan.Commit, 
 
 		patch, err := run(ctx, root, "jj", "diff", "--git", "--no-pager", "-r", parts[0])
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
+		own := diff.Parse([]byte(patch))
 		list = append(list, plan.Commit{ID: parts[0], Author: parts[2], Subject: parts[3]})
-		diffs = append(diffs, diff.Parse([]byte(patch)))
+		changes = append(changes, jjseen.Change{ID: parts[4], Hunks: seen.Hunks(own)})
+		diffs = append(diffs, own)
 	}
 
+	attribute(list, diffs, d)
+
+	return inDiffOrder(list, d), changes, nil
+}
+
+// attribute files each hunk of d under the revisions that wrote it.
+func attribute(list []plan.Commit, diffs []*diff.Diff, d *diff.Diff) {
 	for _, f := range d.Files {
 		added := addedByHunk(&f)
 
@@ -301,8 +323,6 @@ func JJ(ctx context.Context, root, revset string, d *diff.Diff) ([]plan.Commit, 
 			}
 		}
 	}
-
-	return inDiffOrder(list, d), nil
 }
 
 // wrote walks post-image lines back from the last revision to the first, answering

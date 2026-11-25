@@ -114,7 +114,7 @@ func (m *Model) applyRestaged(msg restagedMsg) tea.Cmd {
 		m.last = nil
 	}
 
-	cmds := []tea.Cmd{m.probe(), m.probeAgent(), m.askHead(), m.readCommits()}
+	cmds := []tea.Cmd{m.probe(), m.probeAgent(), m.askHead(), m.readCommits(), m.reshare(msg.fresh)}
 	// The cards already cached still answer, but a restaged lockfile's asking
 	// state is stale, so the new diff's packages get asked again.
 	m.versioned = nil

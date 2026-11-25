@@ -25,11 +25,12 @@ func firstKey(b key.Binding) string {
 }
 
 // reviewWelcome is the review screen's first-run card: the keys a first
-// review is read and written with, labeled from the keymap.
-func reviewWelcome(k keyMap) *coach.Welcome {
+// review is read and written with, labeled from the keymap. A local review
+// (local) has nothing to submit to, so its card ends on the note it keeps.
+func reviewWelcome(k keyMap, local bool) *coach.Welcome {
 	forward := firstKey(k.Forward)
 
-	return &coach.Welcome{
+	w := &coach.Welcome{
 		Title: welcomeTitle,
 		Lead: "Read a pull request hunk by hunk, stage comments as you go, " +
 			"and submit them as one review.",
@@ -43,6 +44,14 @@ func reviewWelcome(k keyMap) *coach.Welcome {
 		Help:    firstKey(k.Help),
 		Palette: paletteKey,
 	}
+
+	if local {
+		w.Lead = "Read your own change hunk by hunk and leave notes on it as you go. " +
+			"Under jj, a hunk read here is read in jojo and jj-diff too."
+		w.Starters = w.Starters[:len(w.Starters)-1]
+	}
+
+	return w
 }
 
 // queueWelcome is the queue's first-run card: the keys that read a queue.
@@ -66,8 +75,8 @@ func queueWelcome(k keyMap, l listKeys) *coach.Welcome {
 // welcomed answers a key while the card is up: any key takes the card down and
 // the dismissal is saved at once, since a short first session never reaches the
 // idle lull the ledger is otherwise written in. It reports whether the key
-// should go on to do what it does, which every key but esc does, and what
-// saving said.
+// should go on to do what it does, which only the card's help and palette keys
+// do, so a first keystroke never stages or posts anything, and what saving said.
 func welcomed(w *coach.Welcome, l *coach.Ledger, k string) (bool, error) {
 	if !w.Showing() {
 		return true, nil

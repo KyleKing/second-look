@@ -22,6 +22,7 @@ import (
 	"github.com/kyleking/second-look/internal/commits"
 	"github.com/kyleking/second-look/internal/get"
 	"github.com/kyleking/second-look/internal/humanize"
+	"github.com/kyleking/second-look/internal/jjseen"
 	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/threads"
 )
@@ -94,7 +95,7 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 	claimed := make(chan string, 1)
 	go func() { claimed <- claimText(ctx, abs, jj, mode, base, fork) }()
 
-	listed, why := commitsOf(ctx, abs, jj, mode, base, tip, fork, d)
+	listed, changes, why := commitsOf(ctx, abs, jj, mode, base, tip, fork, d)
 	claim := <-claimed
 
 	seenPath := artifact.LocalSeenPath(abs)
@@ -104,13 +105,18 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 		return nil, fmt.Errorf("reading what has already been read: %w", err)
 	}
 
+	shared, err := share(ctx, abs, jj, mode, changes, d)
+	if err != nil {
+		return nil, err
+	}
+
 	return &get.Review{
 		Review: review, Diff: d,
 		About: threads.About{
 			Title: title(review, jj, mode, base, listed, why),
 			Body:  claim,
 		},
-		Read: read, SeenPath: seenPath,
+		Read: read, SeenPath: seenPath, Shared: shared,
 		Path: path, HeadSHA: tip,
 		Work: abs, OnHead: true,
 		Commits: listed, NoCommits: why,
@@ -121,37 +127,70 @@ func Open(ctx context.Context, root string, mode Mode, base string) (*get.Review
 // or why there are none. A working copy spans none. The fork is where diffFor
 // found the change starts, empty where it did not look.
 func commitsOf(ctx context.Context, root string, jj bool, mode Mode, base, tip, fork string, d *diff.Diff,
-) ([]plan.Commit, string) {
+) ([]plan.Commit, []jjseen.Change, string) {
 	var (
-		listed []plan.Commit
-		err    error
+		listed  []plan.Commit
+		changes []jjseen.Change
+		err     error
 	)
 
 	switch mode {
 	case Worktree:
-		return nil, ""
+		return nil, nil, ""
 	case Revset:
-		listed, err = commits.JJ(ctx, root, base, d)
+		listed, changes, err = commits.JJChanges(ctx, root, base, d)
 	case Branch, Range:
 		if fork == "" {
 			var ferr error
 			if fork, ferr = forkOf(ctx, root, jj, mode, base); ferr != nil {
-				return nil, "finding where the change starts: " + ferr.Error()
+				return nil, nil, "finding where the change starts: " + ferr.Error()
 			}
 		}
 
 		if jj {
-			listed, err = commits.JJ(ctx, root, fork+"..@", d)
+			listed, changes, err = commits.JJChanges(ctx, root, fork+"..@", d)
 		} else {
 			listed, err = commits.Git(ctx, root, fork, tip, d)
 		}
 	}
 
 	if err != nil {
-		return nil, "mapping hunks onto the commits: " + err.Error()
+		return nil, nil, "mapping hunks onto the commits: " + err.Error()
 	}
 
-	return listed, ""
+	return listed, changes, ""
+}
+
+// share is jojo's record for the jj changes under review, which the screen imports as it opens and
+// writes back to on every save: nil under git, where there are no change ids. A jj working
+// copy is one change, @, whose diff is the review's own; a span brings its changes from commitsOf.
+func share(ctx context.Context, root string, jj bool, mode Mode, changes []jjseen.Change, d *diff.Diff,
+) (*jjseen.Marks, error) {
+	if !jj {
+		return nil, nil //nolint:nilnil // git has no change ids, which is no error
+	}
+
+	live := seen.Hunks(d)
+
+	if mode == Worktree {
+		id, err := run(ctx, root, "jj", "log", "--no-graph", "--no-pager", "-r", "@", "-T", "change_id")
+		if err != nil {
+			return nil, fmt.Errorf("naming the working-copy change: %w", err)
+		}
+
+		changes = []jjseen.Change{{ID: strings.TrimSpace(id), Hunks: live}}
+	}
+
+	if len(changes) == 0 {
+		return nil, nil //nolint:nilnil // a span whose commits could not be read shares nothing
+	}
+
+	marks, err := jjseen.Open(root, changes)
+	if err != nil {
+		return nil, fmt.Errorf("opening jojo's read marks: %w", err)
+	}
+
+	return marks, nil
 }
 
 // title names a range review by the range and what it spans, which is what a

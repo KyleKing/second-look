@@ -33,6 +33,7 @@ import (
 	"github.com/kyleking/second-look/internal/ghrun"
 	"github.com/kyleking/second-look/internal/humanize"
 	"github.com/kyleking/second-look/internal/inbox"
+	"github.com/kyleking/second-look/internal/jjseen"
 	"github.com/kyleking/second-look/internal/journal"
 	"github.com/kyleking/second-look/internal/lease"
 	"github.com/kyleking/second-look/internal/local"
@@ -516,6 +517,7 @@ func reviewScreen(
 		tui.WithGenerated(generatedPatterns()), tui.WithPlanRules(planRules(opened.Review)),
 		tui.WithCommits(opened.Commits, opened.NoCommits),
 		tui.WithLabeling(labeling(t.Dir())), tui.WithRoster(roster(t.Dir(), opened.Review)),
+		tui.WithSharedReader(sharedReader(opened.Work)),
 	}
 	opts = append(opts, discoverOptions()...)
 
@@ -733,6 +735,10 @@ func localScreen(ctx context.Context, root string, mode local.Mode, base string)
 		tui.WithLedger(ledger()), tui.WithCoachLayout(coachLayout()),
 	}
 
+	if opened.Shared != nil {
+		opts = append(opts, tui.WithShared(opened.Shared))
+	}
+
 	if d := dispatcher(opened.Work); d != nil {
 		opts = append(opts, tui.WithDispatcher(d))
 	}
@@ -768,12 +774,19 @@ func localRestager(root string, mode local.Mode, base string) tui.Restager {
 		jj := vcs.DetectVCSType(opened.Work) == vcs.TypeJJ
 		reader := local.Reader(opened.Work, mode, opened.HeadSHA, jj)
 
-		return &tui.Restaged{
+		fresh := &tui.Restaged{
 			Review: opened.Review, Diff: opened.Diff, Read: opened.Read,
 			Commits: opened.Commits, NoCommits: opened.NoCommits,
 			HeadSHA: opened.HeadSHA,
 			Blobs:   reader.Read, Search: reader.Grep, Prober: probeFor(ctx, opened.Work, opened.Diff, reader),
-		}, nil
+		}
+
+		// A nil record stays a nil interface, which is what the screen reads as none.
+		if opened.Shared != nil {
+			fresh.Shared = opened.Shared
+		}
+
+		return fresh, nil
 	}
 }
 
@@ -2137,6 +2150,29 @@ func rounds(t get.Target) tui.Rounds {
 		}
 
 		return diff.Parse(patch), nil
+	}
+}
+
+// sharedReader finds jojo's read marks for the jj changes a pull request's head
+// spans in the checkout, if it is a jj repository holding that head: the pull
+// request keeps its own marks, and these are read in beside them and written
+// back as they change. Without a checkout there is nothing to look in.
+func sharedReader(work string) tui.SharedReader {
+	if work == "" {
+		return nil
+	}
+
+	return func(ctx context.Context, head string, _ *diff.Diff) (tui.Sharer, error) {
+		marks, err := jjseen.ForHead(ctx, work, head)
+		if errors.Is(err, jjseen.ErrNotJJ) || (err == nil && marks == nil) {
+			return nil, nil
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("finding the jj changes behind %s: %w", short(head), err)
+		}
+
+		return marks, nil
 	}
 }
 

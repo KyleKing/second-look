@@ -18,6 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/jjseen"
 	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/pool"
 	"github.com/kyleking/second-look/internal/threads"
@@ -68,8 +69,12 @@ type Review struct {
 	// outlives a force-push on its own.
 	Read     *seen.Set
 	SeenPath string
-	Path     string
-	HeadSHA  string
+	// Shared is jojo's record for the jj changes under review, already
+	// imported into Read and written through on each save; nil where the
+	// checkout is no jj repository or nothing maps to a change.
+	Shared  *jjseen.Marks
+	Path    string
+	HeadSHA string
 	// Work is the checkout the code under review is readable in, empty when
 	// there is none. OnHead says whether it is standing on the pull request
 	// head, which is what decides whether a shell opened there would run

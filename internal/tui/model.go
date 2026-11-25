@@ -190,6 +190,10 @@ type Model struct {
 	slop    SlopRead
 	// commitReader reads the commits behind the diff once the frame is up.
 	commitReader CommitReader
+	// shared is jojo's record of read hunks, kept in step on every save, and
+	// sharedReader looks for one behind the first frame.
+	shared       Sharer
+	sharedReader SharedReader
 	browser      Opener
 	tree         Tree
 
@@ -509,6 +513,7 @@ func New(
 		opt(m)
 	}
 
+	m.takeShared(m.shared)
 	m.discover()
 	m.mech = mechanicalHunks(d, reindented)
 	m.folded.foldMechanical(m.mech)
@@ -532,7 +537,7 @@ func (m *Model) Init() tea.Cmd {
 	// redraw by the time anyone presses it.
 	m.wrote, _ = stampOf(m.path)
 
-	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe(), m.probeAgent(), m.askHead(), m.readCommits()}
+	cmds := []tea.Cmd{m.checkHead(), m.watch(), m.probe(), m.probeAgent(), m.askHead(), m.readCommits(), m.readShared()}
 	cmds = append(cmds, m.readSlop(), m.lexAhead())
 	cmds = append(cmds, m.fetchVersions()...)
 
@@ -988,6 +993,8 @@ func (m *Model) absorb(msg tea.Msg) {
 		m.applySlop(msg)
 	case lexedMsg:
 		m.applyLexed(msg)
+	case sharedMsg:
+		m.applyShared(msg)
 	}
 }
 
@@ -2677,6 +2684,8 @@ func (m *Model) allRead(refs []seen.Ref) bool {
 // saveRead writes the set through immediately, the way every other change is
 // written, so quitting loses nothing.
 func (m *Model) saveRead(ok string) {
+	shared := m.exportRead()
+
 	if err := seen.Save(m.seenAt, m.read, m.allHunks()); err != nil {
 		m.say(err.Error(), true)
 
@@ -2685,6 +2694,7 @@ func (m *Model) saveRead(ok string) {
 
 	m.rebuild()
 	m.say(ok, false)
+	m.reimport(shared)
 }
 
 // isUnread accepts a hunk heading nobody has marked read, which is what makes
