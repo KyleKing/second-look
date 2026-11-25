@@ -479,7 +479,8 @@ func dashboardInteraction(clone string) ghcassette.Interaction {
 func TestInboxScreenApprovesOnTheSecondPress(t *testing.T) {
 	t.Parallel()
 
-	s := ghcassette.Replay(t, withApprove(t))
+	cassette := withApprove(t)
+	s := ghcassette.Replay(t, cassette)
 	home := quietHome(t)
 
 	sc := openReview(t, s, t.TempDir(),
@@ -493,9 +494,20 @@ func TestInboxScreenApprovesOnTheSecondPress(t *testing.T) {
 	sc.await("again to approve")
 
 	// The footer clips to the frame, so what it says is checked short and the
-	// cassette is what proves the request went out.
+	// cassette is what proves the request went out. The queue already draws an
+	// approved row, so the word is looked for only in what the second press
+	// drew, and q waits for the approval itself: quitting on the row's word
+	// left the request unsent under load.
+	sent := sc.mark()
 	sc.press("Pa")
-	sc.await("approved")
+
+	recorded, err := ghcassette.Load(cassette)
+	if err != nil {
+		t.Fatalf("loading the derived cassette: %v", err)
+	}
+
+	sc.awaitPlayed(s, len(recorded.Interactions))
+	sc.awaitFrom(sent, "approved")
 
 	sc.press("q")
 	sc.wait()
