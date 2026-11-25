@@ -2526,7 +2526,8 @@ func TestPublish_AlwaysOpensItsPage(t *testing.T) {
 			other := comment("c3", "internal/vcs/git.go", artifact.SideRight, 201, "nor this")
 			other.Status, other.SkipReason = artifact.StatusSkip, "declined"
 
-			m, _, _ := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 15, "on the add"), skipped, other)
+			first := comment("c1", parsed, artifact.SideRight, 15, "on the add")
+			m, _, _ := fixtureWith(t, patch, first, skipped, other)
 			m.Update(size)
 			m.Update(tea.KeyPressMsg{Code: 'P', Text: "P"})
 

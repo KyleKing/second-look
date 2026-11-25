@@ -80,14 +80,18 @@ func (m *Model) render() string {
 		out = append(out, m.agentLines()...)
 	}
 
+	return marginate(strings.Join(append(out, m.footOrIcons()...), "\n"), m.padX, m.padY)
+}
+
+// footOrIcons is the footer, or while the legend is open the row naming the
+// icon set in its last line's place, since the legend's keys are its own.
+func (m *Model) footOrIcons() []string {
 	foot := m.footerLines()
 	if m.pal.IsOpen() && m.pal.Mode() == palette.Browse && len(foot) > 0 {
-		// The legend names the icon set in the footer's place, since its keys
-		// are the palette's own while it is open.
 		foot[len(foot)-1] = " " + iconsLine(m.styles, iconsResolution(), m.width-1)
 	}
 
-	return marginate(strings.Join(append(out, foot...), "\n"), m.padX, m.padY)
+	return foot
 }
 
 // loadingLines is the page a frame draws while its rows are being built off

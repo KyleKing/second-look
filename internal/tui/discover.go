@@ -165,14 +165,8 @@ func (m *Model) writeGate(k string) (keys.Availability, bool) {
 		if !m.onCode() {
 			return keys.Refuse("needs a line of the diff"), true
 		}
-	case "m", "r/d/t/x":
-		if m.current() < 0 && m.threadHere() < 0 {
-			return keys.Refuse("no comment or thread under the cursor; i writes one"), true
-		}
-	case "E":
-		if m.current() < 0 {
-			return keys.Refuse("no comment under the cursor; i writes one"), true
-		}
+	case "m", "r/d/t/x", "E":
+		return m.stampGate(k), true
 	case "e":
 		if m.currentThread() >= 0 {
 			return keys.Refuse("i replies on a thread now; e still does this release"), true
@@ -186,6 +180,19 @@ func (m *Model) writeGate(k string) (keys.Availability, bool) {
 	}
 
 	return keys.Allow(), true
+}
+
+// stampGate is writeGate's answer for the keys that change a comment already
+// written: a state lands on a comment or a thread alike, and E needs a comment.
+func (m *Model) stampGate(k string) keys.Availability {
+	switch {
+	case k == "E" && m.current() < 0:
+		return keys.Refuse("no comment under the cursor; i writes one")
+	case k != "E" && m.current() < 0 && m.threadHere() < 0:
+		return keys.Refuse("no comment or thread under the cursor; i writes one")
+	}
+
+	return keys.Allow()
 }
 
 // inert reports a key with nothing to act on under the cursor.

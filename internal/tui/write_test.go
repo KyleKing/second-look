@@ -72,8 +72,8 @@ func TestPositionNamesTheHeadingTheCursorLandsOn(t *testing.T) {
 }
 
 // The composer keeps the family's prompt contract: enter saves, ctrl+j and
-// alt+enter start a new line, and esc leaves without saving. ctrl+s, the save
-// key before it, still saves.
+// alt+enter start a new line, and esc leaves without saving. The save key
+// before it, ctrl+s, still saves.
 func TestComposer_EnterSavesAndCtrlJBreaksTheLine(t *testing.T) {
 	t.Parallel()
 
