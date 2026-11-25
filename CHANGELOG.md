@@ -1,3 +1,9 @@
+## v0.61.1 (2026-11-25)
+
+### Fix
+
+- **test**: wait for the restage's background reads before quitting
+
 ## v0.61.0 (2026-11-25)
 
 ### Feat
