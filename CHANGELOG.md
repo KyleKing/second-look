@@ -1,3 +1,21 @@
+## v0.61.0 (2026-11-25)
+
+### Feat
+
+- **tui**: enter saves a comment, ctrl+j or alt+enter starts a new line
+
+### Fix
+
+- **tui**: one verb rule on every row, and P always opens its page
+- **tui**: stop crediting every shared read mark to jojo
+- **tui**: esc never quits a screen with nothing behind it
+- **test**: wait on every command pump runs instead of dropping slow ones
+- **deps**: update aragonite to v1.35.1 and name the icon set in ?
+
+### Refactor
+
+- **tui**: split the stamp gate and the legend's footer out for lint
+
 ## v0.60.4 (2026-11-25)
 
 ### Fix
