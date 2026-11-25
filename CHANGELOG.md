@@ -1,3 +1,9 @@
+## v0.60.1 (2026-11-25)
+
+### Fix
+
+- **deps**: update my_go_template to v0.24.4
+
 ## v0.60.0 (2026-11-25)
 
 ### BREAKING CHANGE
