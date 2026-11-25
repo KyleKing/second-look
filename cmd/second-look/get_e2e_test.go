@@ -353,7 +353,8 @@ func TestAStaleReviewOffersToRestage(t *testing.T) {
 			t.Parallel()
 
 			dir, sha := scratchRepo(t, headBranch)
-			s := ghcassette.Replay(t, staleOpenCassette(t, tc.name, sha))
+			cassette := staleOpenCassette(t, tc.name, sha)
+			s := ghcassette.Replay(t, cassette)
 			seedReview(t, dir, fixtureHeadSHA)
 
 			sc := openReview(t, s, dir, "2")
@@ -366,7 +367,7 @@ func TestAStaleReviewOffersToRestage(t *testing.T) {
 				return
 			}
 
-			openedAfterRestage(t, sc, s, dir, sha)
+			openedAfterRestage(t, sc, s, cassette, dir, sha)
 		})
 	}
 }
@@ -408,10 +409,19 @@ func refusedRestage(t *testing.T, sc *screen) {
 	}
 }
 
-func openedAfterRestage(t *testing.T, sc *screen, s *ghcassette.Session, dir, sha string) {
+// openedAfterRestage waits for every recorded call before quitting, because
+// the head check and the commits read run behind the first frame, and a q
+// pressed on that frame under load leaves them unsent.
+func openedAfterRestage(t *testing.T, sc *screen, s *ghcassette.Session, cassette, dir, sha string) {
 	t.Helper()
 
+	recorded, err := ghcassette.Load(cassette)
+	if err != nil {
+		t.Fatalf("loading the derived cassette: %v", err)
+	}
+
 	sc.await("sample.go")
+	sc.awaitPlayed(s, len(recorded.Interactions))
 	sc.press("q")
 
 	if code := sc.wait(); code != 0 {
