@@ -2,7 +2,7 @@
 
 A terminal code review tool optimized for the modern rate of code generation, is local-first and AI-friendly, and encourages us to actually read and understand the code as everything else changes. While this is currently personalized for my own use cases and workflows, it should be straightforward to generalize and I'm open to input and making changes because I would be happy to see others find value in this. Feel free to open a GitHub issue and let me know what you think!
 
-![Working the queue: open a pull request, judge a bot's findings, label it, and hand the fixes off on submit](demo/triage.gif)
+![Judging a bot's finding as a todo with the reply drafted, commenting on a line with a severity, and publishing with request changes](docs/images/judge.gif)
 
 ## How a review moves
 
@@ -20,6 +20,8 @@ flowchart LR
 
 The queue has three tabs, inbox, conversations, and staged, which `1`, `2`, `3`, `]q`, and `[q` switch between. Every row is one line on a shared grid, so titles start in the same column on all three, and the row under the cursor is a single tinted band. A line under the list says what the row had no room for, such as the full title, the commit prefix, and who it is waiting on. `esc` on a review opens the queue again, and `bb` on a review opens its checkout in [gh-repo-dashboard](https://github.com/KyleKing/gh-repo-dashboard) and returns when you quit it.
 
+![The inbox in lanes, \]u to the next row needing a look, za showing the merged lane, then the conversations and staged tabs](docs/images/queue.gif)
+
 The inbox is ordered to keep the amount of work in progress small. Your own pull requests that are approved and ready to merge come first, then anything waiting on a reply from you, then reviews you have already started, then new review requests (priority labels and pull requests where you are the only human reviewer go to the top). Work waiting on somebody else and merged pull requests come last and recede, so the rows that need you are the brightest, and `za` shows the merged lane. Each finding from a review bot or teammate gets one of four verdicts:
 
 | Key | Verdict | What posts |
@@ -31,11 +33,15 @@ The inbox is ordered to keep the amount of work in progress small. Your own pull
 
 If you don't write a reply, your agent drafts one that fits the verdict, and you can edit it before anything is posted. A bot that fixes on a label or a mention needs no setting here: `l` labels the pull request from the repository's own labels, and `@` in a reply completes the bots and people seen on its recent pull requests. Once the fixes are pushed, the pull request moves back into your inbox and `H` shows which of the todos the new commits addressed.
 
+`i` on a line asks for the severity (`b` blocker, `m` major, `n` minor, `t` nit, `?` question) and opens the comment in place, where `ctrl+s` keeps it. `P` is the publish page: it names what is still a draft before anything goes, and `Pr` requests changes and asks who gets the todos.
+
+![Judging a bot's finding as a todo with the reply drafted, commenting on a line with a severity, and publishing with request changes](docs/images/judge.gif)
+
 ## Reading a big change
 
 Large diffs open on an outline that splits the change into chapters, with how much of each you've read and how many findings are still open. Hunks are grouped by the symbol they change, generated files and lockfiles are folded into a summary, and the language server you already use powers `gd`, `gr`, and `gc` (the callers and callees of a function) against the commit under review.
 
-![Reading a large change from its outline, then walking the call graph](demo/reading.gif)
+![Opening a chapter from the outline, marking hunks read with space and \]u, and the read strip moving on the outline](docs/images/read.gif)
 
 <p>
 <img src="docs/images/outline.png" width="49%" alt="The outline of a large second-look commit, with read strips and findings to judge per chapter">
@@ -43,6 +49,10 @@ Large diffs open on an outline that splits the change into chapters, with how mu
 </p>
 
 The keybindings follow vim, so `]c` goes to the next comment, `]u` to the next unread hunk, `za` toggles a fold, and `n` repeats the last motion. The footer shows the keys that apply at the cursor and `?` lists the rest.
+
+`\` changes what is shown, and a second `\` walks the views: the diff, the code at head, and the comments alone. `H` compares against an earlier round of the review and says which todos the commits since answered, and `]r` and `[r` step between rounds.
+
+![H listing the rounds and the todos each answered, \]r stepping rounds, and \\ walking from the diff to the code and the comments](docs/images/views.gif)
 
 ## Keys
 
@@ -93,6 +103,10 @@ second-look 10                       # review #10 in this repository
 second-look kyleking/second-look#10  # or any pull request, no clone needed
 second-look local                    # review your own unpushed change before it goes up
 ```
+
+`second-look local` takes a jj revset with `-r` or a git range with `--range`. Here it reads this repository's own commit 8cc3241, and `gc` asks gopls for the call graph around a function.
+
+![second-look local on one of its own commits, then gc and za for a function's callers, callees, and call sites](docs/images/local.gif)
 
 A click puts the cursor on a row or switches to a tab, and the wheel moves the cursor. The screen holds the mouse to do that, so hold shift (option in some terminals) to select text.
 

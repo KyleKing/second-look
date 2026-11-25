@@ -110,18 +110,26 @@ which is the only format `go tool covdata merge` takes.
 ## The README recordings
 
 `mise run demo` builds the binary, runs every `demo/*.tape` through VHS, and shrinks each
-gif with ffmpeg. `triage.tape` and `reading.tape` write the two gifs in the README, and
-`stills.tape` writes `docs/images/outline.png` and `docs/images/calls.png`. The first half
-of each drives `demo/scene.sh`, which puts `demo/forge/gh` ahead of the real one. That
-stand-in answers from seed files and refuses anything unrouted, so a recording reaches no
-network, needs no auth, and cannot touch a real review. The second half of `reading.tape`
-and all of `stills.tape` run `second-look local -r` against this repository's own commits
-(`8cc3241`, `9066a8f`), so they need gopls on `PATH` and a clone that still holds those
-commits. Public fixture data and this repository's history only: a recording of a work
-repository would publish its names.
+clip with ffmpeg. Each tape but `stills.tape` is one short clip of one task, written to
+`docs/images/<tape>.gif` and placed beside the README section it shows: `queue` (the inbox),
+`judge` (a verdict, `i` with a severity, `P` then `r`), `read` (the outline, space, `]u`),
+`views` (`H` rounds, `]r`, `\\` views), and `local`. `stills.tape` writes
+`docs/images/outline.png` and `docs/images/calls.png`. Every clip but `local` drives
+`demo/scene.sh`, which puts `demo/forge/gh` ahead of the real one. That stand-in answers from
+seed files and refuses anything unrouted, so a recording reaches no network, needs no auth, and
+cannot touch a real review. `local.tape` and `stills.tape` run `second-look local` against this
+repository's own commits (`8cc3241`, `9066a8f`), so they need gopls on `PATH` and a clone that
+still holds those commits; `local.tape` waits out gopls loading the project before it shows a
+frame, because the chapters reorder until then and the cursor would land on another function.
+Public fixture data and this repository's history only: a recording of a work repository would
+publish its names.
 
-The gifs and stills are committed, so regenerate them whenever the screen changes shape.
-Keep the tapes' sleeps: a frame nobody can read is not a demo.
+The gifs and stills are committed, so regenerate them whenever the screen changes shape, and
+change a clip's keys when the keymap moves (the 0.60 keymap made the earlier two long recordings
+show keys that no longer worked). Keep a clip to one task: the large-file hook refuses a file
+over 1 MB that a change adds or modifies, and a full-screen repaint, not the clip's length, is
+what costs bytes. Keep the tapes' sleeps: a frame nobody can read is not a demo. Inspect frames
+before committing (`ffmpeg -i docs/images/<clip>.gif -vf fps=1/3 /tmp/f-%02d.png`).
 
 ## `internal/ghmd`
 
