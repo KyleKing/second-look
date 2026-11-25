@@ -25,7 +25,14 @@ const (
 	replyWord   = "reply"
 	editWord    = "edit"
 	commentWord = "comment"
-	refreshKey  = "ctrl+r"
+	refreshKey  = "ctrl+l"
+	// The old refresh, which answers with where it went for one release.
+	ctrlR = "ctrl+r"
+	// The in-place editor's put-back lives inside a text field, where the
+	// screen's keys do not reach, so it keeps ctrl+r.
+	putBackKey = ctrlR
+	// The word for the space tick on every screen here.
+	readTick    = "read"
 	spaceKey    = "space"
 	tabKey      = "tab"
 	enterKey    = "enter"
@@ -38,74 +45,72 @@ const (
 	featureNoun = "feature"
 	draftWord   = "draft"
 	topWord     = "top"
+	publishWord = "publish"
+	// The page of what is shown opens on the family's view prefix.
+	lookKey = "\\"
 )
 
 type keyMap struct {
-	Up           key.Binding
-	Down         key.Binding
-	Callers      key.Binding
-	Callees      key.Binding
-	HalfUp       key.Binding
-	PeekUp       key.Binding
-	PeekDown     key.Binding
-	HalfDown     key.Binding
-	Top          key.Binding
-	Bottom       key.Binding
-	Forward      key.Binding
-	Backward     key.Binding
-	Again        key.Binding
-	Reverse      key.Binding
-	Repeat       key.Binding
-	NextNote     key.Binding
-	PrevNote     key.Binding
-	Edit         key.Binding
-	Write        key.Binding
-	Marker       key.Binding
-	Note         key.Binding
-	Shell        key.Binding
-	Checkout     key.Binding
-	Dashboard    key.Binding
-	State        key.Binding
-	Ready        key.Binding
-	Draft        key.Binding
-	Skip         key.Binding
-	Todo         key.Binding
-	Resolve      key.Binding
-	Dispatch     key.Binding
-	Threads      key.Binding
-	Trouble      key.Binding
-	Advisories   key.Binding
-	Hover        key.Binding
-	Label        key.Binding
-	Restage      key.Binding
-	Seen         key.Binding
-	Search       key.Binding
-	Files        key.Binding
-	Comments     key.Binding
-	View         key.Binding
-	Look         key.Binding
-	Order        key.Binding
-	Tour         key.Binding
-	Outline      key.Binding
-	Fold         key.Binding
-	Zed          key.Binding
-	Structure    key.Binding
-	OnlyNew      key.Binding
-	Round        key.Binding
-	Suggest      key.Binding
-	Range        key.Binding
-	More         key.Binding
-	Less         key.Binding
-	Accept       key.Binding
-	Ask          key.Binding
-	Send         key.Binding
-	Submit       key.Binding
-	Open         key.Binding
-	Merge        key.Binding
-	DeleteBranch key.Binding
-	React        key.Binding
-	About        key.Binding
-	Help         key.Binding
+	Up         key.Binding
+	Down       key.Binding
+	Callers    key.Binding
+	Callees    key.Binding
+	HalfUp     key.Binding
+	PeekUp     key.Binding
+	PeekDown   key.Binding
+	HalfDown   key.Binding
+	Top        key.Binding
+	Bottom     key.Binding
+	Forward    key.Binding
+	Backward   key.Binding
+	Again      key.Binding
+	Reverse    key.Binding
+	Repeat     key.Binding
+	NextNote   key.Binding
+	PrevNote   key.Binding
+	Edit       key.Binding
+	Write      key.Binding
+	Marker     key.Binding
+	Note       key.Binding
+	Shell      key.Binding
+	Checkout   key.Binding
+	State      key.Binding
+	Ready      key.Binding
+	Draft      key.Binding
+	Skip       key.Binding
+	Todo       key.Binding
+	Resolve    key.Binding
+	Dispatch   key.Binding
+	Trouble    key.Binding
+	Advisories key.Binding
+	Hover      key.Binding
+	Label      key.Binding
+	Restage    key.Binding
+	Seen       key.Binding
+	Search     key.Binding
+	Files      key.Binding
+	Look       key.Binding
+	Branch     key.Binding
+	Yank       key.Binding
+	Order      key.Binding
+	Tour       key.Binding
+	Outline    key.Binding
+	Fold       key.Binding
+	Zed        key.Binding
+	Structure  key.Binding
+	OnlyNew    key.Binding
+	Round      key.Binding
+	Suggest    key.Binding
+	Range      key.Binding
+	More       key.Binding
+	Less       key.Binding
+	Accept     key.Binding
+	Ask        key.Binding
+	Publish    key.Binding
+	Open       key.Binding
+	Merge      key.Binding
+	React      key.Binding
+	Help       key.Binding
 	// EndPane is the one key a pane does not get. It is the chord that ends a
 	// program which will not leave on its own, chosen because the terminal
 	// convention already says hard quit with it.
@@ -143,78 +148,73 @@ func defaultKeyMap() keyMap {
 		Callees: key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("h/l", "side")),
 		HalfUp:  key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u/d", "half page")),
 		PeekUp: key.NewBinding(
-			key.WithKeys("ctrl+y", "shift+up", "y"), key.WithHelp("ctrl+y/e", "scroll a line"),
+			key.WithKeys("ctrl+y", "shift+up"), key.WithHelp("ctrl+y/e", "scroll a line"),
 		),
 		PeekDown: key.NewBinding(
-			key.WithKeys("ctrl+e", "shift+down", "Y"), key.WithHelp("ctrl+y/e", "scroll a line"),
+			key.WithKeys("ctrl+e", "shift+down"), key.WithHelp("ctrl+y/e", "scroll a line"),
 		),
-		HalfDown:     key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
-		Top:          key.NewBinding(key.WithKeys("g", homeKey), key.WithHelp("gg/G", "top, bottom")),
-		Bottom:       key.NewBinding(key.WithKeys("G", endKey), key.WithHelp("gg/G", "top, bottom")),
-		Forward:      key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "go")),
-		Backward:     key.NewBinding(key.WithKeys("["), key.WithHelp("[", "go back")),
-		Again:        key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "again")),
-		Reverse:      key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "back")),
-		Repeat:       key.NewBinding(key.WithKeys("."), key.WithHelp(".", "repeat")),
-		NextNote:     key.NewBinding(key.WithKeys(tabKey), key.WithHelp(tabKey, "next")),
-		PrevNote:     key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous")),
-		Edit:         key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
-		Write:        key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
-		Marker:       key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "fixme into the source")),
-		Note:         key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "note")),
-		Shell:        key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
-		Checkout:     key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
-		Dashboard:    key.NewBinding(key.WithKeys("B"), key.WithHelp("B", "branches and CI")),
-		State:        key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "state")),
-		Ready:        key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
-		Draft:        key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
-		Skip:         key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
-		Todo:         key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "hand back")),
-		Resolve:      key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "resolve")),
-		Dispatch:     key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "agent")),
-		Seen:         key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
-		Search:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
-		Files:        key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "files")),
-		Comments:     key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comments")),
-		View:         key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "view")),
-		Look:         key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "toggle one of them")),
-		Threads:      key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "conversations")),
-		Trouble:      key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "trouble")),
-		Advisories:   key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "ask about a lockfile")),
-		Hover:        key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "what is this")),
-		Label:        key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "labels")),
-		Restage:      key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "restage")),
-		Order:        key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
-		Tour:         key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "tour")),
-		Outline:      key.NewBinding(key.WithKeys("I"), key.WithHelp("I", "outline")),
-		Fold:         key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
-		Zed:          key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
-		Structure:    key.NewBinding(key.WithKeys("W"), key.WithHelp("W", "no code changed")),
-		OnlyNew:      key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "only what is new")),
-		Round:        key.NewBinding(key.WithKeys("H"), key.WithHelp("H", "since a round")),
-		Suggest:      key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "suggest")),
-		Range:        key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "range")),
-		More:         key.NewBinding(key.WithKeys("+"), key.WithHelp("+", "more context")),
-		Less:         key.NewBinding(key.WithKeys("-"), key.WithHelp("-", "less context")),
-		Accept:       key.NewBinding(key.WithKeys(enterKey), key.WithHelp(enterKey, "accept")),
-		Ask:          key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "ask the agent")),
-		Send:         key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "post one")),
-		Submit:       key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "submit")),
-		Open:         key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "on GitHub")),
-		Merge:        key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
-		DeleteBranch: key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "delete branch")),
-		React:        key.NewBinding(key.WithKeys(","), key.WithHelp(",", "react")),
-		About:        key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "info")),
-		Help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		EndPane:      key.NewBinding(key.WithKeys("ctrl+\\"), key.WithHelp("ctrl+\\", "end the pane's program")),
-		Back:         key.NewBinding(key.WithKeys(escKey), key.WithHelp(escKey, "back")),
-		Quit:         key.NewBinding(key.WithKeys("q", ctrlCKey, escKey), key.WithHelp("q", quitWord)),
-		SendSet:      key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "hand the todos over")),
-		DropQueued:   key.NewBinding(key.WithKeys("ctrl+w"), key.WithHelp("ctrl+w", "drop the last queued")),
-		Expand:       key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "the tool calls")),
-		Interrupt:    key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "interrupt the turn")),
-		JumpBack:     key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "back")),
-		JumpForward:  key.NewBinding(key.WithKeys("ctrl+i"), key.WithHelp("ctrl+i", "forward")),
+		HalfDown:    key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+u/d", "half page")),
+		Top:         key.NewBinding(key.WithKeys("g", homeKey), key.WithHelp("gg/G", "top, bottom")),
+		Bottom:      key.NewBinding(key.WithKeys("G", endKey), key.WithHelp("gg/G", "top, bottom")),
+		Forward:     key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "go")),
+		Backward:    key.NewBinding(key.WithKeys("["), key.WithHelp("[", "go back")),
+		Again:       key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "again")),
+		Reverse:     key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "back")),
+		Repeat:      key.NewBinding(key.WithKeys("."), key.WithHelp(".", "repeat")),
+		NextNote:    key.NewBinding(key.WithKeys(tabKey), key.WithHelp(tabKey, "next")),
+		PrevNote:    key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous")),
+		Edit:        key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
+		Write:       key.NewBinding(key.WithKeys("i"), key.WithHelp("i", commentWord)),
+		Marker:      key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "fixme into the source")),
+		Note:        key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "note")),
+		Shell:       key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "shell")),
+		Checkout:    key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
+		State:       key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "state")),
+		Ready:       key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "ready")),
+		Draft:       key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "draft")),
+		Skip:        key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "skip")),
+		Todo:        key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "hand back")),
+		Resolve:     key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "resolve")),
+		Dispatch:    key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "agent")),
+		Seen:        key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, readTick)),
+		Search:      key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
+		Files:       key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "files")),
+		Look:        key.NewBinding(key.WithKeys(lookKey), key.WithHelp(lookKey, "what is shown")),
+		Branch:      key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "branch")),
+		Yank:        key.NewBinding(key.WithKeys("Y"), key.WithHelp("Y", "yank path:line")),
+		Trouble:     key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "trouble")),
+		Advisories:  key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "ask about a lockfile")),
+		Hover:       key.NewBinding(key.WithKeys("K"), key.WithHelp("K", "what is this")),
+		Label:       key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "labels")),
+		Restage:     key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "restage")),
+		Order:       key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "order")),
+		Tour:        key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "tour")),
+		Outline:     key.NewBinding(key.WithKeys("I"), key.WithHelp("I", "outline")),
+		Fold:        key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "whitespace")),
+		Zed:         key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "fold")),
+		Structure:   key.NewBinding(key.WithKeys("W"), key.WithHelp("W", "no code changed")),
+		OnlyNew:     key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "only what is new")),
+		Round:       key.NewBinding(key.WithKeys("H"), key.WithHelp("H", "since a round")),
+		Suggest:     key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "suggest")),
+		Range:       key.NewBinding(key.WithKeys("v", "V"), key.WithHelp("v", "visual range")),
+		More:        key.NewBinding(key.WithKeys("+"), key.WithHelp("+", "more context")),
+		Less:        key.NewBinding(key.WithKeys("-"), key.WithHelp("-", "less context")),
+		Accept:      key.NewBinding(key.WithKeys(enterKey), key.WithHelp(enterKey, "accept")),
+		Ask:         key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "ask the agent")),
+		Publish:     key.NewBinding(key.WithKeys("P"), key.WithHelp("P", publishWord)),
+		Open:        key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "on GitHub")),
+		Merge:       key.NewBinding(key.WithKeys("M"), key.WithHelp("M", "merge")),
+		React:       key.NewBinding(key.WithKeys(","), key.WithHelp(",", "react")),
+		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		EndPane:     key.NewBinding(key.WithKeys("ctrl+\\"), key.WithHelp("ctrl+\\", "end the pane's program")),
+		Back:        key.NewBinding(key.WithKeys(escKey), key.WithHelp(escKey, "back")),
+		Quit:        key.NewBinding(key.WithKeys("q", ctrlCKey, escKey), key.WithHelp("q", quitWord)),
+		SendSet:     key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("ctrl+t", "hand the todos over")),
+		DropQueued:  key.NewBinding(key.WithKeys("ctrl+w"), key.WithHelp("ctrl+w", "drop the last queued")),
+		Expand:      key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "the tool calls")),
+		Interrupt:   key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "interrupt the turn")),
+		JumpBack:    key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "back")),
+		JumpForward: key.NewBinding(key.WithKeys("ctrl+i"), key.WithHelp("ctrl+i", "forward")),
 	}
 }
 
@@ -242,23 +242,36 @@ func states() [][2]string {
 	return [][2]string{{"r", "ready"}, {"d", draftWord}, {"t", "todo"}, {"x", "skip"}}
 }
 
-// lookObjects are what u accepts: the questions the renderers answer
-// together, each toggled on its own, and v which walks the presets the cycle
-// once answered for.
+// lookObjects are what \ accepts: the questions the renderers answer
+// together, each toggled on its own, the views that sit off the cycle, and a
+// second \ which walks to the next view, the family's view prefix doubled.
 func lookObjects() [][2]string {
 	return [][2]string{
 		{"g", "grammar"},
 		{"i", "the images here"},
 		{"s", "side by side"},
 		{"w", "wrap"},
-		{"v", "the next preset"},
+		{"p", "the next preset of those"},
+		{"t", "threads"},
+		{"c", "the comments"},
+		{lookKey, "the next view"},
+	}
+}
+
+// branchObjects are what b accepts: the branches and their checks, and
+// deleting this one, which asks first.
+func branchObjects() [][2]string {
+	return [][2]string{
+		{"b", "the checkout's branches and CI"},
+		{"d", "delete the branch, after a confirm"},
 	}
 }
 
 // goObjects are what g accepts: gg keeps the top it always was, d and r ask
 // the language server where a name on the line is declared and read, c draws
-// the call graph of the function the line is in, and f opens the file itself in
-// $EDITOR at the line the cursor is on.
+// the call graph of the function the line is in, f opens the file itself in
+// $EDITOR at the line the cursor is on, and i is the card about the pull
+// request.
 func goObjects() [][2]string {
 	return [][2]string{
 		{"g", topWord},
@@ -266,6 +279,7 @@ func goObjects() [][2]string {
 		{"r", "where used"},
 		{"c", "who calls, who is called"},
 		{"f", "the file"},
+		{"i", "info about the pull request"},
 	}
 }
 
@@ -273,9 +287,9 @@ func foldObjects() [][2]string {
 	return [][2]string{{"a", "fold this"}, {"i", "invert all"}, {"R", "open all"}, {"M", "fold all"}}
 }
 
-// events are what the second key of the submit chord can say the review is.
+// events are what the second key of the publish chord can say the review is.
 // There is no key for "send it as whatever it already says": what a review is
-// posted as is the decision the confirmation exists to take, and a second S
+// posted as is the decision the confirmation exists to take, and a second P
 // would take it without naming it.
 func events() [][2]string {
 	return [][2]string{
@@ -283,6 +297,13 @@ func events() [][2]string {
 		{"r", "request changes"},
 		{"c", commentWord},
 	}
+}
+
+// publishObjects are what P accepts: the three events a review posts as, then
+// the one comment under the cursor on its own. Nothing leaves on one key; the
+// page names what goes out and the second key sends it.
+func publishObjects() [][2]string {
+	return append(events(), [2]string{"p", "post this comment now"})
 }
 
 // helpTree is the legend the help key opens, read a page at a time: the root
@@ -300,7 +321,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: walkKeys, What: "a line"},
 		{Key: "ctrl+d/u", What: "half a page"},
 		{Key: "ctrl+e/y", What: "scroll a line"},
-		{What: "y/Y and shift+up/down do the same"},
+		{What: "shift+up/down do the same"},
 		{Key: "gg/G", What: "the ends"},
 		{Key: "]", What: "go to", Kids: asHints(objects("]"))},
 		{Key: "[", What: "go back", Kids: asHints(objects("["))},
@@ -313,10 +334,7 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "/", What: "search"},
 		{What: "tab in the prompt narrows a search to hunks not yet read"},
 		{What: "what is shown", Head: true},
-		{Key: "v", What: "the next view"},
-		{Key: "c", What: "the comments"},
-		{Key: "t", What: "threads"},
-		{Key: "u", What: "one of them", Kids: asHints(lookObjects())},
+		{Key: lookKey, What: "views, threads, comments, and looks", Kids: asHints(lookObjects())},
 		{Key: "z", What: "folds, the frame", Kids: zPage()},
 		{Key: "f", What: "files matching a pattern"},
 		{What: "! drops its matches instead: *.go !*_test.go keeps the go that is not tests"},
@@ -337,16 +355,17 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{Key: "A", What: "ask the agent", Kids: asHints(allAskObjects())},
 		{What: "A on an open V range asks about the range, kept in [plan]"},
 		{What: "marking", Head: true},
-		{Key: spaceKey, What: "mark read"},
+		{Key: spaceKey, What: "read: mark the hunk read"},
 		{Key: "m", What: "a state", Kids: asHints(states())},
 		{What: "writing", Head: true},
-		{Key: "a", What: "a comment", Kids: asHints(severities())},
+		{Key: "i", What: "a comment, or on a thread a reply", Kids: asHints(severities())},
 		{What: "on a file's heading it is about the file, anchored to its first line"},
 		{Key: "s", What: "a suggestion"},
-		{Key: "V", What: "a range"},
+		{Key: "v/V", What: "a range"},
+		{Key: "Y", What: "yank path:line"},
 		{Key: "F", What: "fixme into the source"},
 		{Key: "+/-", What: "context"},
-		{Key: "e", What: "edit, reply, write"},
+		{Key: "e", What: "edit what is here: a comment, the review's prose"},
 		{Key: "E", What: "editing a note"},
 		{Key: "!", What: "a shell"},
 		{Key: "T", What: "todos to an agent, or on an empty review, asks one to draft it"},
@@ -359,14 +378,11 @@ func helpTree(rounds [][2]string) []keyhint.Hint {
 		{What: "the request", Head: true},
 		{Key: refreshKey, What: "restage"},
 		{Key: "C", What: "check out"},
-		{Key: "B", What: "the checkout's branches and CI"},
-		{Key: "P", What: "post one"},
-		{Key: "S", What: "submit", Kids: asHints(events())},
-		{Key: "i", What: "info about the pull request"},
+		{Key: "b", What: "branches", Kids: asHints(branchObjects())},
+		{Key: "P", What: "publish: submit, or post one", Kids: asHints(publishObjects())},
 		{Key: "l", What: "labels, picked from the repository's"},
 		{Key: "o", What: "on GitHub"},
 		{Key: "M", What: "merge"},
-		{Key: "D", What: "delete the branch"},
 		{What: "leaving", Head: true},
 		{Key: "?/esc", What: "this, or back"},
 		{Key: escKey, What: "the queue, once nothing else is open"},

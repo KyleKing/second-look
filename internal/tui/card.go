@@ -68,7 +68,7 @@ func (m *Model) footKeys(r row) []footKey {
 	case r.kind == rowThread && r.thread < len(m.threads):
 		th := &m.threads[r.thread]
 
-		return rulingKeys([][2]string{{"e", replyWord}}, m.verdictOfThread(r.thread),
+		return rulingKeys([][2]string{{"i", replyWord}}, m.verdictOfThread(r.thread),
 			func(v verdict) bool { return th.Resolved || (v == vResolve && th.ID == "") },
 			[][2]string{{",", "react"}, {"za", foldVerb}})
 	case r.kind == rowThread:

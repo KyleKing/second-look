@@ -73,10 +73,10 @@ func (m *Model) askFixes(lead string) {
 	m.say(lead+"  fixes go to  "+hintLine(fixTargets(def)), false)
 }
 
-// askFixesTo is the submit chord's extra step, reached only with a todo reply.
+// askFixesTo is the publish chord's extra step, reached only with a todo reply.
 func (m *Model) askFixesTo(event, chosen string) {
 	m.fixEvent = event
-	m.askFixes(fmt.Sprintf("S %s  %d todo", chosen, len(m.review.TodoReplies())))
+	m.askFixes(fmt.Sprintf("P%s  %d todo", chosen, len(m.review.TodoReplies())))
 }
 
 func (m *Model) answerFixes(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

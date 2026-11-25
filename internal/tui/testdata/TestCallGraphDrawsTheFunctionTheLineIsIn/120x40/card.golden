@@ -15,7 +15,7 @@
          ╰─ [j/k] node · [h/l] side · [za] call sites · [enter] open · [gc] center · [ctrl+o] back ─╯
          ╭─ ⤷ @doggo · unresolved · 1 comment ───────────────────────────────────────── diff.go:15 ─╮
          │   wrap the error                                                                         │
-         ╰─ r[e]ply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ──────────────╯
+         ╰─ [i] reply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ────────────╯
    
     16 +     if err != nil {                                                                                          
     17       last := 4                                                                                                
@@ -37,4 +37,4 @@
   
   
   
-   ▸ next  1 finding waits on a ruling · tab what waits  ] go to   m mark   e write   S submit   ? help   q quit
+   ▸ next  1 finding waits on a ruling · tab what waits  ] go to   m mark   e write   P publish   ? help   q quit

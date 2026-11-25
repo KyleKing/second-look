@@ -1,7 +1,7 @@
 
   jj-diff#42                                                  2 files · +2 −1   1 ready · ◐ 1 draft · 1 skipped     0%
   vcs ●───────────────────────────────────────────────────────────────────────────────────────────────────────────┊─  
-  ▌                                                    ╭─ keys · 108 of 108 ─────────────────────────────────────────╮
+  ▌                                                    ╭─ keys · 109 of 109 ─────────────────────────────────────────╮
        internal/vcs/diff.go  +2 -1                     │ a key explains itself · / filters                           │
          func Parse(r io.Reader) ([]Hunk, error) { ────│ ── moving ───────────────────────────────────────────────── │
     14       first := 1                                │ ▌ j/k        a line                                         │
@@ -15,10 +15,10 @@
                                                        │   shift+tab  and back                                       │
          ╭─ ● ready · major ───────────────────────────│   /          search                                         │
          │ split can fail now, so this has to check err│ ── moving · j/k  a line ─────────────────────────────────── │
-         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] s│ y/Y and shift+up/down do the same                           │
+         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] s│ shift+up/down do the same                                   │
                                                        │ tab goes forward too once ctrl+o has left a place ahead     │
     16 +     if err != nil {                           │ tab in the prompt narrows a search to hunks not yet read    │
     17       last := 4                                 │                                                             │
        internal/vcs/git.go                             │ enter run  / filter  ↑↓ move  esc back                      │
          func Head() string { ─────────────────────────╰─────────────────────────────────────────────────────────────╯
-   ▸ next  all read, 3 comments staged · S submit  ] go to   m mark   e write   a add   S submit   ? help   q quit
+   ▸ next  all read, 3 comments staged · P submit  ] go to   m mark   e write   P publish   ? help   q quit

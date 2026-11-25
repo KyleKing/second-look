@@ -18,7 +18,7 @@ import (
 // every tool of the family.
 const paletteKey = ":"
 
-// submitWord is the next step's word for S, the footer's own.
+// submitWord is the next step's word for P, the footer's own.
 const submitWord = "submit"
 
 // screenGroup files the palette's own commands in the list.
@@ -91,6 +91,10 @@ const (
 // reason, and pressing one of the keys whose handler would otherwise do
 // nothing says the reason in the status line.
 func (m *Model) gate(k string) keys.Availability {
+	if mv, ok := moveNotice(m.km, k); ok {
+		return keys.Refuse(mv.Notice)
+	}
+
 	if a, ok := m.writeGate(k); ok {
 		return a
 	}
@@ -104,7 +108,7 @@ func (m *Model) gate(k string) keys.Availability {
 		if m.asker == nil && !m.onCode() {
 			return keys.Refuse("needs an agent in the config, or a line of the diff")
 		}
-	case "B":
+	case "b", "bb":
 		if m.repoDir == "" {
 			return keys.Refuse("no checkout of this repository; C makes one")
 		}
@@ -153,21 +157,25 @@ func (m *Model) fileGate(k string) (keys.Availability, bool) {
 // gate's one switch.
 func (m *Model) writeGate(k string) (keys.Availability, bool) {
 	switch k {
-	case "a":
-		if !m.onCode() && !m.onFileHead() {
-			return keys.Refuse("needs a line of the diff or a file's heading"), true
+	case "i":
+		if !m.onCode() && !m.onFileHead() && m.currentThread() < 0 {
+			return keys.Refuse("needs a line of the diff, a file's heading, or a thread"), true
 		}
-	case "s", "V":
+	case "s", "v", "V", "v/V":
 		if !m.onCode() {
 			return keys.Refuse("needs a line of the diff"), true
 		}
 	case "m", "E":
 		if m.current() < 0 {
-			return keys.Refuse("no comment under the cursor; a writes one"), true
+			return keys.Refuse("no comment under the cursor; i writes one"), true
 		}
 	case "e":
+		if m.currentThread() >= 0 {
+			return keys.Refuse("i replies on a thread now; e still does this release"), true
+		}
+
 		if !m.canWrite() {
-			return keys.Refuse("nothing to write here; a starts a comment"), true
+			return keys.Refuse("nothing to edit here; i starts a comment"), true
 		}
 	default:
 		return keys.Allow(), false
@@ -182,7 +190,7 @@ func (m *Model) inert(k string) bool { return !m.gate(k).OK }
 // refusing is the set of keys whose own handler does not explain itself where
 // the gate refuses, so the press says the gate's reason instead: m would open
 // its chord over nothing and only say so after the second key. Every other
-// gated key's handler already names its own reason (a, s, V, E, F, L, B, X,
+// gated key's handler already names its own reason (i, s, V, E, F, L, b, X,
 // K), or does something useful anyway (e on the review's prose edits it, and
 // T writes the todo set to a file).
 func refusing(k string) bool { return k == "m" }
@@ -425,10 +433,10 @@ func reviewRules() []coach.Rule[reviewState] {
 			Why: func(reviewState) string { return "r ready, t todo, x skip" },
 		},
 		{
-			ID: "review.submit", Action: "S", Key: "S", What: submitWord, Tone: coach.Next,
+			ID: "review.submit", Action: "P", Key: "P", What: submitWord, Tone: coach.Next,
 			When: func(s reviewState) bool { return s.unread == 0 && s.rulings == 0 && s.staged > 0 },
 			Say:  func(s reviewState) string { return "all read, " + plural(s.staged, "comment") + " staged" },
-			Why:  func(reviewState) string { return "S then a, r, or c picks the event" },
+			Why:  func(reviewState) string { return "P then a, r, or c picks the event" },
 		},
 		{
 			ID: "review.lockfile", Action: "L", Key: "L", What: "the lockfile", Tone: coach.Could,

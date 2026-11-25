@@ -32,9 +32,12 @@ const SittingGap = 30 * time.Minute
 // summary can say what each leader was followed by, which is the question the
 // A chord and the renderer keys are parked on. A leader never pressed is not
 // reported.
+// The keys that led a chord before keymap v2 (u, S, a) stay, so a journal
+// written before it still reads.
 var leaders = map[string]bool{
-	"u": true, "g": true, "z": true, "m": true, ",": true,
-	"A": true, "]": true, "[": true, "S": true, "H": true, "a": true,
+	"\\": true, "g": true, "z": true, "m": true, ",": true, "b": true,
+	"A": true, "]": true, "[": true, "P": true, "H": true, "i": true,
+	"u": true, "S": true, "a": true,
 }
 
 // waits are the events a Since call writes: their ms is the measurement, not

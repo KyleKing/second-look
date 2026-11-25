@@ -292,19 +292,20 @@ const sectionNotices = "notifications"
 
 // threadsHints is the footer, which advertises only the keys this screen offers.
 var threadsHints = [][2]string{
-	{enterKey, "read"},
-	{"space", "done"},
-	{"r", "reply"},
+	{enterKey, readWord},
+	{"space", readWord},
+	{"i", "reply"},
 	{"R", "resolve"},
 	{"o", "GitHub"},
 	{"tab", "group"},
+	{"]u", "unread"},
 	{"?", helpArg},
 }
 
 var threadsHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	{enterKey, "read the whole conversation, and mark it read; on a notification, open it"},
 	{"space", "mark read without opening; on a notification, mark it done"},
-	{"r", "leave and open the review screen to stage a reply"},
+	{"i", "leave and open the review screen to stage a reply"},
 	{"R", "thumbs-up a conversation; on a notification, unsubscribe and dismiss it"},
 	{"o", "open it on GitHub"},
 	{refreshKey, "read the queue again"},
@@ -312,7 +313,7 @@ var threadsHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	"● marks a conversation that moved since you last read it, and a ● beginning",
 	"the status says a review of that pull request is already staged here.",
 	"A reply is staged into that pull request's prepared review and posts with it,",
-	"so r leaves the queue and opens the review screen for it. Any repository will",
+	"so i leaves the queue and opens the review screen for it. Any repository will",
 	"do, cloned here or not: gh-repo-dashboard says which clones are on this laptop,",
 	"and a repository with none is reviewed from the API.",
 	"",
@@ -540,11 +541,11 @@ func (s *threadsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return s.browse(c)
 	case tui.ActResolve:
 		return s.resolve(c)
-	case tui.ActReply:
+	case tui.ActComment:
 		return s.stageReply(c)
 	case tui.ActRefresh:
 		return "", false, nil
-	case tui.ActCheckout, tui.ActComment, tui.ActApprove, tui.ActDiscard,
+	case tui.ActCheckout, tui.ActApprove, tui.ActDiscard,
 		tui.ActMerge, tui.ActFold, tui.ActScope, tui.ActClean, tui.ActCleanStale:
 		return "", false, errNotOnAConversation
 	}

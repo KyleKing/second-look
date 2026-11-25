@@ -262,10 +262,11 @@ func TestTheStagedQueueDropsWhatFinished(t *testing.T) {
 	// the call the journal counts rather than anything drawn.
 	sc.awaitPlayed(s, 1)
 
-	sc.press("g")
-	sc.await("lean finished")
+	sc.press(":")
+	sc.await("commands")
 
-	sc.press("c")
+	sc.press("clean finished")
+	sc.press("\r")
 	sc.await("dropped KyleKing/second-look#2 (merged)")
 
 	if _, err := os.Stat(artifact.Path(stored(t, dir), 2)); !os.IsNotExist(err) {

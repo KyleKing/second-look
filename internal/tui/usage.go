@@ -75,7 +75,7 @@ func (k keyMap) graph() []key.Binding {
 }
 
 // Keymap is every context keyContext names, built from the tables the screens
-// dispatch and draw their legends from. Only the Name and Go of each tab are read.
+// dispatch and draw their legends from. Only the Name of each tab is read.
 func Keymap(tabs []Tab) keyusage.Keymap {
 	km := keyusage.Keymap{}
 	keys := defaultKeyMap()
@@ -89,12 +89,12 @@ func Keymap(tabs []Tab) keyusage.Keymap {
 		keyusage.Binding{Keys: []string{"z"}, What: "fold", Kids: pairs(foldObjects())},
 	)
 	km[ctxOutline] = fields(keys, "Down", "Up", "HalfDown", "HalfUp", "Top", "Bottom", "NextNote", "PrevNote",
-		"Accept", "Back", "Outline", "Quit", "View", "Comments", "Threads", "Trouble")
+		"Accept", "Back", "Outline", "Quit", "Look", "Trouble")
 
-	km[ctxQueue] = queueBindings(keys, 0, nil)
+	km[ctxQueue] = queueBindings(keys, 0)
 
 	for i := range tabs {
-		km[queueCtx(tabs[i].Name)] = queueBindings(keys, len(tabs), tabs[i].Go)
+		km[queueCtx(tabs[i].Name)] = queueBindings(keys, len(tabs))
 	}
 
 	return km
@@ -104,10 +104,11 @@ var leaderKids = map[string]func() [][2]string{
 	"Ask":      allAskObjects,
 	"Backward": func() [][2]string { return objects("[") },
 	"Forward":  func() [][2]string { return objects("]") },
+	"Branch":   branchObjects,
 	"Look":     lookObjects,
+	"Publish":  publishObjects,
 	"React":    reactObjects,
 	"State":    states,
-	"Submit":   events,
 	"Write":    severities,
 }
 
@@ -189,8 +190,8 @@ func helpBindings() []keyusage.Binding {
 	return out
 }
 
-func queueBindings(keys keyMap, tabs int, goes []GoKey) []keyusage.Binding {
-	out := fields(keys, "Up", "Down", "HalfUp", "HalfDown", "PeekUp", "PeekDown", "Bottom", "Forward", "Backward",
+func queueBindings(keys keyMap, tabs int) []keyusage.Binding {
+	out := fields(keys, "Up", "Down", "HalfUp", "HalfDown", "PeekUp", "PeekDown", "Bottom", "Again", "Reverse",
 		"Search", "Help", "Accept", "Label", "Merge", "Quit")
 
 	lv := reflect.ValueOf(defaultListKeys())
@@ -198,16 +199,12 @@ func queueBindings(keys keyMap, tabs int, goes []GoKey) []keyusage.Binding {
 		out = append(out, binding(bindingAt(lv, i)))
 	}
 
-	top := make([]keyusage.Binding, 0, len(goes)+1)
-	top = append(top, keyusage.Binding{Keys: []string{"g"}, What: topWord})
-	for _, o := range goes {
-		top = append(top, keyusage.Binding{Keys: []string{o.Key}, What: o.What})
+	for _, prefix := range []rune{'g', ']', '[', 'z', 'P'} {
+		page := pairs(chordPage(prefix))
+		out = append(out, keyusage.Binding{Keys: []string{string(prefix)}, What: "chord", Kids: page})
 	}
 
-	out = append(out,
-		keyusage.Binding{Keys: []string{"g"}, What: "go", Kids: top},
-		keyusage.Binding{Keys: []string{homeKey}, What: keys.Top.Help().Desc},
-	)
+	out = append(out, keyusage.Binding{Keys: []string{homeKey}, What: keys.Top.Help().Desc})
 
 	for n := 1; n <= tabs; n++ {
 		out = append(out, keyusage.Binding{Keys: []string{strconv.Itoa(n)}, What: "tab " + strconv.Itoa(n)})

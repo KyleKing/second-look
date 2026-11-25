@@ -148,6 +148,14 @@ func (m *Model) chapterHere() int {
 	return max(0, m.chapterOf(g))
 }
 
+// leaveOutlineFor carries a view key on from the outline: X to its view, and
+// \ to the page that waits for which.
+func (m *Model) leaveOutlineFor(msg tea.KeyPressMsg) {
+	if !m.reshapes(msg) {
+		m.startsChord(msg)
+	}
+}
+
 // readOutline walks the list and leaves it. Quit still quits, because a big
 // change opens here and the outline is its first screen rather than an overlay.
 func (m *Model) readOutline(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -184,12 +192,12 @@ func (m *Model) readOutline(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, m.keys.Quit):
 		return m, func() tea.Msg { return leftMsg{} }
-	case key.Matches(msg, m.keys.View), key.Matches(msg, m.keys.Comments),
-		key.Matches(msg, m.keys.Threads), key.Matches(msg, m.keys.Trouble):
+	case key.Matches(msg, m.keys.Look), key.Matches(msg, m.keys.Trouble):
 		// A big change opens on this list, so the views have to answer from
-		// it: a key that leaves for one closes the outline the way esc would.
+		// it: a key that leaves for one closes the outline the way esc would,
+		// and \ goes on to wait for which view.
 		m.outline.open = false
-		m.reshapes(msg)
+		m.leaveOutlineFor(msg)
 
 		return m, nil
 	case m.overlayKey(msg):

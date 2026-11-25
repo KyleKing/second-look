@@ -64,7 +64,7 @@ func TestSuggestRefusesARemovedLine(t *testing.T) {
 	m, _ := fixture(t)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
-	go2(t, m, 'u', 'g')
+	go2(t, m, '\\', 'g')
 	onto(t, m, "lines := split(r)")
 	press(t, m, tea.KeyPressMsg{Code: 's', Text: "s"})
 

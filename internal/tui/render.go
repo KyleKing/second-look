@@ -859,11 +859,10 @@ func (m *Model) toggleLook(msg tea.KeyPressMsg) {
 		m.drawn.split = !m.drawn.split
 	case "w":
 		m.drawn.wrap = !m.drawn.wrap
-	case "v":
+	case "p":
 		m.drawn = m.drawn.next()
 	default:
-		m.say("nothing to draw for "+msg.String()+
-			"; g grammar, s side by side, w wrap, v the next preset", false)
+		m.say("nothing to draw for "+msg.String()+"; "+hintLine(lookObjects()), false)
 
 		return
 	}

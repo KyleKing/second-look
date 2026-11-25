@@ -15,7 +15,7 @@ vcs ●────────────────────────�
        ╰─ [j/k] node · [h/l] side · [za] call sites · [enter] open ───────────╯
        ╭─ ⤷ @doggo · unresolved · 1 comment ───────────────────── diff.go:15 ─╮
        │   wrap the error                                                     │
-       ╰─ r[e]ply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react ──────╯
+       ╰─ [i] reply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react ────╯
  
   16 +     if err != nil {                                                      
   17       last := 4                                                            
@@ -27,4 +27,4 @@ vcs ●────────────────────────�
 
 
 
- j/k line   ] go to   v code   i info   S submit   ? help   esc queue   q quit
+ j/k line   ] go to   \\ code   m mark   P publish   ? help   esc queue   q quit

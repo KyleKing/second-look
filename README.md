@@ -12,15 +12,15 @@ flowchart LR
     B[Review bot<br/>threads on GitHub] --> R
     A[Your agent<br/>stages comments] --> R
     R -->|judge, edit| R
-    R -->|S| P[One review posted]
-    P -->|todo replies| F[Fixer<br/>local agent, or a bot you label or @-mention]
+    R -->|P| PO[One review posted]
+    PO -->|todo replies| F[Fixer<br/>local agent, or a bot you label or @-mention]
     F -->|pushes| Q
     Q -->|back to you, H| R
 ```
 
-The queue has three tabs, inbox, conversations, and staged, which `1`, `2`, `3`, `[`, and `]` switch between. Every row is one line on a shared grid, so titles start in the same column on all three, and the row under the cursor is a single tinted band. A line under the list says what the row had no room for, such as the full title, the commit prefix, and who it is waiting on. `esc` on a review opens the queue again, and `B` on a review opens its checkout in [gh-repo-dashboard](https://github.com/KyleKing/gh-repo-dashboard) and returns when you quit it.
+The queue has three tabs, inbox, conversations, and staged, which `1`, `2`, `3`, `]q`, and `[q` switch between. Every row is one line on a shared grid, so titles start in the same column on all three, and the row under the cursor is a single tinted band. A line under the list says what the row had no room for, such as the full title, the commit prefix, and who it is waiting on. `esc` on a review opens the queue again, and `bb` on a review opens its checkout in [gh-repo-dashboard](https://github.com/KyleKing/gh-repo-dashboard) and returns when you quit it.
 
-The inbox is ordered to keep the amount of work in progress small. Your own pull requests that are approved and ready to merge come first, then anything waiting on a reply from you, then reviews you have already started, then new review requests (priority labels and pull requests where you are the only human reviewer go to the top). Work waiting on somebody else and merged pull requests come last and recede, so the rows that need you are the brightest, and `z` shows the merged lane. Each finding from a review bot or teammate gets one of four verdicts:
+The inbox is ordered to keep the amount of work in progress small. Your own pull requests that are approved and ready to merge come first, then anything waiting on a reply from you, then reviews you have already started, then new review requests (priority labels and pull requests where you are the only human reviewer go to the top). Work waiting on somebody else and merged pull requests come last and recede, so the rows that need you are the brightest, and `za` shows the merged lane. Each finding from a review bot or teammate gets one of four verdicts:
 
 | Key | Verdict | What posts |
 | --- | ------- | ---------- |
@@ -43,6 +43,30 @@ Large diffs open on an outline that splits the change into chapters, with how mu
 </p>
 
 The keybindings follow vim, so `]c` goes to the next comment, `]u` to the next unread hunk, `za` toggles a fold, and `n` repeats the last motion. The footer shows the keys that apply at the cursor and `?` lists the rest.
+
+## Keys
+
+second-look shares one keymap with [jojo](https://github.com/KyleKing/jojo) and [jj-diff](https://github.com/KyleKing/jj-diff) through [aragonite](https://github.com/KyleKing/aragonite), so a key means one thing in all three: `u` is undo, `space` ticks the item at point (here it marks it read), `v` is a visual range, `Y` yanks, `ctrl+l` reloads, and `g`, `z`, `]`, `[`, `\`, and `b` are prefixes that never act alone. A test fails the build when a key drifts from that table.
+
+| Key | Review screen | Queue |
+| --- | ------------- | ----- |
+| `i` | comment on the line (then `b` `m` `n` `t` `?` for the severity), or reply on a thread | reply to the conversation, or comment on the pull request |
+| `e` | edit what is there: a staged comment, the review's own prose | |
+| `P` | publish: `Pa` approve, `Pr` request changes, `Pc` comment, `Pp` post the comment under the cursor | `Pa` approve, then `Pa` again to confirm |
+| `space` | mark the hunk read | mark the row read |
+| `]u` / `[u` | next / previous unread hunk | next / previous row needing a look |
+| `]q` / `[q` | | next / previous queue (also `1` `2` `3`) |
+| `m` | a state: `r` ready, `d` draft, `t` todo, `x` skip | |
+| `\` | what is shown: `\t` threads, `\c` comments, `\g` grammar, `\s` side by side, `\w` wrap, `\i` images, `\p` the next preset, `\\` the next view | |
+| `v` / `V` | a range of lines | |
+| `bb` / `bd` | the checkout's branches and CI / delete the branch | |
+| `gi` | the card about the pull request | |
+| `Y` | yank `path:line` | yank `owner/repo#number` |
+| `ctrl+l` | restage | read the queue again |
+| `za` | fold or unfold this | show or hide the folded lane |
+| `:clean` | | drop staged reviews whose pull request finished (`:clean stale` too) |
+
+Keys that moved in 0.60 (`a` comment, `S` submit, `P` post one, `B`, `D`, `i` info, `u` and `v` looks, `t` and `c` toggles, `ctrl+r`, `y`/`Y` scroll, and in the queue `m`, `A`, `r`, `u`/`U`, `]`/`[`, `z`, `gc`) say where they went when pressed, for one release.
 
 A key that can do nothing at the cursor stays in the footer, dimmed, and the legend says why. In the legend, pressing a key explains it rather than running it, `/` filters, and enter runs the row. `:` searches every key and command by what it does and runs it, then names the key for next time. The footer's status slot names the next step while one holds (unread hunks, findings to rule on, a review ready to submit), and after the first minute an occasional tip about a key you have not used, gone at the next key. `coach = "band"` in the config, or `:next`, draws the next steps as a band above the footer instead. Tips remember what they have shown in `$XDG_STATE_HOME/second-look/coach.json`, and `:tips off` stops them.
 

@@ -20,7 +20,7 @@ func TestAOnAFileHeadingAnchorsItsFirstLine(t *testing.T) {
 
 	toFileHead(t, m)
 
-	pressKey(t, m, 'a')
+	pressKey(t, m, 'i')
 	pressKey(t, m, 'n')
 
 	frame := plain(m.Frame())

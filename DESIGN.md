@@ -18,7 +18,7 @@ It is for one person (me) reviewing many pull requests a day across many reposit
 
 ### The review is a local artifact
 
-A review lives in a TOML file per pull request, written by the tool and by agents through the CLI, and nothing reaches GitHub until I press `S`. The alternative was to post comments as they are written, which is how `gh pr review` works. That loses the property I care about most, which is that a comment an agent drafted at 2am can be read, edited, and deleted before anyone else sees it.
+A review lives in a TOML file per pull request, written by the tool and by agents through the CLI, and nothing reaches GitHub until I press `P` and name the event. The alternative was to post comments as they are written, which is how `gh pr review` works. That loses the property I care about most, which is that a comment an agent drafted at 2am can be read, edited, and deleted before anyone else sees it.
 
 TOML is the on-disk format because a person edits it. The agent and `gh` speak JSON, so JSON is the input and output of the CLI and is never something a person edits. Every field is either posted or local, and the payload builder reads only the posted fields. Local fields carry the command that proved a finding, the doubt, and the reason a finding was declined, so a private note cannot leak because someone forgot to remove it. An unknown field is refused, because a misspelled key is a hand edit that will not do what its author meant.
 
@@ -26,7 +26,7 @@ The store is one directory per repository under the user config directory, keyed
 
 ### Posting is one call
 
-`S` sends the review body and every line comment to GitHub's reviews endpoint in one request, so a failure leaves none of them posted. Replies follow after the submit, one request each on their own thread: a reply sent inside the review is drawn a second time under it, as a lone comment on the line rather than inside the thread it answers. Before anything is sent, each comment's anchor is checked against the live diff and the pull request's head is compared with the one the review was written against. A comment that no longer anchors, or a head that moved, stops the post and says which. A draft present at submit time blocks the post instead of being posted or dropped. The artifact is deleted once GitHub has the review, and GitHub is the source of truth from then on; when a reply fails after the submit, the staged file keeps only what did not go out.
+`P` then `a`, `r`, or `c` sends the review body and every line comment to GitHub's reviews endpoint in one request, so a failure leaves none of them posted. Replies follow after the submit, one request each on their own thread: a reply sent inside the review is drawn a second time under it, as a lone comment on the line rather than inside the thread it answers. Before anything is sent, each comment's anchor is checked against the live diff and the pull request's head is compared with the one the review was written against. A comment that no longer anchors, or a head that moved, stops the post and says which. A draft present at submit time blocks the post instead of being posted or dropped. The artifact is deleted once GitHub has the review, and GitHub is the source of truth from then on; when a reply fails after the submit, the staged file keeps only what did not go out.
 
 ### Seen-state is a content hash
 

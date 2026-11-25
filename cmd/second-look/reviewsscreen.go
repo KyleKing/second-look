@@ -66,7 +66,7 @@ type reviewsScreen struct {
 }
 
 // Start reads the directory again and forgets what the forge said, which is
-// what ctrl+r means here. The read is local and answers before the frame; the
+// what ctrl+l means here. The read is local and answers before the frame; the
 // forge's view follows in one message so a dead row sinks before the cursor
 // goes looking for it.
 func (s *reviewsScreen) Start() tea.Cmd {
@@ -243,7 +243,6 @@ var reviewsHints = [][2]string{
 	{enterKey, "open"},
 	{"C", "checkout"},
 	{"d", "discard"},
-	{"gc", "clean"},
 	{refreshKey, "refresh"},
 	{"?", helpArg},
 }
@@ -254,15 +253,15 @@ var reviewsHelp = helpFor(helpMove(), [][2]string{
 	{"f, F", "read one repository across all three queues, and every one again"},
 	{"C", "move this checkout onto it, pulling where it is already on the branch"},
 	{"d", "throw the review away with everything cached for it; d again confirms"},
-	{"gc, gs", "drop what the forge says is finished; gs also drops stale empties"},
-	{"z", "show or hide the finished lane"},
+	{"za", "show or hide the finished lane"},
 	{refreshKey, "read the directory again"},
 }, helpLeave(), prose(
 	"blocked means a comment is still a draft, which stops the submit.",
 	"Every review here is unfinished: the file is deleted when it posts.",
 	"The lanes order by what is left to do, the way the inbox's do: blocked,",
 	"ready to post, empty, unreadable, then what was left in a working copy,",
-	"and what the forge says is finished, dimmed and folded until z opens it.",
+	"and what the forge says is finished, dimmed and folded until za opens it.",
+	":clean drops what the forge says is finished; :clean stale also drops stale empties.",
 	"A review with no checkout of its repository is listed in its own group and",
 	"opens the same way, from the API.",
 	"here marks the one row this directory is standing on; a C pressed on a",
@@ -592,7 +591,7 @@ func (s *reviewsScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		s.remote, s.asked = nil, nil
 
 		return s.counts(), false, nil
-	case tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
+	case tui.ActMark, tui.ActBrowse, tui.ActResolve,
 		tui.ActComment, tui.ActApprove, tui.ActMerge, tui.ActScope:
 		return "", false, errNotHere
 	}

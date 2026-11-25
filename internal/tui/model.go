@@ -19,6 +19,7 @@ import (
 	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/handoff"
 	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/pane"
 
@@ -230,7 +231,10 @@ type Model struct {
 	padX int
 	padY int
 
-	keys   keyMap
+	keys keyMap
+	// km is the review's keys merged with the family's, which a moved key's
+	// notice is read from.
+	km     *keys.Keymap
 	styles styles
 	rich   richStyles
 	search search
@@ -493,7 +497,7 @@ func New(
 	marks, reindented, moves, mates := d.Paired()
 	m := &Model{
 		ctx: ctx, review: r, diff: d, path: path, submit: submit,
-		keys: defaultKeyMap(), styles: st, rich: newRichStyles(st), search: newSearch(),
+		keys: defaultKeyMap(), km: mustKeymap(reviewKeymap), styles: st, rich: newRichStyles(st), search: newSearch(),
 		files: newFiles(),
 		width: minWidth, height: startHeight, folded: newFolded(),
 		hugeDiff: diffRows(d) >= asyncRows,
@@ -1219,12 +1223,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// The state keys sit behind m now. A bare press is answered rather than
-	// ignored, because the hand that learned them reaches for them for weeks.
-	if m.stateKey(msg) {
-		m.say("m first: m r ready · m d draft · m x skip", false)
-
-		return m, nil
+	if cmd, ok := m.movedKey(msg); ok {
+		return m, cmd
 	}
 
 	if key.Matches(msg, m.keys.Repeat) {
@@ -1407,8 +1407,8 @@ func (m *Model) asks(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return m.askStructure(), true
 	case key.Matches(msg, m.keys.Restage):
 		return m.askRestage(), true
-	case key.Matches(msg, m.keys.Dashboard):
-		return m.openDashboard(), true
+	case key.Matches(msg, m.keys.Yank):
+		return m.yank(), true
 	case key.Matches(msg, m.keys.Round):
 		return m.askRound(), true
 	case key.Matches(msg, m.keys.Suggest):
@@ -1440,8 +1440,6 @@ func (m *Model) overlayKey(msg tea.KeyPressMsg) bool {
 		m.openPalette(palette.Browse)
 	case msg.String() == paletteKey:
 		m.openPalette(palette.Run)
-	case key.Matches(msg, m.keys.About):
-		m.aboutOpen, m.aboutAt = true, 0
 	default:
 		return false
 	}
@@ -1537,9 +1535,13 @@ func (m *Model) mode(msg tea.KeyPressMsg) (bool, tea.Model, tea.Cmd) {
 func (m *Model) startsChord(msg tea.KeyPressMsg) bool {
 	switch {
 	case key.Matches(msg, m.keys.Look):
-		m.pending = 'u'
+		m.pending = '\\'
 
-		m.say(m.chord("u", lookObjects()), false)
+		m.say(m.chord(lookKey, lookObjects()), false)
+	case key.Matches(msg, m.keys.Branch):
+		m.pending = 'b'
+
+		m.say(m.chord("b", branchObjects()), false)
 	case msg.String() == "g":
 		m.pending = 'g'
 
@@ -1598,22 +1600,20 @@ func (m *Model) complete(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.zedKey(prefix, msg)
 
 		return m, cmd
-	case 'a':
+	case 'i':
 		cmd := m.writeAs(msg)
 
 		return m, cmd
-	case 'S':
-		return m.submitAs(msg)
-	case 'u':
-		if msg.String() == "i" {
-			cmd := m.previewImages()
+	case 'P':
+		return m.publishAs(msg)
+	case 'b':
+		cmd := m.branchKey(msg)
 
-			return m, cmd
-		}
+		return m, cmd
+	case '\\':
+		cmd := m.lookKey(msg)
 
-		m.toggleLook(msg)
-
-		return m, nil
+		return m, cmd
 	case 'g':
 		return m.gotoKey(msg)
 	case 'H':
@@ -1682,8 +1682,10 @@ func (m *Model) gotoKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		cmd := m.wholeFile()
 
 		return m, cmd
+	case "i":
+		m.aboutOpen, m.aboutAt = true, 0
 	default:
-		m.say("no place for "+msg.String()+"; g top, d defined, r used, c calls, f file", false)
+		m.say("no place for "+msg.String()+"; g top, d defined, r used, c calls, f file, i info", false)
 	}
 
 	return m, nil
@@ -1793,12 +1795,16 @@ func (m *Model) write(msg tea.KeyPressMsg) tea.Cmd {
 	case key.Matches(msg, m.keys.Note):
 		return m.editNote()
 	case key.Matches(msg, m.keys.Write):
-		m.askWrite()
-
-		return nil
+		return m.askWrite()
 	}
 
-	return m.edit()
+	cmd := m.edit()
+
+	if m.currentThread() >= 0 && key.Matches(msg, m.keys.Edit) {
+		m.say("e on a thread moved to i (reply); e still replies this release", false)
+	}
+
+	return cmd
 }
 
 // stateKey reports whether a key names one of the three comment states.
@@ -2547,7 +2553,7 @@ func (m *Model) markRead() {
 
 func readWord(read bool) string {
 	if read {
-		return "read"
+		return readTick
 	}
 
 	return "unread"
@@ -2776,10 +2782,6 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case key.Matches(msg, m.keys.Seen):
 		m.markRead()
-	case key.Matches(msg, m.keys.Send):
-		cmd := m.sendOne()
-
-		return m, cmd
 	case key.Matches(msg, m.keys.Shell):
 		cmd := m.shell()
 
@@ -2811,12 +2813,10 @@ func (m *Model) act(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // names), so none of them does anything but put the question up.
 func (m *Model) confirmKey(msg tea.KeyPressMsg) {
 	switch {
-	case key.Matches(msg, m.keys.Submit):
-		m.askSubmit()
+	case key.Matches(msg, m.keys.Publish):
+		m.askPublish()
 	case key.Matches(msg, m.keys.Merge):
 		m.askMergeNow()
-	case key.Matches(msg, m.keys.DeleteBranch):
-		m.askDeleteBranchNow()
 	case key.Matches(msg, m.keys.Advisories):
 		m.askAdvisoriesNow()
 	}
@@ -2885,10 +2885,6 @@ func setState(c *artifact.Comment, status string) {
 // the review says: the views, the order, and the two filters.
 func (m *Model) reshapes(msg tea.KeyPressMsg) bool {
 	switch {
-	case key.Matches(msg, m.keys.View):
-		m.cycleView()
-	case key.Matches(msg, m.keys.Comments):
-		m.showComments()
 	case key.Matches(msg, m.keys.Order):
 		m.cycleOrder()
 	case key.Matches(msg, m.keys.Tour):
@@ -2899,8 +2895,6 @@ func (m *Model) reshapes(msg tea.KeyPressMsg) bool {
 		m.setFold(foldWhitespace)
 	case key.Matches(msg, m.keys.OnlyNew):
 		m.narrow()
-	case key.Matches(msg, m.keys.Threads):
-		m.showThreads()
 	case key.Matches(msg, m.keys.Trouble):
 		m.showTrouble()
 	default:
@@ -3348,10 +3342,9 @@ func (m *Model) currentThread() int {
 	return r.thread
 }
 
-// sendOne posts the comment under the cursor on its own. A ready comment asks
-// nothing first: a single comment is the one thing here small enough to take
-// back by deleting it on GitHub, where a whole review is not. A todo reply asks
-// who gets the fix, as the submit chord does.
+// sendOne posts the comment under the cursor on its own, the p of the publish
+// page: the page named it before p sent it, so a ready comment asks nothing
+// more. A todo reply asks who gets the fix, as the event keys do.
 func (m *Model) sendOne() tea.Cmd {
 	i := m.current()
 	if i < 0 {
@@ -3371,7 +3364,7 @@ func (m *Model) sendOne() tea.Cmd {
 		return m.sendWith(c.ID, HandNobody)
 	case c.TodoReply():
 		m.fixOne = c.ID
-		m.askFixes("P  1 todo")
+		m.askFixes("Pp  1 todo")
 	default:
 		m.say("only a ready comment or a todo reply goes out on its own; r marks it ready", false)
 	}
@@ -3410,59 +3403,120 @@ func (m *Model) applySent(msg sentMsg) {
 	m.say(msg.summary, msg.handErr != nil)
 }
 
-// askSubmit opens the submit chord. Posting is the only thing the screen does
-// that cannot be taken back, so the second key both confirms it and says what
-// kind of review it is: Sa, Sr, and Sc each name one, and naming it is the only
-// way to post.
-func (m *Model) askSubmit() {
-	// posting is set from the moment the request is dispatched, not when it
-	// answers, because the keys pressed while it is in flight arrive first and
-	// a second confirmed S would publish the review twice.
-	if m.posting {
-		m.say("posting…", false)
+// askPublish opens the publish page: everything that leaves the machine sits
+// under P, and nothing goes on one key. The page names what goes out, and the
+// second key both confirms it and says what it is: Pa, Pr, and Pc post the
+// review as one event each, and Pp posts the comment under the cursor alone.
+func (m *Model) askPublish() {
+	one := m.postable()
+	why := m.submitBlocked()
+
+	if why != "" && one == "" {
+		m.refuseSubmit(why)
 
 		return
 	}
 
-	if m.posted {
-		m.say("already posted", false)
-
-		return
-	}
-
-	if m.review.Local {
-		m.say("a local review's comments are notes; there is nothing to post to", true)
-
-		return
-	}
-
-	c := m.counts()
-	if c.draft > 0 {
-		_ = m.focus(m.firstDraft())
-		m.say(plural(c.draft, "comment")+" still draft, m r posts it or m x skips it", true)
-
-		return
-	}
-
-	m.pending = 'S'
-	// The pull request is already named in the title bar, so the prompt spends
-	// its width on what the keys do and stays readable in an 80-column frame.
-	// What will not post is said too: a skipped comment is a decision made
-	// earlier, and the confirm is where it can still be revisited.
-	word := "S  " + plural(c.ready, "comment")
-	if m.review.Empty() {
-		word = "S  empty review"
-	}
-	if c.skip > 0 {
-		word += " · " + plural(c.skip, "skipped")
-	}
-
-	m.say(word+"  "+hintLine(events()), false)
+	m.pending = 'P'
+	m.say(m.publishWord(why, one), false)
 }
 
-// submitAs answers the second key of the submit chord. A review with a todo
+// The refusals that only report a review on its way or already gone.
+const (
+	postingWord = "posting…"
+	postedWord  = "already posted"
+)
+
+// submitBlocked is why the review cannot be posted as a whole right now, empty
+// when it can. A draft moves the cursor to it, since the page is where it can
+// still be ruled on.
+func (m *Model) submitBlocked() string {
+	// posting is set from the moment the request is dispatched, not when it
+	// answers, because the keys pressed while it is in flight arrive first and
+	// a second confirmed P would publish the review twice.
+	switch {
+	case m.posting:
+		return postingWord
+	case m.posted:
+		return postedWord
+	case m.review.Local:
+		return "a local review's comments are notes; there is nothing to post to"
+	}
+
+	if c := m.counts(); c.draft > 0 {
+		return plural(c.draft, "comment") + " still draft, m r posts it or m x skips it"
+	}
+
+	return ""
+}
+
+// refuseSubmit says why the review cannot post, with the cursor on the first
+// draft where a draft is why.
+func (m *Model) refuseSubmit(why string) {
+	if d := m.firstDraft(); d >= 0 && !m.posted && !m.posting && !m.review.Local {
+		_ = m.focus(d)
+	}
+
+	m.say(why, why != postingWord && why != postedWord)
+}
+
+// postable is the id of the comment under the cursor that Pp would post on
+// its own, empty where there is none.
+func (m *Model) postable() string {
+	i := m.current()
+	if i < 0 || m.send == nil || m.posted || m.posting {
+		return ""
+	}
+
+	if c := &m.review.Comments[i]; c.Status == artifact.StatusReady || c.TodoReply() {
+		return c.ID
+	}
+
+	return ""
+}
+
+// publishWord is the page's own line: what each event would post and what p
+// would, so the second key is pressed knowing what it sends. The pull request
+// is already named in the title bar, so the line spends its width on what the
+// keys do and stays readable in an 80-column frame. What will not post is said
+// too: a skipped comment is a decision made earlier, and the confirm is where
+// it can still be revisited.
+func (m *Model) publishWord(blocked, one string) string {
+	var parts []string
+
+	if blocked == "" {
+		c := m.counts()
+
+		word := "P  " + plural(c.ready, "comment")
+		if m.review.Empty() {
+			word = "P  empty review"
+		}
+
+		if c.skip > 0 {
+			word += " · " + plural(c.skip, "skipped")
+		}
+
+		parts = append(parts, word+"  "+hintLine(events()))
+	} else {
+		parts = append(parts, "P  "+blocked)
+	}
+
+	if one != "" {
+		parts = append(parts, hintLine([][2]string{{"p", "post " + one + " now"}}))
+	}
+
+	return strings.Join(parts, " · ")
+}
+
+// publishAs answers the second key of the publish chord. A review with a todo
 // reply asks one more thing before it posts: who gets the fixes.
-func (m *Model) submitAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m *Model) publishAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "p" {
+		cmd := m.sendOne()
+
+		return m, cmd
+	}
+
 	var event string
 
 	switch {
@@ -3474,6 +3528,12 @@ func (m *Model) submitAs(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		event = artifact.EventComment
 	default:
 		m.say("canceled, nothing was posted", false)
+
+		return m, nil
+	}
+
+	if why := m.submitBlocked(); why != "" {
+		m.refuseSubmit(why)
 
 		return m, nil
 	}
@@ -3552,7 +3612,7 @@ func (m *Model) askMergeNow() {
 	case m.posting:
 		m.say("the review is still posting", false)
 	case !m.posted && !m.review.Empty():
-		m.say("this review is still staged; S posts it, or skip its comments first", true)
+		m.say("this review is still staged; P posts it, or skip its comments first", true)
 	default:
 		m.asking = askMerge
 		m.say("M again to squash-merge and delete the branch, any key cancels", false)
@@ -3616,7 +3676,7 @@ func (m *Model) askDeleteBranchNow() {
 		m.say("already deleted", false)
 	default:
 		m.asking = askDeleteBranch
-		m.say("D again to check out the base branch and delete "+m.review.HeadRef+" locally, any key cancels", false)
+		m.say("bd again to check out the base branch and delete "+m.review.HeadRef+" locally, any key cancels", false)
 	}
 }
 
@@ -3624,7 +3684,14 @@ func (m *Model) askDeleteBranchNow() {
 // Anything but the same key again cancels and is swallowed, so no keystroke
 // meant for the review deletes anything.
 func (m *Model) answerDeleteBranch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if !key.Matches(msg, m.keys.DeleteBranch) {
+	// bd again confirms as d alone does: the b is let through still asking.
+	if msg.String() == "b" {
+		m.asking = askDeleteBranch
+
+		return m, nil
+	}
+
+	if msg.String() != "d" {
 		m.say("canceled, nothing was deleted", false)
 
 		return m, nil

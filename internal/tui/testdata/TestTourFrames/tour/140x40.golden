@@ -16,7 +16,7 @@
     11 +     waitLock()                                                                                                                   
          ╭─ ⤷ @watch-doggo · unresolved · 1 comment ────────────────────────────────── route.go:11 ─╮
          │   waitLock has no timeout.                                                               │
-         ╰─ r[e]ply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ──────────────╯
+         ╰─ [i] reply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ────────────╯
    
     12       done()                                                                                                                       
    
@@ -37,4 +37,4 @@
   
   
   
-   ▸ next  3 hunks not yet read · ]u next unread  ] go to   m mark   e write   a add   S submit   ? help   q quit
+   ▸ next  3 hunks not yet read · ]u next unread  ] go to   m mark   e write   i comment   P publish   ? help   q quit

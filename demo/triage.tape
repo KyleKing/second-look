@@ -74,8 +74,8 @@ Sleep 1200ms
 Escape
 Sleep 400ms
 
-# Submit: request changes, and say who gets the fixes.
-Type "S"
+# Publish: request changes, and say who gets the fixes.
+Type "P"
 Sleep 800ms
 Type "r"
 Sleep 1400ms

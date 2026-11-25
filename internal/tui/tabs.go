@@ -3,7 +3,6 @@ package tui
 import (
 	"strconv"
 
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/frame"
@@ -105,7 +104,7 @@ func NewTabs(tabs []Tab, at int) *List {
 		title: programName,
 		tabs:  tabs, at: min(max(at, 0), len(tabs)-1),
 		views: make([]view, len(tabs)),
-		keys:  defaultKeyMap(), list: defaultListKeys(), styles: loadStyles(),
+		keys:  defaultKeyMap(), list: defaultListKeys(), km: mustKeymap(listKeymap), styles: loadStyles(),
 		width: minWidth, height: startHeight, expanded: map[string]bool{}, filter: newFilter(),
 	}
 
@@ -224,13 +223,6 @@ func (l *List) switchTo(at int) tea.Cmd {
 func (l *List) tabKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	if len(l.tabs) < several {
 		return nil, false
-	}
-
-	switch {
-	case key.Matches(msg, l.keys.Forward):
-		return l.switchTo((l.at + 1) % len(l.tabs)), true
-	case key.Matches(msg, l.keys.Backward):
-		return l.switchTo((l.at - 1 + len(l.tabs)) % len(l.tabs)), true
 	}
 
 	if n, err := strconv.Atoi(msg.String()); err == nil && n >= 1 && n <= len(l.tabs) {

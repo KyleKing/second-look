@@ -37,4 +37,4 @@
      4 +   const limit = 5                                                                                                               │
      5     return <CardFBody id={id} />                                                                                                  │
                                                                                                                                          ▍
-   ▸ next  4 hunks not yet read · ]u next unread  ] go to   m mark   e write   a add   S submit   ? help   q quit
+   ▸ next  4 hunks not yet read · ]u next unread  ] go to   m mark   e write   i comment   P publish   ? help   q quit

@@ -29,7 +29,7 @@ index 1111111..5555555 100644
 
 // A review read over twenty minutes outlives the answer given when it started,
 // and finding out at submit time that the head moved is finding out too late.
-// So ctrl+r takes the new head in place rather than sending the reader to the
+// So ctrl+l takes the new head in place rather than sending the reader to the
 // shell, and says what the move cost.
 func TestRestagingTakesAHeadThatMoved(t *testing.T) {
 	t.Parallel()
@@ -47,14 +47,14 @@ func TestRestagingTakesAHeadThatMoved(t *testing.T) {
 
 	// Nothing to restage until the head has actually moved, because a key that
 	// spends three API calls on an unchanged head is a key nobody presses.
-	press(t, m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "nothing to restage") {
 		t.Errorf("restaging an unmoved head did not say so:\n%s", got)
 	}
 
 	m.SawHead("9f2c4d1")
-	press(t, m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "splitAll(r)") {
@@ -84,7 +84,7 @@ func TestARestageThatFailedKeepsTheDiff(t *testing.T) {
 	})
 	m.SawHead("9f2c4d1")
 
-	press(t, m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "could not restage: gh: rate limited") {

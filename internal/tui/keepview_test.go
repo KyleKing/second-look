@@ -73,7 +73,7 @@ func restageNow(t *testing.T, m *tui.Model) {
 	t.Helper()
 
 	m.SawHead("9f2c4d1")
-	press(t, m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
 }
 
 // A push taken in mid-read renumbers the line being read. The cursor finds it

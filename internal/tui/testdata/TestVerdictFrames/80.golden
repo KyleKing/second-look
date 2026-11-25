@@ -10,7 +10,7 @@ vcs ─────────────────────────�
        │   wrap the error with the path                                       │
        │   ⤶ ◆ the agent · ◑ todo · question                                  │
        │     will fix: wrap it with the path.                                 │
-       ╰─ r[e]ply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react ──────╯
+       ╰─ [i] reply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react ────╯
  
   16 +     if err != nil {                                                      
   17       last := 4                                                            
@@ -37,4 +37,4 @@ vcs ─────────────────────────�
 
 
 
- j/k line   ] go to   v code   e reply   i info   S submit   ? help   q quit
+ j/k line   ] go to   \\ code   i reply   P publish   ? help   q quit

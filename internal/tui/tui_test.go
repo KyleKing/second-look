@@ -98,7 +98,8 @@ func modelFor(t *testing.T, r *artifact.Review, patch string, opts ...tui.Option
 func nextView(tb testing.TB, m *tui.Model) {
 	tb.Helper()
 
-	press(tb, m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+	press(tb, m, tea.KeyPressMsg{Code: '\\', Text: "\\"})
+	press(tb, m, tea.KeyPressMsg{Code: '\\', Text: "\\"})
 }
 
 // The state chord is m then a letter, which is how a comment is restamped.
@@ -266,17 +267,17 @@ func TestDeleteBranchAsksTwiceAndIgnoresStagedComments(t *testing.T) {
 
 		m, deletes := deleteBranchFixture(t)
 
-		pressKey(t, m, 'D')
+		go2(t, m, 'b', 'd')
 
 		if *deletes != 0 {
-			t.Error("the first D deleted without confirming")
+			t.Error("the first bd deleted without confirming")
 		}
 
-		if !strings.Contains(plain(m.Frame()), "D again") {
-			t.Errorf("the first D did not ask:\n%s", plain(m.Frame()))
+		if !strings.Contains(plain(m.Frame()), "bd again") {
+			t.Errorf("the first bd did not ask:\n%s", plain(m.Frame()))
 		}
 
-		pressKey(t, m, 'D')
+		go2(t, m, 'b', 'd')
 
 		if *deletes != 1 {
 			t.Errorf("%d deletion(s) after confirming, want 1", *deletes)
@@ -288,9 +289,9 @@ func TestDeleteBranchAsksTwiceAndIgnoresStagedComments(t *testing.T) {
 
 		m, deletes := deleteBranchFixture(t)
 
-		pressKey(t, m, 'D')
+		go2(t, m, 'b', 'd')
 		pressKey(t, m, 'j')
-		pressKey(t, m, 'D')
+		go2(t, m, 'b', 'd')
 
 		if *deletes != 0 {
 			t.Errorf("%d deletion(s) after a cancel", *deletes)
@@ -301,8 +302,8 @@ func TestDeleteBranchAsksTwiceAndIgnoresStagedComments(t *testing.T) {
 		t.Parallel()
 
 		m, deletes := deleteBranchFixture(t, comment("c1", parsed, "RIGHT", 16, "a word"))
-		pressKey(t, m, 'D')
-		pressKey(t, m, 'D')
+		go2(t, m, 'b', 'd')
+		go2(t, m, 'b', 'd')
 
 		if *deletes != 1 {
 			t.Errorf("%d deletion(s) with a review staged, want 1", *deletes)
@@ -912,6 +913,7 @@ func TestPostingOneCommentTakesItOffTheReview(t *testing.T) {
 	go2(t, m, ']', 'c')
 	state(t, m, 'd')
 	press(t, m, tea.KeyPressMsg{Code: 'P', Text: "P"})
+	press(t, m, tea.KeyPressMsg{Code: 'p', Text: "p"})
 
 	if len(sent) != 0 {
 		t.Fatalf("a draft was posted on its own: %v", sent)
@@ -919,6 +921,7 @@ func TestPostingOneCommentTakesItOffTheReview(t *testing.T) {
 
 	state(t, m, 'r')
 	press(t, m, tea.KeyPressMsg{Code: 'P', Text: "P"})
+	press(t, m, tea.KeyPressMsg{Code: 'p', Text: "p"})
 
 	if len(sent) != 1 {
 		t.Fatalf("posted %v, want exactly one comment", sent)
@@ -971,7 +974,7 @@ func TestAFailedSubmitIsReadableAndReported(t *testing.T) {
 	m.Init()
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
-	press(t, m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+	press(t, m, tea.KeyPressMsg{Code: 'P', Text: "P"})
 	press(t, m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 
 	if !errors.Is(m.Failure(), fail) {
@@ -1003,7 +1006,7 @@ func TestSubmittingTwiceBeforeTheFirstAnswers(t *testing.T) {
 	var cmds []tea.Cmd
 
 	for range 4 {
-		m.Update(tea.KeyPressMsg{Code: 'S', Text: "S"})
+		m.Update(tea.KeyPressMsg{Code: 'P', Text: "P"})
 
 		_, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
 		if cmd != nil {
@@ -1080,9 +1083,9 @@ func TestCommentsRenderUnderTheirAnchor(t *testing.T) {
 	}
 }
 
-// The grammar, the columns, and what the parser saw are independent, so u
+// The grammar, the columns, and what the parser saw are independent, so \
 // reaches what the cycle cannot: side by side with the grammar off. A look
-// reached that way is in no preset, so the next v starts the walk again rather
+// reached that way is in no preset, so the next \p starts the walk again rather
 // than guessing where in it that look belongs.
 func TestTogglingOneLookAtATime(t *testing.T) {
 	t.Parallel()
@@ -1094,10 +1097,10 @@ func TestTogglingOneLookAtATime(t *testing.T) {
 		keys []rune
 		want string
 	}{
-		{[]rune{'u', 's'}, "split"},
-		{[]rune{'u', 'g'}, "plain split"},
-		{[]rune{'u', 's'}, "plain"},
-		{[]rune{'u', 'v'}, ""},
+		{[]rune{'\\', 's'}, "split"},
+		{[]rune{'\\', 'g'}, "plain split"},
+		{[]rune{'\\', 's'}, "plain"},
+		{[]rune{'\\', 'p'}, ""},
 	} {
 		for _, k := range tc.keys {
 			press(t, m, tea.KeyPressMsg{Code: k, Text: string(k)})
@@ -1134,8 +1137,8 @@ func TestSideBySidePairsAnEditOntoOneRow(t *testing.T) {
 
 	m, _, _ := fixtureWith(t, patch)
 	m.Update(tea.WindowSizeMsg{Width: 160, Height: 30})
-	press(t, m, tea.KeyPressMsg{Code: 'u', Text: "u"})
-	press(t, m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+	press(t, m, tea.KeyPressMsg{Code: '\\', Text: "\\"})
+	press(t, m, tea.KeyPressMsg{Code: 'p', Text: "p"})
 
 	frame := plain(m.Frame())
 
@@ -1174,8 +1177,8 @@ func TestSideBySideFallsBackWhenNarrow(t *testing.T) {
 
 	m, _ := fixture(t)
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
-	press(t, m, tea.KeyPressMsg{Code: 'u', Text: "u"})
-	press(t, m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+	press(t, m, tea.KeyPressMsg{Code: '\\', Text: "\\"})
+	press(t, m, tea.KeyPressMsg{Code: 'p', Text: "p"})
 
 	frame := plain(m.Frame())
 	if !strings.Contains(frame, "split") {
@@ -1564,8 +1567,8 @@ func TestAReadHunkRecedes(t *testing.T) {
 			m := readable(t, longPatch(t))
 			if renderer == "plain" {
 				for range 3 {
-					press(t, m, tea.KeyPressMsg{Code: 'u', Text: "u"})
-					press(t, m, tea.KeyPressMsg{Code: 'v', Text: "v"})
+					press(t, m, tea.KeyPressMsg{Code: '\\', Text: "\\"})
+					press(t, m, tea.KeyPressMsg{Code: 'p', Text: "p"})
 				}
 			}
 
@@ -2002,7 +2005,7 @@ func TestSubmitAsksFirst(t *testing.T) {
 			posts: 1, frame: "posted 3 comments", event: artifact.EventRequestChanges,
 		},
 		{"canceled", []tea.KeyPressMsg{{Code: 'j', Text: "j"}}, 0, "nothing was posted", ""},
-		{"S again does not send", []tea.KeyPressMsg{{Code: 'S', Text: "S"}}, 0, "nothing was posted", ""},
+		{"P again does not send", []tea.KeyPressMsg{{Code: 'P', Text: "P"}}, 0, "nothing was posted", ""},
 	}
 
 	for _, tc := range tests {
@@ -2010,7 +2013,7 @@ func TestSubmitAsksFirst(t *testing.T) {
 			t.Parallel()
 
 			m, path, sub := fixtureWith(t, patch, ready)
-			press(t, m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+			press(t, m, tea.KeyPressMsg{Code: 'P', Text: "P"})
 
 			for _, k := range tc.after {
 				press(t, m, k)
@@ -2060,7 +2063,7 @@ func TestAnEmptyReviewPostsAVerdict(t *testing.T) {
 			}
 			m, _, sub := modelFor(t, r, patch)
 
-			press(t, m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+			press(t, m, tea.KeyPressMsg{Code: 'P', Text: "P"})
 			if got := plain(m.Frame()); !strings.Contains(got, "empty review") {
 				t.Fatalf("S never asked what the empty review is:\n%s", got)
 			}
@@ -2108,7 +2111,7 @@ func TestALocalReviewNamesItsDiffAndPostsNothing(t *testing.T) {
 		t.Errorf("a local review is titled %q rather than what it diffs", title)
 	}
 
-	press(t, m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+	press(t, m, tea.KeyPressMsg{Code: 'P', Text: "P"})
 	if got := plain(m.Frame()); !strings.Contains(got, "notes") {
 		t.Errorf("S never said there is nothing to post to:\n%s", got)
 	}
@@ -2460,7 +2463,7 @@ func TestADraftStopsTheSubmitAndIsShown(t *testing.T) {
 	draft.Status = artifact.StatusDraft
 
 	m, _, sub := fixtureWith(t, patch, comment("c1", parsed, artifact.SideRight, 15, "on the add"), draft)
-	m.Update(tea.KeyPressMsg{Code: 'S', Text: "S"})
+	m.Update(tea.KeyPressMsg{Code: 'P', Text: "P"})
 
 	if sub.n != 0 {
 		t.Fatalf("a draft review posted %d time(s)", sub.n)
@@ -2504,7 +2507,7 @@ func TestNothingIsWrittenBackAfterAPost(t *testing.T) {
 
 	m, path := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "on the add"))
 
-	press(t, m, tea.KeyPressMsg{Code: 'S', Text: "S"})
+	press(t, m, tea.KeyPressMsg{Code: 'P', Text: "P"})
 	press(t, m, tea.KeyPressMsg{Code: 'c', Text: "c"})
 
 	if err := os.Remove(path); err != nil {
@@ -2597,10 +2600,10 @@ func TestWritingANewCommentOnTheLineUnderTheCursor(t *testing.T) {
 	m, path := fixture(t)
 
 	go2(t, m, 'g', 'g')
-	press(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+	press(t, m, tea.KeyPressMsg{Code: 'i', Text: "i"})
 
-	if got := plain(m.Frame()); !strings.Contains(got, "not one") {
-		t.Fatalf("a on the review's own prose was taken:\n%s", got)
+	if got := plain(m.Frame()); !strings.Contains(got, "none of them") {
+		t.Fatalf("i on the review's own prose was taken:\n%s", got)
 	}
 
 	go2(t, m, ']', 'h')
@@ -2608,7 +2611,7 @@ func TestWritingANewCommentOnTheLineUnderTheCursor(t *testing.T) {
 
 	line := m.CursorText()
 
-	press(t, m, tea.KeyPressMsg{Code: 'a', Text: "a"})
+	press(t, m, tea.KeyPressMsg{Code: 'i', Text: "i"})
 
 	if got := plain(m.Frame()); !strings.Contains(got, "[b]locker") {
 		t.Fatalf("a did not offer a severity:\n%s", got)
@@ -2764,11 +2767,11 @@ func TestReplyingToAnOpenThread(t *testing.T) {
 		t.Fatalf("]t landed on %q", got)
 	}
 
-	if got := plain(m2.Frame()); !strings.Contains(got, "r[e]ply") {
+	if got := plain(m2.Frame()); !strings.Contains(got, "[i] reply") {
 		t.Fatalf("the footer does not offer a reply:\n%s", got)
 	}
 
-	press(t, m2, tea.KeyPressMsg{Code: 'e', Text: "e"})
+	press(t, m2, tea.KeyPressMsg{Code: 'i', Text: "i"})
 	typeIn(t, m2, "yes, os.ReadFile answers a nil-safe error")
 	press(t, m2, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 
@@ -2926,7 +2929,7 @@ func TestTabSkipsAResolvedThread(t *testing.T) {
 		t.Fatalf("tab landed on the resolved thread: %q", got)
 	}
 
-	if got := plain(m.Frame()); !strings.Contains(got, "r[e]ply") {
+	if got := plain(m.Frame()); !strings.Contains(got, "[i] reply") {
 		t.Fatalf("tab did not land on the open thread:\n%s", got)
 	}
 
@@ -3650,7 +3653,7 @@ func TestTheContextOverlayCarriesWhatTheDiffCannot(t *testing.T) {
 		t.Errorf("the header says nothing about the change:\n%s", got)
 	}
 
-	press(t, m, tea.KeyPressMsg{Code: 'i', Text: "i"})
+	go2(t, m, 'g', 'i')
 
 	frame := plain(m.Frame())
 	for _, want := range []string{
@@ -3680,7 +3683,7 @@ func TestTheContextOverlayCarriesWhatTheDiffCannot(t *testing.T) {
 	// A review staged before the context was cached has none, and says so
 	// rather than drawing an empty box.
 	bare, _ := fixture(t, comment("c1", parsed, artifact.SideRight, 15, "check err"))
-	press(t, bare, tea.KeyPressMsg{Code: 'i', Text: "i"})
+	go2(t, bare, 'g', 'i')
 
 	const uncached = "nothing was cached about this pull request; run second-look get 42"
 	if got := plain(bare.Frame()); !strings.Contains(got, uncached) {
@@ -3823,22 +3826,22 @@ func TestTheFooterDimsTheKeysThatDoNothingHere(t *testing.T) {
 
 	go2(t, m, ']', 'c')
 
-	if got := m.DimKeys(); !slices.Contains(got, "a") || slices.Contains(got, "m") {
-		t.Errorf("on a comment the dim keys are %v, want a dim and m live", got)
+	if got := m.DimKeys(); !slices.Contains(got, "i") || slices.Contains(got, "m") {
+		t.Errorf("on a comment the dim keys are %v, want i dim and m live", got)
 	}
 
 	// Every key is still on the line, which is what dimming is for.
-	if frame := plain(m.Frame()); !strings.Contains(frame, "a add") {
+	if frame := plain(m.Frame()); !strings.Contains(frame, "i comment") {
 		t.Errorf("a key that does not apply here left the footer:\n%s", frame)
 	}
 
-	// A line of the diff is where a comment is written, so a is live there and
+	// A line of the diff is where a comment is written, so i is live there and
 	// the keys that act on a staged comment are not.
 	go2(t, m, ']', 'h')
 	pressKey(t, m, 'j')
 
-	if got := m.DimKeys(); !slices.Contains(got, "m") || slices.Contains(got, "a") {
-		t.Errorf("on a line of the diff the dim keys are %v, want m dim and a live", got)
+	if got := m.DimKeys(); !slices.Contains(got, "m") || slices.Contains(got, "i") {
+		t.Errorf("on a line of the diff the dim keys are %v, want m dim and i live", got)
 	}
 
 	// The legend dims by the same rule, so the two cannot disagree.
@@ -3856,7 +3859,7 @@ func TestTheFooterDimsTheKeysThatDoNothingHere(t *testing.T) {
 	}
 }
 
-// B hands the terminal to gh-repo-dashboard on the checkout, so a path with a
+// bb hands the terminal to gh-repo-dashboard on the checkout, so a path with a
 // space or a quote must reach it as one argument, and a review with no checkout
 // has nothing to open.
 func TestTheDashboardKeyOpensTheCheckoutAsOneArgument(t *testing.T) {
@@ -3873,8 +3876,8 @@ func TestTheDashboardKeyOpensTheCheckoutAsOneArgument(t *testing.T) {
 	}
 
 	bare, _ := fixture(t)
-	if !bare.KeyIsInert("B") || strings.Contains(plain(bare.Frame()), "B branches") {
-		t.Error("without a checkout B is offered")
+	if !bare.KeyIsInert("bb") || strings.Contains(plain(bare.Frame()), "bb branches") {
+		t.Error("without a checkout bb is offered")
 	}
 
 	m, _, _ := modelFor(t, &artifact.Review{
@@ -3882,8 +3885,8 @@ func TestTheDashboardKeyOpensTheCheckoutAsOneArgument(t *testing.T) {
 	}, patch, tui.WithRepoDir(t.TempDir()))
 	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
 
-	if m.KeyIsInert("B") || !strings.Contains(plain(m.Frame()), "B branches") {
-		t.Error("with a checkout B is not offered in the footer")
+	if m.KeyIsInert("bb") || !strings.Contains(plain(m.Frame()), "bb branches") {
+		t.Error("with a checkout bb is not offered in the footer")
 	}
 }
 

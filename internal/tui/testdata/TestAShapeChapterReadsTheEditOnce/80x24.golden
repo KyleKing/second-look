@@ -21,4 +21,4 @@ same edit ×6 ─●────────────────────
      Not changed at head · 3 files like these                                  │
      ○ cards/RisksCard.tsx:4 · carries “const id = useSuspenseVendor(data => d…│
      ○ hooks/legacy.ts:9 · calls useSuspenseVendor                             ▍
- j/k line   ] go to   v code   i info   S submit   ? help   esc queue   q quit
+ j/k line   ] go to   \\ code   m mark   P publish   ? help   esc queue   q quit

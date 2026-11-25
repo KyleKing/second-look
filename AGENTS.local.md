@@ -236,6 +236,26 @@ Gotchas by fetcher:
 A 404 is an answer (`Missing`, drawn "not in <eco>"), and a failed ask is neither an answer
 nor cached.
 
+## The family keymap
+
+second-look shares one keymap with jojo and jj-diff, held in aragonite's `tui/keys` (canonical spec:
+aragonite `docs/keymap.md`). The screens still dispatch through bubbles bindings and their own chords,
+so `internal/tui/family.go` mirrors them as `[]keys.Binding` per screen (review as `keys.View`, the
+queue as `keys.List`) and `TestKeymap_AgreesWithShared` runs `keys.Disagreements` and
+`keys.RequireReserved` on each. `TestKeymap_MirrorsTheDispatch` fails a key `defaultKeyMap` or
+`defaultListKeys` answers that the mirror leaves out, which is how `u`, `v`, `ctrl+r`, and `y` drifted
+for a release with nothing checking them. Adding a key means a field in the keymap, a row in the mirror,
+its handler, the help tree or the tab's legend, and the README Keys table.
+
+Reserved keys mean one thing in every tool: `u` undo, `ctrl+r` redo, `ctrl+l` reload, `space` the
+tick (read here), `v`/`V` visual, `Y` yank, `K` inspect, `a` abandon, `S` split, `P` publish, `i`
+insert, and the prefixes `g z ] [ \ b`, which never act alone. A screen without the concept leaves the
+key unbound. Moved keys answer from `reviewMoves`/`listMoves` (`keys.Moves`) for one release and are
+then deleted; `t`, `u`, and the queue's bare `]`/`[`/`z`/`gc` are hand-written in `moved.go` and
+`listchord.go` because a `keys.Moved` binding there would collide with a live chord or verdict.
+Nothing leaves the machine on one key: everything that posts sits under `P`, whose page names what goes
+out before the second key sends it.
+
 ## Driving the review screen
 
 Use `tmux` to look at it, the pty tests in `cmd/second-look/tui_e2e_test.go` to pin it, and

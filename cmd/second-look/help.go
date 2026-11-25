@@ -59,7 +59,7 @@ NAMING A PULL REQUEST
   second-look <pr>
       Open the review screen: the diff with the prepared review's comments
       inline, where they anchor. m then r, d, or x marks a comment ready,
-      draft, or skipped, e writes one where it sits, and S submits the review.
+      draft, or skipped, i writes one where it sits, and P publishes the review.
       Press ? for every key.
 
       It needs no checkout. The diff, the open threads, and the comment id a
@@ -85,7 +85,7 @@ NAMING A PULL REQUEST
       line. The whole diff is the oldest stop. Where the round hides that line,
       the cursor lands on the nearest one still drawn and the status says so.
 
-      S then a, r, or c submits the review: approving, requesting changes, or
+      P then a, r, or c submits the review: approving, requesting changes, or
       commenting. The second key both confirms the post and says what kind of
       review it is, and what it says is written back, so a review posted as an
       approval does not read afterwards as a comment. There is no key for
@@ -103,10 +103,10 @@ NAMING A PULL REQUEST
       @ from the people on the pull request, then from whoever has commented on
       or reviewed the repository's recent ones, bots among them.
 
-      P posts the comment under the cursor on its own, now, and takes it off
-      the review. It asks nothing first: a single comment is small enough to
-      take back by deleting it on GitHub, where a whole review is not. A todo
-      reply is the exception: P asks who gets the fix first, as S does.
+      P then p posts the comment under the cursor on its own and takes it off
+      the review. Everything that leaves the machine sits under P and nothing
+      goes on one key: P names what would go out, and the second key sends it.
+      A todo reply asks who gets the fix first, as the event keys do.
 
       w hides hunks that change nothing but whitespace and says how many it
       hid, and takes them out of the read count too, since a hunk nobody is
@@ -114,9 +114,9 @@ NAMING A PULL REQUEST
       re-indent, a tabs-to-spaces pass, and a trailing-whitespace strip all
       count as whitespace; a line that gained a character does not.
 
-      t hides more: every hunk a parser says changed no code, which adds a
+      W hides more: every hunk a parser says changed no code, which adds a
       re-wrap across line boundaries and a comment nobody has to re-read. The
-      grammars come from ast-grep, so t says so where that is not installed and
+      grammars come from ast-grep, so W says so where that is not installed and
       w keeps working either way. The same pass rates the change, which is the
       cost in the title bar: a signature change outweighs anything a body does,
       a new capability the change reaches counts, and size is the tiebreaker.
@@ -125,7 +125,7 @@ NAMING A PULL REQUEST
       package, with the file and hunk counts on each heading so a directory can
       be taken or left as a unit. ]d walks the groups.
 
-      v walks three views: both, the code, the comments. Both is the diff with
+      \\ walks three views: both, the code, the comments. Both is the diff with
       what is being said about it inline. The code is the file as it reads after
       the change, with a removal standing as one line saying how much came out
       and each conversation standing as one row naming what it is, which za
@@ -144,11 +144,19 @@ NAMING A PULL REQUEST
       content rather than its position, so a force-push that does not touch a
       hunk leaves it read.
 
-      e opens an editor in the frame, over the block it is writing, so the line
-      being answered stays on screen: ctrl+s saves, esc abandons, and ctrl+e
-      hands what is typed to $EDITOR for the edits a text box is the wrong
-      shape for. It writes a comment, an answer to an open thread, and the
-      review's own body and note, which are rows the cursor lands on.
+      i then a severity (b, m, n, t, or ?) writes a new comment on the line, and
+      i on an open thread writes the answer to it. e edits what is already
+      there: a staged comment, and the review's own body and note, which are
+      rows the cursor lands on. Both open an editor in the frame, over the
+      block being written, so the line being answered stays on screen: ctrl+s
+      saves, esc abandons, and ctrl+e hands what is typed to $EDITOR for the
+      edits a text box is the wrong shape for.
+
+      \ opens the page of what is shown: \t the threads, \c the comments,
+      \g \s \w \i the grammar, side by side, wrap, and images, \p the next
+      preset of those, and \\ the next view. bb opens the checkout's branches
+      and CI, and bd deletes the branch after a confirm. gi is the card about
+      the pull request, Y yanks path:line, and ctrl+l restages.
 
       z folds what the cursor is on: a whole file from its name, one hunk from
       anywhere inside it, and a comment's note from the comment. za inverts it,
@@ -164,7 +172,7 @@ NAMING A PULL REQUEST
       there would run against something other than the diff.
 
       Conversations already open on the pull request are shown where they
-      anchor, and e on one writes the answer in $EDITOR, staged as a reply.
+      anchor, and i on one writes the answer in $EDITOR, staged as a reply.
 
       A asks the configured agent three questions about the diff that is
       already on screen: p orders the files into a reading path, c writes a
@@ -305,8 +313,9 @@ NAMING A PULL REQUEST
       them back and q leaves.
 
       This screen, the conversations, and the staged reviews are three tabs of
-      one screen. Each command opens on its own tab, 1, 2, and 3 pick one, and ]
-      and [ step through them. Every tab keeps its own cursor and filter, and
+      one screen. Each command opens on its own tab, 1, 2, and 3 pick one, and
+      ]q and [q step through them, as ]u and [u step through the rows that
+      still need a look and n and N repeat either. Every tab keeps its own cursor and filter, and
       every tab starts when the screen opens, so each count is in the strip at
       once, dim while it is the last visit's. Reading a review comes back to
       the row it was opened from, or to the row that took its place where the
@@ -325,8 +334,8 @@ NAMING A PULL REQUEST
       those are.
 
       enter reviews the pull request under the cursor, C moves a checkout onto
-      it, m comments on the pull request itself in $EDITOR, A approves it (A
-      again to confirm), and o opens it on GitHub. Opening one needs no clone of
+      it, i comments on the pull request itself in $EDITOR, P then a approves
+      it (P a again to confirm), and o opens it on GitHub. Opening one needs no clone of
       its repository, which is the point: getting to a review costs an API read
       rather than a clone and a branch switch.
 
@@ -372,8 +381,8 @@ NAMING A PULL REQUEST
       while the screen is open, so marking one read does not move it out from
       under the cursor.
 
-      r stages a reply. The answer is written in the review screen, which is
-      where a threaded reply already lives, so r leaves this screen and opens
+      i stages a reply. The answer is written in the review screen, which is
+      where a threaded reply already lives, so i leaves this screen and opens
       that one. Standing somewhere else is fine, whichever repository the
       conversation is on: the checkout moves onto the pull request on the way,
       asking before it stashes anything.
@@ -561,7 +570,7 @@ WHAT STAYS LOCAL
   file named twice uploads once. A file that is missing, unreadable, or over
   the size cap refuses the post rather than shipping a broken link.
 
-  The review screen previews images with u then i, drawing them on the
+  The review screen previews images with \ then i, drawing them on the
   terminal itself where the terminal speaks kitty, iTerm2, or sixel graphics.
 
   Turns are the exchange about a comment, in the order it was said. They append

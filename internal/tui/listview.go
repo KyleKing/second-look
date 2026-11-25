@@ -298,7 +298,7 @@ func laneCount(s *Section) string {
 	case s.Note != "":
 		return s.Note
 	case s.Fold:
-		return strconv.Itoa(len(s.Rows)) + " · z shows"
+		return strconv.Itoa(len(s.Rows)) + " · za shows"
 	}
 
 	return strconv.Itoa(len(s.Rows))
@@ -336,9 +336,9 @@ func (l *List) footerHints() []keyhint.Hint {
 	pairs := l.hints
 	if pairs == nil {
 		pairs = [][2]string{
-			{enterKey, "read"},
-			{spaceKey, "mark read"},
-			{"r", replyWord},
+			{enterKey, readTick},
+			{spaceKey, readTick},
+			{"i", replyWord},
 			{"R", "resolve"},
 			{"o", "GitHub"},
 			{tabKey, "group"},
@@ -395,12 +395,14 @@ func defaultListHelp() [][2]string {
 	return [][2]string{
 		{"j/k, ctrl+u/d, gg/G", "move, half page, top and bottom"},
 		{"ctrl+e/ctrl+y", "scroll without moving the cursor"},
-		{"1/2/3, ] / [", "the queue to read"},
 		{tabKey, "the next group"},
+		{"1/2/3, ]q/[q", "the queue to read"},
+		{"]u/[u", "the next or previous row needing a look"},
+		{"n/N", "the last motion again, or back"},
 		{"/", "narrow to the rows carrying a word; esc puts them back"},
 		{enterKey, "read the whole conversation, and mark it read"},
 		{spaceKey, "mark read without opening it"},
-		{"r", "reply, staged into the prepared review"},
+		{"i", "reply, staged into the prepared review"},
 		{"R", "resolve the thread, or thumbs-up what cannot be resolved"},
 		{"o", "open it on GitHub"},
 		{refreshKey, "read the queue again"},

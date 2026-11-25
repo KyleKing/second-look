@@ -299,9 +299,10 @@ func TestListAnswersAClick(t *testing.T) {
 
 // The cursor moves a row at a time, skipping headings, the quoted line under a
 // row, and the lines an expanded row adds, so one press never moves half a row.
-// A queue is triaged by jumping between what is still unread, so u lands on the
-// next unread row whatever stands between and wraps around the end, and U does
-// the same walking back. Expanding a row must not move the cursor off it, which
+// A queue is triaged by jumping between what is still unread, so ]u lands on
+// the next unread row whatever stands between and wraps around the end, [u
+// does the same walking back, and n and N repeat the motion either way.
+// Expanding a row must not move the cursor off it, which
 // is what happens if the lines an expansion adds are counted as rows.
 func TestListMotions(t *testing.T) {
 	t.Parallel()
@@ -319,10 +320,21 @@ func TestListMotions(t *testing.T) {
 			{key: press('k'), at: "T1"},
 			{key: press('k'), at: "T1"},
 		},
-		"u":        {{key: press('u'), at: "T2"}, {key: press('u'), at: "T1"}, {key: press('u'), at: "T2"}},
-		"U":        {{key: press('U'), at: "T2"}, {key: press('U'), at: "T1"}, {key: press('U'), at: "T2"}},
-		"expand":   {{key: enter, at: "T1", shows: quote}, {key: enter, at: "T1", hides: quote}},
-		"expanded": {{key: enter, at: "T1"}, {key: press('j'), at: "T2"}, {key: press('k'), at: "T1"}},
+		"]u": {
+			{key: press(']'), at: "T1"},
+			{key: press('u'), at: "T2"},
+			{key: press('n'), at: "T1"},
+			{key: press('n'), at: "T2"},
+		},
+		"[u": {
+			{key: press('['), at: "T1"},
+			{key: press('u'), at: "T2"},
+			{key: press('n'), at: "T1"},
+			{key: press('N'), at: "T2"},
+		},
+		"n before any motion": {{key: press('n'), at: "T2"}, {key: press('N'), at: "T1"}},
+		"expand":              {{key: enter, at: "T1", shows: quote}, {key: enter, at: "T1", hides: quote}},
+		"expanded":            {{key: enter, at: "T1"}, {key: press('j'), at: "T2"}, {key: press('k'), at: "T1"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

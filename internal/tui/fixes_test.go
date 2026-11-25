@@ -59,7 +59,7 @@ func todoModel(t *testing.T, h *handoffs, dispatch bool) (*tui.Model, *counter) 
 func TestSubmitAsksWhoGetsTheFixes(t *testing.T) {
 	t.Parallel()
 
-	prefix := "S r  1 todo  fixes go to  [l]ocal agent  [n]obody  [enter] "
+	prefix := "Pr  1 todo  fixes go to  [l]ocal agent  [n]obody  [enter] "
 
 	tests := []struct {
 		name    string
@@ -97,7 +97,7 @@ func TestSubmitAsksWhoGetsTheFixes(t *testing.T) {
 			h := &handoffs{}
 			m, sub := todoModel(t, h, !tc.noAgent)
 
-			press(t, m, key('S'))
+			press(t, m, key('P'))
 			press(t, m, key('r'))
 
 			for _, k := range tc.keys {
@@ -128,7 +128,7 @@ func requireFinding(t *testing.T, sets []string) {
 	}
 }
 
-// P on a todo reply stops at the same hand-off choice S does, and the reply
+// Pp on a todo reply stops at the same hand-off choice Pr does, and the reply
 // goes out on its own once it is made.
 func TestPostingOneTodoReplyAsksWhoGetsTheFix(t *testing.T) {
 	t.Parallel()
@@ -140,7 +140,7 @@ func TestPostingOneTodoReplyAsksWhoGetsTheFix(t *testing.T) {
 		sets   int
 		footer string
 	}{
-		{name: "asks", sent: 0, footer: "P  1 todo  fixes go to  [l]ocal agent  [n]obody"},
+		{name: "asks", sent: 0, footer: "Pp  1 todo  fixes go to  [l]ocal agent  [n]obody"},
 		{
 			name: "local hands the finding to the agent", keys: []tea.KeyPressMsg{key('l')},
 			sent: 1, sets: 1, footer: "posted reply-1500 · handed 1 todo to the local agent",
@@ -166,6 +166,7 @@ func TestPostingOneTodoReplyAsksWhoGetsTheFix(t *testing.T) {
 
 			go2(t, m, ']', 'c')
 			press(t, m, key('P'))
+			press(t, m, key('p'))
 
 			for _, k := range tc.keys {
 				press(t, m, k)

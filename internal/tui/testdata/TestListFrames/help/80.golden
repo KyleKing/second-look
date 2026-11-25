@@ -9,12 +9,12 @@ second-look                                                     sorted by triage
   kyleking/wavez#7      no, that one is per worker          4d                 
 
 
-── keys 16 of 16 ───────────────────────────────────────────────────────────────
+── keys 18 of 18 ───────────────────────────────────────────────────────────────
 ── conversations ───────────────────────────────────────────────────────────────
 ▌ j/k       move                                                                
   ctrl+u/d  half page                                                           
   gg/G      top and bottom                                                      
   ctrl+e    scroll without moving the cursor                                    
-  1/2/3     the queue to read · this screen holds one queue                     
+  tab       the next group                                                      
 a key explains itself · / filters         enter run  / filter  ↑↓ move  esc back
-enter read   space mark read   r reply   R resolve   o GitHub   ? help          
+enter read   space read   i reply   R resolve   o GitHub   tab group   ? help   

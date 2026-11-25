@@ -28,7 +28,7 @@ func TestARangeCoversEveryLineItWasOpenedOn(t *testing.T) {
 
 	last := m.CursorAnchor()
 
-	pressKey(t, m, 'a')
+	pressKey(t, m, 'i')
 	pressKey(t, m, 'm')
 	typeIn(t, m, "these three lines want one comment")
 	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
@@ -133,7 +133,7 @@ func toCode(tb testing.TB, m *tui.Model) {
 func write(tb testing.TB, m *tui.Model, body string) {
 	tb.Helper()
 
-	pressKey(tb, m, 'a')
+	pressKey(tb, m, 'i')
 	pressKey(tb, m, 'n')
 	typeIn(tb, m, body)
 	press(tb, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})

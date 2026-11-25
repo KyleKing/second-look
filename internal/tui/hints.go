@@ -76,9 +76,9 @@ const (
 
 func hintPriority(key string) int {
 	switch key {
-	case enterKey, "A", "M", "o", "?":
+	case enterKey, "Pa", "M", "o", "?":
 		return shedLast
-	case "C", "m", "l", "s", "/":
+	case "C", "l", "s", "/":
 		return shedFirst
 	}
 

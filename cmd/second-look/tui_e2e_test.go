@@ -455,14 +455,14 @@ func TestReviewScreenSubmits(t *testing.T) {
 
 	// A draft blocks the submit rather than posting or vanishing, and the screen
 	// jumps to it so the person rules on the one it stopped for.
-	sc.press("S")
+	sc.press("P")
 	sc.await("still draft")
 	sc.press("mr")
 	sc.await("is ready")
 
-	// Sa, Sr, and Sc each name what the review is posted as, and naming it is
+	// Pa, Pr, and Pc each name what the review is posted as, and naming it is
 	// the only way to post: there is no key for "send it as whatever it says".
-	sc.press("S")
+	sc.press("P")
 	sc.press("c")
 	sc.await("posted 4 comments")
 
@@ -517,7 +517,7 @@ func TestReviewScreenAsksWhoGetsATodoReplyFix(t *testing.T) {
 
 	sc := openReview(t, s, dir, "2")
 	sc.await("testdata/fixture/sample.go")
-	sc.press("S")
+	sc.press("P")
 	sc.press("c")
 	sc.await("fixes go to  [l]ocal agent  [n]obody")
 	sc.press("n")
@@ -1072,7 +1072,7 @@ func TestReviewScreenOrdersByThePullRequestsCommits(t *testing.T) {
 
 			sc := openReview(t, s, dir, "2")
 			sc.await("y/b.txt")
-			sc.press("i")
+			sc.press("gi")
 			sc.await(tc.expect)
 			sc.press("qq")
 

@@ -170,8 +170,8 @@ type handoff struct {
 var inboxHints = [][2]string{
 	{enterKey, "review"},
 	{"C", "check out"},
-	{"m", "comment"},
-	{"A", "approve"},
+	{"i", "comment"},
+	{"Pa", "approve"},
 	{"M", mergeVerb},
 	{"l", "labels"},
 	{"o", "GitHub"},
@@ -181,11 +181,11 @@ var inboxHints = [][2]string{
 var inboxHelp = helpFor(helpMove(), helpGroup(), [][2]string{
 	{enterKey, "open the review screen for it"},
 	{"C", "move a checkout onto it, asking before it stashes"},
-	{"m", "comment on the pull request itself, in $EDITOR"},
-	{"A", "approve it, A again to confirm"},
+	{"i", "comment on the pull request itself, in $EDITOR"},
+	{"Pa", "approve it, P a again to confirm"},
 	{"M", "merge it when it is ready to merge, M again to confirm"},
 	{"l", "pick labels for it from the repository's, enter adds or removes one"},
-	{"z", "show or hide the merged lane"},
+	{"za", "show or hide the merged lane"},
 	{"o", "open it on GitHub"},
 	{"s", "cycle to the next row order"},
 	{refreshKey, "run the searches again"},
@@ -227,7 +227,7 @@ func perform(ctx context.Context, h *handoff, stdin io.Reader, stdout io.Writer,
 		err = checkoutRef(ctx, h.at, stdin, stdout)
 	case tui.ActComment:
 		err = commentOn(ctx, h.at, stdout)
-	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
+	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActResolve,
 		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActMerge, tui.ActFold,
 		tui.ActScope, tui.ActClean, tui.ActCleanStale:
 		return false, nil
@@ -1302,7 +1302,7 @@ func (s *inboxScreen) act(a tui.Action, row *tui.Row) (string, bool, error) {
 		return "opened " + row.Key, false, nil
 	case tui.ActRefresh:
 		return "", false, nil
-	case tui.ActMark, tui.ActReply, tui.ActResolve, tui.ActDiscard, tui.ActClean,
+	case tui.ActMark, tui.ActResolve, tui.ActDiscard, tui.ActClean,
 		tui.ActCleanStale:
 		return "", false, errNotInInbox
 	case tui.ActFold, tui.ActScope:
@@ -1366,7 +1366,7 @@ func leaving(a tui.Action) string {
 		return "checking out"
 	case tui.ActComment:
 		return "commenting on"
-	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActReply, tui.ActResolve,
+	case tui.ActChoose, tui.ActMark, tui.ActBrowse, tui.ActResolve,
 		tui.ActRefresh, tui.ActApprove, tui.ActDiscard, tui.ActMerge, tui.ActFold,
 		tui.ActScope, tui.ActClean, tui.ActCleanStale:
 	}
@@ -1374,14 +1374,14 @@ func leaving(a tui.Action) string {
 	return "opening"
 }
 
-// approve takes the key twice. An approval is the one thing this screen sends
+// approve takes P a twice. An approval is the one thing this screen sends
 // that cannot be undone by deleting something, and it is a claim about a diff
 // that a queue row does not show.
 func (s *inboxScreen) approve(key string, at ref) (string, bool, error) {
 	if s.armed != "A "+key {
 		s.armed = "A " + key
 
-		return "A again to approve " + key, false, nil
+		return "Pa again to approve " + key, false, nil
 	}
 
 	s.armed = ""

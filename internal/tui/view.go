@@ -411,7 +411,7 @@ func (m *Model) hints() []keyhint.Hint {
 		return m.outlineHints()
 	}
 
-	view := keyhint.Hint{Key: "v", What: m.view.next().String(), Priority: shedFirst}
+	view := keyhint.Hint{Key: lookKey + lookKey, What: m.view.next().String(), Priority: shedFirst}
 	if m.view.next() == viewDiff {
 		view.What = "the diff"
 	}
@@ -422,21 +422,20 @@ func (m *Model) hints() []keyhint.Hint {
 		view,
 		{Key: "m", What: "mark", Priority: shedLater},
 		{Key: "e", What: m.writeWord(), Priority: shedLater},
-		{Key: "a", What: "add", Priority: shedLater},
-		{Key: "i", What: "info", Priority: shedFirst},
-		{Key: "S", What: "submit", Priority: shedLast},
+		{Key: "i", What: m.insertWord(), Priority: shedLater},
+		{Key: "P", What: publishWord, Priority: shedLast},
 		{Key: "?", What: "help", Priority: shedLast},
 		{Key: escKey, What: "queue", Priority: shedFirst},
 		{Key: "q", What: quitWord, Priority: shedLast},
 	}
 
 	if m.repoDir != "" {
-		at := slices.IndexFunc(out, func(h keyhint.Hint) bool { return h.Key == "S" })
-		out = slices.Insert(out, at, keyhint.Hint{Key: "B", What: "branches", Priority: shedFirst})
+		at := slices.IndexFunc(out, func(h keyhint.Hint) bool { return h.Key == "P" })
+		out = slices.Insert(out, at, keyhint.Hint{Key: "bb", What: "branches", Priority: shedFirst})
 	}
 
 	if m.agentStart != nil {
-		at := slices.IndexFunc(out, func(h keyhint.Hint) bool { return h.Key == "S" })
+		at := slices.IndexFunc(out, func(h keyhint.Hint) bool { return h.Key == "P" })
 		out = slices.Insert(out, at, keyhint.Hint{Key: "T", What: m.dispatchWord(), Priority: shedLater})
 	}
 
@@ -454,8 +453,9 @@ func (m *Model) hints() []keyhint.Hint {
 	return m.use.brighten(ctxReview, out)
 }
 
-// writeWord is what e does where the cursor is: answer a conversation, rewrite
-// a staged comment, or write the review's own prose.
+// writeWord is what e does where the cursor is: rewrite a staged comment, or
+// write the review's own prose. On a thread it still replies this release,
+// though i is the key that does.
 func (m *Model) writeWord() string {
 	switch {
 	case m.currentThread() >= 0:
@@ -467,8 +467,18 @@ func (m *Model) writeWord() string {
 	return "write"
 }
 
+// insertWord is what i does where the cursor is: reply on a thread, and
+// otherwise comment on the line.
+func (m *Model) insertWord() string {
+	if m.currentThread() >= 0 {
+		return replyWord
+	}
+
+	return commentWord
+}
+
 // canWrite reports whether e has anything to write here, which is everything
-// but a line of the diff: a new comment on one of those is a then a severity.
+// but a line of the diff: a new comment on one of those is i then a severity.
 func (m *Model) canWrite() bool {
 	return m.currentThread() >= 0 || m.current() != noComment
 }

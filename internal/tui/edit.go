@@ -116,7 +116,7 @@ func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.say("kept where you left it; "+reopens(done.msg)+" brings it back", false)
 
 		return m, nil
-	case refreshKey:
+	case putBackKey:
 		m.putBack()
 
 		return m, nil
@@ -175,14 +175,14 @@ func (m *Model) swapTheirs() {
 }
 
 // reopens names the key that offers a kept buffer back, since a comment that
-// does not exist yet is reached by a rather than by e, and a marker by F.
+// does not exist yet is reached by i rather than by e, and a marker by F.
 func reopens(msg editedMsg) string {
 	if msg.fresh != nil && msg.fresh.marker {
 		return "F"
 	}
 
 	if msg.fresh != nil {
-		return "a"
+		return "i"
 	}
 
 	return "e"

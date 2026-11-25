@@ -33,11 +33,11 @@ func queueTabs() []tui.Tab {
 	return []tui.Tab{{Name: wordInbox}, {Name: wordConversations}, {Name: wordStaged, Go: stagedGo}}
 }
 
-// stagedGo is the g chord's second keys on the staged tab: the cleanup `gc`
-// runs, split by whether reviews gone stale go with the finished ones.
+// stagedGo is the staged tab's palette commands: the cleanup :clean runs,
+// split by whether reviews gone stale go with the finished ones.
 var stagedGo = []tui.GoKey{
-	{Key: "c", What: "clean finished", Act: tui.ActClean},
-	{Key: "s", What: "clean stale too", Act: tui.ActCleanStale},
+	{Key: "clean", What: "clean finished reviews", Act: tui.ActClean},
+	{Key: "clean stale", What: "clean finished reviews and stale empties too", Act: tui.ActCleanStale},
 }
 
 // openQueue is the queue screen: three tabs over one cursor, one filter

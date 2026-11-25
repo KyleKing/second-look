@@ -30,7 +30,7 @@ func inboxRules() []coach.Rule[tui.QueueState] {
 // threadsRules point a conversation that moved at reading it.
 func threadsRules() []coach.Rule[tui.QueueState] {
 	return []coach.Rule[tui.QueueState]{{
-		ID: "threads.read", Action: enterKey, Key: enterKey, What: "read", Tone: coach.Next,
+		ID: "threads.read", Action: enterKey, Key: enterKey, What: readWord, Tone: coach.Next,
 		When: func(s tui.QueueState) bool { return s.RowUnread },
 		Say:  func(tui.QueueState) string { return "this conversation moved since you read it" },
 		Why:  func(tui.QueueState) string { return "space marks it read without opening it" },

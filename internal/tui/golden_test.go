@@ -38,19 +38,19 @@ func TestFrames(t *testing.T) {
 		{"comment", []tea.KeyPressMsg{{Code: tea.KeyTab}}},
 		{"help", []tea.KeyPressMsg{{Code: '?', Text: "?"}}},
 		{"confirm", []tea.KeyPressMsg{
-			{Code: 'm', Text: "m"}, {Code: 'x', Text: "x"}, {Code: 'S', Text: "S"},
+			{Code: 'm', Text: "m"}, {Code: 'x', Text: "x"}, {Code: 'P', Text: "P"},
 		}},
-		{"code", []tea.KeyPressMsg{{Code: 'v', Text: "v"}}},
-		{"split", []tea.KeyPressMsg{{Code: 'u', Text: "u"}, {Code: 'v', Text: "v"}}},
+		{"code", []tea.KeyPressMsg{{Code: '\\', Text: "\\"}, {Code: '\\', Text: "\\"}}},
+		{"split", []tea.KeyPressMsg{{Code: '\\', Text: "\\"}, {Code: 'p', Text: "p"}}},
 		{"plain", []tea.KeyPressMsg{
-			{Code: 'u', Text: "u"},
-			{Code: 'v', Text: "v"},
-			{Code: 'u', Text: "u"},
-			{Code: 'v', Text: "v"},
-			{Code: 'u', Text: "u"},
-			{Code: 'v', Text: "v"},
+			{Code: '\\', Text: "\\"},
+			{Code: 'p', Text: "p"},
+			{Code: '\\', Text: "\\"},
+			{Code: 'p', Text: "p"},
+			{Code: '\\', Text: "\\"},
+			{Code: 'p', Text: "p"},
 		}},
-		{"comments", []tea.KeyPressMsg{{Code: 'c', Text: "c"}}},
+		{"comments", []tea.KeyPressMsg{{Code: '\\', Text: "\\"}, {Code: 'c', Text: "c"}}},
 	}
 
 	for _, width := range []int{80, 120} {

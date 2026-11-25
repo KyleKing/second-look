@@ -61,9 +61,10 @@ func TestTheBigSwitchBuildsOffTheKeys(t *testing.T) {
 	_, cmd := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	drain(m, cmd)
 
-	// v asks for the code view, and on a diff this size the switch builds
+	// \\ asks for the code view, and on a diff this size the switch builds
 	// where a key cannot feel it.
-	_, cmd = m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
+	m.Update(tea.KeyPressMsg{Code: '\\', Text: "\\"})
+	_, cmd = m.Update(tea.KeyPressMsg{Code: '\\', Text: "\\"})
 
 	if !m.Building() {
 		t.Fatalf("the switch built where the key arrived:\n%s", plain(m.Frame()))
@@ -72,8 +73,9 @@ func TestTheBigSwitchBuildsOffTheKeys(t *testing.T) {
 		t.Fatalf("the wait was not named:\n%s", got)
 	}
 
-	// c asked while the build was reading the model waits for its settle and
+	// \c asked while the build was reading the model waits for its settle and
 	// is answered then, rather than mutating what it was reading.
+	m.Update(tea.KeyPressMsg{Code: '\\', Text: "\\"})
 	m.Update(tea.KeyPressMsg{Code: 'c', Text: "c"})
 	drain(m, cmd)
 

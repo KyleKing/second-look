@@ -50,21 +50,30 @@ type staging struct {
 // wrote is told apart from what an agent staged at a glance.
 const mine = "mine-"
 
-// askWrite opens the a chord. A review comment anchors to a line of the diff,
+// askWrite opens the i chord. A review comment anchors to a line of the diff,
 // and GitHub has no comment that is not on one, so standing on a file's own
 // heading opens the same chord against the file's first changed line rather
 // than refusing: that is the closest thing to "about the file" the forge
 // offers, and second-look names it that way in the title rather than
 // pretending it is about line one.
-func (m *Model) askWrite() {
-	if !m.onCode() && !m.onFileHead() {
-		m.say("a writes a comment on a line of the diff, or on a file's heading, and this row is not one", false)
-
-		return
+//
+// On a thread it replies instead, since one key writes whatever prose belongs
+// at the cursor: a comment on a line, a reply on a conversation.
+func (m *Model) askWrite() tea.Cmd {
+	if m.currentThread() >= 0 {
+		return m.edit()
 	}
 
-	m.pending = 'a'
-	m.say(m.chord("a", severities()), false)
+	if !m.onCode() && !m.onFileHead() {
+		m.say("i comments on a line or a file's heading, or replies on a thread; this row is none of them", false)
+
+		return nil
+	}
+
+	m.pending = 'i'
+	m.say(m.chord("i", severities()), false)
+
+	return nil
 }
 
 // onFileHead reports whether the cursor rests on a file's own heading inside
@@ -97,7 +106,7 @@ func (m *Model) firstCodeOf(path string) (diff.Line, bool) {
 	return diff.Line{}, false
 }
 
-// writeAs answers the second key of the a chord and opens the editor on the
+// writeAs answers the second key of the i chord and opens the editor on the
 // line the cursor is standing on, or the file's first changed line where the
 // cursor stood on its heading instead.
 func (m *Model) writeAs(msg tea.KeyPressMsg) tea.Cmd {

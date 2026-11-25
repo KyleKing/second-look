@@ -21,4 +21,4 @@ vcs ─────────────────────────�
                                                                                ┃
                                                                                ┃
                                                                                ┃
- esc back   j/k line   ] go to   v the diff   S submit   ? help   q quit
+ esc back   j/k line   ] go to   \\ the diff   P publish   ? help   q quit

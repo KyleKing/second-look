@@ -489,12 +489,12 @@ func TestInboxScreenApprovesOnTheSecondPress(t *testing.T) {
 	sc.press("/aragonite#100")
 	sc.press("\r")
 
-	sc.press("A")
-	sc.await("A again to approve")
+	sc.press("Pa")
+	sc.await("again to approve")
 
 	// The footer clips to the frame, so what it says is checked short and the
 	// cassette is what proves the request went out.
-	sc.press("A")
+	sc.press("Pa")
 	sc.await("approved")
 
 	sc.press("q")
@@ -622,7 +622,7 @@ func TestInboxScreenCommentsThroughTheEditor(t *testing.T) {
 
 	from := sc.mark()
 
-	sc.press("m")
+	sc.press("i")
 	back := sc.awaitFrom(from, "commented on kyleking/aragonite#100")
 
 	// The redraw rewrites only changed digits, so the header count never appears

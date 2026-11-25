@@ -14,7 +14,7 @@
    commits to read by          │  11 +     waitLock()                                                                                                      │ core                                     
    [p] plain  [I] outline      │       ╭─ ⤷ @watch-doggo · unresolved · 1 comment ────────────────────────────────── route.go:11 ─╮                        │ ◆ agent                                  
                                │       │   waitLock has no timeout.                                                               │                        │ part of locking                          
-                               │       ╰─ r[e]ply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ──────────────╯                        │                                          
+                               │       ╰─ [i] reply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ────────────╯                        │                                          
                                │                                                                                                                           │ next: the lock's caller                  
                                │  12       done()                                                                                                          │                                          
                                │                                                                                                                           │                                          
@@ -57,4 +57,4 @@
                                │                                                                                                                           │                                          
                                │                                                                                                                           │                                          
                                │                                                                                                                           │                                          
-   ▸ next  3 hunks not yet read · ]u next unread  ] go to   m mark   e write   a add   S submit   ? help   q quit
+   ▸ next  3 hunks not yet read · ]u next unread  ] go to   m mark   e write   i comment   P publish   ? help   q quit

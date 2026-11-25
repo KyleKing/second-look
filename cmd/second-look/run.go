@@ -87,7 +87,9 @@ const (
 // The keys named in more than one screen's legend, so the three cannot drift.
 const (
 	enterKey   = "enter"
-	refreshKey = "ctrl+r"
+	refreshKey = "ctrl+l"
+	// What enter and the space tick do to a queue row.
+	readWord = "read"
 )
 
 // The keys all three list screens share. They are one tui.List, so a reader
@@ -96,8 +98,10 @@ func helpMove() [][2]string {
 	return [][2]string{
 		{"j/k, ctrl+u/d, gg/G", "move, half page, top and bottom"},
 		{"ctrl+e/ctrl+y", "scroll without moving the cursor"},
-		{"u/U", "the next and previous row that still needs a look"},
-		{"1/2/3, ] / [", "the queue to read: the inbox, the conversations, what is staged here"},
+		{"]u/[u", "the next and previous row that still needs a look"},
+		{"n/N", "the last ]/[ motion again, or back"},
+		{"1/2/3, ]q/[q", "the queue to read: the inbox, the conversations, what is staged here"},
+		{"Y", "yank the row's reference, owner/repo#number"},
 	}
 }
 

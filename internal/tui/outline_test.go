@@ -72,6 +72,7 @@ func TestTheOutlineLeavesForTheViews(t *testing.T) {
 		t.Fatalf("the big change did not open on its outline:\n%s", got)
 	}
 
+	pressKey(t, m, '\\')
 	pressKey(t, m, 't')
 
 	got := plain(m.Frame())
@@ -83,6 +84,7 @@ func TestTheOutlineLeavesForTheViews(t *testing.T) {
 	}
 
 	pressKey(t, m, 'I')
+	pressKey(t, m, '\\')
 	pressKey(t, m, 'c')
 
 	if got = plain(m.Frame()); !strings.Contains(got, "no comments staged") {

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/key"
@@ -10,7 +9,7 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/kyleking/aragonite/tui/coach"
 	"github.com/kyleking/aragonite/tui/frame"
-	"github.com/kyleking/aragonite/tui/keyhint"
+	"github.com/kyleking/aragonite/tui/keys"
 	"github.com/kyleking/aragonite/tui/palette"
 	"github.com/kyleking/aragonite/tui/table"
 
@@ -85,19 +84,18 @@ const (
 	ActMark
 	// ActBrowse is o: open the row on GitHub.
 	ActBrowse
-	// ActReply is r: answer the conversation under the cursor.
-	ActReply
 	// ActResolve is R: mark the conversation dealt with.
 	ActResolve
-	// ActRefresh is ctrl+r: read the queue again.
+	// ActRefresh is ctrl+l: read the queue again.
 	ActRefresh
 	// ActCheckout is C: move a working copy onto the row's pull request.
 	ActCheckout
-	// ActComment is m: say something on the pull request itself, outside any
+	// ActComment is i, the family's insert: write prose on the row, a reply to
+	// the conversation or a comment on the pull request itself, outside any
 	// review.
 	ActComment
-	// ActApprove is A: approve the row's pull request. The caller decides what
-	// ceremony that takes, since this screen sends nothing itself.
+	// ActApprove is P then a: approve the row's pull request. The caller
+	// decides what ceremony that takes, since this screen sends nothing itself.
 	ActApprove
 	// ActDiscard is d: throw the row's local state away. The screen asks
 	// nothing first, so a caller that cannot undo it confirms its own way.
@@ -105,21 +103,21 @@ const (
 	// ActMerge is M: merge the row's pull request. The caller decides what
 	// ceremony that takes.
 	ActMerge
-	// ActFold is z: show or hide the section the caller keeps folded.
+	// ActFold is z then a: show or hide the section the caller keeps folded.
 	ActFold
 	// ActScope is w: narrow the queue to the work organizations, then to
 	// everything else, then back to all of it.
 	ActScope
-	// ActClean is g then c: drop local state the queue no longer needs. The
-	// action is the queue's, so the row an Act is passed may be nil.
+	// ActClean is the :clean command: drop local state the queue no longer
+	// needs. The action is the queue's, so the row an Act is passed may be nil.
 	ActClean
-	// ActCleanStale is g then s: the same clean, also dropping what has sat
+	// ActCleanStale is :clean stale: the same clean, also dropping what has sat
 	// untouched.
 	ActCleanStale
 )
 
-// GoKey is one second key a tab's g chord answers; a second g is the top and
-// needs no entry.
+// GoKey is one command a tab offers in its palette, run by name (":clean")
+// rather than by a key, since g is where things are rather than verbs.
 type GoKey struct {
 	Key  string
 	What string
@@ -132,48 +130,40 @@ type GoKey struct {
 type Act func(a Action, r *Row) (status string, done bool, err error)
 
 // listKeys are the keys a list screen adds to the shared movement keys. The
-// letters are the first letter of the verb, and none is chorded except the
-// refresh, because a queue is read far more often than it is re-read. The g
-// chord is handleKey's, where the review screen keeps its own.
+// letters are the first letter of the verb where the family leaves one free,
+// and the family's own where it has one: i writes prose, P publishes, ctrl+l
+// reloads. The chords (g, ], [, z, P) are dispatch's, where the review screen
+// keeps its own.
 type listKeys struct {
 	Mark     key.Binding
 	Browse   key.Binding
-	Reply    key.Binding
+	Insert   key.Binding
 	Resolve  key.Binding
 	Refresh  key.Binding
 	Section  key.Binding
 	Checkout key.Binding
-	Comment  key.Binding
-	Approve  key.Binding
 	Discard  key.Binding
-	Fold     key.Binding
 	Focus    key.Binding
 	Unfocus  key.Binding
-	Unread   key.Binding
-	UnreadUp key.Binding
 	Scope    key.Binding
+	Yank     key.Binding
 }
 
 func defaultListKeys() listKeys {
 	return listKeys{
-		Mark:    key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, "read")),
+		Mark:    key.NewBinding(key.WithKeys(spaceKey), key.WithHelp(spaceKey, readTick)),
 		Browse:  key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "on GitHub")),
-		Reply:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reply")),
+		Insert:  key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "reply or comment")),
 		Resolve: key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "resolve")),
-		Refresh: key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "refresh")),
+		Refresh: key.NewBinding(key.WithKeys(refreshKey), key.WithHelp(refreshKey, "refresh")),
 		Section: key.NewBinding(key.WithKeys(tabKey), key.WithHelp(tabKey, "next group")),
-		// C matches the review screen's own checkout key, and m and A are the
-		// first letter of the verb rather than gh-dash's, since c is taken.
+		// C matches the review screen's own checkout key.
 		Checkout: key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "check out")),
-		Comment:  key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "comment")),
-		Approve:  key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "approve")),
 		Discard:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "discard")),
-		Fold:     key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "merged")),
 		Focus:    key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "focus")),
 		Unfocus:  key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "every repository")),
-		Unread:   key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "next unread")),
-		UnreadUp: key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "last unread")),
 		Scope:    key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "work, personal, all")),
+		Yank:     key.NewBinding(key.WithKeys("Y"), key.WithHelp("Y", "yank the row's reference")),
 	}
 }
 
@@ -248,11 +238,13 @@ type List struct {
 	// in as its searches answer keeps the cursor at the top, since a row that
 	// arrives above the cursor should not leave it in the middle of the list.
 	touched bool
-	// pending is the g waiting on the key that finishes its chord, and goes is
-	// the second keys the current tab declared for it.
+	// pending is the prefix waiting on the key that finishes its chord, and
+	// goes is the palette commands the current tab declared.
 	pending rune
-	use     *fresher
-	goes    []GoKey
+	// motion is the last ]/[ object, which n and N repeat.
+	motion string
+	use    *fresher
+	goes   []GoKey
 
 	// held is a refreshed order waiting on the keyboard. baseline is the rows as
 	// last drawn and shifts the ones the last refresh moved.
@@ -268,7 +260,10 @@ type List struct {
 	flashGen int
 	armed    bool
 
-	keys   keyMap
+	keys keyMap
+	// km is the list's keys merged with the family's, which a moved key's
+	// notice is read from.
+	km     *keys.Keymap
 	list   listKeys
 	styles styles
 
@@ -649,14 +644,15 @@ func (l *List) dispatch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if l.pending != 0 {
-		return l.completeGo(msg)
+		return l.completeChord(msg)
 	}
 
-	// g opens the list's one chord: another g is the top, and the second keys
-	// the tab declared. The chord, not the jump, is what a bare g now says.
-	if msg.String() == "g" {
-		l.pending = 'g'
-		l.say(l.goCaption(), false)
+	// The list's chords: g where things are, ] and [ the next and previous
+	// of an object, z the folds, and P what leaves the machine. Each waits
+	// for its second key and says what it takes; none acts alone.
+	if prefix, ok := listPrefix(msg.String()); ok {
+		l.pending = prefix
+		l.say(chordCaption(prefix), false)
 
 		return l, nil
 	}
@@ -694,17 +690,31 @@ func (l *List) dispatch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return l, cmd
 	}
 
-	// A screen that fills in as its searches answer re-runs them itself, since
-	// the row under the cursor has nothing to do with reading the queue again.
-	if l.loader != nil && key.Matches(msg, l.list.Refresh) {
-		l.armed = true
-		cmd := l.loader.Start()
-		l.status, l.failed = "", false
-
+	if cmd, ok := l.screenKey(msg); ok {
 		return l, cmd
 	}
 
 	return l.perform(msg)
+}
+
+// screenKey answers the keys that act on the queue rather than the row: n and
+// N, a moved key's notice, the yank, and a refresh the loader runs itself.
+func (l *List) screenKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
+	switch {
+	case key.Matches(msg, l.keys.Again):
+		return l.repeat(1), true
+	case key.Matches(msg, l.keys.Reverse):
+		return l.repeat(-1), true
+	case key.Matches(msg, l.list.Yank):
+		return l.yank(), true
+	case l.loader != nil && key.Matches(msg, l.list.Refresh):
+		// A screen that fills in as its searches answer re-runs them itself,
+		// since the row under the cursor has nothing to do with reading the
+		// queue again.
+		return l.reload(), true
+	}
+
+	return l.movedKey(msg)
 }
 
 // perform runs an action on the row under the cursor. A key pressed on a
@@ -746,15 +756,11 @@ func (l *List) perform(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		{l.keys.Accept, ActChoose},
 		{l.list.Mark, ActMark},
 		{l.list.Browse, ActBrowse},
-		{l.list.Reply, ActReply},
+		{l.list.Insert, ActComment},
 		{l.list.Resolve, ActResolve},
 		{l.list.Refresh, ActRefresh},
 		{l.list.Checkout, ActCheckout},
-		{l.list.Comment, ActComment},
-		{l.list.Approve, ActApprove},
 		{l.list.Discard, ActDiscard},
-
-		{l.list.Fold, ActFold},
 		{l.list.Scope, ActScope},
 		{l.keys.Merge, ActMerge},
 	} {
@@ -764,62 +770,6 @@ func (l *List) perform(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return l, nil
-}
-
-// completeGo answers the g chord's second key: itself for the top, one the
-// tab declared, and anything else a cancel that says what the chord takes.
-func (l *List) completeGo(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	l.pending = 0
-
-	if key.Matches(msg, l.keys.Quit) {
-		l.say("", false)
-
-		return l, nil
-	}
-
-	if msg.String() == "g" {
-		l.to(0)
-		l.touched = true
-
-		cmd := l.rest()
-
-		return l, cmd
-	}
-
-	for _, o := range l.goes {
-		if o.Key == msg.String() {
-			return l.run(o.Act, l.current())
-		}
-	}
-
-	l.say("no go for "+msg.String()+"; "+l.goObjects(), false)
-
-	return l, nil
-}
-
-// goObjects is what the chord accepts, as the words a refusal repeats.
-func (l *List) goObjects() string {
-	var b strings.Builder
-
-	b.WriteString("g top")
-
-	for _, o := range l.goes {
-		b.WriteString(", " + o.Key + " " + o.What)
-	}
-
-	return b.String()
-}
-
-// goCaption is the same answer drawn as keyhints while the chord waits.
-func (l *List) goCaption() string {
-	hints := make([][2]string, 0, len(l.goes)+1)
-	hints = append(hints, [2]string{"g", topWord})
-
-	for _, o := range l.goes {
-		hints = append(hints, [2]string{o.Key, o.What})
-	}
-
-	return "g" + keyhint.Gap + keyhint.Line(keyhint.Styles{}, asHints(hints))
 }
 
 func (l *List) run(a Action, row *Row) (tea.Model, tea.Cmd) {
@@ -1107,10 +1057,6 @@ func (l *List) moved(msg tea.KeyPressMsg) bool {
 		l.to(len(l.lines) - 1)
 	case key.Matches(msg, l.list.Section):
 		l.nextSection()
-	case key.Matches(msg, l.list.Unread):
-		l.nextUnread(1)
-	case key.Matches(msg, l.list.UnreadUp):
-		l.nextUnread(-1)
 	default:
 		return false
 	}
@@ -1135,7 +1081,7 @@ func (l *List) leave(msg tea.KeyPressMsg) tea.Cmd {
 
 func heading(s *Section) string {
 	if s.Fold {
-		return s.Name + " (" + strconv.Itoa(len(s.Rows)) + ", z shows them)"
+		return s.Name + " (" + strconv.Itoa(len(s.Rows)) + ", za shows them)"
 	}
 
 	if s.Note != "" {

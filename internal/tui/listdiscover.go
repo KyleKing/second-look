@@ -26,11 +26,14 @@ type QueueState struct {
 }
 
 // The queue's row keys, which a gate refuses where the cursor is on no row.
-var rowKeys = []string{enterKey, spaceKey, "o", "r", "R", "C", "m", "A", "d", "M", "l", "z", "w"}
+var rowKeys = []string{enterKey, spaceKey, "o", "i", "R", "C", "P", "Pa", "d", "M", "l", "Y"}
 
-// Unread is the key that walks to the next row still needing a look, which the
-// queue's generic rule names.
-const unreadKey = "u"
+// unreadKey is the motion that walks to the next row still needing a look,
+// which the queue's generic rule names, and unreadAction how it is replayed.
+const (
+	unreadKey    = "]u"
+	unreadAction = "] u"
+)
 
 // WithLedger is where the queue's coach and welcome card remember what they
 // have shown, shared with the review screen under the same program name.
@@ -49,7 +52,7 @@ func (l *List) discover() {
 	l.welcome.OpenIfDue(l.ledger)
 
 	rules := []coach.Rule[QueueState]{{
-		ID: "queue.unread", Action: unreadKey, Key: unreadKey, What: "next unread", Tone: coach.Next,
+		ID: "queue.unread", Action: unreadAction, Key: unreadKey, What: "next unread", Tone: coach.Next,
 		When: func(s QueueState) bool { return s.Unread > 0 && !s.RowUnread },
 		Say: func(s QueueState) string {
 			if s.Unread == 1 {
@@ -79,7 +82,7 @@ func (l *List) discover() {
 func queueTips() []coach.Suggestion {
 	return []coach.Suggestion{
 		{ID: "queue.tip.palette", Action: paletteKey, Key: paletteKey, Say: "finds any command by name and runs it"},
-		{ID: "queue.tip.unread", Action: unreadKey, Key: unreadKey, Say: "jumps to the next row you have not read"},
+		{ID: "queue.tip.unread", Action: unreadAction, Key: unreadKey, Say: "jumps to the next row you have not read"},
 		{ID: "queue.tip.focus", Action: "f", Key: "f", Say: "reads one repository across all three queues"},
 		{ID: "queue.tip.filter", Action: "/", Key: "/", Say: "narrows the rows to the ones carrying a word"},
 	}
@@ -143,7 +146,7 @@ func (l *List) screenGate(k string) (keys.Availability, bool) {
 	switch {
 	case l.current() == nil && slices.Contains(rowKeys, k):
 		return keys.Refuse("no row under the cursor; j/k moves to one"), true
-	case len(l.tabs) < several && slices.Contains([]string{"]", "[", "1", "2", "3"}, k):
+	case len(l.tabs) < several && slices.Contains([]string{"]q", "[q", "]q/[q", "1", "2", "3", "1/2/3"}, k):
 		return keys.Refuse("this screen holds one queue"), true
 	case k == "l" && l.labeled == nil:
 		return keys.Refuse("this queue's rows carry no labels"), true
@@ -247,6 +250,7 @@ func legendRows(help [][2]string) []keyhint.Hint {
 func (l *List) paletteEntries(mode palette.Mode) []palette.Entry {
 	es := palette.FromLegend(l.legend())
 	if mode == palette.Run {
+		es = append(es, l.commands()...)
 		es = append(es,
 			palette.Entry{Action: cmdTipsOff, What: "stop tips about keys not yet used", Group: screenGroup},
 			palette.Entry{Action: cmdTipsOn, What: "show tips about keys not yet used", Group: screenGroup},
@@ -267,6 +271,10 @@ func (l *List) openPalette(mode palette.Mode) {
 // legend row's keys replayed as if typed, which keeps a palette run and a key
 // press one code path.
 func (l *List) runPalette(run palette.RunMsg) tea.Cmd {
+	if cmd, ok := l.runCommand(run.Action); ok {
+		return cmd
+	}
+
 	switch run.Action {
 	case cmdTipsOff, cmdTipsOn:
 		l.ledger.SetTipsOff(run.Action == cmdTipsOff)
