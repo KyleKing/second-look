@@ -1,3 +1,9 @@
+## v0.60.4 (2026-11-25)
+
+### Fix
+
+- **test**: wait on every command drive runs instead of dropping slow ones
+
 ## v0.60.3 (2026-11-25)
 
 ### Fix
