@@ -515,10 +515,12 @@ func hunkRow(d *diff.Diff, lay layout, at hunkAt, span [2]int) (*row, bool) {
 			why += "  "
 		}
 
-		return &row{
-			kind: rowHunk, text: spanWord(span) + why + "[za] open",
+		r := keyed(row{
+			kind: rowHunk, text: spanWord(span) + why,
 			path: at.path, comment: noComment, hunk: at.hunk, folded: true,
-		}, true
+		}, openVerb)
+
+		return &r, true
 	}
 
 	// The row stays whatever it has to say, being what ]h and ]u walk and what

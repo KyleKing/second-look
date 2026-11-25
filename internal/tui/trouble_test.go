@@ -281,7 +281,8 @@ func cursorLines(m *tui.Model) []cursorLine {
 	var out []cursorLine
 
 	for i, line := range strings.Split(m.Frame(), "\n") {
-		if strings.Contains(line, on) {
+		// A card's row draws no band, so its cursor is the bar alone.
+		if strings.Contains(line, on) || strings.HasPrefix(strings.TrimLeft(plain(line), " "), "▌") {
 			out = append(out, cursorLine{at: i, text: plain(line)})
 		}
 	}
@@ -326,7 +327,7 @@ func TestGoLabelsTheNamesAndPeeksAtTheOneChosen(t *testing.T) {
 		{
 			"definition", 'd', diag.Definitions,
 			diag.Jump{Name: "split", At: []diag.Site{{Path: "io/read.go", Line: 4}}},
-			[]string{"⇢ split · io/read.go:4", "› 4  func split(r io.Reader)", "[enter] open · [j/k] · [esc] close"},
+			[]string{"⇢ split · io/read.go:4", "› 4  func split(r io.Reader)", "enter open · j/k · esc close"},
 		},
 		{
 			"references", 'r', diag.References,

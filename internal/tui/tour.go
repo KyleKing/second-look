@@ -251,7 +251,8 @@ func (m *Model) railLines(h int) []string {
 		line("▲ "+plural(n, "plan problem")+" · i", m.styles.warn.Render)
 	}
 
-	line("[p] plain  [I] outline", m.styles.note.Render)
+	line(bareLine(m.styles, [][2]string{{keyOf(m.keys.Tour), "plain"}, {keyOf(m.keys.Outline), "outline"}}),
+		func(s ...string) string { return strings.Join(s, "") })
 
 	return m.divided(block(out, h, w+1), true)
 }

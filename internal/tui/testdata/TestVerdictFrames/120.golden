@@ -10,11 +10,11 @@
          │   wrap the error with the path                                                           │
          │   ⤶ ◆ the agent · ◑ todo · question                                                      │
          │     will fix: wrap it with the path.                                                     │
-         ╰─ [i] reply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ────────────╯
+         ╰─ i reply · r ready · t todo · x skip · R resolve · , react · za fold ────────────────────╯
    
     16 +     if err != nil {                                                                                          
     17       last := 4                                                                                                
-  ▌      ╶─ ⤷ @bot-b · unresolved · 1 comment · no verdict · 2 lines ─╴                                               
+  ▌      ╶─ ⤷ @bot-b · unresolved · 1 comment · no verdict · 2 lines ─╴
        internal/vcs/git.go                                                                                            
          func Head() string { ────────────────────────────────────────────────────────────────────────────────────────
    201       return head                                                                                              

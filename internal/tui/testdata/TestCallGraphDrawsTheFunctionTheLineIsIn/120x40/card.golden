@@ -7,15 +7,15 @@
     14       first := 1                                                                                               
     15 +     lines, err := split(r)                                                                                   
          ╭─ ⇢ calls · Parse · internal/vcs/diff.go:12 ────────────────────── 2 callers · 7 callees ─╮
-  ▌      │                                ┌── ›split        internal/vcs/diff.go:40                 │                 
+  ▌      │                                ┌── ›split        internal/vcs/diff.go:40                 │
          │                                ├──  Join ×2      strings                                 │
          │  Load       ──┬──▸ Parse ✎ ◆ ──┼──  backoff      internal/vcs/diff.go:60                 │
          │  Run ×3     ──┘                ├──  fetch        internal/vcs/diff.go:70                 │
          │                                └──  ↓ 3 more     pages, warn, inc                        │
-         ╰─ [j/k] node · [h/l] side · [za] call sites · [enter] open · [gc] center · [ctrl+o] back ─╯
+         ╰─ j/k node · h/l side · za call sites · enter open · gc center · ctrl+o back ─────────────╯
          ╭─ ⤷ @doggo · unresolved · 1 comment ───────────────────────────────────────── diff.go:15 ─╮
          │   wrap the error                                                                         │
-         ╰─ [i] reply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ────────────╯
+         ╰─ i reply · r ready · t todo · x skip · R resolve · , react · za fold ────────────────────╯
    
     16 +     if err != nil {                                                                                          
     17       last := 4                                                                                                

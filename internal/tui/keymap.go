@@ -24,6 +24,7 @@ const (
 	quitWord    = "quit"
 	replyWord   = "reply"
 	editWord    = "edit"
+	backWord    = "back"
 	commentWord = "comment"
 	refreshKey  = "ctrl+l"
 	// The old refresh, which answers with where it went for one release.

@@ -289,10 +289,10 @@ func prose(index int, title, text string, kind rowKind, avail int, lay layout) [
 	// starts closed, the way a comment's note does not.
 	lines := wrap(text, avail)
 	if !lay.fold.notes.shownFrom(index, index == reviewBody) {
-		head.text = fmt.Sprintf("%s  %s  [za] read", title, plural(len(lines), "line"))
+		head.text = fmt.Sprintf("%s  %s  ", title, plural(len(lines), "line"))
 		head.folded = true
 
-		return []row{head}
+		return []row{keyed(head, readTick)}
 	}
 
 	rows := make([]row, 0, len(lines)+1)
@@ -355,17 +355,17 @@ func skipRows(r *artifact.Review, on []int, a anchor, path string, lay layout, n
 
 	head := row{kind: rowBlank, path: path, comment: noComment, skips: a}
 	if !lay.fold.skips[a] {
-		return []row{head, {
+		return []row{head, keyed(row{
 			kind: rowComment, path: path, comment: on[0], head: true, folded: true, skips: a,
-			text: plural(len(on), "comment") + " skipped here  [za] read",
+			text: plural(len(on), "comment") + " skipped here  ",
 			role: foldRole(lay.width),
-		}}
+		}, readTick)}
 	}
 
-	rows := []row{head, {
+	rows := []row{head, keyed(row{
 		kind: rowComment, path: path, comment: on[0], head: true, skips: a,
-		text: plural(len(on), "comment") + " skipped here  [za] fold",
-	}}
+		text: plural(len(on), "comment") + " skipped here  ",
+	}, foldVerb)}
 
 	for _, c := range on {
 		rows = append(rows, commentRows(&r.Comments[c], c, path, lay, numWidth, inRun{})...)
@@ -526,10 +526,10 @@ func noteRows(note string, index int, path string, avail int, lay layout) []row 
 
 	lines := wrap(note, avail-len(noteLabel))
 	if !lay.fold.notes.shown(index) {
-		return []row{{
+		return []row{keyed(row{
 			kind: rowNote, path: path, comment: index, folded: true,
-			text: noteLabel + plural(len(lines), "line") + "  [za] read",
-		}}
+			text: noteLabel + plural(len(lines), "line") + "  ",
+		}, readTick)}
 	}
 
 	rows := make([]row, 0, len(lines))
@@ -578,10 +578,10 @@ func turnRows(c *artifact.Comment, index int, path string, avail int, lay layout
 	}
 
 	if lay.fold.turns[index] {
-		rows := []row{{
+		rows := []row{keyed(row{
 			kind: rowTurn, path: path, comment: index,
-			text: turnLabel + plural(len(c.Turns), "turn") + "  [za] fold",
-		}}
+			text: turnLabel + plural(len(c.Turns), "turn") + "  ",
+		}, foldVerb)}
 
 		for i := range c.Turns {
 			rows = append(rows, turnLines(&c.Turns[i], index, path, avail, 0)...)
@@ -590,7 +590,7 @@ func turnRows(c *artifact.Comment, index int, path string, avail int, lay layout
 		return rows
 	}
 
-	head := row{kind: rowTurn, path: path, comment: index, folded: true, text: turnLabel + turnHead(c)}
+	head := keyed(row{kind: rowTurn, path: path, comment: index, folded: true, text: turnLabel + turnHead(c)}, readTick)
 	rows := []row{head}
 
 	at := len(c.Turns) - 1
@@ -607,10 +607,10 @@ func turnHead(c *artifact.Comment) string {
 	const drawn = 2
 
 	if n := len(c.Turns) - drawn; n > 0 {
-		return fmt.Sprintf("%s · %s earlier  [za] read", plural(len(c.Turns), "turn"), plural(n, "turn"))
+		return fmt.Sprintf("%s · %s earlier  ", plural(len(c.Turns), "turn"), plural(n, "turn"))
 	}
 
-	return plural(len(c.Turns), "turn") + "  [za] read"
+	return plural(len(c.Turns), "turn") + "  "
 }
 
 // turnLines is one turn under its author, trimmed to at most keep lines, where

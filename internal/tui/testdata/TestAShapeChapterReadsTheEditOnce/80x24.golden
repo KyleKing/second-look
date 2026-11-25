@@ -2,7 +2,7 @@
 jj-diff#42                            7 files · +9 −6   read 0 of 7 hunks     2%
 same edit ×6 ─●─────────────────────────────────────────────────  (root) ─────  
                                                                                ┃
-▌⇢ the same edit in 6 files  6 files · 6 hunks · shape  [za] raw               ┃
+▌⇢ the same edit in 6 files  6 files · 6 hunks · shape  za raw                 ┃
      Shape · 6 files · cards/CardA.tsx                                         ┃
      cards/CardA.tsx  +1 -1                                                    ┃
        export function CardA() { ──────────────────────────────────────────────┃
@@ -10,7 +10,7 @@ same edit ×6 ─●────────────────────
    3 +   const id = useVendorId()                                              ┃
    4     return <CardABody id={id} />                                          ┃
                                                                                ┃
-     Files · 6 in cards/ · 4 exact, 2 more  [space] read                       ┃
+     Files · 6 in cards/ · 4 exact, 2 more  space read                         ┃
        CardA.tsx  1 hunk  +1 −1  exact                                         │
        CardB.tsx  1 hunk  +1 −1  exact                                         │
        CardC.tsx  1 hunk  +1 −1  exact                                         ▍

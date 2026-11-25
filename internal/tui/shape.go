@@ -259,6 +259,7 @@ func (s screen) appendShape(dst []row, p *plan.Pattern, c fileCtx) []row {
 	files := label(fmt.Sprintf("Files · %d%s · %d exact, %d more",
 		len(p.Members), in, p.Exactly(), len(p.Members)-p.Exactly()))
 	files.refs = exactRefs(p)
+	files = spanned(files, chunk{text: files.text}, muted("  "), hintSpan(spaceKey, readTick))
 	rows = append(rows, row{kind: rowBlank, comment: noComment}, files)
 
 	col := 0
@@ -519,8 +520,6 @@ func hitRows(p *plan.Pattern, looks []lookup, found map[string]headHits, label f
 
 func (m *Model) shapeRow(r row) (string, lipgloss.Style) {
 	switch {
-	case r.head && len(r.refs) > 0:
-		return "    " + r.text + "  [space] read", m.styles.head
 	case r.head:
 		return "    " + r.text, m.styles.head
 	case len(r.refs) > 0:

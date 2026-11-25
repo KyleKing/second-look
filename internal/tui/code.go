@@ -195,7 +195,8 @@ func (screen) hunkHead(p string, hunk int, shut bool, c codeCtx) row {
 		if why := c.lay.mech[hunkAt{p, hunk}]; why != "" {
 			head.text += "  " + why
 		}
-		head.text += "  [za] open"
+		head.text += "  "
+		head = keyed(head, openVerb)
 	}
 
 	return head
@@ -225,10 +226,10 @@ func (s screen) removed(run []diff.Line, p string, hunk int, c codeCtx) []row {
 			claim(c.byLine, c.placed, p, ln)
 		}
 
-		head.text += "  [za] read"
+		head.text += "  "
 		head.folded = true
 
-		return []row{head}
+		return []row{keyed(head, readTick)}
 	}
 
 	rows := make([]row, 0, len(run)+1)

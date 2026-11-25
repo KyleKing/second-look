@@ -9,13 +9,13 @@
          ╭─ ◐ draft · question ────────────────────────│   ctrl+e/y   scroll a line                                  │
          │ Is first still 1 after the change?          │   gg/G       the ends                                       │
          │ note  Unverified: I have not read the caller│   n/N        the same, or back                              │
-         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] s│   ctrl+o/i   back and forward through jumps                 │
+         ╰─ e edit · mr ready · md draft · mt todo · mx│   ctrl+o/i   back and forward through jumps                 │
                                                        │   .          the last change                                │
     15 +     lines, err := split(r)                    │   tab        what wants a decision                          │
                                                        │   shift+tab  and back                                       │
          ╭─ ● ready · major ───────────────────────────│   /          search                                         │
          │ split can fail now, so this has to check err│ ── moving · j/k  a line ─────────────────────────────────── │
-         ╰─ [e]dit · [r]eady · [d]raft · [t]odo · [x] s│ shift+up/down do the same                                   │
+         ╰─ e edit · mr ready · md draft · mt todo · mx│ shift+up/down do the same                                   │
                                                        │ tab goes forward too once ctrl+o has left a place ahead     │
     16 +     if err != nil {                           │ tab in the prompt narrows a search to hunks not yet read    │
     17       last := 4                                 │                                                             │

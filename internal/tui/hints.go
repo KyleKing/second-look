@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"charm.land/bubbles/v2/key"
+	"charm.land/lipgloss/v2"
 	"github.com/kyleking/aragonite/tui/keyhint"
 	"github.com/kyleking/aragonite/tui/overlay"
 )
@@ -48,6 +50,36 @@ func asHints(hints [][2]string) []keyhint.Hint {
 	return out
 }
 
+// keyOf is the key a binding answers as a hint spells it, so a hint read from
+// the keymap follows a rebind or a move.
+func keyOf(b key.Binding) string { return b.Help().Key }
+
+// chip draws one hint bare, the key and then its word, with the cell between
+// them drawn in gap: keyhint leaves that cell unstyled, which shows as a hole
+// wherever the hint sits on a fill or band of its own.
+func chip(s keyhint.Styles, h keyhint.Hint, gap lipgloss.Style) string {
+	switch {
+	case h.Off:
+		return s.Off.Render(h.Key + " " + h.What)
+	case h.What == "":
+		return s.Key.Render(h.Key)
+	}
+
+	return s.Key.Render(h.Key) + gap.Render(" ") + s.Text.Render(h.What)
+}
+
+// promptKeys are the keys a one-line prompt names after its input, drawn the
+// way the footer draws its keys.
+func promptKeys(s styles, hints [][2]string) string {
+	return "  " + bareLine(s, hints)
+}
+
+// bareLine is a short run of keys drawn the way the footer draws its keys,
+// two cells apart where the footer leaves three.
+func bareLine(s styles, hints [][2]string) string {
+	return keyhint.Line(keyhint.Styles{Key: s.hintKey, Text: s.hintWord, Bare: true, Gap: "  "}, asHints(hints))
+}
+
 // hintLine spells keys as unstyled text for a status message, bracketed the way
 // the footer brackets them.
 func hintLine(hints [][2]string) string {
@@ -74,8 +106,8 @@ const (
 	shedLast
 )
 
-func hintPriority(key string) int {
-	switch key {
+func hintPriority(k string) int {
+	switch k {
 	case enterKey, "Pa", "M", "o", "?":
 		return shedLast
 	case "C", "l", "s", "/":

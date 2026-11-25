@@ -200,7 +200,7 @@ func labeledWord(name string, on bool) string {
 
 func (p *labelPicker) prompt(s styles, width int) string {
 	head := s.key.Render("l") + s.footer.Render(" "+p.at.Repo+"#"+strconv.Itoa(p.at.Number)+" ")
-	tail := s.footer.Render("  [enter] toggle  [esc] done")
+	tail := promptKeys(s, [][2]string{{enterKey, "toggle"}, {escKey, "done"}})
 
 	return cut(head+p.input.View()+tail, width)
 }

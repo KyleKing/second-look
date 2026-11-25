@@ -16,7 +16,7 @@
     11 +     waitLock()                                                                                                                   
          ╭─ ⤷ @watch-doggo · unresolved · 1 comment ────────────────────────────────── route.go:11 ─╮
          │   waitLock has no timeout.                                                               │
-         ╰─ [i] reply · [r]eady · [t]odo · [x] skip · [R]esolve · [,] react · [za] fold ────────────╯
+         ╰─ i reply · r ready · t todo · x skip · R resolve · , react · za fold ────────────────────╯
    
     12       done()                                                                                                                       
    
@@ -25,8 +25,8 @@
      1   func route() {                                                                                                                   
      2 +     serve(12)                                                                                                                    
    
-   § gen  1 file · 1 hunk  [za] raw
-       gen/client.go  1 hunk  [za] raw ───────────────────────────────────────────────────────────────────────────────────────────────────
+   § gen  1 file · 1 hunk  za raw
+       gen/client.go  1 hunk  za raw ─────────────────────────────────────────────────────────────────────────────────────────────────────
   
   
   

@@ -470,5 +470,5 @@ func (m *Model) answerLines() []string {
 		}
 	}
 
-	return append(out, "", m.styles.footer.Render("  [any key] back"))
+	return append(out, "", promptKeys(m.styles, [][2]string{{"any key", backWord}}))
 }

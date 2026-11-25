@@ -79,7 +79,7 @@ func (m *Model) questionPrompt() string {
 	s := m.drafting.span
 	where := rangeWord(s.Path, firstOf(s.StartLine, s.Line), s.Line)
 	head := m.styles.key.Render("A") + m.styles.footer.Render(" "+where+" › ")
-	tail := m.styles.footer.Render("  [enter] ask  [esc] drop")
+	tail := promptKeys(m.styles, [][2]string{{enterKey, "send"}, {escKey, "drop"}})
 
 	return cut(head+m.drafting.input.View()+tail, m.width)
 }

@@ -398,7 +398,7 @@ func (m *Model) prompt() string {
 	}
 
 	head := m.styles.key.Render("/") + m.styles.footer.Render(scope+" ")
-	tail := m.styles.footer.Render("  [tab] scope")
+	tail := promptKeys(m.styles, [][2]string{{tabKey, "scope"}})
 
 	return cut(head+m.search.input.View()+tail, m.width)
 }
@@ -421,12 +421,18 @@ func (m *Model) hints() []keyhint.Hint {
 		{Key: "]", What: "go to", Priority: shedLater},
 		view,
 		{Key: "m", What: "mark", Priority: shedLater},
-		{Key: "e", What: m.writeWord(), Priority: shedLater},
-		{Key: "i", What: m.insertWord(), Priority: shedLater},
+		{Key: keyOf(m.keys.Edit), What: m.writeWord(), Priority: shedLater},
+		{Key: keyOf(m.keys.Write), What: m.insertWord(), Priority: shedLater},
 		{Key: "P", What: publishWord, Priority: shedLast},
 		{Key: "?", What: "help", Priority: shedLast},
 		{Key: escKey, What: "queue", Priority: shedFirst},
 		{Key: "q", What: quitWord, Priority: shedLast},
+	}
+
+	// On a thread e only says that replying moved to i this release, so the
+	// footer offers i alone there.
+	if m.currentThread() >= 0 {
+		out = slices.DeleteFunc(out, func(h keyhint.Hint) bool { return h.Key == keyOf(m.keys.Edit) })
 	}
 
 	if m.repoDir != "" {
@@ -441,7 +447,7 @@ func (m *Model) hints() []keyhint.Hint {
 
 	if m.view == viewFile {
 		out = slices.DeleteFunc(out, func(h keyhint.Hint) bool { return h.Key == escKey })
-		out = append([]keyhint.Hint{{Key: escKey, What: "back", Priority: shedLast}}, out...)
+		out = append([]keyhint.Hint{{Key: escKey, What: backWord, Priority: shedLast}}, out...)
 	}
 
 	for i := range out {
@@ -676,6 +682,11 @@ func (m *Model) renderRow(i, width int) []string {
 // covered range's, or none.
 func (m *Model) tinted(i int, line string, width int) string {
 	switch {
+	// A card's row draws its own ground and lights its edge for the cursor, so
+	// a band would show only in the cells beside it, an empty lit strip in the
+	// gutter and the margin. The bar alone marks the row.
+	case m.screen.rows[i].role != 0:
+		return line
 	case i == m.cursor:
 		return frame.Lit(line, width, m.styles.row)
 	case m.inRange(i):

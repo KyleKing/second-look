@@ -74,7 +74,7 @@ func graphKeys() [][2]string {
 		{"za", "call sites"},
 		{enterKey, openVerb},
 		{"gc", "center"},
-		{"ctrl+o", "back"},
+		{"ctrl+o", backWord},
 	}
 }
 

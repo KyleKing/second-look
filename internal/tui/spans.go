@@ -42,7 +42,7 @@ func hintSpan(key, what string) chunk { return chunk{text: what, face: faceHint,
 
 func (s chunk) plain() string {
 	if s.face == faceHint {
-		return "[" + s.key + "] " + s.text
+		return s.key + " " + s.text
 	}
 
 	return s.text
@@ -127,7 +127,9 @@ func (m *Model) spanLine(r row, lead string, base lipgloss.Style, width int, dim
 				break
 			}
 
-			b.WriteString(keyhint.One(m.hintFaces(), keyhint.Hint{Key: s.key, What: s.text}))
+			f := m.hintFaces()
+			f.Key, f.Text = paint(f.Key), paint(f.Text)
+			b.WriteString(chip(f, keyhint.Hint{Key: s.key, What: s.text}, paint(lipgloss.NewStyle())))
 			used += textWidth(s.plain())
 
 			continue
@@ -147,15 +149,63 @@ func (m *Model) spanLine(r row, lead string, base lipgloss.Style, width int, dim
 	switch {
 	case band && width > used:
 		b.WriteString(base.Render(strings.Repeat(" ", max(0, width-used))))
-	case r.kind == rowFile:
+	case r.kind == rowFile, r.kind == rowHunk && r.hunk > 0:
 		b.WriteString(m.rule(used, width))
 	}
 
 	return b.String()
 }
 
+// foldKeys is the za that opens or closes a folded row.
+const foldKeys = "za"
+
+// keyed is r with za and what it does there drawn after its text, the way the
+// footer draws its keys, while its text still reads end to end for search.
+func keyed(r row, what string) row {
+	return spanned(r, chunk{text: r.text}, hintSpan(foldKeys, what))
+}
+
+// spanText draws a row's pieces in face, its keys in the hint faces, each
+// passed through ground, cut to width. A key that does not fit is dropped
+// whole, because half a key reads as a different key.
+func (m *Model) spanText(r row, face lipgloss.Style, width int, ground func(lipgloss.Style) lipgloss.Style) string {
+	if len(r.spans) == 0 {
+		return ground(face).Render(cut(r.text, width))
+	}
+
+	var b strings.Builder
+
+	used := 0
+
+	for _, s := range r.spans {
+		room := width - used
+		if room <= 0 {
+			break
+		}
+
+		if s.face == faceHint {
+			if textWidth(s.plain()) > room {
+				break
+			}
+
+			f := m.hintFaces()
+			f.Key, f.Text = ground(f.Key), ground(f.Text)
+			b.WriteString(chip(f, keyhint.Hint{Key: s.key, What: s.text}, ground(lipgloss.NewStyle())))
+			used += textWidth(s.plain())
+
+			continue
+		}
+
+		piece := cut(s.text, room)
+		b.WriteString(ground(face).Render(piece))
+		used += textWidth(piece)
+	}
+
+	return b.String()
+}
+
 func (m *Model) hintFaces() keyhint.Styles {
-	return keyhint.Styles{Key: m.styles.key, Text: m.styles.footer}
+	return keyhint.Styles{Key: m.styles.hintKey, Text: m.styles.hintWord, Bare: true}
 }
 
 // rule is the line out to the frame's edge after a heading that has spent used cells.

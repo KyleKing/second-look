@@ -7,7 +7,7 @@
          line 14  func Parse(r io.Reader) ([]Hunk, error) { ──────────────────────────────────────────────────────────
     14       first := 1                                                                                               
          ╶─ ◐ draft · question · 1 line ─╴
-       ▁ 1 line removed  [za] read
+       ▁ 1 line removed  za read
     15 +     lines, err := split(r)                                                                                   
          ╶─ ● ready · major · 1 line ─╴
     16 +     if err != nil {                                                                                          

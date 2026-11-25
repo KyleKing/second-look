@@ -976,7 +976,7 @@ func checkAHintIsDrawnWholeOrNotAtAll(t *testing.T) {
 	r := row{spans: []chunk{hintSpan("z", "fold")}}
 	fits := textWidth("lead ") + textWidth(hintSpan("z", "fold").plain())
 
-	if got := xansi.Strip(m.spanLine(r, "lead ", m.styles.body, fits, false)); got != "lead [z] fold" {
+	if got := xansi.Strip(m.spanLine(r, "lead ", m.styles.body, fits, false)); got != "lead z fold" {
 		t.Errorf("a hint with exactly its room drew %q", got)
 	}
 
