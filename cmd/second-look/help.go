@@ -148,9 +148,10 @@ NAMING A PULL REQUEST
       i on an open thread writes the answer to it. e edits what is already
       there: a staged comment, and the review's own body and note, which are
       rows the cursor lands on. Both open an editor in the frame, over the
-      block being written, so the line being answered stays on screen: ctrl+s
-      saves, esc abandons, and ctrl+e hands what is typed to $EDITOR for the
-      edits a text box is the wrong shape for.
+      block being written, so the line being answered stays on screen: enter
+      saves, ctrl+j or alt+enter starts a new line, esc leaves with what is
+      typed kept, and ctrl+e hands it to $EDITOR for the edits a text box is
+      the wrong shape for. Saving stages a draft; nothing is sent until P.
 
       \ opens the page of what is shown: \t the threads, \c the comments,
       \g \s \w \i the grammar, side by side, wrap, and images, \p the next

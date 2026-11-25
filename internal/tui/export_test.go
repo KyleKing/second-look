@@ -444,3 +444,6 @@ func Recurs(msg tea.Msg) bool {
 
 	return false
 }
+
+// Editing reports whether the comment editor is open.
+func (m *Model) Editing() bool { return m.editing != nil }

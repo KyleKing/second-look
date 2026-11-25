@@ -33,7 +33,7 @@ The inbox is ordered to keep the amount of work in progress small. Your own pull
 
 If you don't write a reply, your agent drafts one that fits the verdict, and you can edit it before anything is posted. A bot that fixes on a label or a mention needs no setting here: `l` labels the pull request from the repository's own labels, and `@` in a reply completes the bots and people seen on its recent pull requests. Once the fixes are pushed, the pull request moves back into your inbox and `H` shows which of the todos the new commits addressed.
 
-`i` on a line asks for the severity (`b` blocker, `m` major, `n` minor, `t` nit, `?` question) and opens the comment in place, where `ctrl+s` keeps it. `P` is the publish page: it names what is still a draft before anything goes, and `Pr` requests changes and asks who gets the todos.
+`i` on a line asks for the severity (`b` blocker, `m` major, `n` minor, `t` nit, `?` question) and opens the comment in place, where `enter` saves it, `ctrl+j` (or `alt+enter`) starts a new line, and `esc` leaves with what you typed kept for next time. Every text field in second-look, jojo, and jj-diff takes enter to submit, and saving here only stages a draft: nothing is sent until `P`. `P` is the publish page: it names what is still a draft before anything goes, and `Pr` requests changes and asks who gets the todos.
 
 ![Judging a bot's finding as a todo with the reply drafted, commenting on a line with a severity, and publishing with request changes](docs/images/judge.gif)
 

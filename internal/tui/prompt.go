@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 )
@@ -20,11 +21,14 @@ func newPrompt() textinput.Model {
 }
 
 // newArea is the comment editor's text area, its cursor held still as newPrompt's is.
+// Enter is the editor's to save with, as it submits every other prompt in the
+// family, so a new line is ctrl+j or alt+enter.
 func newArea() textarea.Model {
 	area := textarea.New()
 	area.Prompt = ""
 	area.ShowLineNumbers = false
 	area.SetVirtualCursor(true)
+	area.KeyMap.InsertNewline = key.NewBinding(key.WithKeys(newlineKeys...), key.WithHelp(newlineKey, "new line"))
 
 	s := area.Styles()
 	s.Cursor.Blink = false
@@ -32,3 +36,11 @@ func newArea() textarea.Model {
 
 	return area
 }
+
+// newlineKey is the key a text field names for a new line, and newlineKeys
+// every key that inserts one: ctrl+j, which every terminal sends as a line
+// feed, and alt+enter, which jojo's describe already takes.
+const newlineKey = "ctrl+j"
+
+//nolint:gochecknoglobals // a constant list, which Go cannot spell as a const
+var newlineKeys = []string{newlineKey, "alt+enter"}

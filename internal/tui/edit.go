@@ -97,8 +97,11 @@ func (m *Model) toHead() {
 	}
 }
 
-// The editor takes every key but three: ctrl+s saves, esc abandons what was
-// typed, and ctrl+e hands the buffer to $EDITOR rather than starting over in it.
+// The editor takes every key but three: enter saves, as it submits every
+// prompt in the family (ctrl+j and alt+enter are the new line; ctrl+s, the
+// save key until 0.61, still saves without saying so), esc leaves with what
+// was typed kept, and ctrl+e hands the buffer to $EDITOR rather than starting
+// over in it.
 func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case escKey:
@@ -128,7 +131,7 @@ func (m *Model) typeBody(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.suggestWord()
 
 		return m, nil
-	case "ctrl+s":
+	case enterKey, "ctrl+s":
 		done := m.editing
 		m.editing = nil
 		out := done.msg
@@ -316,7 +319,7 @@ func (m *Model) editorLines() []string {
 		out = append(out, frame.Render(gutter+"┃ ")+cut(line, m.diffWidth()))
 	}
 
-	keys := "┗ ctrl+s save · esc keep · ctrl+e $EDITOR · ctrl+n complete"
+	keys := "┗ enter save · " + newlineKey + " new line · esc cancel · ctrl+e $EDITOR · ctrl+n complete"
 	if m.editing.restored {
 		keys += " · ctrl+r drop restored"
 	}

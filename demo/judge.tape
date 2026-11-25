@@ -31,7 +31,7 @@ Sleep 1s
 Type "t"
 Sleep 2200ms
 
-# i on a line, then the severity, opens a comment in place; ctrl+s keeps it.
+# i on a line, then the severity, opens a comment in place; enter keeps it.
 Type@70ms "jjjjjjjjjj"
 Sleep 600ms
 Type "i"
@@ -40,7 +40,7 @@ Type "n"
 Sleep 600ms
 Type@45ms "Name the line here too."
 Sleep 700ms
-Ctrl+S
+Enter
 Sleep 1300ms
 
 # P is the publish page. A draft still waits, so the page goes to it first.

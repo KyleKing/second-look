@@ -33,7 +33,7 @@ func TestSuggestOpensTheLineAndFencesTheAnswer(t *testing.T) {
 	}
 
 	press(t, m, tea.KeyPressMsg{Code: '!', Text: "!"})
-	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	r, err := artifact.Load(path)
 	if err != nil {

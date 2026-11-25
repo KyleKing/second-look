@@ -31,7 +31,7 @@ func TestARangeCoversEveryLineItWasOpenedOn(t *testing.T) {
 	pressKey(t, m, 'i')
 	pressKey(t, m, 'm')
 	typeIn(t, m, "these three lines want one comment")
-	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	saved := reviewAt(t, path)
 	if len(saved.Comments) != 1 {
@@ -136,5 +136,5 @@ func write(tb testing.TB, m *tui.Model, body string) {
 	pressKey(tb, m, 'i')
 	pressKey(tb, m, 'n')
 	typeIn(tb, m, body)
-	press(tb, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(tb, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 }

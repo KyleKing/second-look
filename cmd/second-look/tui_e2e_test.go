@@ -615,7 +615,7 @@ func TestReviewScreenRepliesToAnOpenThread(t *testing.T) {
 	sc.press("]t")
 	sc.await("unresolved")
 	sc.press("e")
-	sc.await("ctrl+s save")
+	sc.await("enter save")
 	sc.press("\x05")
 	sc.await("keys go to it")
 	sc.press("Answered from the review screen.")

@@ -2367,7 +2367,7 @@ func TestMarkerWritesATODOIntoTheSource(t *testing.T) {
 		press(t, m, tea.KeyPressMsg{Code: c, Text: string(c)})
 	}
 
-	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	body, err := os.ReadFile(filepath.Join(dir, "diff.go")) //nolint:gosec // the file this test wrote
 	if err != nil {
@@ -2564,7 +2564,7 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 	frame := plain(m.Frame())
-	if !strings.Contains(frame, "editing c1") || !strings.Contains(frame, "ctrl+s save") {
+	if !strings.Contains(frame, "editing c1") || !strings.Contains(frame, "enter save") {
 		t.Fatalf("the editor is not in the frame:\n%s", frame)
 	}
 
@@ -2573,7 +2573,7 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 	}
 
 	typeIn(t, m, ", it can fail")
-	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	saved, err := artifact.Load(path)
 	if err != nil {
@@ -2589,7 +2589,7 @@ func TestEditingHappensInTheFrame(t *testing.T) {
 	press(t, m, tea.KeyPressMsg{Code: 'G', Text: "G"})
 	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 	typeIn(t, m, "Read it twice.")
-	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if saved = reviewAt(t, path); saved.Body != "Read it twice." {
 		t.Errorf("review body = %q", saved.Body)
@@ -2643,7 +2643,7 @@ func TestWritingANewCommentOnTheLineUnderTheCursor(t *testing.T) {
 	}
 
 	typeIn(t, m, "this can fail")
-	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	saved := reviewAt(t, path)
 	if len(saved.Comments) != 1 {
@@ -2678,7 +2678,7 @@ func TestSavingAnEditMakesADraftReady(t *testing.T) {
 	go2(t, m, ']', 'c')
 	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 	typeIn(t, m, ", it can fail")
-	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if got := reviewAt(t, path).Comments[0]; got.Status != artifact.StatusReady || got.Origin != artifact.OriginMe {
 		t.Errorf("the edited draft is %q by %q, want ready by me", got.Status, got.Origin)
@@ -2689,7 +2689,7 @@ func TestSavingAnEditMakesADraftReady(t *testing.T) {
 	go2(t, m, ']', 'c')
 	press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 	typeIn(t, m, " at all")
-	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if got := reviewAt(t, path).Comments[1].Status; got != artifact.StatusSkip {
 		t.Errorf("the edited skip is %q, want skip", got)
@@ -2748,7 +2748,7 @@ func TestAnUnfinishedEditIsKeptAndOfferedBack(t *testing.T) {
 
 	// Saving takes the buffer, so there is nothing left to offer.
 	typeIn(t, m, " first")
-	press(t, m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if _, err := os.Stat(artifact.DraftPath(store, "body-c1")); !os.IsNotExist(err) {
 		t.Errorf("the buffer outlived the save that consumed it")
@@ -2791,7 +2791,7 @@ func TestReplyingToAnOpenThread(t *testing.T) {
 
 	press(t, m2, tea.KeyPressMsg{Code: 'i', Text: "i"})
 	typeIn(t, m2, "yes, os.ReadFile answers a nil-safe error")
-	press(t, m2, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	press(t, m2, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	saved, err := artifact.Load(path)
 	if err != nil {
@@ -2993,7 +2993,7 @@ func TestReplyKeepsTheThreadOnScreen(t *testing.T) {
 			press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
 			frame := plain(m.Frame())
-			if !strings.Contains(frame, "ctrl+s save") {
+			if !strings.Contains(frame, "enter save") {
 				t.Fatalf("the editor left the frame:\n%s", frame)
 			}
 
@@ -3946,7 +3946,7 @@ func TestTheEndOfAReviewHasRoomBelowIt(t *testing.T) {
 			// The editor opens on the note, which is the last row of all.
 			press(t, m, tea.KeyPressMsg{Code: 'e', Text: "e"})
 
-			if frame := plain(m.Frame()); !strings.Contains(frame, "ctrl+s save") {
+			if frame := plain(m.Frame()); !strings.Contains(frame, "enter save") {
 				t.Errorf("the editor on the last row is off the frame:\n%s", frame)
 			}
 		})
