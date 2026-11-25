@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -158,6 +159,12 @@ func TestSharedMarks_ReadInJojoOpenRead(t *testing.T) {
 			if _, err := fmt.Sscanf(readLine(plain(m.Frame())), "read %d of %d hunks", &read, &total); err != nil ||
 				read != total {
 				t.Fatalf("hunks jojo marked read do not open read (%d of %d):\n%s", read, total, plain(m.Frame()))
+			}
+
+			// The store does not record which tool made a mark, so the screen names
+			// both rather than crediting the one that may not have (N7).
+			if f := plain(m.Frame()); !strings.Contains(f, "already read in jojo or jj-diff") {
+				t.Errorf("the imported marks are not credited to jojo or jj-diff:\n%s", f)
 			}
 
 			press(t, m, tea.KeyPressMsg{Code: ']', Text: "]"})

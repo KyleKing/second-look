@@ -67,7 +67,7 @@ func (m *Model) applyShared(msg sharedMsg) {
 	}
 
 	if msg.err != nil {
-		m.say("reading jojo's read marks: "+msg.err.Error(), true)
+		m.say("reading the read marks jojo and jj-diff share: "+msg.err.Error(), true)
 
 		return
 	}
@@ -89,9 +89,9 @@ func (m *Model) takeShared(s Sharer) int {
 
 	switch {
 	case err != nil:
-		m.say("reading jojo's read marks: "+err.Error(), true)
+		m.say("reading the read marks jojo and jj-diff share: "+err.Error(), true)
 	case n > 0:
-		m.say(humanize.Plural(n, "hunk")+" marked read in jojo", false)
+		m.say(humanize.Plural(n, "hunk")+" already read in jojo or jj-diff", false)
 	}
 
 	return n
@@ -136,8 +136,8 @@ func (m *Model) reimport(exported error) {
 
 	switch {
 	case exported != nil:
-		m.say("writing read marks for jojo: "+exported.Error(), true)
+		m.say("writing the read marks jojo and jj-diff share: "+exported.Error(), true)
 	case err != nil:
-		m.say("reading jojo's read marks: "+err.Error(), true)
+		m.say("reading the read marks jojo and jj-diff share: "+err.Error(), true)
 	}
 }

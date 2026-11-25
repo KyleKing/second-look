@@ -2157,7 +2157,7 @@ func rounds(t get.Target) tui.Rounds {
 	}
 }
 
-// sharedReader finds jojo's read marks for the jj changes a pull request's head
+// sharedReader finds the read marks jojo and jj-diff share for the jj changes a pull request's head
 // spans in the checkout, if it is a jj repository holding that head: the pull
 // request keeps its own marks, and these are read in beside them and written
 // back as they change. Without a checkout there is nothing to look in.

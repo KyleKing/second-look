@@ -187,7 +187,7 @@ func share(ctx context.Context, root string, jj bool, mode Mode, changes []jjsee
 
 	marks, err := jjseen.Open(root, changes)
 	if err != nil {
-		return nil, fmt.Errorf("opening jojo's read marks: %w", err)
+		return nil, fmt.Errorf("opening the read marks jojo and jj-diff share: %w", err)
 	}
 
 	return marks, nil
