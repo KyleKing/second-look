@@ -56,7 +56,7 @@ status = "draft"
 // The clone list C picks from adds this directory when it is a clone the
 // dashboard's scan does not reach, and puts the sitting's own claim first
 // since it is already held.
-func TestCloneCandidatesMergesThisDirectoryAndOwnsTheClaim(t *testing.T) { //nolint:paralleltest // leaseHome sets HOME
+func TestCloneCandidatesMergesThisDirectoryAndOwnsTheClaim(t *testing.T) {
 	leaseHome(t)
 
 	dir, _ := scratchRepo(t, "main")
