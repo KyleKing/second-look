@@ -482,9 +482,8 @@ func (tc *rooting) check(t *testing.T) {
 }
 
 // A caller standing in the checkout names it ".", and a relative root walks to
-// nothing and is sent to a server as a directory it cannot resolve.
-//
-//nolint:paralleltest // it changes the working directory, which every test shares
+// nothing and is sent to a server as a directory it cannot resolve. It is not parallel: it changes
+// the working directory, which every test shares.
 func TestNotesRootsAServerFromARelativeCheckout(t *testing.T) {
 	checkout := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(checkout, "pkg"), 0o750); err != nil {

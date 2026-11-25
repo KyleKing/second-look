@@ -551,20 +551,23 @@ func (l *List) mouse(msg tea.MouseMsg) tea.Cmd {
 
 // wheel moves the cursor, and nothing while the palette is up.
 func (l *List) wheel(msg tea.MouseWheelMsg) tea.Cmd {
-	step := 0
+	var step int
 
 	switch msg.Button {
 	case tea.MouseWheelUp:
 		step = -wheelStep
 	case tea.MouseWheelDown:
 		step = wheelStep
+	default:
+		// A sideways wheel or a numbered button has no row to move to.
+		return nil
 	}
 
 	if l.pal.IsOpen() {
 		return nil
 	}
 
-	if step == 0 || l.labeler != nil || l.filter.typing {
+	if l.labeler != nil || l.filter.typing {
 		return nil
 	}
 

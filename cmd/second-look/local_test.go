@@ -58,9 +58,8 @@ func TestLocalFlags(t *testing.T) {
 }
 
 // A run with no terminal prints the diff itself: the same patch the screen
-// would draw, writing nothing.
-//
-//nolint:paralleltest // the command reads "." so the test moves the process's directory
+// would draw, writing nothing. It is not parallel: the command reads ".", so the test moves the
+// process's directory.
 func TestLocalPipe(t *testing.T) {
 	dir, _ := scratchRepo(t, "main")
 
