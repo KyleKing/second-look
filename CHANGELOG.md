@@ -1,3 +1,9 @@
+## v0.59.1 (2026-11-25)
+
+### Fix
+
+- **deps**: update to my_go_template v0.24.3
+
 ## v0.59.0 (2026-11-25)
 
 ### Feat
