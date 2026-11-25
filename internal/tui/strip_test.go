@@ -10,6 +10,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/kyleking/second-look/internal/artifact"
+	"github.com/kyleking/second-look/internal/order"
+	"github.com/kyleking/second-look/internal/plan"
 	"github.com/kyleking/second-look/internal/tui"
 )
 
@@ -310,6 +313,54 @@ func TestTheStripMarksTheCursorAtEveryWidth(t *testing.T) {
 				if line := headerLine(m); !strings.Contains(line, "●") {
 					t.Errorf("no mark after moving: %q", line)
 				}
+			}
+		})
+	}
+}
+
+// TestTheStripTellsAShapeFromACommit is the dogfood report's four entries for three revisions: the
+// same edit in seven files, gathered out of one commit, was named for that commit first, and cut to
+// sixteen columns it read as the commit again. It is named for the edit at every width.
+func TestTheStripTellsAShapeFromACommit(t *testing.T) {
+	t.Parallel()
+
+	const files = 7
+
+	var b strings.Builder
+
+	knob := make([]order.Ref, 0, files)
+
+	for i := range files {
+		fmt.Fprintf(&b, "diff --git a/cache/f%[1]d.go b/cache/f%[1]d.go\n--- a/cache/f%[1]d.go\n"+
+			"+++ b/cache/f%[1]d.go\n@@ -1,2 +1,3 @@\n package cache\n+// TTL knob added\n \n", i)
+		knob = append(knob, order.Ref{Path: fmt.Sprintf("cache/f%d.go", i)})
+	}
+
+	b.WriteString("diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n" +
+		"@@ -1 +1,2 @@\n # cache\n+docs\n")
+
+	list := []plan.Commit{
+		{ID: "a1", Subject: "feat(cache): ttl knob", Hunks: knob},
+		{ID: "b2", Subject: "docs: readme", Hunks: []order.Ref{{Path: "README.md"}}},
+	}
+
+	for _, width := range []int{100, 140} {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			t.Parallel()
+
+			m, _, _ := modelFor(t, &artifact.Review{
+				Version: artifact.SchemaVersion, Owner: "kyleking", Repo: "jj-diff", Number: 42,
+				HeadSHA: "a1b2c3d", Event: artifact.EventComment,
+			}, b.String(), tui.WithCommits(list, ""))
+			m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
+
+			line := headerLine(m)
+			if !strings.Contains(line, "same edit ×7") {
+				t.Fatalf("the strip does not name the shape for its edit: %q", line)
+			}
+
+			if n := strings.Count(line, "feat(cache)"); n > 1 {
+				t.Errorf("the strip names the commit %d times: %q", n, line)
 			}
 		})
 	}

@@ -456,7 +456,7 @@ func (m *Model) tourStrip(room int) string {
 	for k, g := range m.screen.groups {
 		label := strconv.Itoa(g.stop)
 		if g.stop == 0 {
-			label = fitName(g.name, names, labelCols)
+			label = fitName(stripName(g), names, labelCols)
 		}
 
 		cs[k] = cluster{label: label, width: textWidth(label), segs: []seg{{
@@ -483,6 +483,17 @@ func span(at, lo, hi int) float64 {
 	}
 
 	return float64(min(max(at, lo), hi)-lo) / float64(hi-lo)
+}
+
+// stripName is what the strip calls a group. A shape gathered out of a commit is named for the
+// commit first, which the strip cut to the same words as the commit's own segment, so it read as one
+// more commit: there it is named for the edit it repeats.
+func stripName(g planGroup) string {
+	if g.mode == plan.ModeShape && g.files > 0 {
+		return fmt.Sprintf("same edit ×%d", g.files)
+	}
+
+	return g.name
 }
 
 func (m *Model) groupNames() []string {
