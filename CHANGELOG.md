@@ -1,3 +1,13 @@
+## v0.59.0 (2026-11-25)
+
+### Feat
+
+- share read marks with jojo and jj-diff by jj change id
+
+### Fix
+
+- **tui**: name a shape gathered out of a commit for its edit on the strip
+
 ## v0.58.1 (2026-11-24)
 
 ### Fix
